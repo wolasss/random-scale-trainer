@@ -206,6 +206,9 @@ h2 {
 
 .now-playing {
   margin-top: 1rem;
+  width: 320px;
+  max-width: 100%;
+  margin-inline: auto;
   padding: 1.2rem;
   border-radius: 18px;
   background:
@@ -214,18 +217,11 @@ h2 {
   border: 1px solid rgba(174, 236, 255, 0.2);
   text-align: center;
   min-height: 120px;
-
-  .ready {
-    display: inline-flex;
-    align-items: center;
-    opacity: 0.72;
-    
-  }
 }
 
 .current-note {
   display: block;
-  margin-top: 0.15rem;
+  margin-top: 0;
   line-height: 0.9;
   font-size: clamp(5rem, 20vw, 10rem);
   color: var(--ink);
@@ -235,7 +231,10 @@ h2 {
 }
 
 .playback-message {
-  margin: 0.8rem 0 0;
+  width: 320px;
+  max-width: 100%;
+  margin: 0.8rem auto 0;
+  text-align: center;
   font-size: 0.95rem;
 }
 
@@ -321,6 +320,10 @@ input[type='range'] {
 .button-row {
   margin-top: 0.95rem;
   flex-wrap: wrap;
+}
+
+.transport-row {
+  justify-content: center;
 }
 
 .primary-button,

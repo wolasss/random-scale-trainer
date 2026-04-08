@@ -379,15 +379,7 @@ function App() {
           </p>
 
           <div className="now-playing">
-              {
-              currentNote === '' ? (
-                <span className="current-note ready">
-                  ...
-                </span>
-              ) : (
-                  <strong className="current-note">{currentNote}</strong>
-              )
-              }            
+            {currentNote !== '' ? <strong className="current-note">{currentNote}</strong> : null}
           </div>
 
           <p className="playback-message">{playbackMessage}</p>
@@ -435,12 +427,20 @@ function App() {
             </button>
           </div>
 
-          <div className="button-row">
-            <button type="button" className="primary-button" onClick={() => void startPlayback()} disabled={isPlaying}>
-              <FontAwesomeIcon icon={faPlay} /> Play
-            </button>
-            <button type="button" className="secondary-button" onClick={() => stopPlayback()} disabled={!isPlaying}>
-              <FontAwesomeIcon icon={faStop} /> Stop
+          <div className="button-row transport-row">
+            <button
+              type="button"
+              className={isPlaying ? 'secondary-button' : 'primary-button'}
+              onClick={() => {
+                if (isPlaying) {
+                  stopPlayback()
+                  return
+                }
+
+                void startPlayback()
+              }}
+            >
+              <FontAwesomeIcon icon={isPlaying ? faStop : faPlay} /> {isPlaying ? 'Stop' : 'Play'}
             </button>
           </div>
         </section>
