@@ -24,7 +24,15 @@ const positiveModulo = (value: number, divisor: number) => ((value % divisor) + 
 export const getChromaticScale = (preference: NotePreference) =>
   preference === 'flat' ? FLAT_NOTES : SHARP_NOTES
 
-export const speakableNoteName = (note: string) => note.replace(/#/g, ' sharp').replace(/b/g, ' flat')
+export const speakableNoteName = (note: string) => note.replace(/#/g, ' sharp').replace(/b/g, ' flat').toLowerCase()
+
+const shuffleArray = <T,>(array: T[], random = Math.random): T[] => {
+  const copy = [...array]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
 
 export const parseIntervals = (intervalText: string) => {
   const values = intervalText
@@ -72,6 +80,52 @@ export const generateRandomScale = (definitions: ScaleDefinition[], random = Mat
   const definition = definitions[Math.floor(random() * definitions.length)]
   const rootPitchClass = Math.floor(random() * 12)
   const preference = chooseNotePreference(rootPitchClass, random())
+  const scale = generateScale(definition, rootPitchClass, preference)
+  
+  return { ...scale, notes: shuffleArray(scale.notes, random) }
+}
 
-  return generateScale(definition, rootPitchClass, preference)
+/**
+ * Async versions using random.org API for better randomness
+ */
+
+const shuffleArrayWithIntegers = <T,>(array: T[], randomIntegers: number[]): T[] => {
+  const copy = [...array]
+  let intIndex = 0
+
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = randomIntegers[intIndex % randomIntegers.length] % (i + 1)
+    intIndex++
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+
+  return copy
+}
+
+export const generateRandomScaleAsync = async (
+  definitions: ScaleDefinition[],
+  randomIntegers?: number[],
+): Promise<GeneratedScale | null> => {
+  if (definitions.length === 0) {
+    return null
+  }
+
+  // Pre-fetched random integers or generate new ones
+  const { randomService } = await import('./randomService')
+  const randoms = randomIntegers || (await randomService.getRandomIntegers(4 + definitions[0].intervals.length, 0, 1000))
+
+  if (!randoms || randoms.length < 4) {
+    return null
+  }
+
+  const definition = definitions[randoms[0] % definitions.length]
+  const rootPitchClass = randoms[1] % 12
+  const preferenceRandom = (randoms[2] % 1000) / 1000
+  const preference = chooseNotePreference(rootPitchClass, preferenceRandom)
+  const scale = generateScale(definition, rootPitchClass, preference)
+
+  // Use the collected random integers for shuffling
+  const shuffleIntegers = randoms.slice(3)
+
+  return { ...scale, notes: shuffleArrayWithIntegers(scale.notes, shuffleIntegers) }
 }

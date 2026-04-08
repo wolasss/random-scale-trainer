@@ -1,22 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { DEFAULT_SCALES } from './data/defaultScales'
-import { generateRandomScale, parseIntervals, speakableNoteName, type GeneratedScale, type ScaleDefinition } from './lib/music'
-
-type LibraryScale = {
-  id: string
-  name: string
-  intervalText: string
-  enabled: boolean
-}
+import { useEffect, useRef, useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons'
+import { getChromaticScale, speakableNoteName } from './lib/music'
 
 type SpeechWindow = Window & {
   speechSynthesis?: SpeechSynthesis
   webkitAudioContext?: typeof AudioContext
 }
 
-const MIN_BPM = 50
-const MAX_BPM = 180
-const DEFAULT_BPM = 88
+const MIN_BPM = 10
+const MAX_BPM = 100
+const DEFAULT_BPM = 30
+const COUNT_IN_BEATS = 3
+const COUNT_IN_MS = 650
+const PREFERRED_VOICE_NAME = 'Samantha'
 
 const formatElapsed = (elapsedMs: number) => {
   const totalSeconds = Math.floor(elapsedMs / 1000)
@@ -26,49 +23,34 @@ const formatElapsed = (elapsedMs: number) => {
   return `${minutes}:${seconds}`
 }
 
-const normalizeScaleLibrary = (library: LibraryScale[]): ScaleDefinition[] =>
-  library
-    .map((scale) => ({
-      id: scale.id,
-      name: scale.name.trim(),
-      intervals: parseIntervals(scale.intervalText),
-    }))
-    .filter((scale) => scale.name.length > 0 && scale.intervals.length >= 2)
-
-const createNewScale = (index: number): LibraryScale => ({
-  id: `custom-${index}`,
-  name: `Custom ${index + 1}`,
-  intervalText: '0, 3, 5, 7, 10, 12',
-  enabled: true,
-})
+const generateShuffledNotes = (): string[] => {
+  const notes = getChromaticScale(Math.random() < 0.5 ? 'sharp' : 'flat')
+  const shuffled = [...notes]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
 
 function App() {
-  const [scaleLibrary, setScaleLibrary] = useState<LibraryScale[]>(DEFAULT_SCALES)
   const [bpm, setBpm] = useState(DEFAULT_BPM)
   const [continuousMode, setContinuousMode] = useState(true)
-  const [currentScale, setCurrentScale] = useState<GeneratedScale | null>(null)
-  const [currentNote, setCurrentNote] = useState('Ready')
-  const [playbackMessage, setPlaybackMessage] = useState('Press play to generate a random scale.')
+  const [currentNote, setCurrentNote] = useState('')
+  const [playbackMessage, setPlaybackMessage] = useState('Press play to start practicing notes.')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [audioReady, setAudioReady] = useState(false)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const playbackTimeoutRef = useRef<number | null>(null)
   const playbackActiveRef = useRef(false)
-  const currentSequenceRef = useRef<GeneratedScale | null>(null)
+  const currentNotesRef = useRef<string[]>(generateShuffledNotes())
   const currentIndexRef = useRef(0)
   const voicesRef = useRef<SpeechSynthesisVoice[]>([])
   const sessionStartRef = useRef<number | null>(null)
   const accumulatedSessionMsRef = useRef(0)
   const bpmRef = useRef(bpm)
   const continuousModeRef = useRef(continuousMode)
-
-  const availableScales = useMemo(
-    () => normalizeScaleLibrary(scaleLibrary.filter((scale) => scale.enabled)),
-    [scaleLibrary],
-  )
 
   useEffect(() => {
     bpmRef.current = bpm
@@ -121,20 +103,6 @@ function App() {
     }
   }, [])
 
-  const updateScale = (scaleId: string, patch: Partial<LibraryScale>) => {
-    setScaleLibrary((currentLibrary) =>
-      currentLibrary.map((scale) => (scale.id === scaleId ? { ...scale, ...patch } : scale)),
-    )
-  }
-
-  const removeScale = (scaleId: string) => {
-    setScaleLibrary((currentLibrary) => currentLibrary.filter((scale) => scale.id !== scaleId))
-  }
-
-  const addScale = () => {
-    setScaleLibrary((currentLibrary) => [...currentLibrary, createNewScale(currentLibrary.length)])
-  }
-
   const ensureAudioContext = async () => {
     if (audioContextRef.current) {
       if (audioContextRef.current.state === 'suspended') {
@@ -153,7 +121,6 @@ function App() {
     const context = new AudioContextClass()
     await context.resume()
     audioContextRef.current = context
-    setAudioReady(true)
 
     return context
   }
@@ -186,7 +153,11 @@ function App() {
     speechWindow.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(speakableNoteName(note))
-    const preferredVoice = voicesRef.current.find((voice) => voice.lang.startsWith('en')) ?? voicesRef.current[0]
+    const preferredVoice =
+      voicesRef.current.find((voice) => voice.name.toLowerCase() === PREFERRED_VOICE_NAME.toLowerCase()) ??
+      voicesRef.current.find((voice) => voice.name.toLowerCase().includes(PREFERRED_VOICE_NAME.toLowerCase())) ??
+      voicesRef.current.find((voice) => voice.lang.startsWith('en')) ??
+      voicesRef.current[0]
 
     if (preferredVoice) {
       utterance.voice = preferredVoice
@@ -209,7 +180,7 @@ function App() {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
     setIsPlaying(false)
-    setCurrentNote('Ready')
+    setCurrentNote('')
     setPlaybackMessage(message)
     window.speechSynthesis?.cancel()
   }
@@ -221,20 +192,18 @@ function App() {
     }, delayMs)
   }
 
-  const prepareNextScale = () => {
-    const nextScale = generateRandomScale(availableScales)
-
-    if (!nextScale) {
-      stopPlayback('Enable at least one scale with two or more intervals before playing.')
-      return false
+  const prepareNextNotes = (shouldReshuffle = false, withCountIn = false): boolean => {
+    if (shouldReshuffle) {
+      // Reshuffle the existing notes for the next cycle
+      currentNotesRef.current = generateShuffledNotes()
+    } else {
+      // Generate fresh notes for the first time
+      currentNotesRef.current = generateShuffledNotes()
     }
 
-    currentSequenceRef.current = nextScale
-    currentIndexRef.current = 0
-    setCurrentScale(nextScale)
-    setCurrentNote('Get ready')
-    setPlaybackMessage(`Loaded ${nextScale.label}.`)
-
+    currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
+    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
+    setPlaybackMessage(withCountIn ? 'Get ready...' : 'Next cycle...')
     return true
   }
 
@@ -243,35 +212,45 @@ function App() {
       return
     }
 
-    const sequence = currentSequenceRef.current
+    const notes = currentNotesRef.current
 
-    if (!sequence) {
-      stopPlayback('No scale is available to play.')
+    if (!notes || notes.length === 0) {
+      stopPlayback('No notes available.')
       return
     }
 
-    if (currentIndexRef.current >= sequence.notes.length) {
+    if (currentIndexRef.current < 0) {
+      const countValue = Math.abs(currentIndexRef.current)
+
+      setCurrentNote(String(countValue))
+      setPlaybackMessage(`Starting in ${countValue}...`)
+
+      const context = await ensureAudioContext()
+      if (context) {
+        playClick(context)
+      }
+
+      currentIndexRef.current += 1
+      queueStep(COUNT_IN_MS)
+      return
+    }
+
+    if (currentIndexRef.current >= notes.length) {
       if (!continuousModeRef.current) {
-        stopPlayback(`Finished ${sequence.label}.`)
+        stopPlayback('Finished all 12 notes.')
         return
       }
 
-      const hasScale = prepareNextScale()
-
-      if (!hasScale) {
-        return
-      }
-
+      prepareNextNotes(true, false)
       queueStep(Math.round(60000 / bpmRef.current))
       return
     }
 
-    const note = sequence.notes[currentIndexRef.current]
+    const note = notes[currentIndexRef.current]
     const beatMs = Math.round(60000 / bpmRef.current)
 
-    setCurrentScale(sequence)
     setCurrentNote(note)
-    setPlaybackMessage(`Playing ${sequence.label} at ${bpmRef.current} BPM.`)
+    setPlaybackMessage(`${bpmRef.current} BPM`)
 
     const context = await ensureAudioContext()
     if (context) {
@@ -284,11 +263,6 @@ function App() {
   }
 
   const startPlayback = async () => {
-    if (availableScales.length === 0) {
-      stopPlayback('Enable at least one scale with two or more intervals before playing.')
-      return
-    }
-
     const context = await ensureAudioContext()
     if (!context) {
       stopPlayback('Audio playback is unsupported in this browser.')
@@ -298,7 +272,7 @@ function App() {
     playbackActiveRef.current = true
     setIsPlaying(true)
 
-    if (!prepareNextScale()) {
+    if (!prepareNextNotes(false, true)) {
       return
     }
 
@@ -336,27 +310,21 @@ function App() {
       <div className="backdrop" />
       <main className="app-grid">
         <section className="hero-card panel">
-          <div className="eyebrow">Fretboard Memorization Trainer</div>
-          <h1>Random scale drills with a spoken pulse.</h1>
+          <h1>Random notes generator</h1>
           <p className="lede">
-            Generate a scale, hear each note called out on the beat, and keep the session running for as long as you want.
+            Practice all 12 chromatic notes in random order, hear each note called out on the beat.
           </p>
 
           <div className="now-playing">
-            <div>
-              <span className="label">Current scale</span>
-              <strong>{currentScale?.label ?? 'Waiting for the first draw'}</strong>
-            </div>
-            <div>
-              <span className="label">Current note</span>
-              <strong className="current-note">{currentNote}</strong>
-            </div>
-          </div>
-
-          <div className="status-row">
-            <span className={`pill ${isPlaying ? 'live' : ''}`}>{isPlaying ? 'Playing' : 'Idle'}</span>
-            <span className="pill">{continuousMode ? 'Continuous on' : 'One scale only'}</span>
-            <span className="pill">{audioReady ? 'Audio primed' : 'Audio starts on play'}</span>
+              {
+              currentNote === '' ? (
+                <span className="current-note ready">
+                  ...
+                </span>
+              ) : (
+                  <strong className="current-note">{currentNote}</strong>
+              )
+              }            
           </div>
 
           <p className="playback-message">{playbackMessage}</p>
@@ -364,7 +332,7 @@ function App() {
 
         <section className="panel controls-panel">
           <div className="panel-heading">
-            <h2>Transport</h2>
+            <h2>Settings</h2>
             <p>Metronome timing drives the click. Browser speech announces the note names on each beat.</p>
           </div>
 
@@ -385,6 +353,11 @@ function App() {
               <span>{MIN_BPM}</span>
               <span>{MAX_BPM}</span>
             </div>
+
+            <div className="target-time-info">
+              <span className="label">Target time (12 notes)</span>
+              <span className="target-time">{formatElapsed((12 * 60000) / bpm)}</span>
+            </div>
           </div>
 
           <div className="toggle-row">
@@ -401,10 +374,10 @@ function App() {
 
           <div className="button-row">
             <button type="button" className="primary-button" onClick={() => void startPlayback()} disabled={isPlaying}>
-              Play random scale
+              <FontAwesomeIcon icon={faPlay} /> Play
             </button>
             <button type="button" className="secondary-button" onClick={() => stopPlayback()} disabled={!isPlaying}>
-              Stop playback
+              <FontAwesomeIcon icon={faStop} /> Stop
             </button>
           </div>
         </section>
@@ -427,67 +400,6 @@ function App() {
             <button type="button" className="ghost-button" onClick={resetSession}>
               Reset
             </button>
-          </div>
-        </section>
-
-        <section className="panel library-panel">
-          <div className="panel-heading library-heading">
-            <div>
-              <h2>Scale library</h2>
-              <p>Edit which scales can be selected. Intervals are semitone offsets from the root.</p>
-            </div>
-            <button type="button" className="ghost-button" onClick={addScale}>
-              Add scale
-            </button>
-          </div>
-
-          <div className="library-list">
-            {scaleLibrary.map((scale) => {
-              const parsedIntervals = parseIntervals(scale.intervalText)
-              const isValid = scale.name.trim().length > 0 && parsedIntervals.length >= 2
-
-              return (
-                <article key={scale.id} className={`scale-card ${isValid ? '' : 'invalid'}`}>
-                  <div className="scale-card-top">
-                    <label className="checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={scale.enabled}
-                        onChange={(event) => updateScale(scale.id, { enabled: event.target.checked })}
-                      />
-                      <span>Enabled</span>
-                    </label>
-
-                    <button type="button" className="text-button" onClick={() => removeScale(scale.id)}>
-                      Remove
-                    </button>
-                  </div>
-
-                  <label>
-                    <span>Name</span>
-                    <input
-                      type="text"
-                      value={scale.name}
-                      onChange={(event) => updateScale(scale.id, { name: event.target.value })}
-                    />
-                  </label>
-
-                  <label>
-                    <span>Intervals</span>
-                    <input
-                      type="text"
-                      value={scale.intervalText}
-                      onChange={(event) => updateScale(scale.id, { intervalText: event.target.value })}
-                    />
-                  </label>
-
-                  <div className="helper-row">
-                    <span>{parsedIntervals.length} notes</span>
-                    <span>{isValid ? 'Ready to randomize' : 'Needs a name and at least two intervals'}</span>
-                  </div>
-                </article>
-              )
-            })}
           </div>
         </section>
       </main>
