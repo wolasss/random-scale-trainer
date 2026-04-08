@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons'
+import { faHeart, faMoon, faMugHot, faPlay, faRotateLeft, faStop, faSun } from '@fortawesome/free-solid-svg-icons'
+import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { getChromaticScale, speakableNoteName } from './lib/music'
 
 type SpeechWindow = Window & {
@@ -14,6 +15,9 @@ const DEFAULT_BPM = 30
 const COUNT_IN_BEATS = 3
 const COUNT_IN_MS = 650
 const PREFERRED_VOICE_NAME = 'Samantha'
+const THEME_STORAGE_KEY = 'fretboard-theme'
+
+type Theme = 'dark' | 'light'
 
 const formatElapsed = (elapsedMs: number) => {
   const totalSeconds = Math.floor(elapsedMs / 1000)
@@ -33,6 +37,18 @@ const generateShuffledNotes = (): string[] => {
 }
 
 function App() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') {
+      return 'dark'
+    }
+
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      return storedTheme
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [bpm, setBpm] = useState(DEFAULT_BPM)
   const [continuousMode, setContinuousMode] = useState(true)
   const [currentNote, setCurrentNote] = useState('')
@@ -47,6 +63,7 @@ function App() {
   const currentNotesRef = useRef<string[]>(generateShuffledNotes())
   const currentIndexRef = useRef(0)
   const voicesRef = useRef<SpeechSynthesisVoice[]>([])
+  const sessionStartQueuedRef = useRef(false)
   const sessionStartRef = useRef<number | null>(null)
   const accumulatedSessionMsRef = useRef(0)
   const bpmRef = useRef(bpm)
@@ -59,6 +76,11 @@ function App() {
   useEffect(() => {
     continuousModeRef.current = continuousMode
   }, [continuousMode])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }, [theme])
 
   useEffect(() => {
     const speechWindow = window as SpeechWindow
@@ -169,8 +191,6 @@ function App() {
       speechWindow.speechSynthesis.cancel()
     }
 
-    console.log('Speaking note:', speakableNoteName(note))
-
     const utterance = new SpeechSynthesisUtterance(speakableNoteName(note))
     const preferredVoice =
       voicesRef.current.find((voice) => voice.name.toLowerCase() === PREFERRED_VOICE_NAME.toLowerCase()) ??
@@ -195,10 +215,31 @@ function App() {
     }
   }
 
+  const startSessionTimer = () => {
+    if (isSessionRunning) {
+      return
+    }
+
+    sessionStartRef.current = Date.now()
+    setIsSessionRunning(true)
+  }
+
+  const stopSessionTimer = () => {
+    if (sessionStartRef.current !== null) {
+      accumulatedSessionMsRef.current += Date.now() - sessionStartRef.current
+      sessionStartRef.current = null
+      setElapsedMs(accumulatedSessionMsRef.current)
+    }
+
+    setIsSessionRunning(false)
+  }
+
   const stopPlayback = (message = 'Playback stopped.') => {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
+    sessionStartQueuedRef.current = false
     setIsPlaying(false)
+    stopSessionTimer()
     setCurrentNote('')
     setPlaybackMessage(message)
     window.speechSynthesis?.cancel()
@@ -268,6 +309,11 @@ function App() {
     const note = notes[currentIndexRef.current]
     const beatMs = Math.round(60000 / bpmRef.current)
 
+    if (sessionStartQueuedRef.current) {
+      sessionStartQueuedRef.current = false
+      startSessionTimer()
+    }
+
     setCurrentNote(note)
     setPlaybackMessage(`${bpmRef.current} BPM`)
 
@@ -288,6 +334,7 @@ function App() {
       return
     }
 
+    sessionStartQueuedRef.current = true
     setIsPlaying(true)
     setPlaybackMessage('Warming up speech...')
     await warmUpSpeech()
@@ -301,36 +348,30 @@ function App() {
     queueStep(0)
   }
 
-  const startSession = () => {
-    if (isSessionRunning) {
-      return
-    }
-
-    sessionStartRef.current = Date.now()
-    setIsSessionRunning(true)
-  }
-
-  const stopSession = () => {
-    if (sessionStartRef.current !== null) {
-      accumulatedSessionMsRef.current += Date.now() - sessionStartRef.current
-      sessionStartRef.current = null
-      setElapsedMs(accumulatedSessionMsRef.current)
-    }
-
-    setIsSessionRunning(false)
-  }
-
   const resetSession = () => {
+    sessionStartQueuedRef.current = false
+    stopSessionTimer()
     sessionStartRef.current = null
     accumulatedSessionMsRef.current = 0
     setElapsedMs(0)
-    setIsSessionRunning(false)
   }
 
   return (
     <div className="app-shell">
       <div className="backdrop" />
       <main className="app-grid">
+        <div className="topbar">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
+        </div>
+
         <section className="hero-card panel">
           <h1>Random notes generator</h1>
           <p className="lede">
@@ -407,24 +448,54 @@ function App() {
         <section className="panel timer-panel">
           <div className="panel-heading">
             <h2>Session timer</h2>
-            <p>Use this separately from playback when you want to measure a focused memorization session.</p>
+            <p>The timer starts automatically when playback starts and pauses when playback stops.</p>
           </div>
 
           <div className="timer-face">{formatElapsed(elapsedMs)}</div>
 
           <div className="button-row compact">
-            <button type="button" className="primary-button" onClick={startSession} disabled={isSessionRunning}>
-              Start session
-            </button>
-            <button type="button" className="secondary-button" onClick={stopSession} disabled={!isSessionRunning}>
-              Stop session
-            </button>
             <button type="button" className="ghost-button" onClick={resetSession}>
-              Reset
+              <FontAwesomeIcon icon={faRotateLeft} /> Reset
             </button>
           </div>
         </section>
       </main>
+
+      <footer className="app-footer">
+        <p>
+          Made with <FontAwesomeIcon icon={faHeart} className="heart-icon" /> by Adam Wolski
+        </p>
+        <div className="footer-links">
+          <a
+            className="social-link"
+            href="https://github.com/wolasso/fretboard-master"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Project on GitHub"
+            title="GitHub"
+          >
+            <FontAwesomeIcon icon={faGithub} />
+          </a>
+          <a
+            className="social-link"
+            href="https://www.instagram.com/wolasso"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="wolasso on Instagram"
+            title="Instagram"
+          >
+            <FontAwesomeIcon icon={faInstagram} />
+          </a>
+          <a
+            className="coffee-button"
+            href="https://www.buymeacoffee.com/wolasso"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FontAwesomeIcon icon={faMugHot} /> Buy me a coffee
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }

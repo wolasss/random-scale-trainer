@@ -15,6 +15,21 @@
   --shadow: 0 24px 44px rgba(2, 8, 14, 0.45);
 }
 
+:root[data-theme='light'] {
+  --bg-deep: #f2f8ff;
+  --bg-mid: #e6f2ff;
+  --bg-light: #d9ecff;
+  --ink: #102331;
+  --ink-soft: rgba(16, 35, 49, 0.66);
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-border: rgba(41, 105, 156, 0.18);
+  --primary: #1bb79f;
+  --primary-strong: #0f8e7d;
+  --primary-soft: rgba(27, 183, 159, 0.15);
+  --accent: #ab6a00;
+  --shadow: 0 18px 36px rgba(22, 52, 84, 0.18);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -77,6 +92,14 @@ button {
   padding: 1.35rem 1rem 2rem;
 }
 
+.topbar {
+  grid-column: span 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -110,6 +133,24 @@ button {
   color: var(--accent);
   background: rgba(255, 211, 110, 0.13);
   border: 1px solid rgba(255, 211, 110, 0.35);
+}
+
+.theme-toggle {
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0.5rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  transition: transform 140ms ease, filter 140ms ease;
+}
+
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
 }
 
 h1,
@@ -187,7 +228,7 @@ h2 {
   margin-top: 0.15rem;
   line-height: 0.9;
   font-size: clamp(5rem, 20vw, 10rem);
-  color: #ffffff;
+  color: var(--ink);
   text-shadow:
     0 0 24px rgba(38, 210, 189, 0.28),
     0 0 54px rgba(255, 211, 110, 0.2);
@@ -235,7 +276,7 @@ h2 {
 .slider-row output {
   font-size: 1.45rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--ink);
 }
 
 input[type='range'] {
@@ -274,7 +315,7 @@ input[type='range'] {
 .primary-button {
   background: linear-gradient(145deg, var(--primary), var(--primary-strong));
   border: 1px solid transparent;
-  color: #002a24;
+  color: #05221e;
 }
 
 .button-row {
@@ -331,7 +372,7 @@ input[type='range'] {
   border-radius: 16px;
   text-align: center;
   font-size: clamp(2.6rem, 9vw, 4.3rem);
-  color: #ffffff;
+  color: var(--ink);
   background:
     radial-gradient(circle at 20% 10%, rgba(255, 211, 110, 0.2), transparent 45%),
     linear-gradient(165deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
@@ -340,6 +381,80 @@ input[type='range'] {
 
 .button-row.compact {
   justify-content: center;
+}
+
+.app-footer {
+  position: relative;
+  max-width: 1180px;
+  margin: 0.15rem auto 1.15rem;
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.app-footer p {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.footer-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.social-link {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  opacity: 0.78;
+  transition: transform 140ms ease, filter 140ms ease, opacity 140ms ease;
+}
+
+.social-link:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  opacity: 1;
+}
+
+.heart-icon {
+  color: #ff6a7a;
+}
+
+.coffee-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.36rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.03);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.82rem;
+  opacity: 0.82;
+  transition: transform 140ms ease, filter 140ms ease, opacity 140ms ease;
+}
+
+.coffee-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  opacity: 1;
 }
 
 @media (max-width: 900px) {
@@ -368,6 +483,15 @@ input[type='range'] {
   .button-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .footer-links {
+    width: 100%;
   }
 }
 
