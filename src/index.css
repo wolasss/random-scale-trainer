@@ -205,6 +205,7 @@ h2 {
 }
 
 .now-playing {
+  position: relative;
   margin-top: 1rem;
   width: 320px;
   max-width: 100%;
@@ -217,6 +218,11 @@ h2 {
   border: 1px solid rgba(174, 236, 255, 0.2);
   text-align: center;
   min-height: 120px;
+  overflow: hidden;
+}
+
+.now-playing.idle {
+  animation: note-box-pulse 1700ms ease-in-out infinite;
 }
 
 .current-note {
@@ -228,6 +234,10 @@ h2 {
   text-shadow:
     0 0 24px rgba(38, 210, 189, 0.28),
     0 0 54px rgba(255, 211, 110, 0.2);
+}
+
+.note-pop {
+  animation: note-pop 220ms ease, note-pulse 1400ms ease-in-out 220ms infinite;
 }
 
 .playback-message {
@@ -531,5 +541,56 @@ input[type='range'] {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes note-pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes idle-float {
+  0% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+
+  50% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+
+  100% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+}
+
+@keyframes note-box-pulse {
+  0% {
+    transform: scale(1);
+    border-color: rgba(174, 236, 255, 0.2);
+    box-shadow: 0 0 0 rgba(38, 210, 189, 0);
+  }
+
+  50% {
+    transform: scale(1.01);
+    border-color: rgba(174, 236, 255, 0.34);
+    box-shadow: 0 0 20px rgba(38, 210, 189, 0.14);
+  }
+
+  100% {
+    transform: scale(1);
+    border-color: rgba(174, 236, 255, 0.2);
+    box-shadow: 0 0 0 rgba(38, 210, 189, 0);
   }
 }

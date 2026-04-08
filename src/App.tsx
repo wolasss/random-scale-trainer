@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart, faMoon, faMugHot, faPlay, faRotateLeft, faStop, faSun } from '@fortawesome/free-solid-svg-icons'
+import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { getChromaticScale, speakableNoteName } from './lib/music'
 
@@ -54,6 +54,7 @@ function App() {
   const [currentNote, setCurrentNote] = useState('A♭')
   const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
 
@@ -239,9 +240,24 @@ function App() {
     clearPlaybackTimeout()
     sessionStartQueuedRef.current = false
     setIsPlaying(false)
+    setIsPaused(false)
     stopSessionTimer()
-    setCurrentNote('A♭') // Show a note to indicate session end
+    setCurrentNote('A♭')
     setPlaybackMessage(message)
+    window.speechSynthesis?.cancel()
+  }
+
+  const pausePlayback = () => {
+    if (!playbackActiveRef.current) {
+      return
+    }
+
+    playbackActiveRef.current = false
+    clearPlaybackTimeout()
+    setIsPlaying(false)
+    setIsPaused(true)
+    stopSessionTimer()
+    setPlaybackMessage('Paused')
     window.speechSynthesis?.cancel()
   }
 
@@ -262,7 +278,7 @@ function App() {
     }
 
     currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
-    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '...')
+    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
     setPlaybackMessage(withCountIn ? 'Get ready...' : 'Get ready...')
     return true
   }
@@ -328,6 +344,20 @@ function App() {
   }
 
   const startPlayback = async () => {
+    if (isPaused) {
+      setIsPlaying(true)
+      setIsPaused(false)
+
+      if (!sessionStartQueuedRef.current) {
+        startSessionTimer()
+      }
+
+      playbackActiveRef.current = true
+      setPlaybackMessage('Resuming...')
+      queueStep(0)
+      return
+    }
+
     const context = await ensureAudioContext()
     if (!context) {
       stopPlayback('Audio playback is unsupported in this browser.')
@@ -336,6 +366,7 @@ function App() {
 
     sessionStartQueuedRef.current = true
     setIsPlaying(true)
+    setIsPaused(false)
     setPlaybackMessage('Warming up speech...')
     await warmUpSpeech()
 
@@ -383,7 +414,7 @@ function App() {
             Practice all 12 chromatic notes in random order, hear each note called out on the beat.
           </p>
 
-          <div className="now-playing">
+          <div className={`now-playing ${isPlaying ? 'active' : 'idle'}`}>
             {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop">{currentNote}</strong> : null}
           </div>
 
@@ -438,14 +469,14 @@ function App() {
               className={isPlaying ? 'secondary-button' : 'primary-button'}
               onClick={() => {
                 if (isPlaying) {
-                  stopPlayback()
+                  pausePlayback()
                   return
                 }
 
                 void startPlayback()
               }}
             >
-              <FontAwesomeIcon icon={isPlaying ? faStop : faPlay} /> {isPlaying ? 'Stop' : 'Play'}
+              <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
             </button>
           </div>
         </section>
