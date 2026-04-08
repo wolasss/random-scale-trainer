@@ -51,8 +51,8 @@ function App() {
   })
   const [bpm, setBpm] = useState(DEFAULT_BPM)
   const [continuousMode, setContinuousMode] = useState(true)
-  const [currentNote, setCurrentNote] = useState('')
-  const [playbackMessage, setPlaybackMessage] = useState('Press play to start practicing notes.')
+  const [currentNote, setCurrentNote] = useState('A♭')
+  const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
@@ -120,7 +120,7 @@ function App() {
 
   useEffect(() => {
     return () => {
-      stopPlayback('Playback stopped.')
+      stopPlayback('Press play to start.')
       window.speechSynthesis?.cancel()
     }
   }, [])
@@ -234,13 +234,13 @@ function App() {
     setIsSessionRunning(false)
   }
 
-  const stopPlayback = (message = 'Playback stopped.') => {
+  const stopPlayback = (message = 'Press play to start.') => {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
     sessionStartQueuedRef.current = false
     setIsPlaying(false)
     stopSessionTimer()
-    setCurrentNote('')
+    setCurrentNote('A♭') // Show a note to indicate session end
     setPlaybackMessage(message)
     window.speechSynthesis?.cancel()
   }
@@ -262,8 +262,8 @@ function App() {
     }
 
     currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
-    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
-    setPlaybackMessage(withCountIn ? 'Get ready...' : 'Next cycle...')
+    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '...')
+    setPlaybackMessage(withCountIn ? 'Get ready...' : 'Get ready...')
     return true
   }
 
@@ -315,7 +315,7 @@ function App() {
     }
 
     setCurrentNote(note)
-    setPlaybackMessage(`${bpmRef.current} BPM`)
+    setPlaybackMessage('')
 
     const context = await ensureAudioContext()
     if (context) {
@@ -354,6 +354,11 @@ function App() {
     sessionStartRef.current = null
     accumulatedSessionMsRef.current = 0
     setElapsedMs(0)
+
+    if (playbackActiveRef.current) {
+      sessionStartRef.current = Date.now()
+      setIsSessionRunning(true)
+    }
   }
 
   return (
@@ -379,7 +384,7 @@ function App() {
           </p>
 
           <div className="now-playing">
-            {currentNote !== '' ? <strong className="current-note">{currentNote}</strong> : null}
+            {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop">{currentNote}</strong> : null}
           </div>
 
           <p className="playback-message">{playbackMessage}</p>

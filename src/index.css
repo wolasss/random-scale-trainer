@@ -96,7 +96,7 @@ button {
   grid-column: span 12;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.75rem;
 }
 
@@ -234,6 +234,7 @@ h2 {
   width: 320px;
   max-width: 100%;
   margin: 0.8rem auto 0;
+  min-height: 1.4em;
   text-align: center;
   font-size: 0.95rem;
 }
@@ -310,6 +311,10 @@ input[type='range'] {
   border-radius: 999px;
 }
 
+.toggle-row .toggle {
+  margin-left: auto;
+}
+
 .toggle.enabled,
 .primary-button {
   background: linear-gradient(145deg, var(--primary), var(--primary-strong));
@@ -324,6 +329,10 @@ input[type='range'] {
 
 .transport-row {
   justify-content: center;
+}
+
+.note-pop {
+  animation: note-pop 220ms ease;
 }
 
 .primary-button,
@@ -477,10 +486,13 @@ input[type='range'] {
   }
 
   .slider-row,
-  .toggle-row,
   .target-time-info {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .toggle-row {
+    width: 100%;
   }
 
   .button-row {
@@ -507,5 +519,17 @@ input[type='range'] {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes note-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
