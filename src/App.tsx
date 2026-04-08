@@ -16,6 +16,10 @@ const COUNT_IN_BEATS = 3
 const COUNT_IN_MS = 650
 const PREFERRED_VOICE_NAME = 'Samantha'
 const THEME_STORAGE_KEY = 'fretboard-theme'
+const BPM_STORAGE_KEY = 'fretboard-bpm'
+const CONTINUOUS_MODE_STORAGE_KEY = 'fretboard-continuous-mode'
+const SPEED_RAMP_MODE_STORAGE_KEY = 'fretboard-speed-ramp-mode'
+const LAST_SESSION_MS_STORAGE_KEY = 'fretboard-last-session-ms'
 
 type Theme = 'dark' | 'light'
 
@@ -49,14 +53,55 @@ function App() {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
-  const [bpm, setBpm] = useState(DEFAULT_BPM)
-  const [continuousMode, setContinuousMode] = useState(true)
+  const [bpm, setBpm] = useState(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_BPM
+    }
+
+    const storedBpmRaw = window.localStorage.getItem(BPM_STORAGE_KEY)
+    if (storedBpmRaw === null) {
+      return DEFAULT_BPM
+    }
+
+    const storedBpm = Number(storedBpmRaw)
+    if (!Number.isFinite(storedBpm)) {
+      return DEFAULT_BPM
+    }
+
+    return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(storedBpm)))
+  })
+  const [continuousMode, setContinuousMode] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+
+    const storedMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
+    return storedMode === null ? true : storedMode === 'true'
+  })
+  const [speedRampMode, setSpeedRampMode] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    const storedContinuousMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
+    const isContinuousEnabled = storedContinuousMode === null ? true : storedContinuousMode === 'true'
+    const storedMode = window.localStorage.getItem(SPEED_RAMP_MODE_STORAGE_KEY)
+    const isSpeedRampEnabled = storedMode === null ? false : storedMode === 'true'
+    return isContinuousEnabled && isSpeedRampEnabled
+  })
   const [currentNote, setCurrentNote] = useState('A♭')
   const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
+  const [elapsedMs, setElapsedMs] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 0
+    }
+
+    const storedElapsed = Number(window.localStorage.getItem(LAST_SESSION_MS_STORAGE_KEY))
+    return Number.isFinite(storedElapsed) && storedElapsed > 0 ? Math.round(storedElapsed) : 0
+  })
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const playbackTimeoutRef = useRef<number | null>(null)
@@ -66,9 +111,14 @@ function App() {
   const voicesRef = useRef<SpeechSynthesisVoice[]>([])
   const sessionStartQueuedRef = useRef(false)
   const sessionStartRef = useRef<number | null>(null)
-  const accumulatedSessionMsRef = useRef(0)
+  const accumulatedSessionMsRef = useRef(elapsedMs)
   const bpmRef = useRef(bpm)
   const continuousModeRef = useRef(continuousMode)
+  const speedRampModeRef = useRef(speedRampMode)
+  const isPlayingRef = useRef(isPlaying)
+  const startPlaybackRef = useRef<() => void>(() => {})
+  const pausePlaybackRef = useRef<() => void>(() => {})
+  const resetSessionRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     bpmRef.current = bpm
@@ -77,6 +127,30 @@ function App() {
   useEffect(() => {
     continuousModeRef.current = continuousMode
   }, [continuousMode])
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
+
+  useEffect(() => {
+    speedRampModeRef.current = speedRampMode
+  }, [speedRampMode])
+
+  useEffect(() => {
+    window.localStorage.setItem(BPM_STORAGE_KEY, String(bpm))
+  }, [bpm])
+
+  useEffect(() => {
+    window.localStorage.setItem(CONTINUOUS_MODE_STORAGE_KEY, String(continuousMode))
+  }, [continuousMode])
+
+  useEffect(() => {
+    window.localStorage.setItem(SPEED_RAMP_MODE_STORAGE_KEY, String(speedRampMode))
+  }, [speedRampMode])
+
+  useEffect(() => {
+    window.localStorage.setItem(LAST_SESSION_MS_STORAGE_KEY, String(Math.max(0, Math.round(elapsedMs))))
+  }, [elapsedMs])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -118,13 +192,6 @@ function App() {
       window.clearInterval(timer)
     }
   }, [isSessionRunning])
-
-  useEffect(() => {
-    return () => {
-      stopPlayback('Press play to start.')
-      window.speechSynthesis?.cancel()
-    }
-  }, [])
 
   const ensureAudioContext = async () => {
     if (audioContextRef.current) {
@@ -235,7 +302,7 @@ function App() {
     setIsSessionRunning(false)
   }
 
-  const stopPlayback = (message = 'Press play to start.') => {
+  function stopPlayback(message = 'Press play to start.') {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
     sessionStartQueuedRef.current = false
@@ -247,7 +314,7 @@ function App() {
     window.speechSynthesis?.cancel()
   }
 
-  const pausePlayback = () => {
+  function pausePlayback() {
     if (!playbackActiveRef.current) {
       return
     }
@@ -266,6 +333,19 @@ function App() {
     playbackTimeoutRef.current = window.setTimeout(() => {
       void playNextStep()
     }, delayMs)
+  }
+
+  const applySpeedRamp = () => {
+    if (!continuousModeRef.current || !speedRampModeRef.current) {
+      return bpmRef.current
+    }
+
+    const nextBpm = Math.min(MAX_BPM, bpmRef.current + 5)
+    if (nextBpm !== bpmRef.current) {
+      setBpm(nextBpm)
+    }
+
+    return nextBpm
   }
 
   const prepareNextNotes = (shouldReshuffle = false, withCountIn = false): boolean => {
@@ -312,13 +392,15 @@ function App() {
     }
 
     if (currentIndexRef.current >= notes.length) {
+      const nextBpm = applySpeedRamp()
+
       if (!continuousModeRef.current) {
-        stopPlayback('Finished all 12 notes.')
+        stopPlayback(speedRampModeRef.current ? `Finished all 12 notes. BPM set to ${nextBpm}.` : 'Finished all 12 notes.')
         return
       }
 
       prepareNextNotes(true, false)
-      queueStep(Math.round(60000 / bpmRef.current))
+      queueStep(Math.round(60000 / nextBpm))
       return
     }
 
@@ -343,7 +425,7 @@ function App() {
     queueStep(beatMs)
   }
 
-  const startPlayback = async () => {
+  async function startPlayback() {
     if (isPaused) {
       setIsPlaying(true)
       setIsPaused(false)
@@ -379,7 +461,7 @@ function App() {
     queueStep(0)
   }
 
-  const resetSession = () => {
+  function resetSession() {
     sessionStartQueuedRef.current = false
     stopSessionTimer()
     sessionStartRef.current = null
@@ -391,6 +473,70 @@ function App() {
       setIsSessionRunning(true)
     }
   }
+
+  useEffect(() => {
+    startPlaybackRef.current = () => {
+      void startPlayback()
+    }
+    pausePlaybackRef.current = pausePlayback
+    resetSessionRef.current = resetSession
+  })
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const tagName = target?.tagName?.toLowerCase()
+      const isTypingContext = tagName === 'input' || tagName === 'textarea' || target?.isContentEditable
+
+      if (isTypingContext || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault()
+
+        if (isPlayingRef.current) {
+          pausePlaybackRef.current()
+          return
+        }
+
+        startPlaybackRef.current()
+        return
+      }
+
+      if (event.code === 'ArrowUp') {
+        event.preventDefault()
+        setBpm((current) => Math.min(MAX_BPM, current + 1))
+        return
+      }
+
+      if (event.code === 'ArrowDown') {
+        event.preventDefault()
+        setBpm((current) => Math.max(MIN_BPM, current - 1))
+        return
+      }
+
+      if (event.code === 'KeyR') {
+        event.preventDefault()
+        resetSessionRef.current()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      playbackActiveRef.current = false
+      clearPlaybackTimeout()
+      sessionStartQueuedRef.current = false
+      window.speechSynthesis?.cancel()
+    }
+  }, [])
 
   return (
     <div className="app-shell">
@@ -457,11 +603,34 @@ function App() {
               id="continuous-mode"
               type="button"
               className={`toggle ${continuousMode ? 'enabled' : ''}`}
-              onClick={() => setContinuousMode((currentValue) => !currentValue)}
+              onClick={() => {
+                setContinuousMode((currentValue) => {
+                  const nextValue = !currentValue
+                  if (!nextValue) {
+                    setSpeedRampMode(false)
+                  }
+
+                  return nextValue
+                })
+              }}
             >
               {continuousMode ? 'On' : 'Off'}
             </button>
           </div>
+
+          {continuousMode ? (
+            <div className="toggle-row">
+              <label htmlFor="speed-ramp-mode">Speed ramp mode (+5 BPM per cycle)</label>
+              <button
+                id="speed-ramp-mode"
+                type="button"
+                className={`toggle ${speedRampMode ? 'enabled' : ''}`}
+                onClick={() => setSpeedRampMode((currentValue) => !currentValue)}
+              >
+                {speedRampMode ? 'On' : 'Off'}
+              </button>
+            </div>
+          ) : null}
 
           <div className="button-row transport-row">
             <button
