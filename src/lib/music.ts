@@ -24,7 +24,7 @@ const positiveModulo = (value: number, divisor: number) => ((value % divisor) + 
 export const getChromaticScale = (preference: NotePreference) =>
   preference === 'flat' ? FLAT_NOTES : SHARP_NOTES
 
-export const speakableNoteName = (note: string) => note.replace(/#/g, ' sharp').replace(/b/g, ' flat').toLowerCase()
+export const speakableNoteName = (note: string) => note.replace(/^A/g, 'a. ').replace(/#/g, ' sharp').replace(/b/g, ' flat').toLowerCase()
 
 const shuffleArray = <T,>(array: T[], random = Math.random): T[] => {
   const copy = [...array]

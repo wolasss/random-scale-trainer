@@ -142,6 +142,21 @@ function App() {
     oscillator.stop(startTime + 0.14)
   }
 
+  const warmUpSpeech = (): Promise<void> => {
+    const speechWindow = window as SpeechWindow
+    if (!speechWindow.speechSynthesis) return Promise.resolve()
+
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance('\u200b')
+      utterance.volume = 0
+      const done = () => { window.clearTimeout(fallback); resolve() }
+      utterance.onend = done
+      utterance.onerror = done
+      const fallback = window.setTimeout(resolve, 800)
+      speechWindow.speechSynthesis.speak(utterance)
+    })
+  }
+
   const speakNote = (note: string) => {
     const speechWindow = window as SpeechWindow
 
@@ -150,7 +165,11 @@ function App() {
       return
     }
 
-    speechWindow.speechSynthesis.cancel()
+    if (speechWindow.speechSynthesis.speaking || speechWindow.speechSynthesis.pending) {
+      speechWindow.speechSynthesis.cancel()
+    }
+
+    console.log('Speaking note:', speakableNoteName(note))
 
     const utterance = new SpeechSynthesisUtterance(speakableNoteName(note))
     const preferredVoice =
@@ -269,8 +288,11 @@ function App() {
       return
     }
 
-    playbackActiveRef.current = true
     setIsPlaying(true)
+    setPlaybackMessage('Warming up speech...')
+    await warmUpSpeech()
+
+    playbackActiveRef.current = true
 
     if (!prepareNextNotes(false, true)) {
       return
