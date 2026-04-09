@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/wolasss/random-scale-trainer/compare/v1.0.2...v1.0.3) (2026-04-09)
+
+
+### Bug Fixes
+
+* fix github link ([4d661dc](https://github.com/wolasss/random-scale-trainer/commit/4d661dc8bfba5bbdff6f89d1df380b90a1f4e24b))
+
 ## [1.0.2](https://github.com/wolasss/random-scale-trainer/compare/v1.0.1...v1.0.2) (2026-04-09)
 
 
