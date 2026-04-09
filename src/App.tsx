@@ -521,6 +521,10 @@ function App() {
   }
 
   function resetSession() {
+    if (playbackActiveRef.current || isPlayingRef.current) {
+      stopPlayback()
+    }
+
     sessionStartQueuedRef.current = false
     stopSessionTimer()
     sessionStartRef.current = null
@@ -529,11 +533,6 @@ function App() {
     currentNotesRef.current = generateShuffledNotes()
     currentIndexRef.current = 0
     setCurrentNote('A♭')
-
-    if (playbackActiveRef.current) {
-      sessionStartRef.current = Date.now()
-      setIsSessionRunning(true)
-    }
   }
 
   useEffect(() => {
