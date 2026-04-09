@@ -733,7 +733,7 @@ function App() {
         <div className="footer-links">
           <a
             className="social-link"
-            href="https://github.com/wolasso/random-scale-trainer"
+            href="https://github.com/wolasss/random-scale-trainer"
             target="_blank"
             rel="noreferrer"
             aria-label="Project on GitHub"
