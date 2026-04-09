@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/wolasss/random-scale-trainer/compare/v1.0.0...v1.0.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* use gh token ([fdb79ce](https://github.com/wolasss/random-scale-trainer/commit/fdb79cefffd3b10be2a2716eef66ca0a7e36ea8e))
+
 # 1.0.0 (2026-04-09)
 
 
