@@ -225,6 +225,10 @@ h2 {
   animation: note-box-pulse 1700ms ease-in-out infinite;
 }
 
+.now-playing.paused .current-note {
+  opacity: 0.85;
+}
+
 .current-note {
   display: block;
   margin-top: 0;

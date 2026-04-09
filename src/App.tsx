@@ -560,7 +560,7 @@ function App() {
             Practice all 12 chromatic notes in random order, hear each note called out on the beat.
           </p>
 
-          <div className={`now-playing ${isPlaying ? 'active' : 'idle'}`}>
+          <div className={`now-playing ${isPlaying ? 'active' : isPaused ? 'paused' : 'idle'}`}>
             {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop">{currentNote}</strong> : null}
           </div>
 
