@@ -1,6 +1,6 @@
-# Fretboard Master
+# Random notes trainer
 
-Fretboard Master is a small React and Vite practice app for guitar fretboard memorization. It generates a random scale, calls out each note name with browser speech synthesis, and keeps the notes aligned to a metronome click.
+Random notes trainer is a small React and Vite practice app for guitar fretboard memorization. It generates a random scale, calls out each note name with browser speech synthesis, and keeps the notes aligned to a metronome click.
 
 ## Features
 
@@ -26,7 +26,7 @@ The app is intended for a modern desktop browser. Audio playback begins only aft
 npm run build
 ```
 
-A VS Code task named `build fretboard-master` is also available.
+A VS Code task named `build random-notes-trainer` is also available.
 
 ## Notes
 

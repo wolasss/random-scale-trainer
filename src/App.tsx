@@ -19,7 +19,7 @@ const THEME_STORAGE_KEY = 'fretboard-theme'
 const BPM_STORAGE_KEY = 'fretboard-bpm'
 const CONTINUOUS_MODE_STORAGE_KEY = 'fretboard-continuous-mode'
 const SPEED_RAMP_MODE_STORAGE_KEY = 'fretboard-speed-ramp-mode'
-const LAST_SESSION_MS_STORAGE_KEY = 'fretboard-last-session-ms'
+const END_SOUND_STORAGE_KEY = 'fretboard-end-sound'
 
 type Theme = 'dark' | 'light'
 
@@ -32,7 +32,17 @@ const formatElapsed = (elapsedMs: number) => {
 }
 
 const generateShuffledNotes = (): string[] => {
-  const notes = getChromaticScale(Math.random() < 0.5 ? 'sharp' : 'flat')
+  const sharpNotes = getChromaticScale('sharp')
+  const flatNotes = getChromaticScale('flat')
+  const notes = sharpNotes.map((sharpNote, index) => {
+    const flatNote = flatNotes[index]
+
+    if (sharpNote === flatNote) {
+      return sharpNote
+    }
+
+    return Math.random() < 0.5 ? sharpNote : flatNote
+  })
   const shuffled = [...notes]
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
@@ -89,19 +99,20 @@ function App() {
     const isSpeedRampEnabled = storedMode === null ? false : storedMode === 'true'
     return isContinuousEnabled && isSpeedRampEnabled
   })
+  const [endSoundEnabled, ] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+
+    const storedValue = window.localStorage.getItem(END_SOUND_STORAGE_KEY)
+    return storedValue === null ? true : storedValue === 'true'
+  })
   const [currentNote, setCurrentNote] = useState('A♭')
   const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(() => {
-    if (typeof window === 'undefined') {
-      return 0
-    }
-
-    const storedElapsed = Number(window.localStorage.getItem(LAST_SESSION_MS_STORAGE_KEY))
-    return Number.isFinite(storedElapsed) && storedElapsed > 0 ? Math.round(storedElapsed) : 0
-  })
+  const [elapsedMs, setElapsedMs] = useState(0)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const playbackTimeoutRef = useRef<number | null>(null)
@@ -115,6 +126,7 @@ function App() {
   const bpmRef = useRef(bpm)
   const continuousModeRef = useRef(continuousMode)
   const speedRampModeRef = useRef(speedRampMode)
+  const endSoundEnabledRef = useRef(endSoundEnabled)
   const isPlayingRef = useRef(isPlaying)
   const startPlaybackRef = useRef<() => void>(() => {})
   const pausePlaybackRef = useRef<() => void>(() => {})
@@ -137,6 +149,10 @@ function App() {
   }, [speedRampMode])
 
   useEffect(() => {
+    endSoundEnabledRef.current = endSoundEnabled
+  }, [endSoundEnabled])
+
+  useEffect(() => {
     window.localStorage.setItem(BPM_STORAGE_KEY, String(bpm))
   }, [bpm])
 
@@ -149,8 +165,8 @@ function App() {
   }, [speedRampMode])
 
   useEffect(() => {
-    window.localStorage.setItem(LAST_SESSION_MS_STORAGE_KEY, String(Math.max(0, Math.round(elapsedMs))))
-  }, [elapsedMs])
+    window.localStorage.setItem(END_SOUND_STORAGE_KEY, String(endSoundEnabled))
+  }, [endSoundEnabled])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -230,6 +246,43 @@ function App() {
     gain.connect(context.destination)
     oscillator.start(startTime)
     oscillator.stop(startTime + 0.14)
+  }
+
+  const playSessionEndChime = (context: AudioContext) => {
+    const startTime = context.currentTime
+
+    const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
+      const bodyOscillator = context.createOscillator()
+      const shimmerOscillator = context.createOscillator()
+      const bodyGain = context.createGain()
+      const shimmerGain = context.createGain()
+      const toneStart = startTime + offset
+
+      bodyOscillator.type = 'triangle'
+      bodyOscillator.frequency.setValueAtTime(frequency, toneStart)
+      bodyGain.gain.setValueAtTime(0.0001, toneStart)
+      bodyGain.gain.exponentialRampToValueAtTime(peak, toneStart + 0.012)
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
+
+      shimmerOscillator.type = 'sine'
+      shimmerOscillator.frequency.setValueAtTime(frequency * 2, toneStart)
+      shimmerGain.gain.setValueAtTime(0.0001, toneStart)
+      shimmerGain.gain.exponentialRampToValueAtTime(peak * 0.42, toneStart + 0.01)
+      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration * 0.88)
+
+      bodyOscillator.connect(bodyGain)
+      shimmerOscillator.connect(shimmerGain)
+      bodyGain.connect(context.destination)
+      shimmerGain.connect(context.destination)
+
+      bodyOscillator.start(toneStart)
+      shimmerOscillator.start(toneStart)
+      bodyOscillator.stop(toneStart + duration + 0.03)
+      shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
+    }
+
+    playTone(783.99, 0, 0.24, 0.11)
+    playTone(523.25, 0.19, 0.34, 0.13)
   }
 
   const warmUpSpeech = (): Promise<void> => {
@@ -393,14 +446,19 @@ function App() {
 
     if (currentIndexRef.current >= notes.length) {
       const nextBpm = applySpeedRamp()
+      const context = endSoundEnabledRef.current ? await ensureAudioContext() : null
 
       if (!continuousModeRef.current) {
+        if (context) {
+          playSessionEndChime(context)
+        }
+
         stopPlayback(speedRampModeRef.current ? `Finished all 12 notes. BPM set to ${nextBpm}.` : 'Finished all 12 notes.')
         return
       }
 
-      prepareNextNotes(true, false)
-      queueStep(Math.round(60000 / nextBpm))
+      prepareNextNotes(true, true)
+      queueStep(0)
       return
     }
 
@@ -467,6 +525,9 @@ function App() {
     sessionStartRef.current = null
     accumulatedSessionMsRef.current = 0
     setElapsedMs(0)
+    currentNotesRef.current = generateShuffledNotes()
+    currentIndexRef.current = 0
+    setCurrentNote('A♭')
 
     if (playbackActiveRef.current) {
       sessionStartRef.current = Date.now()
@@ -647,6 +708,9 @@ function App() {
             >
               <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
             </button>
+            <button type="button" className="ghost-button" onClick={resetSession}>
+              <FontAwesomeIcon icon={faRotateLeft} /> Reset
+            </button>
           </div>
         </section>
 
@@ -657,12 +721,6 @@ function App() {
           </div>
 
           <div className="timer-face">{formatElapsed(elapsedMs)}</div>
-
-          <div className="button-row compact">
-            <button type="button" className="ghost-button" onClick={resetSession}>
-              <FontAwesomeIcon icon={faRotateLeft} /> Reset
-            </button>
-          </div>
         </section>
       </main>
 
@@ -673,7 +731,7 @@ function App() {
         <div className="footer-links">
           <a
             className="social-link"
-            href="https://github.com/wolasso/fretboard-master"
+            href="https://github.com/wolasso/random-scale-trainer"
             target="_blank"
             rel="noreferrer"
             aria-label="Project on GitHub"
@@ -693,7 +751,7 @@ function App() {
           </a>
           <a
             className="coffee-button"
-            href="https://www.buymeacoffee.com/wolasso"
+            href="https://www.buymeacoffee.com/wolas"
             target="_blank"
             rel="noreferrer"
           >
