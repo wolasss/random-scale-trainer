@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/wolasss/random-scale-trainer/compare/v1.0.3...v1.0.4) (2026-04-09)
+
+
+### Bug Fixes
+
+* reset button stops the playback ([7b43710](https://github.com/wolasss/random-scale-trainer/commit/7b43710ba8b4204f3d44731617fc53af0e0466b3))
+
 ## [1.0.3](https://github.com/wolasss/random-scale-trainer/compare/v1.0.2...v1.0.3) (2026-04-09)
 
 
