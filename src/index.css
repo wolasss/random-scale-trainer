@@ -445,6 +445,12 @@ input[type='range'] {
   gap: 0.4rem;
 }
 
+.app-version {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
 .footer-links {
   display: inline-flex;
   align-items: center;

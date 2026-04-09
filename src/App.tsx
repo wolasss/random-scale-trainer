@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { getChromaticScale, speakableNoteName } from './lib/music'
+import { version } from '../package.json'
 
 type SpeechWindow = Window & {
   speechSynthesis?: SpeechSynthesis
@@ -61,7 +62,7 @@ function App() {
       return storedTheme
     }
 
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return 'dark'
   })
   const [bpm, setBpm] = useState(() => {
     if (typeof window === 'undefined') {
@@ -393,7 +394,7 @@ function App() {
       return bpmRef.current
     }
 
-    const nextBpm = Math.min(MAX_BPM, bpmRef.current + 5)
+    const nextBpm = Math.min(MAX_BPM, bpmRef.current + 2)
     if (nextBpm !== bpmRef.current) {
       setBpm(nextBpm)
     }
@@ -618,7 +619,7 @@ function App() {
         <section className="hero-card panel">
           <h1>Random notes generator</h1>
           <p className="lede">
-            Practice all 12 chromatic notes in random order, hear each note called out on the beat.
+            Train music notes in random order. Hear each note on the beat
           </p>
 
           <div className={`now-playing ${isPlaying ? 'active' : isPaused ? 'paused' : 'idle'}`}>
@@ -630,8 +631,8 @@ function App() {
 
         <section className="panel controls-panel">
           <div className="panel-heading">
-            <h2>Settings</h2>
-            <p>Metronome timing drives the click. Browser speech announces the note names on each beat.</p>
+            <h2>Practice settings</h2>
+            <p>The metronome sets the tempo. Each note is spoken on the beat.</p>
           </div>
 
           <div className="control-block">
@@ -653,13 +654,13 @@ function App() {
             </div>
 
             <div className="target-time-info">
-              <span className="label">Target time (12 notes)</span>
+              <span className="label">Cycle time (12 notes)</span>
               <span className="target-time">{formatElapsed((12 * 60000) / bpm)}</span>
             </div>
           </div>
 
           <div className="toggle-row">
-            <label htmlFor="continuous-mode">Continuous mode</label>
+            <label htmlFor="continuous-mode">Loop continuously</label>
             <button
               id="continuous-mode"
               type="button"
@@ -681,7 +682,7 @@ function App() {
 
           {continuousMode ? (
             <div className="toggle-row">
-              <label htmlFor="speed-ramp-mode">Speed ramp mode (+5 BPM per cycle)</label>
+              <label htmlFor="speed-ramp-mode">Speed ramp mode (+2 BPM per cycle)</label>
               <button
                 id="speed-ramp-mode"
                 type="button"
@@ -728,6 +729,7 @@ function App() {
         <p>
           Made with <FontAwesomeIcon icon={faHeart} className="heart-icon" /> by Adam Wolski
         </p>
+        <p className="app-version">v{version}</p>
         <div className="footer-links">
           <a
             className="social-link"
