@@ -1,3 +1,11 @@
+## [1.0.5](https://github.com/wolasss/random-scale-trainer/compare/v1.0.4...v1.0.5) (2026-06-16)
+
+
+### Bug Fixes
+
+* fix playback on iphones ([a2488cd](https://github.com/wolasss/random-scale-trainer/commit/a2488cdc2821458a16a96245e7ef42ab3f937386))
+* use precomputed audio files ([a2a0217](https://github.com/wolasss/random-scale-trainer/commit/a2a0217a1cc323e3392220a4c6a77a11ebffabe2))
+
 ## [1.0.4](https://github.com/wolasss/random-scale-trainer/compare/v1.0.3...v1.0.4) (2026-04-09)
 
 
