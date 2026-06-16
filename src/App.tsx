@@ -292,10 +292,17 @@ function App() {
 
     await Promise.all(
       Object.entries(NOTE_AUDIO_FILES).map(async ([note, path]) => {
-        const response = await fetch(path)
-        const arrayBuffer = await response.arrayBuffer()
-        const audioBuffer = await context.decodeAudioData(arrayBuffer)
-        noteAudioBuffers.current.set(note, audioBuffer)
+        try {
+          const response = await fetch(path)
+          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+          const arrayBuffer = await response.arrayBuffer()
+          const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
+            context.decodeAudioData(arrayBuffer, resolve, reject)
+          })
+          noteAudioBuffers.current.set(note, audioBuffer)
+        } catch (err) {
+          console.error(`Failed to load audio for note "${note}":`, err)
+        }
       })
     )
 
@@ -493,6 +500,11 @@ function App() {
     setIsPaused(false)
     setPlaybackMessage('Loading audio...')
     await loadNoteAudios(context)
+
+    if (noteAudioBuffers.current.size === 0) {
+      stopPlayback('Failed to load audio. Please reload the page.')
+      return
+    }
 
     playbackActiveRef.current = true
 
