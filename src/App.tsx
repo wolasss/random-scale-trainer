@@ -2,12 +2,31 @@ import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
-import { getChromaticScale, speakableNoteName } from './lib/music'
+import { getChromaticScale } from './lib/music'
 import { version } from '../package.json'
 
 type SpeechWindow = Window & {
-  speechSynthesis?: SpeechSynthesis
   webkitAudioContext?: typeof AudioContext
+}
+
+const NOTE_AUDIO_FILES: Record<string, string> = {
+  'C': '/audio/notes/c.mp3',
+  'C#': '/audio/notes/c-sharp.mp3',
+  'Db': '/audio/notes/d-flat.mp3',
+  'D': '/audio/notes/d.mp3',
+  'D#': '/audio/notes/d-sharp.mp3',
+  'Eb': '/audio/notes/e-flat.mp3',
+  'E': '/audio/notes/e.mp3',
+  'F': '/audio/notes/f.mp3',
+  'F#': '/audio/notes/f-sharp.mp3',
+  'Gb': '/audio/notes/g-flat.mp3',
+  'G': '/audio/notes/g.mp3',
+  'G#': '/audio/notes/g-sharp.mp3',
+  'Ab': '/audio/notes/a-flat.mp3',
+  'A': '/audio/notes/a.mp3',
+  'A#': '/audio/notes/a-sharp.mp3',
+  'Bb': '/audio/notes/b-flat.mp3',
+  'B': '/audio/notes/b.mp3',
 }
 
 const MIN_BPM = 10
@@ -15,7 +34,6 @@ const MAX_BPM = 100
 const DEFAULT_BPM = 30
 const COUNT_IN_BEATS = 3
 const COUNT_IN_MS = 650
-const PREFERRED_VOICE_NAME = 'Samantha'
 const THEME_STORAGE_KEY = 'fretboard-theme'
 const BPM_STORAGE_KEY = 'fretboard-bpm'
 const CONTINUOUS_MODE_STORAGE_KEY = 'fretboard-continuous-mode'
@@ -120,7 +138,8 @@ function App() {
   const playbackActiveRef = useRef(false)
   const currentNotesRef = useRef<string[]>(generateShuffledNotes())
   const currentIndexRef = useRef(0)
-  const voicesRef = useRef<SpeechSynthesisVoice[]>([])
+  const noteAudioBuffers = useRef<Map<string, AudioBuffer>>(new Map())
+  const noteBuffersLoadedRef = useRef(false)
   const sessionStartQueuedRef = useRef(false)
   const sessionStartRef = useRef<number | null>(null)
   const accumulatedSessionMsRef = useRef(elapsedMs)
@@ -173,24 +192,6 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme)
     window.localStorage.setItem(THEME_STORAGE_KEY, theme)
   }, [theme])
-
-  useEffect(() => {
-    const speechWindow = window as SpeechWindow
-    const loadVoices = () => {
-      if (!speechWindow.speechSynthesis) {
-        return
-      }
-
-      voicesRef.current = speechWindow.speechSynthesis.getVoices()
-    }
-
-    loadVoices()
-    speechWindow.speechSynthesis?.addEventListener('voiceschanged', loadVoices)
-
-    return () => {
-      speechWindow.speechSynthesis?.removeEventListener('voiceschanged', loadVoices)
-    }
-  }, [])
 
   useEffect(() => {
     if (!isSessionRunning) {
@@ -286,48 +287,32 @@ function App() {
     playTone(523.25, 0.19, 0.34, 0.13)
   }
 
-  const warmUpSpeech = (): Promise<void> => {
-    const speechWindow = window as SpeechWindow
-    if (!speechWindow.speechSynthesis) return Promise.resolve()
+  const loadNoteAudios = async (context: AudioContext) => {
+    if (noteBuffersLoadedRef.current) return
 
-    return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance('\u200b')
-      utterance.volume = 0
-      const done = () => { window.clearTimeout(fallback); resolve() }
-      utterance.onend = done
-      utterance.onerror = done
-      const fallback = window.setTimeout(resolve, 800)
-      speechWindow.speechSynthesis.speak(utterance)
-    })
+    await Promise.all(
+      Object.entries(NOTE_AUDIO_FILES).map(async ([note, path]) => {
+        const response = await fetch(path)
+        const arrayBuffer = await response.arrayBuffer()
+        const audioBuffer = await context.decodeAudioData(arrayBuffer)
+        noteAudioBuffers.current.set(note, audioBuffer)
+      })
+    )
+
+    noteBuffersLoadedRef.current = true
   }
 
   const speakNote = (note: string) => {
-    const speechWindow = window as SpeechWindow
+    const context = audioContextRef.current
+    if (!context) return
 
-    if (!speechWindow.speechSynthesis) {
-      setPlaybackMessage('Speech synthesis is unavailable in this browser.')
-      return
-    }
+    const buffer = noteAudioBuffers.current.get(note)
+    if (!buffer) return
 
-    if (speechWindow.speechSynthesis.speaking || speechWindow.speechSynthesis.pending) {
-      speechWindow.speechSynthesis.cancel()
-    }
-
-    const utterance = new SpeechSynthesisUtterance(speakableNoteName(note))
-    const preferredVoice =
-      voicesRef.current.find((voice) => voice.name.toLowerCase() === PREFERRED_VOICE_NAME.toLowerCase()) ??
-      voicesRef.current.find((voice) => voice.name.toLowerCase().includes(PREFERRED_VOICE_NAME.toLowerCase())) ??
-      voicesRef.current.find((voice) => voice.lang.startsWith('en')) ??
-      voicesRef.current[0]
-
-    if (preferredVoice) {
-      utterance.voice = preferredVoice
-    }
-
-    utterance.rate = 1
-    utterance.pitch = 1
-    utterance.volume = 1
-    speechWindow.speechSynthesis.speak(utterance)
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.connect(context.destination)
+    source.start()
   }
 
   const clearPlaybackTimeout = () => {
@@ -365,7 +350,6 @@ function App() {
     stopSessionTimer()
     setCurrentNote('A♭')
     setPlaybackMessage(message)
-    window.speechSynthesis?.cancel()
   }
 
   function pausePlayback() {
@@ -379,7 +363,6 @@ function App() {
     setIsPaused(true)
     stopSessionTimer()
     setPlaybackMessage('Paused')
-    window.speechSynthesis?.cancel()
   }
 
   const queueStep = (delayMs: number) => {
@@ -508,8 +491,8 @@ function App() {
     sessionStartQueuedRef.current = true
     setIsPlaying(true)
     setIsPaused(false)
-    setPlaybackMessage('Warming up speech...')
-    await warmUpSpeech()
+    setPlaybackMessage('Loading audio...')
+    await loadNoteAudios(context)
 
     playbackActiveRef.current = true
 
@@ -595,7 +578,6 @@ function App() {
       playbackActiveRef.current = false
       clearPlaybackTimeout()
       sessionStartQueuedRef.current = false
-      window.speechSynthesis?.cancel()
     }
   }, [])
 
