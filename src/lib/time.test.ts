@@ -38,13 +38,13 @@ describe('cycleSeconds', () => {
 
 describe('formatCycleLength', () => {
   it('formats compact minutes:seconds', () => {
-    expect(formatCycleLength(40)).toBe('0:40')
-    expect(formatCycleLength(96)).toBe('1:36')
-    expect(formatCycleLength(12)).toBe('0:12')
+    expect(formatCycleLength(40)).toBe('00:40')
+    expect(formatCycleLength(96)).toBe('01:36')
+    expect(formatCycleLength(12)).toBe('00:12')
   })
 
   it('rounds fractional seconds', () => {
-    expect(formatCycleLength(39.6)).toBe('0:40')
-    expect(formatCycleLength(60.4)).toBe('1:00')
+    expect(formatCycleLength(39.6)).toBe('00:40')
+    expect(formatCycleLength(60.4)).toBe('01:00')
   })
 })

@@ -10,7 +10,7 @@ export const NOTE_NAMES = new Set([
 
 // Exact strings from src/constants.ts — update here if the copy changes.
 export const MESSAGES = {
-  idle: 'Press start — or hit Space.',
+  idle: 'Press start — or hit Space. Headphones recommended.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
   playingRamp: 'Speed ramp on: +2 BPM each cycle.',

@@ -34,7 +34,7 @@ export const STORAGE_KEYS = {
 /** User-visible playback strings. The e2e suite pins these exact values
  * (e2e/pages/trainer.page.ts keeps its own golden copies on purpose). */
 export const PLAYBACK_MESSAGES = {
-  idle: 'Press start — or hit Space.',
+  idle: 'Press start — or hit Space. Headphones recommended.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
   playingRamp: 'Speed ramp on: +2 BPM each cycle.',

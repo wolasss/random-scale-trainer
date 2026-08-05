@@ -101,9 +101,21 @@ button {
 .topbar {
   grid-column: span 12;
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.header-copy .lede {
+  margin-top: 0.5rem;
+}
+
+.header-side {
+  display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  gap: 1rem;
+  padding-top: 0.9rem;
 }
 
 .panel {
@@ -225,27 +237,43 @@ h2 {
 
 .hero-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.next-chip {
-  flex: none;
-  text-align: right;
-}
-
-.next-chip-label {
-  display: block;
+.chip-label {
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--ink-soft);
 }
 
+.now-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.chip-text {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.next-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 1.2rem;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+}
+
 .next-chip-value {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
+  line-height: 1;
   color: var(--ink-soft);
 }
 
@@ -312,24 +340,11 @@ h2 {
   }
 }
 
-.hero-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.3rem;
-}
-
-.cycle-position {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.72rem;
-  color: var(--ink-soft);
-}
-
 .beat-dots {
   display: flex;
+  justify-content: center;
   gap: 10px;
+  margin-top: 0.9rem;
 }
 
 .beat-dot {
@@ -355,7 +370,6 @@ h2 {
 }
 
 .transport-bar {
-  grid-column: span 12;
   display: flex;
   justify-content: center;
   gap: 0.9rem;
@@ -373,7 +387,6 @@ h2 {
 }
 
 .key-hints {
-  margin-right: auto;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -432,9 +445,16 @@ input[type='range'] {
 .tempo-readout-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 1.1rem;
   margin-bottom: 0.55rem;
+}
+
+/* Inside a heading subtitle the cycle time reads inline, not as an accent stat. */
+.panel-heading .target-time {
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
 }
 
 .stepper-button {
@@ -466,9 +486,13 @@ input[type='range'] {
 }
 
 .tap-tempo {
-  min-height: 36px;
-  padding: 0.35rem 0.9rem;
-  font-size: 0.85rem;
+  min-height: 44px;
+  padding: 0.5rem 1.3rem;
+  border-radius: 14px;
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 700;
 }
 
 .control-block + .control-block {
@@ -567,10 +591,13 @@ input[type='range'] {
   /* The string: a 1px line through the middle of the row. */
   background: linear-gradient(rgba(174, 236, 255, 0.28), rgba(174, 236, 255, 0.28)) center / 100% 1px
     no-repeat;
+  /* The fret: a light vertical line closing each cell. */
+  border-right: 1px solid rgba(174, 236, 255, 0.12);
 }
 
 :root[data-theme='light'] .fret-cell {
   background: linear-gradient(rgba(16, 35, 49, 0.3), rgba(16, 35, 49, 0.3)) center / 100% 1px no-repeat;
+  border-right-color: rgba(16, 35, 49, 0.14);
 }
 
 .fret-cell.nut {
@@ -704,6 +731,26 @@ input[type='range'] {
   font-weight: 700;
 }
 
+/* Loose variant: separated pill buttons instead of a joined track. */
+.segmented.loose {
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.segmented.loose [role='radio'] {
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--button-border);
+  border-radius: 14px;
+}
+
+.segmented.loose [role='radio'][aria-checked='true'] {
+  border-color: var(--primary);
+}
+
 .note-pop {
   animation: note-pop 220ms ease;
 }
@@ -753,6 +800,27 @@ input[type='range'] {
   flex-wrap: wrap;
 }
 
+.session-goal-label {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.session-timer-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0.3rem 0 0.9rem;
+}
+
+.timer-suffix {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.session-card .segmented {
+  margin-bottom: 1rem;
+}
+
 .session-progress {
   height: 8px;
   border-radius: 999px;
@@ -799,21 +867,10 @@ input[type='range'] {
 }
 
 .timer-face {
-  flex: 1;
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
-  margin: 0.4rem 0 0.9rem;
-  padding: 1.4rem 1rem;
-  border-radius: 16px;
-  text-align: center;
-  font-size: clamp(2.6rem, 9vw, 4.3rem);
+  font-size: clamp(2.8rem, 6vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 20% 10%, rgba(255, 211, 110, 0.2), transparent 45%),
-    linear-gradient(165deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--control-border);
 }
 
 .app-footer {

@@ -4,6 +4,8 @@ type SegmentedControlProps<T extends string | number> = {
   value: T
   onChange: (value: T) => void
   testId?: string
+  /** Extra class for style variants, e.g. 'loose' for separated pill buttons. */
+  className?: string
 }
 
 export function SegmentedControl<T extends string | number>({
@@ -12,9 +14,15 @@ export function SegmentedControl<T extends string | number>({
   value,
   onChange,
   testId,
+  className,
 }: SegmentedControlProps<T>) {
   return (
-    <div className="segmented" role="radiogroup" aria-label={ariaLabel} data-testid={testId}>
+    <div
+      className={`segmented ${className ?? ''}`}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      data-testid={testId}
+    >
       {options.map((option) => (
         <button
           key={String(option.value)}

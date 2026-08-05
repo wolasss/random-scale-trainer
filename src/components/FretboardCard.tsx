@@ -16,7 +16,7 @@ export function FretboardCard({ currentPc, revealed }: FretboardCardProps) {
     <section className="panel fretboard-card">
       <div className="panel-heading fretboard-heading">
         <h2>On the neck</h2>
-        <p>Every place the called note lives — frets 0–12, standard tuning.</p>
+        <p>standard tuning</p>
       </div>
 
       <div className="fretboard-scroll">

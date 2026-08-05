@@ -4,6 +4,7 @@ import type { PlaybackSnapshot } from '../lib/playback/machine'
 type HeroProps = {
   snapshot: PlaybackSnapshot
   beatsPerNote: number
+  poolSize: number
   earOnly: boolean
   ringRef: RefObject<HTMLDivElement | null>
 }
@@ -18,24 +19,31 @@ function BeatDots({ count, active }: { count: number; active: number }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, earOnly, ringRef }: HeroProps) {
+export function Hero({ snapshot, beatsPerNote, poolSize, earOnly, ringRef }: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength, message } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   // Ear-only hides the note until the last beat of its span for self-checking.
   const revealed = !earOnly || beatInSpan === beatsPerNote - 1
 
+  const nowText =
+    currentNote && positionInCycle !== null
+      ? `note ${positionInCycle} of ${cycleLength}`
+      : `${poolSize} notes in the bag`
+
   return (
     <section className="hero-card panel">
       <div className="hero-top">
-        <div>
-          <h1>Random notes generator</h1>
-          <p className="lede">Train music notes in random order. Hear each note on the beat</p>
+        <div className="now-chip">
+          <span className="chip-label">Now</span>
+          <span className="chip-text" data-testid="cycle-position">
+            {nowText}
+          </span>
         </div>
-        {nextNote && !earOnly ? (
+        {!earOnly ? (
           <div className="next-chip">
-            <span className="next-chip-label">Next</span>
+            <span className="chip-label">Next</span>
             <span className="next-chip-value" data-testid="next-note">
-              {nextNote.display}
+              {nextNote?.display ?? '—'}
             </span>
           </div>
         ) : null}
@@ -57,18 +65,11 @@ export function Hero({ snapshot, beatsPerNote, earOnly, ringRef }: HeroProps) {
         )}
       </div>
 
-      <div className="hero-meta">
-        {currentNote && positionInCycle !== null ? (
-          <span className="cycle-position" data-testid="cycle-position">
-            note {positionInCycle} of {cycleLength}
-          </span>
-        ) : null}
-        {currentNote ? <BeatDots count={beatsPerNote} active={beatInSpan} /> : null}
-      </div>
-
       <p className="playback-message" data-testid="playback-message" aria-live="polite">
         {message}
       </p>
+
+      <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
     </section>
   )
 }

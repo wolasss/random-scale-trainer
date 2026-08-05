@@ -37,7 +37,7 @@ describe('initial load', () => {
     assert.equal(await page.getSliderAttribute('min'), '30')
     assert.equal(await page.getSliderAttribute('max'), '240')
     // 12 notes x 4 beats at 72 BPM = 40s
-    assert.equal(await page.getCycleTime(), '≈ 0:40')
+    assert.equal(await page.getCycleTime(), '≈ 00:40')
 
     const continuous = await page.getSwitchState('continuous')
     assert.equal(continuous.checked, true)

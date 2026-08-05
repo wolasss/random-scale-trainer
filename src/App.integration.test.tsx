@@ -53,9 +53,9 @@ describe('App integration', () => {
     render(<App />)
 
     expect(screen.queryByTestId('current-note')).toBeNull()
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space. Headphones recommended.')
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:40')
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:40')
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
     expect(screen.getByTestId('now-playing').className).toContain('idle')
@@ -106,7 +106,7 @@ describe('App integration', () => {
 
     fireEvent.change(document.getElementById('bpm-slider')!, { target: { value: '60' } })
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('60')
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:48')
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:48')
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('60')
   })
 
@@ -122,7 +122,7 @@ describe('App integration', () => {
     const noteEvery = screen.getByTestId('note-every')
     fireEvent.click(noteEvery.querySelector('[data-value="1"]')!)
     // 12 notes × 1 beat at 71 BPM ≈ 10.1s
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:10')
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:10')
     expect(window.localStorage.getItem('fretboard-beats-per-note')).toBe('1')
   })
 
@@ -296,6 +296,6 @@ describe('App integration', () => {
     fireEvent.click(screen.getByTestId('reset'))
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.queryByTestId('current-note')).toBeNull()
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space. Headphones recommended.')
   })
 })

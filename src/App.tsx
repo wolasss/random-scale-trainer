@@ -82,16 +82,17 @@ function App() {
           onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
         />
 
-        <Hero
-          snapshot={playback.snapshot}
-          beatsPerNote={settings.beatsPerNote}
-          earOnly={settings.earOnly}
-          ringRef={beatPulse.ringRef}
-        />
-
-        <TransportBar isPlaying={playback.isPlaying} onPlayPause={playOrPause} onReset={resetSession} />
-
         <div className="column-main">
+          <Hero
+            snapshot={playback.snapshot}
+            beatsPerNote={settings.beatsPerNote}
+            poolSize={settings.pool.length}
+            earOnly={settings.earOnly}
+            ringRef={beatPulse.ringRef}
+          />
+
+          <TransportBar isPlaying={playback.isPlaying} onPlayPause={playOrPause} onReset={resetSession} />
+
           <TempoCard
             bpm={settings.bpm}
             beatsPerNote={settings.beatsPerNote}
@@ -109,13 +110,9 @@ function App() {
             onPreset={(preset) => dispatch({ type: 'setPreset', preset })}
             onSpelling={(value) => dispatch({ type: 'setSpelling', value })}
           />
-
-          <FretboardCard currentPc={playback.snapshot.currentNote?.pc ?? null} revealed={noteRevealed} />
         </div>
 
         <div className="column-side">
-          <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
-
           <SessionCard
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
@@ -123,6 +120,10 @@ function App() {
             notesCalled={playback.snapshot.notesCalled}
             cyclesCompleted={playback.snapshot.cyclesCompleted}
           />
+
+          <FretboardCard currentPc={playback.snapshot.currentNote?.pc ?? null} revealed={noteRevealed} />
+
+          <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
         </div>
       </main>
 

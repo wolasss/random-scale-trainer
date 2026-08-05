@@ -33,7 +33,10 @@ export function TempoCard({
     <section className="panel tempo-card">
       <div className="panel-heading">
         <h2>Tempo</h2>
-        <p>The click sounds on every beat — change it live, even mid-practice.</p>
+        <p>
+          <span className="label">One full cycle of {poolSize} notes</span>{' '}
+          <span className="target-time">≈ {formatCycleLength(cycleSeconds(poolSize, beatsPerNote, bpm))}</span>
+        </p>
       </div>
 
       <div className="control-block">
@@ -60,6 +63,9 @@ export function TempoCard({
           >
             +
           </button>
+          <button type="button" className="ghost-button tap-tempo" data-testid="tap-tempo" onClick={onTap}>
+            Tap tempo
+          </button>
         </div>
 
         <input
@@ -73,9 +79,6 @@ export function TempoCard({
         />
         <div className="range-hints">
           <span>{MIN_BPM}</span>
-          <button type="button" className="ghost-button tap-tempo" data-testid="tap-tempo" onClick={onTap}>
-            Tap tempo
-          </button>
           <span>{MAX_BPM}</span>
         </div>
       </div>
@@ -92,11 +95,6 @@ export function TempoCard({
           onChange={onBeatsPerNoteChange}
         />
         <p className="control-subtitle">Keep the click fast, change notes slowly.</p>
-
-        <div className="target-time-info">
-          <span className="label">One full cycle of {poolSize} notes</span>
-          <span className="target-time">≈ {formatCycleLength(cycleSeconds(poolSize, beatsPerNote, bpm))}</span>
-        </div>
       </div>
     </section>
   )

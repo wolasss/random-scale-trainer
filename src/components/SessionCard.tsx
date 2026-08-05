@@ -19,17 +19,14 @@ export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCom
     <section className="panel session-card">
       <div className="panel-heading session-heading">
         <h2>Session</h2>
-        <SegmentedControl
-          ariaLabel="Practice goal in minutes"
-          testId="session-goal"
-          options={SESSION_GOAL_OPTIONS.map((minutes) => ({ value: minutes, label: `${minutes} min` }))}
-          value={goalMin}
-          onChange={onGoal}
-        />
+        <span className="session-goal-label">goal {goalMin} min</span>
       </div>
 
-      <div className="timer-face" data-testid="timer">
-        {formatElapsed(elapsedMs)}
+      <div className="session-timer-row">
+        <span className="timer-face" data-testid="timer">
+          {formatElapsed(elapsedMs)}
+        </span>
+        <span className="timer-suffix">of practice</span>
       </div>
 
       <div
@@ -43,6 +40,15 @@ export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCom
       >
         <div className="session-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
+
+      <SegmentedControl
+        className="loose"
+        ariaLabel="Practice goal in minutes"
+        testId="session-goal"
+        options={SESSION_GOAL_OPTIONS.map((minutes) => ({ value: minutes, label: `${minutes} min` }))}
+        value={goalMin}
+        onChange={onGoal}
+      />
 
       <div className="session-stats">
         <div className="session-stat">
