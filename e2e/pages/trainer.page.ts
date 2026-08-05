@@ -153,16 +153,12 @@ export class TrainerPage {
     return className.includes('primary-button')
   }
 
-  async getToggleState(toggle: 'continuous' | 'speedRamp'): Promise<{ text: string; enabled: boolean }> {
+  /** Switches expose their state via role=switch aria-checked, not text. */
+  async getSwitchState(toggle: 'continuous' | 'speedRamp'): Promise<{ checked: boolean; disabled: boolean }> {
     const locator = toggle === 'continuous' ? SELECTORS.continuousToggle : SELECTORS.speedRampToggle
     const element = this.driver.findElement(locator)
-    const [text, className] = await Promise.all([element.getText(), element.getAttribute('class')])
-    return { text, enabled: (className ?? '').includes('enabled') }
-  }
-
-  async isSpeedRampVisible(): Promise<boolean> {
-    const elements = await this.driver.findElements(SELECTORS.speedRampToggle)
-    return elements.length > 0
+    const [checked, enabled] = await Promise.all([element.getAttribute('aria-checked'), element.isEnabled()])
+    return { checked: checked === 'true', disabled: !enabled }
   }
 
   async getSliderAttribute(name: string): Promise<string | null> {

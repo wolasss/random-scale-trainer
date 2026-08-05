@@ -34,14 +34,12 @@ describe('initial load', () => {
     // 12 notes x 4 beats at 72 BPM = 40s
     assert.equal(await page.getCycleTime(), '≈ 0:40')
 
-    const continuous = await page.getToggleState('continuous')
-    assert.equal(continuous.text, 'On')
-    assert.equal(continuous.enabled, true)
+    const continuous = await page.getSwitchState('continuous')
+    assert.equal(continuous.checked, true)
 
-    assert.equal(await page.isSpeedRampVisible(), true)
-    const speedRamp = await page.getToggleState('speedRamp')
-    assert.equal(speedRamp.text, 'Off')
-    assert.equal(speedRamp.enabled, false)
+    const speedRamp = await page.getSwitchState('speedRamp')
+    assert.equal(speedRamp.checked, false)
+    assert.equal(speedRamp.disabled, false)
   })
 
   it('starts with a zeroed timer and a Play button', async () => {

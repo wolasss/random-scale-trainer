@@ -59,8 +59,8 @@ describe('App integration', () => {
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Play')
     expect(screen.getByTestId('now-playing').className).toContain('idle')
-    expect(document.getElementById('continuous-mode')).toHaveTextContent('On')
-    expect(document.getElementById('speed-ramp-mode')).toHaveTextContent('Off')
+    expect(document.getElementById('continuous-mode')).toHaveAttribute('aria-checked', 'true')
+    expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
   })
 
   it('toggles the theme and persists it', () => {
@@ -72,14 +72,15 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-theme')).toBe('light')
   })
 
-  it('hides and disables speed ramp when continuous mode turns off', () => {
+  it('disables and forces off speed ramp when continuous mode turns off', () => {
     render(<App />)
 
     fireEvent.click(document.getElementById('speed-ramp-mode')!)
     expect(window.localStorage.getItem('fretboard-speed-ramp-mode')).toBe('true')
 
     fireEvent.click(document.getElementById('continuous-mode')!)
-    expect(document.getElementById('speed-ramp-mode')).toBeNull()
+    expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
+    expect(document.getElementById('speed-ramp-mode')).toBeDisabled()
     expect(window.localStorage.getItem('fretboard-continuous-mode')).toBe('false')
     expect(window.localStorage.getItem('fretboard-speed-ramp-mode')).toBe('false')
   })

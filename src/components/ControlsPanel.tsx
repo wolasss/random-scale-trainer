@@ -2,6 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPause, faPlay, faRotateLeft } from '@fortawesome/free-solid-svg-icons'
 import { MAX_BPM, MIN_BPM } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
+import { SwitchRow } from './ui/SwitchRow'
 
 type ControlsPanelProps = {
   bpm: number
@@ -59,31 +60,21 @@ export function ControlsPanel({
         </div>
       </div>
 
-      <div className="toggle-row">
-        <label htmlFor="continuous-mode">Loop continuously</label>
-        <button
-          id="continuous-mode"
-          type="button"
-          className={`toggle ${continuousMode ? 'enabled' : ''}`}
-          onClick={onToggleContinuousMode}
-        >
-          {continuousMode ? 'On' : 'Off'}
-        </button>
-      </div>
-
-      {continuousMode ? (
-        <div className="toggle-row">
-          <label htmlFor="speed-ramp-mode">Speed ramp mode (+2 BPM per cycle)</label>
-          <button
-            id="speed-ramp-mode"
-            type="button"
-            className={`toggle ${speedRampMode ? 'enabled' : ''}`}
-            onClick={onToggleSpeedRampMode}
-          >
-            {speedRampMode ? 'On' : 'Off'}
-          </button>
-        </div>
-      ) : null}
+      <SwitchRow
+        id="continuous-mode"
+        label="Loop continuously"
+        subtitle="Off stops after one full cycle."
+        checked={continuousMode}
+        onChange={onToggleContinuousMode}
+      />
+      <SwitchRow
+        id="speed-ramp-mode"
+        label="Speed ramp"
+        subtitle="+2 BPM after every cycle."
+        checked={speedRampMode}
+        onChange={onToggleSpeedRampMode}
+        disabled={!continuousMode}
+      />
 
       <div className="button-row transport-row">
         <button
