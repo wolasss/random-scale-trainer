@@ -5,12 +5,9 @@ import { settingsReducer, useSettings, type Settings } from './useSettings'
 const baseSettings = (): Settings => ({
   bpm: 72,
   beatsPerNote: 4,
-  countInEnabled: true,
   continuousMode: true,
   speedRampMode: false,
-  speakNotes: true,
-  referencePitch: true,
-  earOnly: false,
+  showFretboard: true,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -68,7 +65,7 @@ describe('useSettings persistence', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,1,2,3,4,5,6,7,8,9,10,11')
     expect(window.localStorage.getItem('fretboard-spelling')).toBe('mixed')
-    expect(window.localStorage.getItem('fretboard-count-in')).toBe('true')
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
     expect(window.localStorage.getItem('fretboard-session-goal')).toBe('10')
   })
 
@@ -77,7 +74,7 @@ describe('useSettings persistence', () => {
     window.localStorage.setItem('fretboard-note-pool', '0,2,4')
     window.localStorage.setItem('fretboard-spelling', 'sharp')
     window.localStorage.setItem('fretboard-beats-per-note', '8')
-    window.localStorage.setItem('fretboard-ear-only', 'true')
+    window.localStorage.setItem('fretboard-show-neck', 'false')
 
     const { result } = renderHook(() => useSettings())
 
@@ -86,7 +83,7 @@ describe('useSettings persistence', () => {
       pool: [0, 2, 4],
       spelling: 'sharp',
       beatsPerNote: 8,
-      earOnly: true,
+      showFretboard: false,
     })
   })
 
@@ -120,11 +117,11 @@ describe('useSettings persistence', () => {
     act(() => {
       result.current[1]({ type: 'setBpm', bpm: 120 })
       result.current[1]({ type: 'togglePoolNote', pc: 5 })
-      result.current[1]({ type: 'toggle', key: 'speakNotes' })
+      result.current[1]({ type: 'toggle', key: 'showFretboard' })
     })
 
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('120')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,1,2,3,4,6,7,8,9,10,11')
-    expect(window.localStorage.getItem('fretboard-speak-note')).toBe('false')
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
   })
 })

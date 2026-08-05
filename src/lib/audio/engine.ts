@@ -115,28 +115,6 @@ export class AudioEngine {
     this.track(oscillator)
   }
 
-  /** Sounds the actual pitch (C4–B4 octave) so the player can check by ear. */
-  playReferencePitchAt(pitchClass: number, startTime: number): void {
-    const context = this.context
-    if (!context) return
-
-    const frequency = 440 * 2 ** ((60 + pitchClass - 69) / 12)
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(frequency, startTime)
-    gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(0.06, startTime + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35)
-
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start(startTime)
-    oscillator.stop(startTime + 0.4)
-    this.track(oscillator)
-  }
-
   playSessionEndChime(at?: number): void {
     const context = this.context
     if (!context) return

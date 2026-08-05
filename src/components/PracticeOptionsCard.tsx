@@ -14,13 +14,6 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       </div>
 
       <SwitchRow
-        id="count-in"
-        label="Count-in"
-        subtitle="Four clicks before the first note."
-        checked={settings.countInEnabled}
-        onChange={() => onToggle('countInEnabled')}
-      />
-      <SwitchRow
         id="continuous-mode"
         label="Loop continuously"
         subtitle="Off stops after one full cycle."
@@ -36,25 +29,11 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         disabled={!settings.continuousMode}
       />
       <SwitchRow
-        id="speak-note"
-        label="Speak the note"
-        subtitle="Spoken name on the downbeat."
-        checked={settings.speakNotes}
-        onChange={() => onToggle('speakNotes')}
-      />
-      <SwitchRow
-        id="reference-pitch"
-        label="Reference pitch"
-        subtitle="Sound the actual note to check yourself by ear."
-        checked={settings.referencePitch}
-        onChange={() => onToggle('referencePitch')}
-      />
-      <SwitchRow
-        id="ear-only"
-        label="Ear-only challenge"
-        subtitle="Hide the note until the last beat of its span."
-        checked={settings.earOnly}
-        onChange={() => onToggle('earOnly')}
+        id="show-fretboard"
+        label="Fretboard map"
+        subtitle="Show the On the neck card with every position."
+        checked={settings.showFretboard}
+        onChange={() => onToggle('showFretboard')}
       />
     </section>
   )

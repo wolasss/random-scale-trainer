@@ -570,7 +570,7 @@ input[type='range'] {
 }
 
 .fretboard {
-  min-width: 480px;
+  min-width: 400px;
 }
 
 .fret-row {

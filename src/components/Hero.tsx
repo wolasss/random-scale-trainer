@@ -5,7 +5,6 @@ type HeroProps = {
   snapshot: PlaybackSnapshot
   beatsPerNote: number
   poolSize: number
-  earOnly: boolean
   ringRef: RefObject<HTMLDivElement | null>
 }
 
@@ -19,11 +18,9 @@ function BeatDots({ count, active }: { count: number; active: number }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, earOnly, ringRef }: HeroProps) {
+export function Hero({ snapshot, beatsPerNote, poolSize, ringRef }: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength, message } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
-  // Ear-only hides the note until the last beat of its span for self-checking.
-  const revealed = !earOnly || beatInSpan === beatsPerNote - 1
 
   const nowText =
     currentNote && positionInCycle !== null
@@ -39,14 +36,12 @@ export function Hero({ snapshot, beatsPerNote, poolSize, earOnly, ringRef }: Her
             {nowText}
           </span>
         </div>
-        {!earOnly ? (
-          <div className="next-chip">
-            <span className="chip-label">Next</span>
-            <span className="next-chip-value" data-testid="next-note">
-              {nextNote?.display ?? '—'}
-            </span>
-          </div>
-        ) : null}
+        <div className="next-chip">
+          <span className="chip-label">Next</span>
+          <span className="next-chip-value" data-testid="next-note">
+            {nextNote?.display ?? '—'}
+          </span>
+        </div>
       </div>
 
       <div className={`hero-note-line ${state}`} data-testid="now-playing">
@@ -58,7 +53,7 @@ export function Hero({ snapshot, beatsPerNote, poolSize, earOnly, ringRef }: Her
           </strong>
         ) : currentNote ? (
           <strong key={snapshot.notesCalled} className="hero-note note-pop" data-testid="current-note">
-            {revealed ? currentNote.display : '?'}
+            {currentNote.display}
           </strong>
         ) : (
           <span className="hero-ready">ready</span>

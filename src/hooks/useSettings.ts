@@ -18,12 +18,10 @@ export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 export type Settings = {
   bpm: number
   beatsPerNote: BeatsPerNote
-  countInEnabled: boolean
   continuousMode: boolean
   speedRampMode: boolean
-  speakNotes: boolean
-  referencePitch: boolean
-  earOnly: boolean
+  /** Whether the "On the neck" card is shown at all. */
+  showFretboard: boolean
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
@@ -32,13 +30,7 @@ export type Settings = {
   endSoundEnabled: boolean
 }
 
-export type SettingsToggleKey =
-  | 'countInEnabled'
-  | 'continuousMode'
-  | 'speedRampMode'
-  | 'speakNotes'
-  | 'referencePitch'
-  | 'earOnly'
+export type SettingsToggleKey = 'continuousMode' | 'speedRampMode' | 'showFretboard'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }
@@ -134,12 +126,9 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     },
     serialize: String,
   },
-  countInEnabled: booleanCodec(STORAGE_KEYS.countIn),
   continuousMode: booleanCodec(STORAGE_KEYS.continuousMode),
   speedRampMode: booleanCodec(STORAGE_KEYS.speedRampMode),
-  speakNotes: booleanCodec(STORAGE_KEYS.speakNotes),
-  referencePitch: booleanCodec(STORAGE_KEYS.referencePitch),
-  earOnly: booleanCodec(STORAGE_KEYS.earOnly),
+  showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -172,12 +161,9 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
 const DEFAULT_SETTINGS: Settings = {
   bpm: DEFAULT_BPM,
   beatsPerNote: DEFAULT_BEATS_PER_NOTE as BeatsPerNote,
-  countInEnabled: true,
   continuousMode: true,
   speedRampMode: false,
-  speakNotes: true,
-  referencePitch: true,
-  earOnly: false,
+  showFretboard: true,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

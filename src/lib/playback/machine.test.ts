@@ -18,7 +18,6 @@ class FakeAudioPort implements PlaybackAudioPort {
   buffersAvailable = true
   clicks: { time: number; accent: boolean }[] = []
   notes: { key: string; time: number }[] = []
-  referencePitches: { pitchClass: number; time: number }[] = []
   chimes: number[] = []
   stopCalls = 0
 
@@ -38,9 +37,6 @@ class FakeAudioPort implements PlaybackAudioPort {
   playNoteAt(key: string, time: number) {
     this.notes.push({ key, time })
   }
-  playReferencePitchAt(pitchClass: number, time: number) {
-    this.referencePitches.push({ pitchClass, time })
-  }
   playSessionEndChime(at?: number) {
     this.chimes.push(at ?? this.time)
   }
@@ -56,7 +52,6 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   continuousMode: true,
   speedRampMode: false,
   speakNotes: true,
-  referencePitch: false,
   endSoundEnabled: true,
 }
 
@@ -313,14 +308,13 @@ describe('note spans', () => {
     expect(harness.snapshot().currentNote?.display).toBe('C♯')
   })
 
-  it('honours the speak and reference-pitch switches per span start', async () => {
-    const silent = createHarness({ settings: { speakNotes: false, referencePitch: true } })
+  it('honours the speak switch per span start', async () => {
+    const silent = createHarness({ settings: { speakNotes: false } })
     await silent.machine.start()
     silent.advanceTo(1.1)
 
     expect(silent.audio.notes).toHaveLength(0)
-    expect(silent.audio.referencePitches.map((entry) => entry.pitchClass)).toEqual([0, 1])
-    expect(silent.audio.referencePitches[0].time).toBeCloseTo(0.05, 6)
+    expect(silent.audio.clicks.length).toBeGreaterThan(0)
   })
 
   it('spells spoken audio and display from the same call', async () => {

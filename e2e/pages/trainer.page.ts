@@ -10,7 +10,7 @@ export const NOTE_NAMES = new Set([
 
 // Exact strings from src/constants.ts — update here if the copy changes.
 export const MESSAGES = {
-  idle: 'Press start — or hit Space. Headphones recommended.',
+  idle: 'Press start — or hit Space.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
   playingRamp: 'Speed ramp on: +2 BPM each cycle.',
@@ -135,7 +135,7 @@ export class TrainerPage {
     return this.driver.findElement(SELECTORS.playbackMessage).getText()
   }
 
-  /** Null when the NEXT chip is not rendered (e.g. ear-only mode). */
+  /** Text of the NEXT chip ('—' while the deck is empty). */
   async getNextNote(): Promise<string | null> {
     const elements = await this.driver.findElements(SELECTORS.nextNote)
     return elements.length > 0 ? elements[0].getText() : null

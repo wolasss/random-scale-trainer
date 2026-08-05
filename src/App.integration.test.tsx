@@ -18,7 +18,6 @@ vi.mock('./lib/audio/engine', () => ({
     }
     playClickAt() {}
     playNoteAt() {}
-    playReferencePitchAt() {}
     playSessionEndChime() {}
     stopScheduledSounds() {}
   },
@@ -53,7 +52,7 @@ describe('App integration', () => {
     render(<App />)
 
     expect(screen.queryByTestId('current-note')).toBeNull()
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space. Headphones recommended.')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
     expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:40')
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
@@ -174,43 +173,34 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
   })
 
+  it('the fretboard card can be hidden and the choice persists', () => {
+    render(<App />)
+
+    expect(screen.getByTestId('fretboard')).toBeInTheDocument()
+
+    fireEvent.click(document.getElementById('show-fretboard')!)
+    expect(screen.queryByTestId('fretboard')).toBeNull()
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
+
+    fireEvent.click(document.getElementById('show-fretboard')!)
+    expect(screen.getByTestId('fretboard')).toBeInTheDocument()
+  })
+
   it('lights up every fretboard position of the current pitch class', async () => {
     // Pool of one note (pc 4, E) makes the called note deterministic. E lives
     // at: open + 12th on both e strings, B-5, G-9, D-2, A-7 → 8 dots.
     window.localStorage.setItem('fretboard-note-pool', '4')
-    window.localStorage.setItem('fretboard-count-in', 'false')
     render(<App />)
 
     expect(screen.queryAllByTestId('fret-dot')).toHaveLength(0)
 
     fireEvent.click(screen.getByTestId('play-toggle'))
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 200)
     })
 
     expect(screen.getByTestId('current-note')).toHaveTextContent('E')
     expect(screen.queryAllByTestId('fret-dot')).toHaveLength(8)
-  })
-
-  it('ear-only hides the note and the dots until the last beat of the span', async () => {
-    window.localStorage.setItem('fretboard-ear-only', 'true')
-    window.localStorage.setItem('fretboard-count-in', 'false')
-    render(<App />)
-
-    fireEvent.click(screen.getByTestId('play-toggle'))
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
-    })
-
-    expect(screen.getByTestId('current-note')).toHaveTextContent('?')
-    expect(screen.queryAllByTestId('fret-dot')).toHaveLength(0)
-
-    // Advance to the 4th beat of the 4-beat span: the answer is revealed.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3 * (60_000 / 72) + 100)
-    })
-    expect(screen.getByTestId('current-note').textContent).toMatch(NOTE_PATTERN)
-    expect(screen.queryAllByTestId('fret-dot').length).toBeGreaterThan(0)
   })
 
   it('plays through count-in to notes and pauses', async () => {
@@ -250,7 +240,6 @@ describe('App integration', () => {
   })
 
   it('tracks the session goal, progress, and stats', async () => {
-    window.localStorage.setItem('fretboard-count-in', 'false')
     render(<App />)
 
     expect(screen.getByTestId('stat-notes')).toHaveTextContent('0')
@@ -261,10 +250,11 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-session-goal')).toBe('5')
 
     fireEvent.click(screen.getByTestId('play-toggle'))
-    // The timer interval registers on the render after the first note pops,
-    // so it needs its own act block before the long advance.
+    // Through the count-in to the first note; the timer interval registers on
+    // the render after that pop, so it needs its own act block before the
+    // long advance.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(200)
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 200)
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000)
@@ -296,6 +286,6 @@ describe('App integration', () => {
     fireEvent.click(screen.getByTestId('reset'))
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.queryByTestId('current-note')).toBeNull()
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space. Headphones recommended.')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
   })
 })

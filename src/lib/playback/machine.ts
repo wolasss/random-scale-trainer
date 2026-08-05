@@ -19,7 +19,6 @@ export type PlaybackSettings = {
   continuousMode: boolean
   speedRampMode: boolean
   speakNotes: boolean
-  referencePitch: boolean
   endSoundEnabled: boolean
 }
 
@@ -67,7 +66,6 @@ export type PlaybackAudioPort = {
   getCurrentTime(): number
   playClickAt(time: number, accent: boolean): void
   playNoteAt(audioKey: string, time: number): void
-  playReferencePitchAt(pitchClass: number, time: number): void
   playSessionEndChime(at?: number): void
   stopScheduledSounds(): void
 }
@@ -317,9 +315,6 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       audio.playClickAt(nextBeatTime, true)
       if (settings.speakNotes) {
         audio.playNoteAt(note.audioKey, nextBeatTime)
-      }
-      if (settings.referencePitch) {
-        audio.playReferencePitchAt(note.pc, nextBeatTime)
       }
 
       visualQueue.push({

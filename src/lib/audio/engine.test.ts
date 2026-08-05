@@ -269,18 +269,6 @@ describe('AudioEngine scheduled playback', () => {
     expect(source.start).toHaveBeenCalledWith(4)
   })
 
-  it('playReferencePitchAt sounds the pitch class in the C4–B4 octave', async () => {
-    const engine = await readyEngine()
-
-    engine.playReferencePitchAt(9, 1) // A → A4 = 440 Hz
-    engine.playReferencePitchAt(0, 2) // C → C4 ≈ 261.63 Hz
-
-    const [first, second] = context.createOscillator.mock.results.map((result) => result.value)
-    expect(first.frequency.setValueAtTime).toHaveBeenCalledWith(440, 1)
-    const [frequency] = second.frequency.setValueAtTime.mock.calls[0]
-    expect(frequency).toBeCloseTo(261.63, 2)
-  })
-
   it('stopScheduledSounds stops every outstanding node and clears tracking', async () => {
     const engine = await readyEngine()
 

@@ -22,19 +22,16 @@ export const STORAGE_KEYS = {
   speedRampMode: 'fretboard-speed-ramp-mode',
   endSound: 'fretboard-end-sound',
   beatsPerNote: 'fretboard-beats-per-note',
-  countIn: 'fretboard-count-in',
-  speakNotes: 'fretboard-speak-note',
-  referencePitch: 'fretboard-reference-pitch',
-  earOnly: 'fretboard-ear-only',
   spelling: 'fretboard-spelling',
   notePool: 'fretboard-note-pool',
   sessionGoal: 'fretboard-session-goal',
+  showFretboard: 'fretboard-show-neck',
 } as const
 
 /** User-visible playback strings. The e2e suite pins these exact values
  * (e2e/pages/trainer.page.ts keeps its own golden copies on purpose). */
 export const PLAYBACK_MESSAGES = {
-  idle: 'Press start — or hit Space. Headphones recommended.',
+  idle: 'Press start — or hit Space.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
   playingRamp: 'Speed ramp on: +2 BPM each cycle.',

@@ -5,12 +5,10 @@ const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
 
 type FretboardCardProps = {
   currentPc: number | null
-  /** False while ear-only hides the answer; dots stay off until the reveal. */
-  revealed: boolean
 }
 
-export function FretboardCard({ currentPc, revealed }: FretboardCardProps) {
-  const showDots = currentPc !== null && revealed
+export function FretboardCard({ currentPc }: FretboardCardProps) {
+  const showDots = currentPc !== null
 
   return (
     <section className="panel fretboard-card">

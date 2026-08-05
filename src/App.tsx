@@ -26,7 +26,8 @@ function App() {
   const sessionTimer = useSessionTimer()
   const beatPulse = useBeatPulse()
   const playback = usePlayback({
-    settings,
+    // Count-in and the spoken note are always on; only the listed settings vary.
+    settings: { ...settings, countInEnabled: true, speakNotes: true },
     pool: settings.pool,
     spelling: settings.spelling,
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
@@ -62,10 +63,6 @@ function App() {
     }
   }
 
-  // Ear-only hides the answer (hero glyph and fretboard dots) until the last
-  // beat of the note's span.
-  const noteRevealed = !settings.earOnly || playback.snapshot.beatInSpan === settings.beatsPerNote - 1
-
   useKeyboardShortcuts({
     onSpace: playOrPause,
     onTempoUp: () => dispatch({ type: 'nudgeBpm', delta: 1 }),
@@ -87,7 +84,6 @@ function App() {
             snapshot={playback.snapshot}
             beatsPerNote={settings.beatsPerNote}
             poolSize={settings.pool.length}
-            earOnly={settings.earOnly}
             ringRef={beatPulse.ringRef}
           />
 
@@ -121,7 +117,9 @@ function App() {
             cyclesCompleted={playback.snapshot.cyclesCompleted}
           />
 
-          <FretboardCard currentPc={playback.snapshot.currentNote?.pc ?? null} revealed={noteRevealed} />
+          {settings.showFretboard ? (
+            <FretboardCard currentPc={playback.snapshot.currentNote?.pc ?? null} />
+          ) : null}
 
           <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
         </div>
