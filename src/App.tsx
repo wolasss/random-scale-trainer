@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { generateShuffledNotes } from './lib/music'
+import { AudioEngine } from './lib/audio/engine'
 import { formatElapsed } from './lib/time'
 import {
   COUNT_IN_BEATS,
@@ -15,30 +16,6 @@ import {
   STORAGE_KEYS,
 } from './constants'
 import { version } from '../package.json'
-
-type SpeechWindow = Window & {
-  webkitAudioContext?: typeof AudioContext
-}
-
-const NOTE_AUDIO_FILES: Record<string, string> = {
-  'C': '/audio/notes/c.mp3',
-  'C#': '/audio/notes/c-sharp.mp3',
-  'Db': '/audio/notes/d-flat.mp3',
-  'D': '/audio/notes/d.mp3',
-  'D#': '/audio/notes/d-sharp.mp3',
-  'Eb': '/audio/notes/e-flat.mp3',
-  'E': '/audio/notes/e.mp3',
-  'F': '/audio/notes/f.mp3',
-  'F#': '/audio/notes/f-sharp.mp3',
-  'Gb': '/audio/notes/g-flat.mp3',
-  'G': '/audio/notes/g.mp3',
-  'G#': '/audio/notes/g-sharp.mp3',
-  'Ab': '/audio/notes/a-flat.mp3',
-  'A': '/audio/notes/a.mp3',
-  'A#': '/audio/notes/a-sharp.mp3',
-  'Bb': '/audio/notes/b-flat.mp3',
-  'B': '/audio/notes/b.mp3',
-}
 
 type Theme = 'dark' | 'light'
 
@@ -106,13 +83,11 @@ function App() {
   const [isSessionRunning, setIsSessionRunning] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
 
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioEngineRef = useRef<AudioEngine | null>(null)
   const playbackTimeoutRef = useRef<number | null>(null)
   const playbackActiveRef = useRef(false)
   const currentNotesRef = useRef<string[]>(generateShuffledNotes())
   const currentIndexRef = useRef(0)
-  const noteAudioBuffers = useRef<Map<string, AudioBuffer>>(new Map())
-  const noteBuffersLoadedRef = useRef(false)
   const sessionStartQueuedRef = useRef(false)
   const sessionStartRef = useRef<number | null>(null)
   const accumulatedSessionMsRef = useRef(elapsedMs)
@@ -184,115 +159,9 @@ function App() {
     }
   }, [isSessionRunning])
 
-  const ensureAudioContext = async () => {
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume()
-      }
-
-      return audioContextRef.current
-    }
-
-    const AudioContextClass = window.AudioContext ?? (window as SpeechWindow).webkitAudioContext
-
-    if (!AudioContextClass) {
-      return null
-    }
-
-    const context = new AudioContextClass()
-    await context.resume()
-    audioContextRef.current = context
-
-    return context
-  }
-
-  const playClick = (context: AudioContext) => {
-    const startTime = context.currentTime
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(880, startTime)
-    gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.12)
-
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start(startTime)
-    oscillator.stop(startTime + 0.14)
-  }
-
-  const playSessionEndChime = (context: AudioContext) => {
-    const startTime = context.currentTime
-
-    const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
-      const bodyOscillator = context.createOscillator()
-      const shimmerOscillator = context.createOscillator()
-      const bodyGain = context.createGain()
-      const shimmerGain = context.createGain()
-      const toneStart = startTime + offset
-
-      bodyOscillator.type = 'triangle'
-      bodyOscillator.frequency.setValueAtTime(frequency, toneStart)
-      bodyGain.gain.setValueAtTime(0.0001, toneStart)
-      bodyGain.gain.exponentialRampToValueAtTime(peak, toneStart + 0.012)
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
-
-      shimmerOscillator.type = 'sine'
-      shimmerOscillator.frequency.setValueAtTime(frequency * 2, toneStart)
-      shimmerGain.gain.setValueAtTime(0.0001, toneStart)
-      shimmerGain.gain.exponentialRampToValueAtTime(peak * 0.42, toneStart + 0.01)
-      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration * 0.88)
-
-      bodyOscillator.connect(bodyGain)
-      shimmerOscillator.connect(shimmerGain)
-      bodyGain.connect(context.destination)
-      shimmerGain.connect(context.destination)
-
-      bodyOscillator.start(toneStart)
-      shimmerOscillator.start(toneStart)
-      bodyOscillator.stop(toneStart + duration + 0.03)
-      shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
-    }
-
-    playTone(783.99, 0, 0.24, 0.11)
-    playTone(523.25, 0.19, 0.34, 0.13)
-  }
-
-  const loadNoteAudios = async (context: AudioContext) => {
-    if (noteBuffersLoadedRef.current) return
-
-    await Promise.all(
-      Object.entries(NOTE_AUDIO_FILES).map(async ([note, path]) => {
-        try {
-          const response = await fetch(path)
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const arrayBuffer = await response.arrayBuffer()
-          const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
-            context.decodeAudioData(arrayBuffer, resolve, reject)
-          })
-          noteAudioBuffers.current.set(note, audioBuffer)
-        } catch (err) {
-          console.error(`Failed to load audio for note "${note}":`, err)
-        }
-      })
-    )
-
-    noteBuffersLoadedRef.current = true
-  }
-
-  const speakNote = (note: string) => {
-    const context = audioContextRef.current
-    if (!context) return
-
-    const buffer = noteAudioBuffers.current.get(note)
-    if (!buffer) return
-
-    const source = context.createBufferSource()
-    source.buffer = buffer
-    source.connect(context.destination)
-    source.start()
+  const getAudioEngine = () => {
+    audioEngineRef.current ??= new AudioEngine()
+    return audioEngineRef.current
   }
 
   const clearPlaybackTimeout = () => {
@@ -390,10 +259,9 @@ function App() {
       setCurrentNote(String(countValue))
       setPlaybackMessage(PLAYBACK_MESSAGES.countIn(countValue))
 
-      const context = await ensureAudioContext()
-      if (context) {
-        playClick(context)
-      }
+      const engine = getAudioEngine()
+      await engine.ensureContext()
+      engine.playClick()
 
       currentIndexRef.current += 1
       queueStep(COUNT_IN_MS)
@@ -402,11 +270,12 @@ function App() {
 
     if (currentIndexRef.current >= notes.length) {
       const nextBpm = applySpeedRamp()
-      const context = endSoundEnabledRef.current ? await ensureAudioContext() : null
+      const engine = getAudioEngine()
+      const context = endSoundEnabledRef.current ? await engine.ensureContext() : null
 
       if (!continuousModeRef.current) {
         if (context) {
-          playSessionEndChime(context)
+          engine.playSessionEndChime()
         }
 
         stopPlayback(speedRampModeRef.current ? PLAYBACK_MESSAGES.finishedWithBpm(nextBpm) : PLAYBACK_MESSAGES.finished)
@@ -429,12 +298,10 @@ function App() {
     setCurrentNote(note)
     setPlaybackMessage('')
 
-    const context = await ensureAudioContext()
-    if (context) {
-      playClick(context)
-    }
-
-    speakNote(note)
+    const engine = getAudioEngine()
+    await engine.ensureContext()
+    engine.playClick()
+    engine.playNote(note)
     currentIndexRef.current += 1
     queueStep(beatMs)
   }
@@ -454,7 +321,8 @@ function App() {
       return
     }
 
-    const context = await ensureAudioContext()
+    const engine = getAudioEngine()
+    const context = await engine.ensureContext()
     if (!context) {
       stopPlayback(PLAYBACK_MESSAGES.audioUnsupported)
       return
@@ -464,9 +332,9 @@ function App() {
     setIsPlaying(true)
     setIsPaused(false)
     setPlaybackMessage(PLAYBACK_MESSAGES.loadingAudio)
-    await loadNoteAudios(context)
+    await engine.loadNoteBuffers()
 
-    if (noteAudioBuffers.current.size === 0) {
+    if (!engine.hasBuffers()) {
       stopPlayback(PLAYBACK_MESSAGES.audioLoadFailed)
       return
     }
