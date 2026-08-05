@@ -104,6 +104,13 @@ function App() {
             onBeatsPerNoteChange={(value) => dispatch({ type: 'setBeatsPerNote', value })}
           />
 
+          <NotePoolCard
+            pool={settings.pool}
+            spelling={settings.spelling}
+            onTogglePc={(pc) => dispatch({ type: 'togglePoolNote', pc })}
+            onPreset={(preset) => dispatch({ type: 'setPreset', preset })}
+            onSpelling={(value) => dispatch({ type: 'setSpelling', value })}
+          />
         </div>
 
         <div className="column-side">
