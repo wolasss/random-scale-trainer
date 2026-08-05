@@ -601,6 +601,7 @@ function App() {
           <button
             type="button"
             className="theme-toggle"
+            data-testid="theme-toggle"
             onClick={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
@@ -615,11 +616,11 @@ function App() {
             Train music notes in random order. Hear each note on the beat
           </p>
 
-          <div className={`now-playing ${isPlaying ? 'active' : isPaused ? 'paused' : 'idle'}`}>
-            {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop">{currentNote}</strong> : null}
+          <div className={`now-playing ${isPlaying ? 'active' : isPaused ? 'paused' : 'idle'}`} data-testid="now-playing">
+            {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop" data-testid="current-note">{currentNote}</strong> : null}
           </div>
 
-          <p className="playback-message">{playbackMessage}</p>
+          <p className="playback-message" data-testid="playback-message">{playbackMessage}</p>
         </section>
 
         <section className="panel controls-panel">
@@ -631,7 +632,7 @@ function App() {
           <div className="control-block">
             <div className="slider-row">
               <label htmlFor="bpm-slider">Metronome BPM</label>
-              <output>{bpm}</output>
+              <output data-testid="bpm-value">{bpm}</output>
             </div>
             <input
               id="bpm-slider"
@@ -691,6 +692,7 @@ function App() {
             <button
               type="button"
               className={isPlaying ? 'secondary-button' : 'primary-button'}
+              data-testid="play-toggle"
               onClick={() => {
                 if (isPlaying) {
                   pausePlayback()
@@ -702,7 +704,7 @@ function App() {
             >
               <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
             </button>
-            <button type="button" className="ghost-button" onClick={resetSession}>
+            <button type="button" className="ghost-button" data-testid="reset" onClick={resetSession}>
               <FontAwesomeIcon icon={faRotateLeft} /> Reset
             </button>
           </div>
@@ -714,7 +716,7 @@ function App() {
             <p>The timer starts automatically when playback starts and pauses when playback stops.</p>
           </div>
 
-          <div className="timer-face">{formatElapsed(elapsedMs)}</div>
+          <div className="timer-face" data-testid="timer">{formatElapsed(elapsedMs)}</div>
         </section>
       </main>
 

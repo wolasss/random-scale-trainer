@@ -1,0 +1,32 @@
+name: E2E
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      selenium:
+        image: selenium/standalone-chrome:4
+        ports:
+          - 4444:4444
+        options: >-
+          --add-host=host.docker.internal:host-gateway
+          --shm-size=2g
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run e2e suite
+        run: npm run test:e2e:ci
+        env:
+          SELENIUM_REMOTE_URL: http://localhost:4444
+          # The browser runs inside the Selenium container; the preview server
+          # runs on the runner host, reachable via host.docker.internal.
+          APP_BASE_URL: http://host.docker.internal:4173
