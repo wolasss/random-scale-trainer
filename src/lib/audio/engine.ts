@@ -43,6 +43,8 @@ export class AudioEngine {
   private context: AudioContext | null = null
   private noteBuffers = new Map<string, AudioBuffer>()
   private buffersLoaded = false
+  /** Sources scheduled into the future; stopScheduledSounds() silences them all. */
+  private scheduledNodes = new Set<AudioScheduledSourceNode>()
   private readonly contextFactory: () => AudioContext | null
   private readonly fetchFn: typeof fetch
 
@@ -71,24 +73,68 @@ export class AudioEngine {
     return context
   }
 
-  playClick(): void {
+  getCurrentTime(): number {
+    return this.context?.currentTime ?? 0
+  }
+
+  private track(node: AudioScheduledSourceNode): void {
+    this.scheduledNodes.add(node)
+    node.onended = () => this.scheduledNodes.delete(node)
+  }
+
+  /** Silences everything already scheduled — including the look-ahead window. */
+  stopScheduledSounds(): void {
+    for (const node of this.scheduledNodes) {
+      try {
+        node.stop()
+      } catch {
+        // Already stopped; nothing to do.
+      }
+    }
+
+    this.scheduledNodes.clear()
+  }
+
+  playClickAt(startTime: number, accent: boolean): void {
     const context = this.context
     if (!context) return
 
-    const startTime = context.currentTime
     const oscillator = context.createOscillator()
     const gain = context.createGain()
 
     oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(880, startTime)
+    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime)
     gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.01)
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.12 : 0.08, startTime + 0.01)
     gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.12)
 
     oscillator.connect(gain)
     gain.connect(context.destination)
     oscillator.start(startTime)
     oscillator.stop(startTime + 0.14)
+    this.track(oscillator)
+  }
+
+  /** Sounds the actual pitch (C4–B4 octave) so the player can check by ear. */
+  playReferencePitchAt(pitchClass: number, startTime: number): void {
+    const context = this.context
+    if (!context) return
+
+    const frequency = 440 * 2 ** ((60 + pitchClass - 69) / 12)
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+
+    oscillator.type = 'triangle'
+    oscillator.frequency.setValueAtTime(frequency, startTime)
+    gain.gain.setValueAtTime(0.0001, startTime)
+    gain.gain.exponentialRampToValueAtTime(0.06, startTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.35)
+
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.start(startTime)
+    oscillator.stop(startTime + 0.4)
+    this.track(oscillator)
   }
 
   playSessionEndChime(): void {
@@ -158,16 +204,25 @@ export class AudioEngine {
     return this.noteBuffers.size > 0
   }
 
-  playNote(note: string): void {
+  playNoteAt(audioKey: string, startTime: number): void {
     const context = this.context
     if (!context) return
 
-    const buffer = this.noteBuffers.get(note)
+    const buffer = this.noteBuffers.get(audioKey)
     if (!buffer) return
 
     const source = context.createBufferSource()
     source.buffer = buffer
     source.connect(context.destination)
-    source.start()
+    source.start(startTime)
+    this.track(source)
+  }
+
+  playClick(): void {
+    this.playClickAt(this.getCurrentTime(), false)
+  }
+
+  playNote(note: string): void {
+    this.playNoteAt(note, this.getCurrentTime())
   }
 }
