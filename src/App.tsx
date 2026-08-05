@@ -1,761 +1,118 @@
-import { useEffect, useRef, useState } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
-import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
-import { getChromaticScale } from './lib/music'
-import { version } from '../package.json'
-
-type SpeechWindow = Window & {
-  webkitAudioContext?: typeof AudioContext
-}
-
-const NOTE_AUDIO_FILES: Record<string, string> = {
-  'C': '/audio/notes/c.mp3',
-  'C#': '/audio/notes/c-sharp.mp3',
-  'Db': '/audio/notes/d-flat.mp3',
-  'D': '/audio/notes/d.mp3',
-  'D#': '/audio/notes/d-sharp.mp3',
-  'Eb': '/audio/notes/e-flat.mp3',
-  'E': '/audio/notes/e.mp3',
-  'F': '/audio/notes/f.mp3',
-  'F#': '/audio/notes/f-sharp.mp3',
-  'Gb': '/audio/notes/g-flat.mp3',
-  'G': '/audio/notes/g.mp3',
-  'G#': '/audio/notes/g-sharp.mp3',
-  'Ab': '/audio/notes/a-flat.mp3',
-  'A': '/audio/notes/a.mp3',
-  'A#': '/audio/notes/a-sharp.mp3',
-  'Bb': '/audio/notes/b-flat.mp3',
-  'B': '/audio/notes/b.mp3',
-}
-
-const MIN_BPM = 10
-const MAX_BPM = 100
-const DEFAULT_BPM = 30
-const COUNT_IN_BEATS = 3
-const COUNT_IN_MS = 650
-const THEME_STORAGE_KEY = 'fretboard-theme'
-const BPM_STORAGE_KEY = 'fretboard-bpm'
-const CONTINUOUS_MODE_STORAGE_KEY = 'fretboard-continuous-mode'
-const SPEED_RAMP_MODE_STORAGE_KEY = 'fretboard-speed-ramp-mode'
-const END_SOUND_STORAGE_KEY = 'fretboard-end-sound'
-
-type Theme = 'dark' | 'light'
-
-const formatElapsed = (elapsedMs: number) => {
-  const totalSeconds = Math.floor(elapsedMs / 1000)
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
-  const seconds = String(totalSeconds % 60).padStart(2, '0')
-
-  return `${minutes}:${seconds}`
-}
-
-const generateShuffledNotes = (): string[] => {
-  const sharpNotes = getChromaticScale('sharp')
-  const flatNotes = getChromaticScale('flat')
-  const notes = sharpNotes.map((sharpNote, index) => {
-    const flatNote = flatNotes[index]
-
-    if (sharpNote === flatNote) {
-      return sharpNote
-    }
-
-    return Math.random() < 0.5 ? sharpNote : flatNote
-  })
-  const shuffled = [...notes]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
+import { useEffect } from 'react'
+import { TopBar, type Theme } from './components/TopBar'
+import { HeroCard } from './components/HeroCard'
+import { ControlsPanel } from './components/ControlsPanel'
+import { TimerPanel } from './components/TimerPanel'
+import { Footer } from './components/Footer'
+import { usePersistentState } from './hooks/usePersistentState'
+import { usePlayback } from './hooks/usePlayback'
+import { useSessionTimer } from './hooks/useSessionTimer'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { DEFAULT_BPM, MAX_BPM, MIN_BPM, STORAGE_KEYS } from './constants'
 
 function App() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') {
-      return 'dark'
-    }
-
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      return storedTheme
-    }
-
-    return 'dark'
+  const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
+    defaultValue: 'dark',
+    deserialize: (raw) => (raw === 'light' || raw === 'dark' ? raw : undefined),
   })
-  const [bpm, setBpm] = useState(() => {
-    if (typeof window === 'undefined') {
-      return DEFAULT_BPM
-    }
-
-    const storedBpmRaw = window.localStorage.getItem(BPM_STORAGE_KEY)
-    if (storedBpmRaw === null) {
-      return DEFAULT_BPM
-    }
-
-    const storedBpm = Number(storedBpmRaw)
-    if (!Number.isFinite(storedBpm)) {
-      return DEFAULT_BPM
-    }
-
-    return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(storedBpm)))
+  const [bpm, setBpm] = usePersistentState<number>(STORAGE_KEYS.bpm, {
+    defaultValue: DEFAULT_BPM,
+    deserialize: (raw) => {
+      const stored = Number(raw)
+      return Number.isFinite(stored) ? Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(stored))) : undefined
+    },
   })
-  const [continuousMode, setContinuousMode] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-
-    const storedMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
-    return storedMode === null ? true : storedMode === 'true'
+  const [continuousMode, setContinuousMode] = usePersistentState<boolean>(STORAGE_KEYS.continuousMode, {
+    defaultValue: true,
+    deserialize: (raw) => raw === 'true',
   })
-  const [speedRampMode, setSpeedRampMode] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-
-    const storedContinuousMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
-    const isContinuousEnabled = storedContinuousMode === null ? true : storedContinuousMode === 'true'
-    const storedMode = window.localStorage.getItem(SPEED_RAMP_MODE_STORAGE_KEY)
-    const isSpeedRampEnabled = storedMode === null ? false : storedMode === 'true'
-    return isContinuousEnabled && isSpeedRampEnabled
+  // Speed ramp only applies while looping: a stored "true" is discarded when
+  // continuous mode starts off (continuousMode is initialized just above).
+  const [speedRampMode, setSpeedRampMode] = usePersistentState<boolean>(STORAGE_KEYS.speedRampMode, {
+    defaultValue: false,
+    deserialize: (raw) => raw === 'true' && continuousMode,
   })
-  const [endSoundEnabled, ] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-
-    const storedValue = window.localStorage.getItem(END_SOUND_STORAGE_KEY)
-    return storedValue === null ? true : storedValue === 'true'
+  // Stored setting without UI: deliberately kept read-only for now.
+  const [endSoundEnabled] = usePersistentState<boolean>(STORAGE_KEYS.endSound, {
+    defaultValue: true,
+    deserialize: (raw) => raw === 'true',
   })
-  const [currentNote, setCurrentNote] = useState('A♭')
-  const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
-  const [isSessionRunning, setIsSessionRunning] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const playbackTimeoutRef = useRef<number | null>(null)
-  const playbackActiveRef = useRef(false)
-  const currentNotesRef = useRef<string[]>(generateShuffledNotes())
-  const currentIndexRef = useRef(0)
-  const noteAudioBuffers = useRef<Map<string, AudioBuffer>>(new Map())
-  const noteBuffersLoadedRef = useRef(false)
-  const sessionStartQueuedRef = useRef(false)
-  const sessionStartRef = useRef<number | null>(null)
-  const accumulatedSessionMsRef = useRef(elapsedMs)
-  const bpmRef = useRef(bpm)
-  const continuousModeRef = useRef(continuousMode)
-  const speedRampModeRef = useRef(speedRampMode)
-  const endSoundEnabledRef = useRef(endSoundEnabled)
-  const isPlayingRef = useRef(isPlaying)
-  const startPlaybackRef = useRef<() => void>(() => {})
-  const pausePlaybackRef = useRef<() => void>(() => {})
-  const resetSessionRef = useRef<() => void>(() => {})
-
-  useEffect(() => {
-    bpmRef.current = bpm
-  }, [bpm])
-
-  useEffect(() => {
-    continuousModeRef.current = continuousMode
-  }, [continuousMode])
-
-  useEffect(() => {
-    isPlayingRef.current = isPlaying
-  }, [isPlaying])
-
-  useEffect(() => {
-    speedRampModeRef.current = speedRampMode
-  }, [speedRampMode])
-
-  useEffect(() => {
-    endSoundEnabledRef.current = endSoundEnabled
-  }, [endSoundEnabled])
-
-  useEffect(() => {
-    window.localStorage.setItem(BPM_STORAGE_KEY, String(bpm))
-  }, [bpm])
-
-  useEffect(() => {
-    window.localStorage.setItem(CONTINUOUS_MODE_STORAGE_KEY, String(continuousMode))
-  }, [continuousMode])
-
-  useEffect(() => {
-    window.localStorage.setItem(SPEED_RAMP_MODE_STORAGE_KEY, String(speedRampMode))
-  }, [speedRampMode])
-
-  useEffect(() => {
-    window.localStorage.setItem(END_SOUND_STORAGE_KEY, String(endSoundEnabled))
-  }, [endSoundEnabled])
+  const sessionTimer = useSessionTimer()
+  const playback = usePlayback({
+    settings: { bpm, continuousMode, speedRampMode, endSoundEnabled },
+    onBpmChange: setBpm,
+    onSessionStart: sessionTimer.start,
+    onSessionPause: sessionTimer.pause,
+  })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
   }, [theme])
 
-  useEffect(() => {
-    if (!isSessionRunning) {
-      return undefined
+  const playOrPause = () => {
+    if (playback.isPlaying) {
+      playback.pause()
+      return
     }
 
-    const timer = window.setInterval(() => {
-      if (sessionStartRef.current === null) {
-        return
+    void playback.start()
+  }
+
+  const resetSession = () => {
+    playback.reset()
+    sessionTimer.reset()
+  }
+
+  const toggleContinuousMode = () => {
+    setContinuousMode((currentValue) => {
+      const nextValue = !currentValue
+      if (!nextValue) {
+        setSpeedRampMode(false)
       }
 
-      setElapsedMs(accumulatedSessionMsRef.current + (Date.now() - sessionStartRef.current))
-    }, 200)
-
-    return () => {
-      window.clearInterval(timer)
-    }
-  }, [isSessionRunning])
-
-  const ensureAudioContext = async () => {
-    if (audioContextRef.current) {
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume()
-      }
-
-      return audioContextRef.current
-    }
-
-    const AudioContextClass = window.AudioContext ?? (window as SpeechWindow).webkitAudioContext
-
-    if (!AudioContextClass) {
-      return null
-    }
-
-    const context = new AudioContextClass()
-    await context.resume()
-    audioContextRef.current = context
-
-    return context
+      return nextValue
+    })
   }
 
-  const playClick = (context: AudioContext) => {
-    const startTime = context.currentTime
-    const oscillator = context.createOscillator()
-    const gain = context.createGain()
-
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(880, startTime)
-    gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.12)
-
-    oscillator.connect(gain)
-    gain.connect(context.destination)
-    oscillator.start(startTime)
-    oscillator.stop(startTime + 0.14)
-  }
-
-  const playSessionEndChime = (context: AudioContext) => {
-    const startTime = context.currentTime
-
-    const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
-      const bodyOscillator = context.createOscillator()
-      const shimmerOscillator = context.createOscillator()
-      const bodyGain = context.createGain()
-      const shimmerGain = context.createGain()
-      const toneStart = startTime + offset
-
-      bodyOscillator.type = 'triangle'
-      bodyOscillator.frequency.setValueAtTime(frequency, toneStart)
-      bodyGain.gain.setValueAtTime(0.0001, toneStart)
-      bodyGain.gain.exponentialRampToValueAtTime(peak, toneStart + 0.012)
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
-
-      shimmerOscillator.type = 'sine'
-      shimmerOscillator.frequency.setValueAtTime(frequency * 2, toneStart)
-      shimmerGain.gain.setValueAtTime(0.0001, toneStart)
-      shimmerGain.gain.exponentialRampToValueAtTime(peak * 0.42, toneStart + 0.01)
-      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration * 0.88)
-
-      bodyOscillator.connect(bodyGain)
-      shimmerOscillator.connect(shimmerGain)
-      bodyGain.connect(context.destination)
-      shimmerGain.connect(context.destination)
-
-      bodyOscillator.start(toneStart)
-      shimmerOscillator.start(toneStart)
-      bodyOscillator.stop(toneStart + duration + 0.03)
-      shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
-    }
-
-    playTone(783.99, 0, 0.24, 0.11)
-    playTone(523.25, 0.19, 0.34, 0.13)
-  }
-
-  const loadNoteAudios = async (context: AudioContext) => {
-    if (noteBuffersLoadedRef.current) return
-
-    await Promise.all(
-      Object.entries(NOTE_AUDIO_FILES).map(async ([note, path]) => {
-        try {
-          const response = await fetch(path)
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const arrayBuffer = await response.arrayBuffer()
-          const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
-            context.decodeAudioData(arrayBuffer, resolve, reject)
-          })
-          noteAudioBuffers.current.set(note, audioBuffer)
-        } catch (err) {
-          console.error(`Failed to load audio for note "${note}":`, err)
-        }
-      })
-    )
-
-    noteBuffersLoadedRef.current = true
-  }
-
-  const speakNote = (note: string) => {
-    const context = audioContextRef.current
-    if (!context) return
-
-    const buffer = noteAudioBuffers.current.get(note)
-    if (!buffer) return
-
-    const source = context.createBufferSource()
-    source.buffer = buffer
-    source.connect(context.destination)
-    source.start()
-  }
-
-  const clearPlaybackTimeout = () => {
-    if (playbackTimeoutRef.current !== null) {
-      window.clearTimeout(playbackTimeoutRef.current)
-      playbackTimeoutRef.current = null
-    }
-  }
-
-  const startSessionTimer = () => {
-    if (isSessionRunning) {
-      return
-    }
-
-    sessionStartRef.current = Date.now()
-    setIsSessionRunning(true)
-  }
-
-  const stopSessionTimer = () => {
-    if (sessionStartRef.current !== null) {
-      accumulatedSessionMsRef.current += Date.now() - sessionStartRef.current
-      sessionStartRef.current = null
-      setElapsedMs(accumulatedSessionMsRef.current)
-    }
-
-    setIsSessionRunning(false)
-  }
-
-  function stopPlayback(message = 'Press play to start.') {
-    playbackActiveRef.current = false
-    clearPlaybackTimeout()
-    sessionStartQueuedRef.current = false
-    setIsPlaying(false)
-    setIsPaused(false)
-    stopSessionTimer()
-    setCurrentNote('A♭')
-    setPlaybackMessage(message)
-  }
-
-  function pausePlayback() {
-    if (!playbackActiveRef.current) {
-      return
-    }
-
-    playbackActiveRef.current = false
-    clearPlaybackTimeout()
-    setIsPlaying(false)
-    setIsPaused(true)
-    stopSessionTimer()
-    setPlaybackMessage('Paused')
-  }
-
-  const queueStep = (delayMs: number) => {
-    clearPlaybackTimeout()
-    playbackTimeoutRef.current = window.setTimeout(() => {
-      void playNextStep()
-    }, delayMs)
-  }
-
-  const applySpeedRamp = () => {
-    if (!continuousModeRef.current || !speedRampModeRef.current) {
-      return bpmRef.current
-    }
-
-    const nextBpm = Math.min(MAX_BPM, bpmRef.current + 2)
-    if (nextBpm !== bpmRef.current) {
-      setBpm(nextBpm)
-    }
-
-    return nextBpm
-  }
-
-  const prepareNextNotes = (shouldReshuffle = false, withCountIn = false): boolean => {
-    if (shouldReshuffle) {
-      // Reshuffle the existing notes for the next cycle
-      currentNotesRef.current = generateShuffledNotes()
-    } else {
-      // Generate fresh notes for the first time
-      currentNotesRef.current = generateShuffledNotes()
-    }
-
-    currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
-    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
-    setPlaybackMessage(withCountIn ? 'Get ready...' : 'Get ready...')
-    return true
-  }
-
-  const playNextStep = async () => {
-    if (!playbackActiveRef.current) {
-      return
-    }
-
-    const notes = currentNotesRef.current
-
-    if (!notes || notes.length === 0) {
-      stopPlayback('No notes available.')
-      return
-    }
-
-    if (currentIndexRef.current < 0) {
-      const countValue = Math.abs(currentIndexRef.current)
-
-      setCurrentNote(String(countValue))
-      setPlaybackMessage(`Starting in ${countValue}...`)
-
-      const context = await ensureAudioContext()
-      if (context) {
-        playClick(context)
-      }
-
-      currentIndexRef.current += 1
-      queueStep(COUNT_IN_MS)
-      return
-    }
-
-    if (currentIndexRef.current >= notes.length) {
-      const nextBpm = applySpeedRamp()
-      const context = endSoundEnabledRef.current ? await ensureAudioContext() : null
-
-      if (!continuousModeRef.current) {
-        if (context) {
-          playSessionEndChime(context)
-        }
-
-        stopPlayback(speedRampModeRef.current ? `Finished all 12 notes. BPM set to ${nextBpm}.` : 'Finished all 12 notes.')
-        return
-      }
-
-      prepareNextNotes(true, true)
-      queueStep(0)
-      return
-    }
-
-    const note = notes[currentIndexRef.current]
-    const beatMs = Math.round(60000 / bpmRef.current)
-
-    if (sessionStartQueuedRef.current) {
-      sessionStartQueuedRef.current = false
-      startSessionTimer()
-    }
-
-    setCurrentNote(note)
-    setPlaybackMessage('')
-
-    const context = await ensureAudioContext()
-    if (context) {
-      playClick(context)
-    }
-
-    speakNote(note)
-    currentIndexRef.current += 1
-    queueStep(beatMs)
-  }
-
-  async function startPlayback() {
-    if (isPaused) {
-      setIsPlaying(true)
-      setIsPaused(false)
-
-      if (!sessionStartQueuedRef.current) {
-        startSessionTimer()
-      }
-
-      playbackActiveRef.current = true
-      setPlaybackMessage('Resuming...')
-      queueStep(0)
-      return
-    }
-
-    const context = await ensureAudioContext()
-    if (!context) {
-      stopPlayback('Audio playback is unsupported in this browser.')
-      return
-    }
-
-    sessionStartQueuedRef.current = true
-    setIsPlaying(true)
-    setIsPaused(false)
-    setPlaybackMessage('Loading audio...')
-    await loadNoteAudios(context)
-
-    if (noteAudioBuffers.current.size === 0) {
-      stopPlayback('Failed to load audio. Please reload the page.')
-      return
-    }
-
-    playbackActiveRef.current = true
-
-    if (!prepareNextNotes(false, true)) {
-      return
-    }
-
-    queueStep(0)
-  }
-
-  function resetSession() {
-    if (playbackActiveRef.current || isPlayingRef.current) {
-      stopPlayback()
-    }
-
-    sessionStartQueuedRef.current = false
-    stopSessionTimer()
-    sessionStartRef.current = null
-    accumulatedSessionMsRef.current = 0
-    setElapsedMs(0)
-    currentNotesRef.current = generateShuffledNotes()
-    currentIndexRef.current = 0
-    setCurrentNote('A♭')
-  }
-
-  useEffect(() => {
-    startPlaybackRef.current = () => {
-      void startPlayback()
-    }
-    pausePlaybackRef.current = pausePlayback
-    resetSessionRef.current = resetSession
+  useKeyboardShortcuts({
+    onSpace: playOrPause,
+    onArrowUp: () => setBpm((current) => Math.min(MAX_BPM, current + 1)),
+    onArrowDown: () => setBpm((current) => Math.max(MIN_BPM, current - 1)),
+    onReset: resetSession,
   })
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      const tagName = target?.tagName?.toLowerCase()
-      const isTypingContext = tagName === 'input' || tagName === 'textarea' || target?.isContentEditable
-
-      if (isTypingContext || event.metaKey || event.ctrlKey || event.altKey) {
-        return
-      }
-
-      if (event.code === 'Space') {
-        event.preventDefault()
-
-        if (isPlayingRef.current) {
-          pausePlaybackRef.current()
-          return
-        }
-
-        startPlaybackRef.current()
-        return
-      }
-
-      if (event.code === 'ArrowUp') {
-        event.preventDefault()
-        setBpm((current) => Math.min(MAX_BPM, current + 1))
-        return
-      }
-
-      if (event.code === 'ArrowDown') {
-        event.preventDefault()
-        setBpm((current) => Math.max(MIN_BPM, current - 1))
-        return
-      }
-
-      if (event.code === 'KeyR') {
-        event.preventDefault()
-        resetSessionRef.current()
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      playbackActiveRef.current = false
-      clearPlaybackTimeout()
-      sessionStartQueuedRef.current = false
-    }
-  }, [])
 
   return (
     <div className="app-shell">
       <div className="backdrop" />
       <main className="app-grid">
-        <div className="topbar">
-          <button
-            type="button"
-            className="theme-toggle"
-            data-testid="theme-toggle"
-            onClick={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
-        </div>
+        <TopBar
+          theme={theme}
+          onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+        />
 
-        <section className="hero-card panel">
-          <h1>Random notes generator</h1>
-          <p className="lede">
-            Train music notes in random order. Hear each note on the beat
-          </p>
+        <HeroCard
+          note={playback.snapshot.note}
+          message={playback.snapshot.message}
+          isPlaying={playback.isPlaying}
+          isPaused={playback.isPaused}
+        />
 
-          <div className={`now-playing ${isPlaying ? 'active' : isPaused ? 'paused' : 'idle'}`} data-testid="now-playing">
-            {currentNote !== '' ? <strong key={currentNote} className="current-note note-pop" data-testid="current-note">{currentNote}</strong> : null}
-          </div>
+        <ControlsPanel
+          bpm={bpm}
+          onBpmChange={setBpm}
+          continuousMode={continuousMode}
+          onToggleContinuousMode={toggleContinuousMode}
+          speedRampMode={speedRampMode}
+          onToggleSpeedRampMode={() => setSpeedRampMode((currentValue) => !currentValue)}
+          isPlaying={playback.isPlaying}
+          onPlayPause={playOrPause}
+          onReset={resetSession}
+        />
 
-          <p className="playback-message" data-testid="playback-message">{playbackMessage}</p>
-        </section>
-
-        <section className="panel controls-panel">
-          <div className="panel-heading">
-            <h2>Practice settings</h2>
-            <p>The metronome sets the tempo. Each note is spoken on the beat.</p>
-          </div>
-
-          <div className="control-block">
-            <div className="slider-row">
-              <label htmlFor="bpm-slider">Metronome BPM</label>
-              <output data-testid="bpm-value">{bpm}</output>
-            </div>
-            <input
-              id="bpm-slider"
-              type="range"
-              min={MIN_BPM}
-              max={MAX_BPM}
-              value={bpm}
-              onChange={(event) => setBpm(Number(event.target.value))}
-            />
-            <div className="range-hints">
-              <span>{MIN_BPM}</span>
-              <span>{MAX_BPM}</span>
-            </div>
-
-            <div className="target-time-info">
-              <span className="label">Cycle time (12 notes)</span>
-              <span className="target-time">{formatElapsed((12 * 60000) / bpm)}</span>
-            </div>
-          </div>
-
-          <div className="toggle-row">
-            <label htmlFor="continuous-mode">Loop continuously</label>
-            <button
-              id="continuous-mode"
-              type="button"
-              className={`toggle ${continuousMode ? 'enabled' : ''}`}
-              onClick={() => {
-                setContinuousMode((currentValue) => {
-                  const nextValue = !currentValue
-                  if (!nextValue) {
-                    setSpeedRampMode(false)
-                  }
-
-                  return nextValue
-                })
-              }}
-            >
-              {continuousMode ? 'On' : 'Off'}
-            </button>
-          </div>
-
-          {continuousMode ? (
-            <div className="toggle-row">
-              <label htmlFor="speed-ramp-mode">Speed ramp mode (+2 BPM per cycle)</label>
-              <button
-                id="speed-ramp-mode"
-                type="button"
-                className={`toggle ${speedRampMode ? 'enabled' : ''}`}
-                onClick={() => setSpeedRampMode((currentValue) => !currentValue)}
-              >
-                {speedRampMode ? 'On' : 'Off'}
-              </button>
-            </div>
-          ) : null}
-
-          <div className="button-row transport-row">
-            <button
-              type="button"
-              className={isPlaying ? 'secondary-button' : 'primary-button'}
-              data-testid="play-toggle"
-              onClick={() => {
-                if (isPlaying) {
-                  pausePlayback()
-                  return
-                }
-
-                void startPlayback()
-              }}
-            >
-              <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
-            </button>
-            <button type="button" className="ghost-button" data-testid="reset" onClick={resetSession}>
-              <FontAwesomeIcon icon={faRotateLeft} /> Reset
-            </button>
-          </div>
-        </section>
-
-        <section className="panel timer-panel">
-          <div className="panel-heading">
-            <h2>Session timer</h2>
-            <p>The timer starts automatically when playback starts and pauses when playback stops.</p>
-          </div>
-
-          <div className="timer-face" data-testid="timer">{formatElapsed(elapsedMs)}</div>
-        </section>
+        <TimerPanel elapsedMs={sessionTimer.elapsedMs} />
       </main>
 
-      <footer className="app-footer">
-        <p>
-          Made with <FontAwesomeIcon icon={faHeart} className="heart-icon" /> by Adam Wolski
-        </p>
-        <p className="app-version">v{version}</p>
-        <div className="footer-links">
-          <a
-            className="social-link"
-            href="https://github.com/wolasss/random-scale-trainer"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Project on GitHub"
-            title="GitHub"
-          >
-            <FontAwesomeIcon icon={faGithub} />
-          </a>
-          <a
-            className="social-link"
-            href="https://www.instagram.com/wolasso"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="wolasso on Instagram"
-            title="Instagram"
-          >
-            <FontAwesomeIcon icon={faInstagram} />
-          </a>
-          <a
-            className="coffee-button"
-            href="https://www.buymeacoffee.com/wolas"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <FontAwesomeIcon icon={faMugHot} /> Buy me a coffee
-          </a>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }
