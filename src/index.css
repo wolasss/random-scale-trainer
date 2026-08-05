@@ -789,11 +789,58 @@ input[type='range'] {
   cursor: not-allowed;
 }
 
-.timer-panel {
+.session-heading {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.session-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--button-bg);
+  overflow: hidden;
+  margin-bottom: 0.9rem;
+}
+
+.session-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+  transition: width 300ms ease;
+}
+
+.session-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.session-stat {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: center;
+  padding: 0.7rem 0.5rem;
+  border-radius: 14px;
+  border: 1px solid var(--control-border);
+  background: var(--button-bg);
+}
+
+.session-stat-value {
+  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.session-stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
 }
 
 .timer-face {

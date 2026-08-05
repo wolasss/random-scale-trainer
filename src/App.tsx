@@ -6,7 +6,7 @@ import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
 import { FretboardCard } from './components/FretboardCard'
 import { PracticeOptionsCard } from './components/PracticeOptionsCard'
-import { TimerPanel } from './components/TimerPanel'
+import { SessionCard } from './components/SessionCard'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { usePersistentState } from './hooks/usePersistentState'
@@ -116,7 +116,13 @@ function App() {
         <div className="column-side">
           <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
 
-          <TimerPanel elapsedMs={sessionTimer.elapsedMs} />
+          <SessionCard
+            elapsedMs={sessionTimer.elapsedMs}
+            goalMin={settings.sessionGoalMin}
+            onGoal={(minutes) => dispatch({ type: 'setSessionGoal', minutes })}
+            notesCalled={playback.snapshot.notesCalled}
+            cyclesCompleted={playback.snapshot.cyclesCompleted}
+          />
         </div>
       </main>
 

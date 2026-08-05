@@ -249,6 +249,36 @@ describe('App integration', () => {
     expect(screen.getByTestId('now-playing').className).toContain('paused')
   })
 
+  it('tracks the session goal, progress, and stats', async () => {
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    render(<App />)
+
+    expect(screen.getByTestId('stat-notes')).toHaveTextContent('0')
+    expect(screen.getByTestId('stat-cycles')).toHaveTextContent('0')
+    expect(screen.getByTestId('session-progress')).toHaveAttribute('aria-valuenow', '0')
+
+    fireEvent.click(screen.getByTestId('session-goal').querySelector('[data-value="5"]')!)
+    expect(window.localStorage.getItem('fretboard-session-goal')).toBe('5')
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    // The timer interval registers on the render after the first note pops,
+    // so it needs its own act block before the long advance.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    // 10s at 72 BPM with a 4-beat span → 4 notes called; 10s of a 5min goal → 3%.
+    expect(Number(screen.getByTestId('stat-notes').textContent)).toBeGreaterThanOrEqual(3)
+    expect(Number(screen.getByTestId('session-progress').getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByTestId('reset'))
+    expect(screen.getByTestId('stat-notes')).toHaveTextContent('0')
+    expect(screen.getByTestId('session-progress')).toHaveAttribute('aria-valuenow', '0')
+  })
+
   it('resets the timer and note display', async () => {
     render(<App />)
 

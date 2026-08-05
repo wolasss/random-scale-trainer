@@ -28,6 +28,7 @@ export const STORAGE_KEYS = {
   beatsPerNote: 'fretboard-beats-per-note',
   notePool: 'fretboard-note-pool',
   spelling: 'fretboard-spelling',
+  sessionGoal: 'fretboard-session-goal',
 }
 
 const POLL_MS = 100
@@ -55,6 +56,10 @@ const SELECTORS = {
   presetSelect: By.css('[data-testid="preset-select"]'),
   poolGuarantee: By.css('[data-testid="pool-guarantee"]'),
   spelling: By.css('[data-testid="spelling"]'),
+  sessionGoal: By.css('[data-testid="session-goal"]'),
+  sessionProgress: By.css('[data-testid="session-progress"]'),
+  statNotes: By.css('[data-testid="stat-notes"]'),
+  statCycles: By.css('[data-testid="stat-cycles"]'),
 }
 
 const noteChip = (pc: number) => By.css(`[data-testid="note-chip-${pc}"]`)
@@ -260,6 +265,23 @@ export class TrainerPage {
       .findElement(SELECTORS.spelling)
       .findElement(By.css(`[data-value="${value}"]`))
       .click()
+  }
+
+  async setSessionGoal(minutes: 5 | 10 | 20): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.sessionGoal)
+      .findElement(By.css(`[data-value="${minutes}"]`))
+      .click()
+  }
+
+  async getSessionProgress(): Promise<number> {
+    const value = await this.driver.findElement(SELECTORS.sessionProgress).getAttribute('aria-valuenow')
+    return Number(value)
+  }
+
+  async getStat(stat: 'notes' | 'cycles'): Promise<number> {
+    const locator = stat === 'notes' ? SELECTORS.statNotes : SELECTORS.statCycles
+    return Number(await this.driver.findElement(locator).getText())
   }
 
   async clickContinuousToggle(): Promise<void> {
