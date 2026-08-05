@@ -3,7 +3,8 @@ import { TopBar, type Theme } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { TempoCard } from './components/TempoCard'
-import { ControlsPanel } from './components/ControlsPanel'
+import { NotePoolCard } from './components/NotePoolCard'
+import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { TimerPanel } from './components/TimerPanel'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
@@ -85,24 +86,31 @@ function App() {
 
         <TransportBar isPlaying={playback.isPlaying} onPlayPause={playOrPause} onReset={resetSession} />
 
-        <TempoCard
-          bpm={settings.bpm}
-          beatsPerNote={settings.beatsPerNote}
-          poolSize={settings.pool.length}
-          onBpmChange={(bpm) => dispatch({ type: 'setBpm', bpm })}
-          onNudge={(delta) => dispatch({ type: 'nudgeBpm', delta })}
-          onTap={handleTapTempo}
-          onBeatsPerNoteChange={(value) => dispatch({ type: 'setBeatsPerNote', value })}
-        />
+        <div className="column-main">
+          <TempoCard
+            bpm={settings.bpm}
+            beatsPerNote={settings.beatsPerNote}
+            poolSize={settings.pool.length}
+            onBpmChange={(bpm) => dispatch({ type: 'setBpm', bpm })}
+            onNudge={(delta) => dispatch({ type: 'nudgeBpm', delta })}
+            onTap={handleTapTempo}
+            onBeatsPerNoteChange={(value) => dispatch({ type: 'setBeatsPerNote', value })}
+          />
 
-        <ControlsPanel
-          continuousMode={settings.continuousMode}
-          onToggleContinuousMode={() => dispatch({ type: 'toggle', key: 'continuousMode' })}
-          speedRampMode={settings.speedRampMode}
-          onToggleSpeedRampMode={() => dispatch({ type: 'toggle', key: 'speedRampMode' })}
-        />
+          <NotePoolCard
+            pool={settings.pool}
+            spelling={settings.spelling}
+            onTogglePc={(pc) => dispatch({ type: 'togglePoolNote', pc })}
+            onPreset={(preset) => dispatch({ type: 'setPreset', preset })}
+            onSpelling={(value) => dispatch({ type: 'setSpelling', value })}
+          />
+        </div>
 
-        <TimerPanel elapsedMs={sessionTimer.elapsedMs} />
+        <div className="column-side">
+          <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
+
+          <TimerPanel elapsedMs={sessionTimer.elapsedMs} />
+        </div>
       </main>
 
       <Footer />

@@ -26,6 +26,8 @@ export const STORAGE_KEYS = {
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
   beatsPerNote: 'fretboard-beats-per-note',
+  notePool: 'fretboard-note-pool',
+  spelling: 'fretboard-spelling',
 }
 
 const POLL_MS = 100
@@ -50,7 +52,12 @@ const SELECTORS = {
   bpmUp: By.css('[data-testid="bpm-up"]'),
   tapTempo: By.css('[data-testid="tap-tempo"]'),
   noteEvery: By.css('[data-testid="note-every"]'),
+  presetSelect: By.css('[data-testid="preset-select"]'),
+  poolGuarantee: By.css('[data-testid="pool-guarantee"]'),
+  spelling: By.css('[data-testid="spelling"]'),
 }
+
+const noteChip = (pc: number) => By.css(`[data-testid="note-chip-${pc}"]`)
 
 export const timerToSeconds = (timerText: string): number => {
   const [minutes, seconds] = timerText.split(':').map(Number)
@@ -219,6 +226,39 @@ export class TrainerPage {
     await this.driver
       .findElement(SELECTORS.noteEvery)
       .findElement(By.css(`[data-value="${beats}"]`))
+      .click()
+  }
+
+  async selectPreset(presetId: string): Promise<void> {
+    const select = this.driver.findElement(SELECTORS.presetSelect)
+    await select.click()
+    await select.findElement(By.css(`option[value="${presetId}"]`)).click()
+  }
+
+  async getPresetValue(): Promise<string | null> {
+    return this.driver.findElement(SELECTORS.presetSelect).getAttribute('value')
+  }
+
+  async toggleChip(pc: number): Promise<void> {
+    await this.driver.findElement(noteChip(pc)).click()
+  }
+
+  async isChipSelected(pc: number): Promise<boolean> {
+    return (await this.driver.findElement(noteChip(pc)).getAttribute('aria-pressed')) === 'true'
+  }
+
+  async getChipLabel(pc: number): Promise<string> {
+    return this.driver.findElement(noteChip(pc)).getText()
+  }
+
+  async getPoolGuarantee(): Promise<string> {
+    return this.driver.findElement(SELECTORS.poolGuarantee).getText()
+  }
+
+  async setSpelling(value: 'flat' | 'sharp' | 'mixed'): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.spelling)
+      .findElement(By.css(`[data-value="${value}"]`))
       .click()
   }
 

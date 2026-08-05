@@ -140,6 +140,32 @@ describe('App integration', () => {
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('120')
   })
 
+  it('note pool chips drive the preset, the guarantee line, and storage', () => {
+    render(<App />)
+
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('12 notes, shuffled')
+    expect(screen.getByTestId('preset-select')).toHaveValue('all')
+
+    fireEvent.click(screen.getByTestId('note-chip-1'))
+    expect(screen.getByTestId('preset-select')).toHaveValue('custom')
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('11 notes, shuffled')
+    expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,2,3,4,5,6,7,8,9,10,11')
+  })
+
+  it('presets apply to the chips and spelling drives the chip labels', () => {
+    render(<App />)
+
+    fireEvent.change(screen.getByTestId('preset-select'), { target: { value: 'naturals' } })
+    expect(screen.getByTestId('note-chip-0')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('note-chip-1')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('7 notes, shuffled')
+
+    // Default mixed spelling keeps stable flat labels on the chips.
+    expect(screen.getByTestId('note-chip-1')).toHaveTextContent('D♭')
+    fireEvent.click(screen.getByTestId('spelling').querySelector('[data-value="sharp"]')!)
+    expect(screen.getByTestId('note-chip-1')).toHaveTextContent('C♯')
+  })
+
   it('restores a clamped BPM from storage', () => {
     window.localStorage.setItem('fretboard-bpm', '999')
     render(<App />)

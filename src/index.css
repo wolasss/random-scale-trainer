@@ -121,10 +121,20 @@ button {
   padding: 1.4rem;
 }
 
-.controls-panel,
-.tempo-card,
-.timer-panel {
-  grid-column: span 6;
+.column-main {
+  grid-column: span 7;
+}
+
+.column-side {
+  grid-column: span 5;
+}
+
+.column-main,
+.column-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -493,6 +503,56 @@ input[type='range'] {
   color: var(--ink-soft);
 }
 
+.note-pool-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.preset-select {
+  flex: none;
+  max-width: 200px;
+  padding: 0.5rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.preset-select option {
+  color: initial;
+}
+
+.note-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(48px, 1fr));
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.note-chip {
+  min-height: 48px;
+  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-size: 22px;
+  border-radius: 14px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  color: var(--ink-soft);
+  opacity: 0.45;
+  transition: background 140ms ease, color 140ms ease, opacity 140ms ease, border-color 140ms ease;
+}
+
+.note-chip[aria-pressed='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+  opacity: 1;
+}
+
 .target-time-info {
   margin-top: 0.7rem;
   padding-top: 0.7rem;
@@ -776,8 +836,8 @@ input[type='range'] {
 }
 
 @media (max-width: 900px) {
-  .controls-panel,
-  .timer-panel {
+  .column-main,
+  .column-side {
     grid-column: span 12;
   }
 
@@ -789,6 +849,19 @@ input[type='range'] {
 @media (max-width: 640px) {
   .app-grid {
     padding: 1rem 0.85rem 1.35rem;
+  }
+
+  .note-chip-grid {
+    grid-template-columns: repeat(4, minmax(48px, 1fr));
+  }
+
+  .note-pool-heading {
+    flex-direction: column;
+  }
+
+  .note-pool-heading .preset-select {
+    max-width: 100%;
+    width: 100%;
   }
 
   .slider-row,
