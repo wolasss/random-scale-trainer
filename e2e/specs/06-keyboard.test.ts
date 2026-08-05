@@ -39,7 +39,7 @@ describe('keyboard shortcuts', () => {
 
     await page.pressBody(Key.SPACE)
     await page.waitForMessage(MESSAGES.paused)
-    assert.equal(await page.getPlayButtonText(), 'Play')
+    assert.equal(await page.getPlayButtonText(), 'Start practice')
 
     await page.pressBody('r')
     assert.equal(await page.getTimer(), '00:00')

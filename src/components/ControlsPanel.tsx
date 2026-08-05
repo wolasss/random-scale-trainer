@@ -1,5 +1,3 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPause, faPlay, faRotateLeft } from '@fortawesome/free-solid-svg-icons'
 import { MAX_BPM, MIN_BPM } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import { SwitchRow } from './ui/SwitchRow'
@@ -12,9 +10,6 @@ type ControlsPanelProps = {
   onToggleContinuousMode: () => void
   speedRampMode: boolean
   onToggleSpeedRampMode: () => void
-  isPlaying: boolean
-  onPlayPause: () => void
-  onReset: () => void
 }
 
 export function ControlsPanel({
@@ -25,9 +20,6 @@ export function ControlsPanel({
   onToggleContinuousMode,
   speedRampMode,
   onToggleSpeedRampMode,
-  isPlaying,
-  onPlayPause,
-  onReset,
 }: ControlsPanelProps) {
   return (
     <section className="panel controls-panel">
@@ -75,20 +67,6 @@ export function ControlsPanel({
         onChange={onToggleSpeedRampMode}
         disabled={!continuousMode}
       />
-
-      <div className="button-row transport-row">
-        <button
-          type="button"
-          className={isPlaying ? 'secondary-button' : 'primary-button'}
-          data-testid="play-toggle"
-          onClick={onPlayPause}
-        >
-          <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
-        </button>
-        <button type="button" className="ghost-button" data-testid="reset" onClick={onReset}>
-          <FontAwesomeIcon icon={faRotateLeft} /> Reset
-        </button>
-      </div>
     </section>
   )
 }

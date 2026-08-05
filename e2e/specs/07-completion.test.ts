@@ -30,7 +30,7 @@ describe('session completion and reset', () => {
     await page.clickPlayPause()
     await page.waitForMessage(MESSAGES.finished, 25_000)
 
-    assert.equal(await page.getPlayButtonText(), 'Play')
+    assert.equal(await page.getPlayButtonText(), 'Start practice')
     assert.equal(await page.isPlayButtonPrimary(), true)
     assert.equal(await page.getCurrentNote(), null)
     assert.equal(await page.getNowPlayingState(), 'idle')
@@ -49,7 +49,7 @@ describe('session completion and reset', () => {
     assert.equal(await page.getPlaybackMessage(), MESSAGES.idle)
     assert.equal(await page.getCurrentNote(), null)
     assert.equal(await page.getTimer(), '00:00')
-    assert.equal(await page.getPlayButtonText(), 'Play')
+    assert.equal(await page.getPlayButtonText(), 'Start practice')
     assert.equal(await page.getNowPlayingState(), 'idle')
   })
 })

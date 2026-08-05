@@ -11,6 +11,10 @@ type TopBarProps = {
 export function TopBar({ theme, onToggleTheme }: TopBarProps) {
   return (
     <div className="topbar">
+      <div className="key-hints" aria-hidden="true">
+        <kbd>Space</kbd> play/pause · <kbd>←</kbd>
+        <kbd>→</kbd> tempo · <kbd>R</kbd> reset
+      </div>
       <button
         type="button"
         className="theme-toggle"

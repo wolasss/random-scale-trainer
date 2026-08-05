@@ -57,10 +57,26 @@ describe('App integration', () => {
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
     expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:40')
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
-    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Play')
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
     expect(screen.getByTestId('now-playing').className).toContain('idle')
     expect(document.getElementById('continuous-mode')).toHaveAttribute('aria-checked', 'true')
     expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('shows the ready hint and NEXT preview while idle, then beat dots while playing', async () => {
+    render(<App />)
+
+    expect(screen.getByText('ready')).toBeInTheDocument()
+    expect(screen.getByTestId('next-note').textContent).toMatch(NOTE_PATTERN)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 100)
+    })
+
+    expect(screen.getByTestId('beat-dots').children).toHaveLength(4)
+    expect(screen.getByTestId('cycle-position')).toHaveTextContent('note 1 of 12')
+    expect(screen.getByTestId('next-note').textContent).toMatch(NOTE_PATTERN)
   })
 
   it('toggles the theme and persists it', () => {
@@ -134,7 +150,7 @@ describe('App integration', () => {
     expect(screen.getByTestId('playback-message')).toHaveTextContent(
       'Paused — the session timer is paused too.',
     )
-    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Play')
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
     expect(screen.getByTestId('now-playing').className).toContain('paused')
   })
 

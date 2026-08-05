@@ -44,6 +44,8 @@ const SELECTORS = {
   speedRampToggle: By.id('speed-ramp-mode'),
   cycleTime: By.css('.target-time'),
   heading: By.css('h1'),
+  nextNote: By.css('[data-testid="next-note"]'),
+  cyclePosition: By.css('[data-testid="cycle-position"]'),
 }
 
 export const timerToSeconds = (timerText: string): number => {
@@ -115,6 +117,18 @@ export class TrainerPage {
 
   async getPlaybackMessage(): Promise<string> {
     return this.driver.findElement(SELECTORS.playbackMessage).getText()
+  }
+
+  /** Null when the NEXT chip is not rendered (e.g. ear-only mode). */
+  async getNextNote(): Promise<string | null> {
+    const elements = await this.driver.findElements(SELECTORS.nextNote)
+    return elements.length > 0 ? elements[0].getText() : null
+  }
+
+  /** e.g. "note 7 of 12"; null while idle. */
+  async getCyclePosition(): Promise<string | null> {
+    const elements = await this.driver.findElements(SELECTORS.cyclePosition)
+    return elements.length > 0 ? elements[0].getText() : null
   }
 
   async getBpm(): Promise<number> {
@@ -274,6 +288,15 @@ export class TrainerPage {
       POLL_MS,
     )
     return [...seen]
+  }
+
+  async waitForCurrentNote(expected: string, timeoutMs = 5_000): Promise<void> {
+    await this.driver.wait(
+      async () => (await this.getCurrentNote()) === expected,
+      timeoutMs,
+      `current note did not become ${expected}`,
+      POLL_MS,
+    )
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {

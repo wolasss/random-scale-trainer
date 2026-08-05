@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { TopBar, type Theme } from './components/TopBar'
-import { HeroCard } from './components/HeroCard'
+import { Hero } from './components/Hero'
+import { TransportBar } from './components/TransportBar'
 import { ControlsPanel } from './components/ControlsPanel'
 import { TimerPanel } from './components/TimerPanel'
 import { Footer } from './components/Footer'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
+import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings } from './hooks/useSettings'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -18,6 +20,7 @@ function App() {
   })
   const [settings, dispatch] = useSettings()
   const sessionTimer = useSessionTimer()
+  const beatPulse = useBeatPulse()
   const playback = usePlayback({
     settings,
     pool: settings.pool,
@@ -25,6 +28,7 @@ function App() {
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
     onSessionStart: sessionTimer.start,
     onSessionPause: sessionTimer.pause,
+    onBeat: beatPulse.handleBeat,
   })
 
   useEffect(() => {
@@ -47,8 +51,8 @@ function App() {
 
   useKeyboardShortcuts({
     onSpace: playOrPause,
-    onArrowUp: () => dispatch({ type: 'nudgeBpm', delta: 1 }),
-    onArrowDown: () => dispatch({ type: 'nudgeBpm', delta: -1 }),
+    onTempoUp: () => dispatch({ type: 'nudgeBpm', delta: 1 }),
+    onTempoDown: () => dispatch({ type: 'nudgeBpm', delta: -1 }),
     onReset: resetSession,
   })
 
@@ -61,16 +65,14 @@ function App() {
           onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
         />
 
-        <HeroCard
-          note={
-            playback.snapshot.countIn !== null
-              ? String(playback.snapshot.countIn)
-              : (playback.snapshot.currentNote?.display ?? '')
-          }
-          message={playback.snapshot.message}
-          isPlaying={playback.isPlaying}
-          isPaused={playback.isPaused}
+        <Hero
+          snapshot={playback.snapshot}
+          beatsPerNote={settings.beatsPerNote}
+          earOnly={settings.earOnly}
+          ringRef={beatPulse.ringRef}
         />
+
+        <TransportBar isPlaying={playback.isPlaying} onPlayPause={playOrPause} onReset={resetSession} />
 
         <ControlsPanel
           bpm={settings.bpm}
@@ -80,9 +82,6 @@ function App() {
           onToggleContinuousMode={() => dispatch({ type: 'toggle', key: 'continuousMode' })}
           speedRampMode={settings.speedRampMode}
           onToggleSpeedRampMode={() => dispatch({ type: 'toggle', key: 'speedRampMode' })}
-          isPlaying={playback.isPlaying}
-          onPlayPause={playOrPause}
-          onReset={resetSession}
         />
 
         <TimerPanel elapsedMs={sessionTimer.elapsedMs} />
