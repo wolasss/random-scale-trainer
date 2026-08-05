@@ -13,11 +13,12 @@ before the next one arrives.
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8 beats, accented on note changes)
-- Drift-free Web Audio scheduling: clicks, spoken samples, and an optional reference pitch are
-  scheduled at explicit AudioContext times by a look-ahead scheduler
-- "On the neck" fretboard map showing every position of the called note (frets 0–12, standard tuning)
-- Practice options: count-in, loop, speed ramp (+2 BPM per cycle), speak the note, reference pitch,
-  and an ear-only challenge that hides the answer until the last beat
+- Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
+  AudioContext times by a look-ahead scheduler
+- "On the neck" fretboard map showing every position of the called note (frets 0–12, standard
+  tuning), hideable from Practice options
+- Practice options: loop continuously, speed ramp (+2 BPM per cycle), and the fretboard map toggle;
+  a four-beat count-in and the spoken note name are always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
 - Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, R reset
 

@@ -3,6 +3,13 @@ const STRING_MIDI = [64, 59, 55, 50, 45, 40]
 const STRING_LABELS = ['e', 'B', 'G', 'D', 'A', 'E']
 const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
 
+// Classic inlay markers, drawn on the string boundary below the given row so
+// singles sit on the neck's center line and fret 12 gets a symmetric pair.
+function hasInlay(stringIndex: number, fret: number) {
+  if (fret === 12) return stringIndex === 1 || stringIndex === 3
+  return stringIndex === 2 && [3, 5, 7, 9].includes(fret)
+}
+
 type FretboardCardProps = {
   currentPc: number | null
 }
@@ -24,6 +31,7 @@ export function FretboardCard({ currentPc }: FretboardCardProps) {
               <span className="string-label">{STRING_LABELS[stringIndex]}</span>
               {FRETS.map((fret) => (
                 <span key={fret} className={`fret-cell ${fret === 0 ? 'nut' : ''}`}>
+                  {hasInlay(stringIndex, fret) ? <span className="inlay-dot" aria-hidden="true" /> : null}
                   {showDots && (midi + fret) % 12 === currentPc ? (
                     <span className="fret-dot" data-testid="fret-dot" />
                   ) : null}
