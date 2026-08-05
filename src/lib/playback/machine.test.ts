@@ -234,6 +234,38 @@ describe('count-in', () => {
     expect(harness.snapshot().currentNote?.display).toBe('C')
   })
 
+  it('counts in again between cycles in continuous mode', async () => {
+    const harness = createHarness({
+      settings: { countInEnabled: true, continuousMode: true },
+      pool: [0, 1],
+    })
+    await harness.machine.start()
+
+    // Opening count-in at 0.05..3.05; the two-note cycle lands at 4.05 and 5.05.
+    harness.advanceTo(6.1)
+
+    // The boundary at 6.05 starts a fresh count-in instead of the next note.
+    expect(harness.snapshot()).toMatchObject({
+      countIn: 4,
+      currentNote: null,
+      message: PLAYBACK_MESSAGES.countingIn,
+    })
+
+    harness.advanceTo(10.1)
+
+    // The new cycle's first note lands only after the four count-in clicks.
+    const noteTimes = harness.audio.notes.map((note) => note.time)
+    expect(noteTimes).toHaveLength(3)
+    expect(noteTimes[1]).toBeCloseTo(5.05, 6)
+    expect(noteTimes[2]).toBeCloseTo(10.05, 6)
+    expect(harness.snapshot()).toMatchObject({
+      countIn: null,
+      cyclesCompleted: 1,
+      positionInCycle: 1,
+    })
+    expect(harness.snapshot().currentNote?.display).toBe('C')
+  })
+
   it('starts the session timer at the first note, not during the count-in', async () => {
     const harness = createHarness({ settings: { countInEnabled: true } })
     await harness.machine.start()

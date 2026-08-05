@@ -3,11 +3,14 @@ import { faPause, faPlay, faRotateLeft } from '@fortawesome/free-solid-svg-icons
 
 type TransportBarProps = {
   isPlaying: boolean
+  isPaused: boolean
   onPlayPause: () => void
   onReset: () => void
 }
 
-export function TransportBar({ isPlaying, onPlayPause, onReset }: TransportBarProps) {
+export function TransportBar({ isPlaying, isPaused, onPlayPause, onReset }: TransportBarProps) {
+  const label = isPlaying ? 'Pause' : isPaused ? 'Resume' : 'Start practice'
+
   return (
     <div className="transport-bar">
       <button
@@ -16,7 +19,7 @@ export function TransportBar({ isPlaying, onPlayPause, onReset }: TransportBarPr
         data-testid="play-toggle"
         onClick={onPlayPause}
       >
-        <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Start practice'}
+        <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {label}
       </button>
       <button type="button" className="ghost-button transport-reset" data-testid="reset" onClick={onReset}>
         <FontAwesomeIcon icon={faRotateLeft} /> Reset session

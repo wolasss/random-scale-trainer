@@ -158,6 +158,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let schedBagSize = 0
   let anyNoteScheduled = false
   let schedulingDone = false
+  // A cycle boundary is processed once (ramp, stop, count-in); after a
+  // between-cycle count-in the scheduler re-enters the same boundary to draw.
+  let boundaryProcessed = false
 
   // The machine's authoritative tempo. The ramp bumps it immediately (before
   // React round-trips onBpmChange); external slider/tap changes win when the
@@ -288,7 +291,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       // A cycle only counts as completed when the previous bag was fully dealt;
       // a bag truncated by a pool edit must not trigger the ramp or the ending.
       const completedCycle = peeked.cycleStart && anyNoteScheduled && schedPosition === schedBagSize
-      if (completedCycle) {
+      if (completedCycle && !boundaryProcessed) {
+        boundaryProcessed = true
         applySpeedRamp()
 
         if (!settings.continuousMode) {
@@ -297,6 +301,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
           }
           schedulingDone = true
           scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.finished(schedBagSize), true)
+          return
+        }
+
+        if (settings.countInEnabled) {
+          // Count in again before the new cycle; the next scheduler passes
+          // deal the clicks, then re-enter this boundary to draw the note.
+          countInRemaining = COUNT_IN_BEATS
           return
         }
       }
@@ -311,6 +322,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       schedPosition = note.cycleStart ? 1 : schedPosition + 1
       schedBagSize = note.bagSize
       anyNoteScheduled = true
+      boundaryProcessed = false
 
       audio.playClickAt(nextBeatTime, true)
       if (settings.speakNotes) {
@@ -482,6 +494,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     schedBagSize = 0
     anyNoteScheduled = false
     schedulingDone = false
+    boundaryProcessed = false
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
@@ -505,6 +518,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     schedPosition = 0
     schedBagSize = 0
     anyNoteScheduled = false
+    boundaryProcessed = false
     deck.reset()
 
     emit({

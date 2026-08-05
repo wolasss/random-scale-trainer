@@ -1,4 +1,10 @@
-import { FLAT_DISPLAY, PITCH_CLASSES, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
+import {
+  FLAT_DISPLAY,
+  isNaturalPitchClass,
+  PITCH_CLASSES,
+  SHARP_DISPLAY,
+  type SpellingPreference,
+} from '../lib/notes'
 import { matchPreset, PRESETS, type PresetId } from '../lib/presets'
 import { SegmentedControl } from './ui/SegmentedControl'
 
@@ -17,8 +23,12 @@ const SPELLING_OPTIONS = [
 ] as const
 
 export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onSpelling }: NotePoolCardProps) {
-  // Mixed varies per call, so the chips keep stable flat labels.
-  const labels = spelling === 'sharp' ? SHARP_DISPLAY : FLAT_DISPLAY
+  // Mixed varies per call, so accidental chips carry both names.
+  const chipLabel = (pc: number) => {
+    if (spelling === 'sharp' || isNaturalPitchClass(pc)) return SHARP_DISPLAY[pc]
+    if (spelling === 'flat') return FLAT_DISPLAY[pc]
+    return `${FLAT_DISPLAY[pc]}/${SHARP_DISPLAY[pc]}`
+  }
   const count = pool.length
 
   return (
@@ -51,12 +61,12 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onSpelling 
           <button
             key={pc}
             type="button"
-            className="note-chip"
+            className={`note-chip ${spelling === 'mixed' && !isNaturalPitchClass(pc) ? 'dual' : ''}`}
             data-testid={`note-chip-${pc}`}
             aria-pressed={pool.includes(pc)}
             onClick={() => onTogglePc(pc)}
           >
-            {labels[pc]}
+            {chipLabel(pc)}
           </button>
         ))}
       </div>

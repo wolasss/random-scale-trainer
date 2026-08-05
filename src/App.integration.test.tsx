@@ -159,10 +159,10 @@ describe('App integration', () => {
     expect(screen.getByTestId('note-chip-1')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('7 notes, shuffled')
 
-    // Default mixed spelling keeps stable flat labels on the chips.
-    expect(screen.getByTestId('note-chip-1')).toHaveTextContent('D♭')
+    // Default mixed spelling shows both names, since the call can use either.
+    expect(screen.getByTestId('note-chip-1')).toHaveTextContent('D♭/C♯')
     fireEvent.click(screen.getByTestId('spelling').querySelector('[data-value="sharp"]')!)
-    expect(screen.getByTestId('note-chip-1')).toHaveTextContent('C♯')
+    expect(screen.getByTestId('note-chip-1')).toHaveTextContent(/^C♯$/)
   })
 
   it('restores a clamped BPM from storage', () => {
@@ -235,7 +235,7 @@ describe('App integration', () => {
     expect(screen.getByTestId('playback-message')).toHaveTextContent(
       'Paused — the session timer is paused too.',
     )
-    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Resume')
     expect(screen.getByTestId('now-playing').className).toContain('paused')
   })
 

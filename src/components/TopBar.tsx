@@ -17,8 +17,12 @@ export function TopBar({ theme, onToggleTheme }: TopBarProps) {
       </div>
       <div className="header-side">
         <div className="key-hints" aria-hidden="true">
-          <kbd>Space</kbd> play / pause · <kbd>←</kbd>
-          <kbd>→</kbd> tempo
+          <span>
+            <kbd>Space</kbd> play / pause
+          </span>
+          <span>
+            <kbd>←</kbd> <kbd>→</kbd> tempo
+          </span>
         </div>
         <button
           type="button"

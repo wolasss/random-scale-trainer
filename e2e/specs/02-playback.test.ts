@@ -50,7 +50,7 @@ describe('playback', () => {
     await page.clickPlayPause()
     await page.waitForMessage(MESSAGES.paused)
     assert.equal(await page.getNowPlayingState(), 'paused')
-    assert.equal(await page.getPlayButtonText(), 'Start practice')
+    assert.equal(await page.getPlayButtonText(), 'Resume')
     assert.equal(await page.isPlayButtonPrimary(), true)
 
     const frozen = await page.getTimer()

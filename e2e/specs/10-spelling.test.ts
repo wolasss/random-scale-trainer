@@ -48,7 +48,7 @@ describe('enharmonic spelling', () => {
   })
 
   it('chip labels follow the selected spelling', async () => {
-    assert.equal(await page.getChipLabel(1), 'D♭') // mixed default → flat labels
+    assert.equal(await page.getChipLabel(1), 'D♭/C♯') // mixed default → both names
     await page.setSpelling('sharp')
     assert.equal(await page.getChipLabel(1), 'C♯')
     assert.equal(await page.getLocalStorage(STORAGE_KEYS.spelling), 'sharp')
