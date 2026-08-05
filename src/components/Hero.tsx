@@ -66,7 +66,7 @@ export function Hero({ snapshot, beatsPerNote, earOnly, ringRef }: HeroProps) {
         {currentNote ? <BeatDots count={beatsPerNote} active={beatInSpan} /> : null}
       </div>
 
-      <p className="playback-message" data-testid="playback-message">
+      <p className="playback-message" data-testid="playback-message" aria-live="polite">
         {message}
       </p>
     </section>

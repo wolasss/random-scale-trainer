@@ -37,15 +37,15 @@ APP_BASE_URL=http://host.docker.internal:4173 npm run test:e2e   # terminal 2
 
 ## Layout
 
-- `pages/trainer.page.ts` — the **only** place selectors, app strings, and wait conditions live. When refactoring the UI, update this file (and the `data-testid` attributes in `src/App.tsx`); specs should not need to change.
-- `specs/01–07` — initial defaults, playback/pause/resume, BPM slider + persistence, mode toggles + persistence, theme + persistence, keyboard shortcuts, session completion + reset.
+- `pages/trainer.page.ts` — the **only** place selectors, app strings, and wait conditions live. When refactoring the UI, update this file (and the `data-testid` attributes in `src/components/`); specs should not need to change.
+- `specs/01–11` — initial defaults, playback/pause/resume, tempo controls + persistence, switches + persistence, theme + persistence, keyboard shortcuts, session completion + reset, note pool + presets, NEXT preview, enharmonic spelling, session goal/stats.
 
 ## Conventions (anti-flakiness)
 
 - Note order is random — assert set membership / distinct counts, never specific notes.
 - Wait for terminal UI states with explicit waits; never sleep-and-hope, never wait on transient messages ("Loading audio...", "Resuming...").
 - Timer assertions use ranges (200ms tick granularity + CI drift).
-- Playback specs pin BPM to 100 (600ms beats) to keep the suite ~35s.
+- Playback specs pin BPM to 240 and, where speed matters, seed `fretboard-beats-per-note` to `1` (250ms per note) to keep the suite fast.
 - CSS animations are disabled per page load (zero-opacity text reads as `""` in WebDriver).
 - Each test starts from a cleared localStorage (`openFresh()`).
 
