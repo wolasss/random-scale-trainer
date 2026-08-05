@@ -2,7 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
-import { getChromaticScale } from './lib/music'
+import { generateShuffledNotes } from './lib/music'
+import { formatElapsed } from './lib/time'
+import {
+  COUNT_IN_BEATS,
+  COUNT_IN_MS,
+  DEFAULT_BPM,
+  IDLE_NOTE,
+  MAX_BPM,
+  MIN_BPM,
+  PLAYBACK_MESSAGES,
+  STORAGE_KEYS,
+} from './constants'
 import { version } from '../package.json'
 
 type SpeechWindow = Window & {
@@ -29,45 +40,7 @@ const NOTE_AUDIO_FILES: Record<string, string> = {
   'B': '/audio/notes/b.mp3',
 }
 
-const MIN_BPM = 10
-const MAX_BPM = 100
-const DEFAULT_BPM = 30
-const COUNT_IN_BEATS = 3
-const COUNT_IN_MS = 650
-const THEME_STORAGE_KEY = 'fretboard-theme'
-const BPM_STORAGE_KEY = 'fretboard-bpm'
-const CONTINUOUS_MODE_STORAGE_KEY = 'fretboard-continuous-mode'
-const SPEED_RAMP_MODE_STORAGE_KEY = 'fretboard-speed-ramp-mode'
-const END_SOUND_STORAGE_KEY = 'fretboard-end-sound'
-
 type Theme = 'dark' | 'light'
-
-const formatElapsed = (elapsedMs: number) => {
-  const totalSeconds = Math.floor(elapsedMs / 1000)
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
-  const seconds = String(totalSeconds % 60).padStart(2, '0')
-
-  return `${minutes}:${seconds}`
-}
-
-const generateShuffledNotes = (): string[] => {
-  const sharpNotes = getChromaticScale('sharp')
-  const flatNotes = getChromaticScale('flat')
-  const notes = sharpNotes.map((sharpNote, index) => {
-    const flatNote = flatNotes[index]
-
-    if (sharpNote === flatNote) {
-      return sharpNote
-    }
-
-    return Math.random() < 0.5 ? sharpNote : flatNote
-  })
-  const shuffled = [...notes]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
 
 function App() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -75,7 +48,7 @@ function App() {
       return 'dark'
     }
 
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
+    const storedTheme = window.localStorage.getItem(STORAGE_KEYS.theme)
     if (storedTheme === 'light' || storedTheme === 'dark') {
       return storedTheme
     }
@@ -87,7 +60,7 @@ function App() {
       return DEFAULT_BPM
     }
 
-    const storedBpmRaw = window.localStorage.getItem(BPM_STORAGE_KEY)
+    const storedBpmRaw = window.localStorage.getItem(STORAGE_KEYS.bpm)
     if (storedBpmRaw === null) {
       return DEFAULT_BPM
     }
@@ -104,7 +77,7 @@ function App() {
       return true
     }
 
-    const storedMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
+    const storedMode = window.localStorage.getItem(STORAGE_KEYS.continuousMode)
     return storedMode === null ? true : storedMode === 'true'
   })
   const [speedRampMode, setSpeedRampMode] = useState(() => {
@@ -112,9 +85,9 @@ function App() {
       return false
     }
 
-    const storedContinuousMode = window.localStorage.getItem(CONTINUOUS_MODE_STORAGE_KEY)
+    const storedContinuousMode = window.localStorage.getItem(STORAGE_KEYS.continuousMode)
     const isContinuousEnabled = storedContinuousMode === null ? true : storedContinuousMode === 'true'
-    const storedMode = window.localStorage.getItem(SPEED_RAMP_MODE_STORAGE_KEY)
+    const storedMode = window.localStorage.getItem(STORAGE_KEYS.speedRampMode)
     const isSpeedRampEnabled = storedMode === null ? false : storedMode === 'true'
     return isContinuousEnabled && isSpeedRampEnabled
   })
@@ -123,11 +96,11 @@ function App() {
       return true
     }
 
-    const storedValue = window.localStorage.getItem(END_SOUND_STORAGE_KEY)
+    const storedValue = window.localStorage.getItem(STORAGE_KEYS.endSound)
     return storedValue === null ? true : storedValue === 'true'
   })
-  const [currentNote, setCurrentNote] = useState('A♭')
-  const [playbackMessage, setPlaybackMessage] = useState('Press play to start.')
+  const [currentNote, setCurrentNote] = useState(IDLE_NOTE)
+  const [playbackMessage, setPlaybackMessage] = useState<string>(PLAYBACK_MESSAGES.idle)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [isSessionRunning, setIsSessionRunning] = useState(false)
@@ -173,24 +146,24 @@ function App() {
   }, [endSoundEnabled])
 
   useEffect(() => {
-    window.localStorage.setItem(BPM_STORAGE_KEY, String(bpm))
+    window.localStorage.setItem(STORAGE_KEYS.bpm, String(bpm))
   }, [bpm])
 
   useEffect(() => {
-    window.localStorage.setItem(CONTINUOUS_MODE_STORAGE_KEY, String(continuousMode))
+    window.localStorage.setItem(STORAGE_KEYS.continuousMode, String(continuousMode))
   }, [continuousMode])
 
   useEffect(() => {
-    window.localStorage.setItem(SPEED_RAMP_MODE_STORAGE_KEY, String(speedRampMode))
+    window.localStorage.setItem(STORAGE_KEYS.speedRampMode, String(speedRampMode))
   }, [speedRampMode])
 
   useEffect(() => {
-    window.localStorage.setItem(END_SOUND_STORAGE_KEY, String(endSoundEnabled))
+    window.localStorage.setItem(STORAGE_KEYS.endSound, String(endSoundEnabled))
   }, [endSoundEnabled])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+    window.localStorage.setItem(STORAGE_KEYS.theme, theme)
   }, [theme])
 
   useEffect(() => {
@@ -348,14 +321,14 @@ function App() {
     setIsSessionRunning(false)
   }
 
-  function stopPlayback(message = 'Press play to start.') {
+  function stopPlayback(message: string = PLAYBACK_MESSAGES.idle) {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
     sessionStartQueuedRef.current = false
     setIsPlaying(false)
     setIsPaused(false)
     stopSessionTimer()
-    setCurrentNote('A♭')
+    setCurrentNote(IDLE_NOTE)
     setPlaybackMessage(message)
   }
 
@@ -369,7 +342,7 @@ function App() {
     setIsPlaying(false)
     setIsPaused(true)
     stopSessionTimer()
-    setPlaybackMessage('Paused')
+    setPlaybackMessage(PLAYBACK_MESSAGES.paused)
   }
 
   const queueStep = (delayMs: number) => {
@@ -392,19 +365,11 @@ function App() {
     return nextBpm
   }
 
-  const prepareNextNotes = (shouldReshuffle = false, withCountIn = false): boolean => {
-    if (shouldReshuffle) {
-      // Reshuffle the existing notes for the next cycle
-      currentNotesRef.current = generateShuffledNotes()
-    } else {
-      // Generate fresh notes for the first time
-      currentNotesRef.current = generateShuffledNotes()
-    }
-
+  const prepareNextNotes = (withCountIn = false) => {
+    currentNotesRef.current = generateShuffledNotes()
     currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
     setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
-    setPlaybackMessage(withCountIn ? 'Get ready...' : 'Get ready...')
-    return true
+    setPlaybackMessage(PLAYBACK_MESSAGES.getReady)
   }
 
   const playNextStep = async () => {
@@ -415,7 +380,7 @@ function App() {
     const notes = currentNotesRef.current
 
     if (!notes || notes.length === 0) {
-      stopPlayback('No notes available.')
+      stopPlayback(PLAYBACK_MESSAGES.noNotes)
       return
     }
 
@@ -423,7 +388,7 @@ function App() {
       const countValue = Math.abs(currentIndexRef.current)
 
       setCurrentNote(String(countValue))
-      setPlaybackMessage(`Starting in ${countValue}...`)
+      setPlaybackMessage(PLAYBACK_MESSAGES.countIn(countValue))
 
       const context = await ensureAudioContext()
       if (context) {
@@ -444,11 +409,11 @@ function App() {
           playSessionEndChime(context)
         }
 
-        stopPlayback(speedRampModeRef.current ? `Finished all 12 notes. BPM set to ${nextBpm}.` : 'Finished all 12 notes.')
+        stopPlayback(speedRampModeRef.current ? PLAYBACK_MESSAGES.finishedWithBpm(nextBpm) : PLAYBACK_MESSAGES.finished)
         return
       }
 
-      prepareNextNotes(true, true)
+      prepareNextNotes(true)
       queueStep(0)
       return
     }
@@ -484,34 +449,30 @@ function App() {
       }
 
       playbackActiveRef.current = true
-      setPlaybackMessage('Resuming...')
+      setPlaybackMessage(PLAYBACK_MESSAGES.resuming)
       queueStep(0)
       return
     }
 
     const context = await ensureAudioContext()
     if (!context) {
-      stopPlayback('Audio playback is unsupported in this browser.')
+      stopPlayback(PLAYBACK_MESSAGES.audioUnsupported)
       return
     }
 
     sessionStartQueuedRef.current = true
     setIsPlaying(true)
     setIsPaused(false)
-    setPlaybackMessage('Loading audio...')
+    setPlaybackMessage(PLAYBACK_MESSAGES.loadingAudio)
     await loadNoteAudios(context)
 
     if (noteAudioBuffers.current.size === 0) {
-      stopPlayback('Failed to load audio. Please reload the page.')
+      stopPlayback(PLAYBACK_MESSAGES.audioLoadFailed)
       return
     }
 
     playbackActiveRef.current = true
-
-    if (!prepareNextNotes(false, true)) {
-      return
-    }
-
+    prepareNextNotes(true)
     queueStep(0)
   }
 
@@ -527,7 +488,7 @@ function App() {
     setElapsedMs(0)
     currentNotesRef.current = generateShuffledNotes()
     currentIndexRef.current = 0
-    setCurrentNote('A♭')
+    setCurrentNote(IDLE_NOTE)
   }
 
   useEffect(() => {

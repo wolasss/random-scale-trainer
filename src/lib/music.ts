@@ -26,12 +26,32 @@ export const getChromaticScale = (preference: NotePreference) =>
 
 export const speakableNoteName = (note: string) => note.replace(/^A/g, 'a. ').replace(/#/g, ' sharp').replace(/b/g, ' flat').toLowerCase()
 
-const shuffleArray = <T,>(array: T[], random = Math.random): T[] => {
+export const shuffleArray = <T,>(array: T[], random = Math.random): T[] => {
   const copy = [...array]
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));[copy[i], copy[j]] = [copy[j], copy[i]]
   }
   return copy
+}
+
+/**
+ * One note per pitch class in random order; ambiguous pitch classes get a
+ * random sharp/flat spelling per cycle.
+ */
+export const generateShuffledNotes = (random = Math.random): string[] => {
+  const sharpNotes = getChromaticScale('sharp')
+  const flatNotes = getChromaticScale('flat')
+  const notes = sharpNotes.map((sharpNote, index) => {
+    const flatNote = flatNotes[index]
+
+    if (sharpNote === flatNote) {
+      return sharpNote
+    }
+
+    return random() < 0.5 ? sharpNote : flatNote
+  })
+
+  return shuffleArray(notes, random)
 }
 
 export const parseIntervals = (intervalText: string) => {
