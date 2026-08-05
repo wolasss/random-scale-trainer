@@ -1,23 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
-import { generateShuffledNotes } from './lib/music'
-import { AudioEngine } from './lib/audio/engine'
 import { usePersistentState } from './hooks/usePersistentState'
+import { usePlayback } from './hooks/usePlayback'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { formatElapsed } from './lib/time'
-import {
-  COUNT_IN_BEATS,
-  COUNT_IN_MS,
-  DEFAULT_BPM,
-  IDLE_NOTE,
-  MAX_BPM,
-  MIN_BPM,
-  PLAYBACK_MESSAGES,
-  STORAGE_KEYS,
-} from './constants'
+import { DEFAULT_BPM, MAX_BPM, MIN_BPM, STORAGE_KEYS } from './constants'
 import { version } from '../package.json'
 
 type Theme = 'dark' | 'light'
@@ -49,247 +39,38 @@ function App() {
     defaultValue: true,
     deserialize: (raw) => raw === 'true',
   })
-  const [currentNote, setCurrentNote] = useState(IDLE_NOTE)
-  const [playbackMessage, setPlaybackMessage] = useState<string>(PLAYBACK_MESSAGES.idle)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
   const sessionTimer = useSessionTimer()
-
-  const audioEngineRef = useRef<AudioEngine | null>(null)
-  const playbackTimeoutRef = useRef<number | null>(null)
-  const playbackActiveRef = useRef(false)
-  const currentNotesRef = useRef<string[]>(generateShuffledNotes())
-  const currentIndexRef = useRef(0)
-  const sessionStartQueuedRef = useRef(false)
-  const bpmRef = useRef(bpm)
-  const continuousModeRef = useRef(continuousMode)
-  const speedRampModeRef = useRef(speedRampMode)
-  const endSoundEnabledRef = useRef(endSoundEnabled)
-  const isPlayingRef = useRef(isPlaying)
-
-  useEffect(() => {
-    bpmRef.current = bpm
-  }, [bpm])
-
-  useEffect(() => {
-    continuousModeRef.current = continuousMode
-  }, [continuousMode])
-
-  useEffect(() => {
-    isPlayingRef.current = isPlaying
-  }, [isPlaying])
-
-  useEffect(() => {
-    speedRampModeRef.current = speedRampMode
-  }, [speedRampMode])
-
-  useEffect(() => {
-    endSoundEnabledRef.current = endSoundEnabled
-  }, [endSoundEnabled])
+  const playback = usePlayback({
+    settings: { bpm, continuousMode, speedRampMode, endSoundEnabled },
+    onBpmChange: setBpm,
+    onSessionStart: sessionTimer.start,
+    onSessionPause: sessionTimer.pause,
+  })
+  const { note: currentNote, message: playbackMessage } = playback.snapshot
+  const { isPlaying, isPaused } = playback
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  const getAudioEngine = () => {
-    audioEngineRef.current ??= new AudioEngine()
-    return audioEngineRef.current
-  }
-
-  const clearPlaybackTimeout = () => {
-    if (playbackTimeoutRef.current !== null) {
-      window.clearTimeout(playbackTimeoutRef.current)
-      playbackTimeoutRef.current = null
-    }
-  }
-
-  function stopPlayback(message: string = PLAYBACK_MESSAGES.idle) {
-    playbackActiveRef.current = false
-    clearPlaybackTimeout()
-    sessionStartQueuedRef.current = false
-    setIsPlaying(false)
-    setIsPaused(false)
-    sessionTimer.pause()
-    setCurrentNote(IDLE_NOTE)
-    setPlaybackMessage(message)
-  }
-
-  function pausePlayback() {
-    if (!playbackActiveRef.current) {
-      return
-    }
-
-    playbackActiveRef.current = false
-    clearPlaybackTimeout()
-    setIsPlaying(false)
-    setIsPaused(true)
-    sessionTimer.pause()
-    setPlaybackMessage(PLAYBACK_MESSAGES.paused)
-  }
-
-  const queueStep = (delayMs: number) => {
-    clearPlaybackTimeout()
-    playbackTimeoutRef.current = window.setTimeout(() => {
-      void playNextStep()
-    }, delayMs)
-  }
-
-  const applySpeedRamp = () => {
-    if (!continuousModeRef.current || !speedRampModeRef.current) {
-      return bpmRef.current
-    }
-
-    const nextBpm = Math.min(MAX_BPM, bpmRef.current + 2)
-    if (nextBpm !== bpmRef.current) {
-      setBpm(nextBpm)
-    }
-
-    return nextBpm
-  }
-
-  const prepareNextNotes = (withCountIn = false) => {
-    currentNotesRef.current = generateShuffledNotes()
-    currentIndexRef.current = withCountIn ? -COUNT_IN_BEATS : 0
-    setCurrentNote(withCountIn ? String(COUNT_IN_BEATS) : '')
-    setPlaybackMessage(PLAYBACK_MESSAGES.getReady)
-  }
-
-  const playNextStep = async () => {
-    if (!playbackActiveRef.current) {
-      return
-    }
-
-    const notes = currentNotesRef.current
-
-    if (!notes || notes.length === 0) {
-      stopPlayback(PLAYBACK_MESSAGES.noNotes)
-      return
-    }
-
-    if (currentIndexRef.current < 0) {
-      const countValue = Math.abs(currentIndexRef.current)
-
-      setCurrentNote(String(countValue))
-      setPlaybackMessage(PLAYBACK_MESSAGES.countIn(countValue))
-
-      const engine = getAudioEngine()
-      await engine.ensureContext()
-      engine.playClick()
-
-      currentIndexRef.current += 1
-      queueStep(COUNT_IN_MS)
-      return
-    }
-
-    if (currentIndexRef.current >= notes.length) {
-      const nextBpm = applySpeedRamp()
-      const engine = getAudioEngine()
-      const context = endSoundEnabledRef.current ? await engine.ensureContext() : null
-
-      if (!continuousModeRef.current) {
-        if (context) {
-          engine.playSessionEndChime()
-        }
-
-        stopPlayback(speedRampModeRef.current ? PLAYBACK_MESSAGES.finishedWithBpm(nextBpm) : PLAYBACK_MESSAGES.finished)
-        return
-      }
-
-      prepareNextNotes(true)
-      queueStep(0)
-      return
-    }
-
-    const note = notes[currentIndexRef.current]
-    const beatMs = Math.round(60000 / bpmRef.current)
-
-    if (sessionStartQueuedRef.current) {
-      sessionStartQueuedRef.current = false
-      sessionTimer.start()
-    }
-
-    setCurrentNote(note)
-    setPlaybackMessage('')
-
-    const engine = getAudioEngine()
-    await engine.ensureContext()
-    engine.playClick()
-    engine.playNote(note)
-    currentIndexRef.current += 1
-    queueStep(beatMs)
-  }
-
-  async function startPlayback() {
-    if (isPaused) {
-      setIsPlaying(true)
-      setIsPaused(false)
-
-      if (!sessionStartQueuedRef.current) {
-        sessionTimer.start()
-      }
-
-      playbackActiveRef.current = true
-      setPlaybackMessage(PLAYBACK_MESSAGES.resuming)
-      queueStep(0)
-      return
-    }
-
-    const engine = getAudioEngine()
-    const context = await engine.ensureContext()
-    if (!context) {
-      stopPlayback(PLAYBACK_MESSAGES.audioUnsupported)
-      return
-    }
-
-    sessionStartQueuedRef.current = true
-    setIsPlaying(true)
-    setIsPaused(false)
-    setPlaybackMessage(PLAYBACK_MESSAGES.loadingAudio)
-    await engine.loadNoteBuffers()
-
-    if (!engine.hasBuffers()) {
-      stopPlayback(PLAYBACK_MESSAGES.audioLoadFailed)
-      return
-    }
-
-    playbackActiveRef.current = true
-    prepareNextNotes(true)
-    queueStep(0)
-  }
-
-  function resetSession() {
-    if (playbackActiveRef.current || isPlayingRef.current) {
-      stopPlayback()
-    }
-
-    sessionStartQueuedRef.current = false
+  const resetSession = () => {
+    playback.reset()
     sessionTimer.reset()
-    currentNotesRef.current = generateShuffledNotes()
-    currentIndexRef.current = 0
-    setCurrentNote(IDLE_NOTE)
   }
 
   useKeyboardShortcuts({
     onSpace: () => {
-      if (isPlayingRef.current) {
-        pausePlayback()
+      if (playback.isPlaying) {
+        playback.pause()
         return
       }
 
-      void startPlayback()
+      void playback.start()
     },
     onArrowUp: () => setBpm((current) => Math.min(MAX_BPM, current + 1)),
     onArrowDown: () => setBpm((current) => Math.max(MIN_BPM, current - 1)),
     onReset: resetSession,
   })
-
-  useEffect(() => {
-    return () => {
-      playbackActiveRef.current = false
-      clearPlaybackTimeout()
-      sessionStartQueuedRef.current = false
-    }
-  }, [])
 
   return (
     <div className="app-shell">
@@ -393,11 +174,11 @@ function App() {
               data-testid="play-toggle"
               onClick={() => {
                 if (isPlaying) {
-                  pausePlayback()
+                  playback.pause()
                   return
                 }
 
-                void startPlayback()
+                void playback.start()
               }}
             >
               <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {isPlaying ? 'Pause' : 'Play'}
