@@ -1,374 +1,586 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   createPlaybackMachine,
+  type BeatEvent,
   type PlaybackAudioPort,
   type PlaybackSettings,
   type PlaybackSnapshot,
-  type PlaybackTimers,
 } from './machine'
+import { PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
+import type { SpellingPreference } from '../notes'
 
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+/** With j === i at every Fisher–Yates step, bags keep pool order. */
+const IDENTITY = 0.99
 
-const createFakeAudio = (overrides: Partial<Record<keyof PlaybackAudioPort, unknown>> = {}) =>
-  ({
-    ensureContext: vi.fn(async () => ({})),
-    loadNoteBuffers: vi.fn(async () => {}),
-    hasBuffers: vi.fn(() => true),
-    playClick: vi.fn(),
-    playSessionEndChime: vi.fn(),
-    playNote: vi.fn(),
-    ...overrides,
-  }) as PlaybackAudioPort & Record<keyof PlaybackAudioPort, ReturnType<typeof vi.fn>>
+class FakeAudioPort implements PlaybackAudioPort {
+  time = 0
+  contextAvailable = true
+  buffersAvailable = true
+  clicks: { time: number; accent: boolean }[] = []
+  notes: { key: string; time: number }[] = []
+  referencePitches: { pitchClass: number; time: number }[] = []
+  chimes: number[] = []
+  stopCalls = 0
 
-const createFakeTimers = () => {
-  let nextId = 1
-  const pending = new Map<number, { callback: () => void; delayMs: number }>()
-
-  const timers: PlaybackTimers = {
-    set: (callback, delayMs) => {
-      const id = nextId++
-      pending.set(id, { callback, delayMs })
-      return id
-    },
-    clear: (id) => {
-      pending.delete(id)
-    },
+  async ensureContext() {
+    return this.contextAvailable ? {} : null
   }
-
-  /** Fire the single queued step and let its async work settle. */
-  const fire = async () => {
-    const entries = [...pending.entries()]
-    expect(entries, 'expected exactly one queued step').toHaveLength(1)
-    const [id, entry] = entries[0]
-    pending.delete(id)
-    entry.callback()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+  async loadNoteBuffers() {}
+  hasBuffers() {
+    return this.buffersAvailable
   }
-
-  const pendingDelays = () => [...pending.values()].map((entry) => entry.delayMs)
-
-  return { timers, fire, pendingDelays }
+  getCurrentTime() {
+    return this.time
+  }
+  playClickAt(time: number, accent: boolean) {
+    this.clicks.push({ time, accent })
+  }
+  playNoteAt(key: string, time: number) {
+    this.notes.push({ key, time })
+  }
+  playReferencePitchAt(pitchClass: number, time: number) {
+    this.referencePitches.push({ pitchClass, time })
+  }
+  playSessionEndChime(at?: number) {
+    this.chimes.push(at ?? this.time)
+  }
+  stopScheduledSounds() {
+    this.stopCalls += 1
+  }
 }
 
-type HarnessOverrides = {
+const DEFAULT_SETTINGS: PlaybackSettings = {
+  bpm: 60,
+  beatsPerNote: 1,
+  countInEnabled: false,
+  continuousMode: true,
+  speedRampMode: false,
+  speakNotes: true,
+  referencePitch: false,
+  endSoundEnabled: true,
+}
+
+type HarnessOptions = {
   settings?: Partial<PlaybackSettings>
-  audio?: ReturnType<typeof createFakeAudio>
-  generateNotes?: () => string[]
+  pool?: number[]
+  spelling?: SpellingPreference
+  random?: () => number
 }
 
-const createHarness = (overrides: HarnessOverrides = {}) => {
-  const settings: PlaybackSettings = {
-    bpm: 100,
-    continuousMode: false,
-    speedRampMode: false,
-    endSoundEnabled: true,
-    ...overrides.settings,
+/**
+ * Drives the machine on a fake audio clock: timers fire in due order as the
+ * clock advances, and the frame pump runs after every step so visual events
+ * pop exactly when the clock reaches them. All assertions are exact
+ * arithmetic on beat times — no sleeps, no tolerance windows.
+ */
+const createHarness = (options: HarnessOptions = {}) => {
+  const audio = new FakeAudioPort()
+  const settings: PlaybackSettings = { ...DEFAULT_SETTINGS, ...options.settings }
+  const state = {
+    pool: options.pool ?? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    spelling: options.spelling ?? ('sharp' as SpellingPreference),
   }
-  const audio = overrides.audio ?? createFakeAudio()
-  const { timers, fire, pendingDelays } = createFakeTimers()
+
   const snapshots: PlaybackSnapshot[] = []
-  const generateNotes = vi.fn(overrides.generateNotes ?? (() => [...NOTES]))
-  const onBpmChange = vi.fn((bpm: number) => {
-    settings.bpm = bpm
-  })
-  const onSessionStart = vi.fn()
-  const onSessionPause = vi.fn()
+  const beats: BeatEvent[] = []
+  const bpmChanges: number[] = []
+  const counters = { sessionStarts: 0, sessionPauses: 0 }
+
+  let nextTimerId = 1
+  const pendingTimers = new Map<number, { callback: () => void; dueMs: number }>()
+
+  let frameCallback: (() => void) | null = null
+  let nextFrameId = 1
+
+  const pumpFrame = () => {
+    const callback = frameCallback
+    frameCallback = null
+    callback?.()
+  }
 
   const machine = createPlaybackMachine({
     audio,
-    getSettings: () => ({ ...settings }),
+    getSettings: () => settings,
+    getPool: () => state.pool,
+    getSpelling: () => state.spelling,
     onSnapshot: (snapshot) => snapshots.push(snapshot),
-    onBpmChange,
-    onSessionStart,
-    onSessionPause,
-    generateNotes,
-    timers,
+    onBeat: (event) => beats.push(event),
+    onBpmChange: (bpm) => bpmChanges.push(bpm),
+    onSessionStart: () => (counters.sessionStarts += 1),
+    onSessionPause: () => (counters.sessionPauses += 1),
+    timers: {
+      set: (callback, delayMs) => {
+        const id = nextTimerId++
+        pendingTimers.set(id, { callback, dueMs: audio.time * 1000 + delayMs })
+        return id
+      },
+      clear: (id) => {
+        pendingTimers.delete(id)
+      },
+    },
+    frame: {
+      request: (callback) => {
+        frameCallback = callback
+        return nextFrameId++
+      },
+      cancel: () => {
+        frameCallback = null
+      },
+    },
+    random: options.random ?? (() => IDENTITY),
   })
 
-  const last = () => snapshots[snapshots.length - 1]
+  const advanceTo = (seconds: number) => {
+    const targetMs = seconds * 1000
+    for (;;) {
+      let earliestId: number | null = null
+      let earliestDue = Infinity
+      for (const [id, entry] of pendingTimers) {
+        if (entry.dueMs < earliestDue) {
+          earliestDue = entry.dueMs
+          earliestId = id
+        }
+      }
 
-  /** start() and run through the 3-beat count-in so the next fire plays note 0. */
-  const startPastCountIn = async () => {
-    await machine.start()
-    await fire() // count-in 3
-    await fire() // count-in 2
-    await fire() // count-in 1
+      if (earliestId === null || earliestDue > targetMs + 1e-6) {
+        break
+      }
+
+      audio.time = Math.max(audio.time, earliestDue / 1000)
+      const entry = pendingTimers.get(earliestId)!
+      pendingTimers.delete(earliestId)
+      entry.callback()
+      pumpFrame()
+    }
+
+    audio.time = Math.max(audio.time, seconds)
+    pumpFrame()
   }
 
   return {
     machine,
-    settings,
     audio,
-    fire,
-    pendingDelays,
+    settings,
+    state,
     snapshots,
-    last,
-    generateNotes,
-    onBpmChange,
-    onSessionStart,
-    onSessionPause,
-    startPastCountIn,
+    beats,
+    bpmChanges,
+    counters,
+    advanceTo,
+    snapshot: () => machine.getSnapshot(),
   }
 }
 
-describe('start and count-in', () => {
-  it('loads audio, then counts down 3-2-1 at 650ms per beat with a click each', async () => {
-    const h = createHarness()
+describe('machine creation', () => {
+  it('emits an idle snapshot with the NEXT preview already populated', () => {
+    const harness = createHarness()
 
-    await h.machine.start()
-    expect(h.snapshots[0]).toEqual({ status: 'playing', note: 'A♭', message: 'Loading audio...' })
-    expect(h.last()).toEqual({ status: 'playing', note: '3', message: 'Get ready...' })
-    expect(h.pendingDelays()).toEqual([0])
-
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'playing', note: '3', message: 'Starting in 3...' })
-    expect(h.pendingDelays()).toEqual([650])
-
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'playing', note: '2', message: 'Starting in 2...' })
-
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'playing', note: '1', message: 'Starting in 1...' })
-
-    expect(h.audio.playClick).toHaveBeenCalledTimes(3)
-    expect(h.audio.playNote).not.toHaveBeenCalled()
-    expect(h.onSessionStart).not.toHaveBeenCalled()
-  })
-
-  it('stops with a message when the browser has no audio support', async () => {
-    const h = createHarness({ audio: createFakeAudio({ ensureContext: vi.fn(async () => null) }) })
-
-    await h.machine.start()
-    expect(h.last()).toEqual({
+    expect(harness.snapshots).toHaveLength(1)
+    expect(harness.snapshot()).toMatchObject({
       status: 'idle',
-      note: 'A♭',
-      message: 'Audio playback is unsupported in this browser.',
+      currentNote: null,
+      message: PLAYBACK_MESSAGES.idle,
     })
-  })
-
-  it('stops with a message when no note buffer loaded', async () => {
-    const h = createHarness({ audio: createFakeAudio({ hasBuffers: vi.fn(() => false) }) })
-
-    await h.machine.start()
-    expect(h.last()).toEqual({
-      status: 'idle',
-      note: 'A♭',
-      message: 'Failed to load audio. Please reload the page.',
-    })
-  })
-
-  it('stops when there are no notes to play', async () => {
-    const h = createHarness({ generateNotes: () => [] })
-
-    await h.machine.start()
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'idle', note: 'A♭', message: 'No notes available.' })
+    expect(harness.snapshot().nextNote?.pc).toBe(0) // identity shuffle
   })
 })
 
-describe('note stepping', () => {
-  it('plays each note on the beat with click + sample, at round(60000/bpm)', async () => {
-    const h = createHarness({ settings: { bpm: 90 } })
-    await h.startPastCountIn()
+describe('count-in', () => {
+  it('schedules four clicks at the session tempo before the first note', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
 
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'playing', note: 'C', message: '' })
-    expect(h.audio.playNote).toHaveBeenCalledWith('C')
-    expect(h.pendingDelays()).toEqual([Math.round(60000 / 90)])
+    harness.advanceTo(4.1)
+
+    // Count-in beats at 0.05, 1.05, 2.05, 3.05; the first note lands at 4.05.
+    const clickTimes = harness.audio.clicks.map((click) => click.time)
+    expect(clickTimes[0]).toBeCloseTo(0.05, 6)
+    expect(clickTimes[1]).toBeCloseTo(1.05, 6)
+    expect(clickTimes[2]).toBeCloseTo(2.05, 6)
+    expect(clickTimes[3]).toBeCloseTo(3.05, 6)
+    expect(harness.audio.notes[0].time).toBeCloseTo(4.05, 6)
+    expect(harness.audio.notes).toHaveLength(1)
   })
 
-  it('starts the session on the first real note only', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    expect(h.onSessionStart).not.toHaveBeenCalled()
+  it('shows the countdown digits and the counting-in caption', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
 
-    await h.fire()
-    expect(h.onSessionStart).toHaveBeenCalledTimes(1)
+    harness.advanceTo(0.1)
+    expect(harness.snapshot()).toMatchObject({
+      status: 'playing',
+      countIn: 4,
+      currentNote: null,
+      message: PLAYBACK_MESSAGES.countingIn,
+    })
 
-    await h.fire()
-    expect(h.onSessionStart).toHaveBeenCalledTimes(1)
+    harness.advanceTo(3.1)
+    expect(harness.snapshot().countIn).toBe(1)
+
+    harness.advanceTo(4.1)
+    expect(harness.snapshot().countIn).toBeNull()
+    expect(harness.snapshot().currentNote?.display).toBe('C')
   })
 
-  it('reads BPM fresh each step so live changes affect the next beat', async () => {
-    const h = createHarness({ settings: { bpm: 100 } })
-    await h.startPastCountIn()
+  it('accents only the first count-in click', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
 
-    await h.fire()
-    expect(h.pendingDelays()).toEqual([600])
-
-    h.settings.bpm = 50
-    await h.fire()
-    expect(h.pendingDelays()).toEqual([1200])
+    harness.advanceTo(3.1)
+    expect(harness.audio.clicks.map((click) => click.accent)).toEqual([true, false, false, false])
   })
 
-  it('walks through all 12 notes in order', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
+  it('is skipped when disabled', async () => {
+    const harness = createHarness({ settings: { countInEnabled: false } })
+    await harness.machine.start()
 
-    for (const note of NOTES) {
-      await h.fire()
-      expect(h.last().note).toBe(note)
-    }
-    expect(h.audio.playNote).toHaveBeenCalledTimes(12)
+    harness.advanceTo(0.1)
+    expect(harness.audio.notes[0].time).toBeCloseTo(0.05, 6)
+    expect(harness.snapshot().currentNote?.display).toBe('C')
+  })
+
+  it('starts the session timer at the first note, not during the count-in', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
+
+    harness.advanceTo(3.5)
+    expect(harness.counters.sessionStarts).toBe(0)
+
+    harness.advanceTo(4.1)
+    expect(harness.counters.sessionStarts).toBe(1)
   })
 })
 
-describe('end of cycle (continuous off)', () => {
-  const finishCycle = async (h: ReturnType<typeof createHarness>) => {
-    await h.startPastCountIn()
-    for (let i = 0; i < NOTES.length; i++) {
-      await h.fire()
+describe('look-ahead scheduling', () => {
+  it('never schedules beyond the look-ahead horizon', async () => {
+    const harness = createHarness({ settings: { bpm: 240 } })
+    await harness.machine.start()
+
+    // Beats are 0.25s apart at 240 BPM; only 0.05 fits inside the horizon.
+    expect(harness.audio.clicks).toHaveLength(1)
+
+    harness.advanceTo(1)
+    for (const click of harness.audio.clicks) {
+      // Every click was scheduled at most one horizon ahead of the clock.
+      expect(click.time).toBeLessThanOrEqual(1 + SCHEDULE_AHEAD_S + 1e-6)
     }
-    await h.fire() // end-of-cycle step
-  }
+    expect(harness.audio.clicks.length).toBeGreaterThanOrEqual(4)
+  })
 
-  it('chimes and stops after the 12th note', async () => {
-    const h = createHarness()
-    await finishCycle(h)
+  it('reads the live BPM for every beat it schedules', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
 
-    expect(h.audio.playSessionEndChime).toHaveBeenCalledTimes(1)
-    expect(h.last()).toEqual({ status: 'idle', note: 'A♭', message: 'Finished all 12 notes.' })
-    expect(h.onSessionPause).toHaveBeenCalled()
-    expect(h.pendingDelays()).toEqual([])
+    harness.advanceTo(1)
+    harness.settings.bpm = 120
+    harness.advanceTo(3)
+
+    const times = harness.audio.clicks.map((click) => click.time)
+    expect(times[1] - times[0]).toBeCloseTo(1, 6) // 60 BPM
+    const lastDelta = times[times.length - 1] - times[times.length - 2]
+    expect(lastDelta).toBeCloseTo(0.5, 6) // 120 BPM
+  })
+})
+
+describe('note spans', () => {
+  it('calls a new note only on the first beat of each span, with an accent', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(4.1)
+
+    expect(harness.audio.notes).toHaveLength(2) // beats 0.05 and 4.05
+    expect(harness.audio.notes[1].time).toBeCloseTo(4.05, 6)
+    expect(harness.audio.clicks.slice(0, 5).map((click) => click.accent)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      true,
+    ])
+  })
+
+  it('tracks the beat within the span for the beat dots', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(3.1)
+    expect(harness.snapshot().beatInSpan).toBe(3)
+    expect(harness.snapshot().currentNote?.display).toBe('C')
+
+    harness.advanceTo(4.1)
+    expect(harness.snapshot().beatInSpan).toBe(0)
+    expect(harness.snapshot().currentNote?.display).toBe('C♯')
+  })
+
+  it('honours the speak and reference-pitch switches per span start', async () => {
+    const silent = createHarness({ settings: { speakNotes: false, referencePitch: true } })
+    await silent.machine.start()
+    silent.advanceTo(1.1)
+
+    expect(silent.audio.notes).toHaveLength(0)
+    expect(silent.audio.referencePitches.map((entry) => entry.pitchClass)).toEqual([0, 1])
+    expect(silent.audio.referencePitches[0].time).toBeCloseTo(0.05, 6)
+  })
+
+  it('spells spoken audio and display from the same call', async () => {
+    const harness = createHarness({ spelling: 'flat' })
+    await harness.machine.start()
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().currentNote).toMatchObject({ display: 'D♭', audioKey: 'Db' })
+    expect(harness.audio.notes[1].key).toBe('Db')
+  })
+
+  it('previews the true successor in every beat event', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().nextNote?.pc).toBe(1)
+    expect(harness.snapshot().positionInCycle).toBe(1)
+    expect(harness.snapshot().cycleLength).toBe(12)
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(1)
+    expect(harness.snapshot().nextNote?.pc).toBe(2)
+    expect(harness.snapshot().positionInCycle).toBe(2)
+  })
+})
+
+describe('speed ramp', () => {
+  it('bumps the tempo once per completed cycle and uses it before React commits', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true } })
+    await harness.machine.start()
+
+    harness.advanceTo(3.2)
+
+    expect(harness.bpmChanges).toEqual([62])
+    const times = harness.audio.clicks.map((click) => click.time)
+    // The boundary note itself lands on the old grid; the beat after it is
+    // spaced by the ramped tempo even though settings.bpm still reads 60.
+    expect(times[2]).toBeCloseTo(2.05, 6)
+    expect(times[3] - times[2]).toBeCloseTo(60 / 62, 6)
+  })
+
+  it('does not write back when already clamped at the maximum', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { bpm: 240, speedRampMode: true } })
+    await harness.machine.start()
+
+    harness.advanceTo(2)
+    expect(harness.bpmChanges).toEqual([])
+  })
+
+  it('lets a user tempo change win over a pending ramp write-back', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true } })
+    await harness.machine.start()
+
+    harness.advanceTo(2.5)
+    expect(harness.bpmChanges).toEqual([62])
+
+    harness.settings.bpm = 100 // user drags the slider before the ramp lands
+    harness.advanceTo(3.7)
+
+    // Beat 3 was already spaced by the pending ramp (60/62); beat 4 is the
+    // first one scheduled after the user change and uses 100 BPM. The next
+    // boundary then ramps on top of the user's value: 100 → 102.
+    const times = harness.audio.clicks.map((click) => click.time)
+    expect(times[4] - times[3]).toBeCloseTo(0.6, 6)
+    expect(harness.bpmChanges).toEqual([62, 102])
+  })
+
+  it('counts completed cycles', async () => {
+    const harness = createHarness({ pool: [0, 1] })
+    await harness.machine.start()
+
+    harness.advanceTo(4.5)
+    expect(harness.snapshot().cyclesCompleted).toBe(2)
+    expect(harness.snapshot().notesCalled).toBe(5)
+  })
+})
+
+describe('end of cycle without looping', () => {
+  it('schedules the chime at the boundary and stops cleanly after the last beat', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+
+    harness.advanceTo(3)
+
+    expect(harness.audio.clicks).toHaveLength(2) // no click on the boundary itself
+    expect(harness.audio.chimes).toHaveLength(1)
+    expect(harness.audio.chimes[0]).toBeCloseTo(2.05, 6)
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      currentNote: null,
+      message: PLAYBACK_MESSAGES.finished(2),
+      notesCalled: 2,
+      cyclesCompleted: 1,
+    })
   })
 
   it('skips the chime when the end sound is disabled', async () => {
-    const h = createHarness({ settings: { endSoundEnabled: false } })
-    await finishCycle(h)
+    const harness = createHarness({
+      pool: [0, 1],
+      settings: { continuousMode: false, endSoundEnabled: false },
+    })
+    await harness.machine.start()
 
-    expect(h.audio.playSessionEndChime).not.toHaveBeenCalled()
-    expect(h.last().message).toBe('Finished all 12 notes.')
-  })
-
-  it('does not ramp the BPM when continuous mode is off', async () => {
-    const h = createHarness({ settings: { speedRampMode: true } })
-    await finishCycle(h)
-
-    expect(h.onBpmChange).not.toHaveBeenCalled()
+    harness.advanceTo(3)
+    expect(harness.audio.chimes).toHaveLength(0)
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.finished(2))
   })
 })
 
-describe('continuous loop and speed ramp', () => {
-  const finishFirstCycle = async (h: ReturnType<typeof createHarness>) => {
-    await h.startPastCountIn()
-    for (let i = 0; i < NOTES.length; i++) {
-      await h.fire()
-    }
-    await h.fire() // end-of-cycle → reshuffle + new count-in
-  }
+describe('pause and resume', () => {
+  it('silences the look-ahead window and freezes the current note', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
 
-  it('reshuffles and restarts with a count-in instead of stopping', async () => {
-    const h = createHarness({ settings: { continuousMode: true } })
-    await finishFirstCycle(h)
+    const clicksBefore = harness.audio.clicks.length
+    harness.machine.pause()
 
-    expect(h.audio.playSessionEndChime).not.toHaveBeenCalled()
-    expect(h.generateNotes).toHaveBeenCalledTimes(3) // creation + start + reshuffle
-    expect(h.last()).toEqual({ status: 'playing', note: '3', message: 'Get ready...' })
-    expect(h.pendingDelays()).toEqual([0])
+    expect(harness.audio.stopCalls).toBeGreaterThanOrEqual(1)
+    expect(harness.counters.sessionPauses).toBe(1)
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      countIn: null,
+      message: PLAYBACK_MESSAGES.paused,
+    })
+    expect(harness.snapshot().currentNote?.pc).toBe(1)
+
+    harness.advanceTo(5)
+    expect(harness.audio.clicks.length).toBe(clicksBefore)
   })
 
-  it('ramps +2 BPM per completed cycle', async () => {
-    const h = createHarness({ settings: { continuousMode: true, speedRampMode: true, bpm: 96 } })
-    await finishFirstCycle(h)
+  it('resumes with a half-beat pickup and no count-in', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
+    harness.advanceTo(5.1) // past the count-in, into the notes
+    harness.machine.pause()
+    harness.advanceTo(8)
 
-    expect(h.onBpmChange).toHaveBeenCalledWith(98)
-    expect(h.settings.bpm).toBe(98)
+    const beatsBefore = harness.beats.length
+    const clicksBefore = harness.audio.clicks.length
+    await harness.machine.start()
+
+    expect(harness.counters.sessionStarts).toBe(2)
+    harness.advanceTo(9)
+    expect(harness.audio.clicks[clicksBefore].time).toBeCloseTo(8.5, 6)
+    expect(harness.beats.slice(beatsBefore).every((beat) => !beat.isCountIn)).toBe(true)
   })
 
-  it('clamps the ramp at 100 BPM without a redundant write', async () => {
-    const h = createHarness({ settings: { continuousMode: true, speedRampMode: true, bpm: 100 } })
-    await finishFirstCycle(h)
+  it('resumes a paused count-in where it left off', async () => {
+    const harness = createHarness({ settings: { countInEnabled: true } })
+    await harness.machine.start()
+    harness.advanceTo(1.5) // digits 4 and 3 have popped
+    harness.machine.pause()
+    await harness.machine.start()
 
-    expect(h.onBpmChange).not.toHaveBeenCalled()
-  })
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.countingIn)
+    harness.advanceTo(6)
 
-  it('reports the ramped BPM when a ramped session ends non-continuously', async () => {
-    const h = createHarness({ settings: { continuousMode: true, speedRampMode: true, bpm: 96 } })
-    await h.startPastCountIn()
-    for (let i = 0; i < NOTES.length; i++) {
-      await h.fire()
-    }
-    // User turns off looping right before the cycle boundary
-    h.settings.continuousMode = false
-    await h.fire()
-
-    expect(h.last().message).toBe('Finished all 12 notes. BPM set to 96.')
-    expect(h.last().status).toBe('idle')
+    const countInBeats = harness.beats.filter((beat) => beat.isCountIn)
+    expect(countInBeats.map((beat) => beat.countInValue)).toEqual([4, 3, 2, 1])
   })
 })
 
-describe('pause, resume, stop, reset', () => {
-  it('pauses with a frozen note and cleared timer', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    await h.fire()
+describe('pool edits while playing', () => {
+  it('invalidateDeck keeps the current note but refreshes the preview', async () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
 
-    h.machine.pause()
-    expect(h.last()).toEqual({ status: 'paused', note: 'C', message: 'Paused' })
-    expect(h.onSessionPause).toHaveBeenCalledTimes(1)
-    expect(h.pendingDelays()).toEqual([])
+    harness.state.pool = [7]
+    harness.machine.invalidateDeck()
+
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().nextNote?.pc).toBe(7)
   })
 
-  it('ignores pause while not playing', () => {
-    const h = createHarness()
-    h.machine.pause()
-    expect(h.snapshots).toHaveLength(0)
+  it('a truncated cycle neither ends playback nor counts as completed', async () => {
+    const harness = createHarness({ pool: [0, 1, 2], settings: { continuousMode: false } })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
+
+    harness.state.pool = [5, 6]
+    harness.machine.invalidateDeck()
+    harness.advanceTo(1.1)
+
+    // The new bag's head is a cycle start, but the old bag was cut short.
+    expect(harness.snapshot().status).toBe('playing')
+    expect(harness.snapshot().currentNote?.pc).toBe(5)
+    expect(harness.snapshot().cyclesCompleted).toBe(0)
+
+    harness.advanceTo(4)
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.finished(2),
+      cyclesCompleted: 1,
+    })
+  })
+})
+
+describe('failure paths', () => {
+  it('reports an unsupported browser', async () => {
+    const harness = createHarness()
+    harness.audio.contextAvailable = false
+
+    await harness.machine.start()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioUnsupported,
+    })
   })
 
-  it('resumes at the next note without reloading audio', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    await h.fire() // C
-    h.machine.pause()
+  it('reports failed audio loading', async () => {
+    const harness = createHarness()
+    harness.audio.buffersAvailable = false
 
-    const loadCalls = h.audio.loadNoteBuffers.mock.calls.length
-    await h.machine.start()
-    expect(h.last()).toEqual({ status: 'playing', note: 'C', message: 'Resuming...' })
-    expect(h.onSessionStart).toHaveBeenCalledTimes(2) // first note + resume
+    await harness.machine.start()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioLoadFailed,
+    })
+  })
+})
 
-    await h.fire()
-    expect(h.last()).toEqual({ status: 'playing', note: 'C#', message: '' })
-    expect(h.audio.loadNoteBuffers.mock.calls.length).toBe(loadCalls)
+describe('reset and dispose', () => {
+  it('reset zeroes the session and returns to the idle caption', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(2.1)
+    harness.machine.pause()
+
+    harness.machine.reset()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      currentNote: null,
+      countIn: null,
+      positionInCycle: null,
+      notesCalled: 0,
+      cyclesCompleted: 0,
+      message: PLAYBACK_MESSAGES.idle,
+    })
+    expect(harness.snapshot().nextNote).not.toBeNull()
   })
 
-  it('stop returns to the idle snapshot', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    h.machine.stop()
+  it('dispose silences everything but stays restartable', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
 
-    expect(h.last()).toEqual({ status: 'idle', note: 'A♭', message: 'Press play to start.' })
-    expect(h.pendingDelays()).toEqual([])
-  })
+    harness.machine.dispose()
+    const clicksBefore = harness.audio.clicks.length
+    expect(harness.audio.stopCalls).toBeGreaterThanOrEqual(1)
 
-  it('reset during playback stops and reshuffles', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    await h.fire()
+    harness.advanceTo(3)
+    expect(harness.audio.clicks.length).toBe(clicksBefore)
 
-    h.machine.reset()
-    expect(h.last()).toEqual({ status: 'idle', note: 'A♭', message: 'Press play to start.' })
-    expect(h.pendingDelays()).toEqual([])
-  })
-
-  it('reset while idle keeps the last message on screen', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    for (let i = 0; i < NOTES.length; i++) {
-      await h.fire()
-    }
-    await h.fire() // finishes: 'Finished all 12 notes.'
-
-    h.machine.reset()
-    expect(h.last()).toEqual({ status: 'idle', note: 'A♭', message: 'Finished all 12 notes.' })
-  })
-
-  it('dispose clears the queued step but stays restartable', async () => {
-    const h = createHarness()
-    await h.startPastCountIn()
-    h.machine.dispose()
-    expect(h.pendingDelays()).toEqual([])
-
-    await h.machine.start()
-    expect(h.last()).toEqual({ status: 'playing', note: '3', message: 'Get ready...' })
+    await harness.machine.start()
+    harness.advanceTo(4)
+    expect(harness.audio.clicks.length).toBeGreaterThan(clicksBefore)
   })
 })

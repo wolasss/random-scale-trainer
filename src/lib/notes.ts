@@ -9,6 +9,9 @@ export type NoteCall = {
   audioKey: string
   /** True for the first note drawn from a fresh shuffle bag. */
   cycleStart: boolean
+  /** Size of the bag this note was dealt from — the "of 12" in "note 7 of 12".
+   * Lets cycle completion be detected even after the pool changes mid-cycle. */
+  bagSize: number
 }
 
 export const FLAT_DISPLAY = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'] as const

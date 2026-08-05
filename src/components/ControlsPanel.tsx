@@ -1,10 +1,11 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPause, faPlay, faRotateLeft } from '@fortawesome/free-solid-svg-icons'
-import { MAX_BPM, MIN_BPM, NOTES_PER_CYCLE } from '../constants'
-import { formatElapsed } from '../lib/time'
+import { MAX_BPM, MIN_BPM } from '../constants'
+import { cycleSeconds, formatCycleLength } from '../lib/time'
 
 type ControlsPanelProps = {
   bpm: number
+  beatsPerNote: number
   onBpmChange: (bpm: number) => void
   continuousMode: boolean
   onToggleContinuousMode: () => void
@@ -17,6 +18,7 @@ type ControlsPanelProps = {
 
 export function ControlsPanel({
   bpm,
+  beatsPerNote,
   onBpmChange,
   continuousMode,
   onToggleContinuousMode,
@@ -52,8 +54,8 @@ export function ControlsPanel({
         </div>
 
         <div className="target-time-info">
-          <span className="label">Cycle time (12 notes)</span>
-          <span className="target-time">{formatElapsed((NOTES_PER_CYCLE * 60000) / bpm)}</span>
+          <span className="label">One full cycle of 12 notes</span>
+          <span className="target-time">≈ {formatCycleLength(cycleSeconds(12, beatsPerNote, bpm))}</span>
         </div>
       </div>
 

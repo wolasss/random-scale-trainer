@@ -137,11 +137,11 @@ export class AudioEngine {
     this.track(oscillator)
   }
 
-  playSessionEndChime(): void {
+  playSessionEndChime(at?: number): void {
     const context = this.context
     if (!context) return
 
-    const startTime = context.currentTime
+    const startTime = at ?? context.currentTime
 
     const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
       const bodyOscillator = context.createOscillator()

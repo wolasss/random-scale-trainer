@@ -1,27 +1,31 @@
 import { By, Key, error as seleniumError, until, type WebDriver } from 'selenium-webdriver'
 import { config } from '../config.ts'
 
-// Real note names are ASCII (from src/lib/music.ts); the idle placeholder
-// uses the Unicode flat sign U+266D and can never collide with them.
-export const IDLE_NOTE = 'A♭'
+// Note names use the Unicode accidentals ♭ (U+266D) and ♯ (U+266F) — never
+// ASCII 'b'/'#'. While idle the note element is absent (getCurrentNote → null).
 export const NOTE_NAMES = new Set([
-  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  'Db', 'Eb', 'Gb', 'Ab', 'Bb',
+  'C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B',
+  'D♭', 'E♭', 'G♭', 'A♭', 'B♭',
 ])
 
-// Exact strings from src/App.tsx — update here if the copy changes.
+// Exact strings from src/constants.ts — update here if the copy changes.
 export const MESSAGES = {
-  idle: 'Press play to start.',
-  paused: 'Paused',
+  idle: 'Press start — or hit Space.',
+  countingIn: 'Counting in…',
+  playing: 'Find it on the neck before the next beat.',
+  playingRamp: 'Speed ramp on: +2 BPM each cycle.',
+  paused: 'Paused — the session timer is paused too.',
   finished: 'Finished all 12 notes.',
 }
-export const COUNT_IN_PATTERN = /^Starting in [1-3]\.\.\.$/
+/** The hero shows the count-in digit where the note normally appears. */
+export const COUNT_IN_DIGIT = /^[1-4]$/
 
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
+  beatsPerNote: 'fretboard-beats-per-note',
 }
 
 const POLL_MS = 100
@@ -60,6 +64,12 @@ export class TrainerPage {
   async openFresh(): Promise<void> {
     await this.open()
     await this.driver.executeScript('window.localStorage.clear()')
+    await this.refresh()
+  }
+
+  /** Seed a stored setting, then reload so the app picks it up. */
+  async seedStorageAndReload(key: string, value: string): Promise<void> {
+    await this.driver.executeScript('window.localStorage.setItem(arguments[0], arguments[1])', key, value)
     await this.refresh()
   }
 
@@ -230,16 +240,16 @@ export class TrainerPage {
 
   /** Count-in follows audio load, whose duration varies — hence the long default timeout. */
   async waitForCountIn(timeoutMs = 15_000): Promise<void> {
-    await this.waitForMessage(COUNT_IN_PATTERN, timeoutMs)
+    await this.waitForMessage(MESSAGES.countingIn, timeoutMs)
   }
 
-  /** Resolves with the note once a real note is showing (message empty AND note valid, checked in one poll). */
+  /** Resolves with the note once a real note is showing (valid note name, not a count-in digit). */
   async waitForNotePlaying(timeoutMs = 15_000): Promise<string> {
     let playingNote = ''
     await this.driver.wait(
       async () => {
-        const [message, note] = await Promise.all([this.getPlaybackMessage(), this.getCurrentNote()])
-        if (message === '' && note !== null && NOTE_NAMES.has(note)) {
+        const note = await this.getCurrentNote()
+        if (note !== null && NOTE_NAMES.has(note)) {
           playingNote = note
           return true
         }

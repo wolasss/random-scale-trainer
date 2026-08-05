@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
+// The fake engine accepts every scheduled sound and reports the faked
+// performance clock, so beats become due as the fake timers advance.
 vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
     async ensureContext() {
@@ -11,17 +13,36 @@ vi.mock('./lib/audio/engine', () => ({
     hasBuffers() {
       return true
     }
-    playClick() {}
+    getCurrentTime() {
+      return performance.now() / 1000
+    }
+    playClickAt() {}
+    playNoteAt() {}
+    playReferencePitchAt() {}
     playSessionEndChime() {}
-    playNote() {}
+    stopScheduledSounds() {}
   },
 }))
 
-const NOTE_PATTERN = /^[A-G](#|b)?$/
+const NOTE_PATTERN = /^[A-G][♯♭]?$/
+
+// Default 72 BPM → 0.833s beats; count-in is 4 beats starting 50ms in.
+const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 
 describe('App integration', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({
+      toFake: [
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+        'Date',
+        'performance',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+      ],
+    })
   })
 
   afterEach(() => {
@@ -31,9 +52,10 @@ describe('App integration', () => {
   it('renders the idle state with defaults', () => {
     render(<App />)
 
-    expect(screen.getByTestId('current-note')).toHaveTextContent('A♭')
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press play to start.')
-    expect(screen.getByTestId('bpm-value')).toHaveTextContent('30')
+    expect(screen.queryByTestId('current-note')).toBeNull()
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:40')
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Play')
     expect(screen.getByTestId('now-playing').className).toContain('idle')
@@ -67,7 +89,7 @@ describe('App integration', () => {
 
     fireEvent.change(document.getElementById('bpm-slider')!, { target: { value: '60' } })
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('60')
-    expect(document.querySelector('.target-time')).toHaveTextContent('00:12')
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:48')
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('60')
   })
 
@@ -75,8 +97,8 @@ describe('App integration', () => {
     window.localStorage.setItem('fretboard-bpm', '999')
     render(<App />)
 
-    expect(screen.getByTestId('bpm-value')).toHaveTextContent('100')
-    expect(window.localStorage.getItem('fretboard-bpm')).toBe('100')
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('240')
+    expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
   })
 
   it('plays through count-in to notes and pauses', async () => {
@@ -84,19 +106,22 @@ describe('App integration', () => {
 
     fireEvent.click(screen.getByTestId('play-toggle'))
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(100)
     })
 
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Starting in 3...')
+    expect(screen.getByTestId('current-note')).toHaveTextContent('4')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Counting in…')
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Pause')
     expect(screen.getByTestId('now-playing').className).toContain('active')
 
-    // Finish the 3-beat count-in and land on the first note
+    // Finish the 4-beat count-in and land on the first note
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3 * 650)
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS)
     })
     expect(screen.getByTestId('current-note').textContent).toMatch(NOTE_PATTERN)
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent(
+      'Find it on the neck before the next beat.',
+    )
 
     // Session timer is running now
     await act(async () => {
@@ -105,7 +130,9 @@ describe('App integration', () => {
     expect(screen.getByTestId('timer').textContent).not.toBe('00:00')
 
     fireEvent.click(screen.getByTestId('play-toggle'))
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Paused')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent(
+      'Paused — the session timer is paused too.',
+    )
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Play')
     expect(screen.getByTestId('now-playing').className).toContain('paused')
   })
@@ -117,7 +144,7 @@ describe('App integration', () => {
     // Count-in first; the session timer interval registers on the render after
     // the first real note, so it needs its own act block before advancing time.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3 * 650)
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS)
     })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_000)
@@ -126,7 +153,7 @@ describe('App integration', () => {
 
     fireEvent.click(screen.getByTestId('reset'))
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
-    expect(screen.getByTestId('current-note')).toHaveTextContent('A♭')
-    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press play to start.')
+    expect(screen.queryByTestId('current-note')).toBeNull()
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
   })
 })

@@ -8,7 +8,10 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import { DEFAULT_BPM, MAX_BPM, MIN_BPM, STORAGE_KEYS } from './constants'
+import { BEAT_SPAN_OPTIONS, DEFAULT_BEATS_PER_NOTE, DEFAULT_BPM, MAX_BPM, MIN_BPM, STORAGE_KEYS } from './constants'
+import { PITCH_CLASSES } from './lib/notes'
+
+const FULL_POOL = [...PITCH_CLASSES]
 
 function App() {
   const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
@@ -37,9 +40,27 @@ function App() {
     defaultValue: true,
     deserialize: (raw) => raw === 'true',
   })
+  const [beatsPerNote] = usePersistentState<number>(STORAGE_KEYS.beatsPerNote, {
+    defaultValue: DEFAULT_BEATS_PER_NOTE,
+    deserialize: (raw) => {
+      const stored = Number(raw)
+      return (BEAT_SPAN_OPTIONS as readonly number[]).includes(stored) ? stored : undefined
+    },
+  })
   const sessionTimer = useSessionTimer()
   const playback = usePlayback({
-    settings: { bpm, continuousMode, speedRampMode, endSoundEnabled },
+    settings: {
+      bpm,
+      beatsPerNote,
+      countInEnabled: true,
+      continuousMode,
+      speedRampMode,
+      speakNotes: true,
+      referencePitch: true,
+      endSoundEnabled,
+    },
+    pool: FULL_POOL,
+    spelling: 'mixed',
     onBpmChange: setBpm,
     onSessionStart: sessionTimer.start,
     onSessionPause: sessionTimer.pause,
@@ -91,7 +112,11 @@ function App() {
         />
 
         <HeroCard
-          note={playback.snapshot.note}
+          note={
+            playback.snapshot.countIn !== null
+              ? String(playback.snapshot.countIn)
+              : (playback.snapshot.currentNote?.display ?? '')
+          }
           message={playback.snapshot.message}
           isPlaying={playback.isPlaying}
           isPaused={playback.isPaused}
@@ -99,6 +124,7 @@ function App() {
 
         <ControlsPanel
           bpm={bpm}
+          beatsPerNote={beatsPerNote}
           onBpmChange={setBpm}
           continuousMode={continuousMode}
           onToggleContinuousMode={toggleContinuousMode}

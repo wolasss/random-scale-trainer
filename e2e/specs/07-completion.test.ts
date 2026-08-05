@@ -2,10 +2,10 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WebDriver } from 'selenium-webdriver'
 import { buildDriver } from '../driver.ts'
-import { IDLE_NOTE, MESSAGES, TrainerPage, timerToSeconds } from '../pages/trainer.page.ts'
+import { MESSAGES, STORAGE_KEYS, TrainerPage, timerToSeconds } from '../pages/trainer.page.ts'
 
-// With continuous mode off and BPM 100, a full cycle is 12 beats x 600ms
-// plus the count-in — nominally ~9s end to end.
+// With continuous mode off, BPM 240, and a new note every beat, a full cycle
+// is 12 beats x 250ms plus the 4-beat count-in — nominally ~4s end to end.
 describe('session completion and reset', () => {
   let driver: WebDriver
   let page: TrainerPage
@@ -21,6 +21,7 @@ describe('session completion and reset', () => {
 
   beforeEach(async () => {
     await page.openFresh()
+    await page.seedStorageAndReload(STORAGE_KEYS.beatsPerNote, '1')
     await page.setBpmToMax()
     await page.clickContinuousToggle()
   })
@@ -31,13 +32,13 @@ describe('session completion and reset', () => {
 
     assert.equal(await page.getPlayButtonText(), 'Play')
     assert.equal(await page.isPlayButtonPrimary(), true)
-    assert.equal(await page.getCurrentNote(), IDLE_NOTE)
+    assert.equal(await page.getCurrentNote(), null)
     assert.equal(await page.getNowPlayingState(), 'idle')
 
-    // Timer runs from the first note to the finish (~7.2s nominal); wide
+    // Timer runs from the first note to the finish (~3s nominal); wide
     // bounds absorb CI timer drift without losing the regression signal.
     const elapsed = timerToSeconds(await page.getTimer())
-    assert.ok(elapsed >= 5 && elapsed <= 15, `expected elapsed 5-15s, got ${elapsed}s`)
+    assert.ok(elapsed >= 2 && elapsed <= 10, `expected elapsed 2-10s, got ${elapsed}s`)
   })
 
   it('reset during playback stops it and clears the session', async () => {
@@ -46,7 +47,7 @@ describe('session completion and reset', () => {
 
     await page.clickReset()
     assert.equal(await page.getPlaybackMessage(), MESSAGES.idle)
-    assert.equal(await page.getCurrentNote(), IDLE_NOTE)
+    assert.equal(await page.getCurrentNote(), null)
     assert.equal(await page.getTimer(), '00:00')
     assert.equal(await page.getPlayButtonText(), 'Play')
     assert.equal(await page.getNowPlayingState(), 'idle')

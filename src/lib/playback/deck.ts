@@ -48,7 +48,14 @@ export const createNoteDeck = (deps: NoteDeckDeps): NoteDeck => {
     }
 
     const spelling = deps.getSpelling()
-    deck.push(...bag.map((pc, index) => ({ pc, ...spellNote(pc, spelling, random), cycleStart: index === 0 })))
+    deck.push(
+      ...bag.map((pc, index) => ({
+        pc,
+        ...spellNote(pc, spelling, random),
+        cycleStart: index === 0,
+        bagSize: bag.length,
+      })),
+    )
 
     return true
   }

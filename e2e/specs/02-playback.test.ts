@@ -2,9 +2,10 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WebDriver } from 'selenium-webdriver'
 import { buildDriver } from '../driver.ts'
-import { MESSAGES, NOTE_NAMES, TrainerPage, timerToSeconds } from '../pages/trainer.page.ts'
+import { COUNT_IN_DIGIT, MESSAGES, NOTE_NAMES, STORAGE_KEYS, TrainerPage, timerToSeconds } from '../pages/trainer.page.ts'
 
-// All playback tests run at BPM 100 (600ms beats) to keep the suite fast.
+// All playback tests run at BPM 240 (250ms beats) with a new note every
+// beat to keep the suite fast.
 describe('playback', () => {
   let driver: WebDriver
   let page: TrainerPage
@@ -20,6 +21,7 @@ describe('playback', () => {
 
   beforeEach(async () => {
     await page.openFresh()
+    await page.seedStorageAndReload(STORAGE_KEYS.beatsPerNote, '1')
     await page.setBpmToMax()
   })
 
@@ -31,7 +33,7 @@ describe('playback', () => {
     assert.equal(await page.isPlayButtonPrimary(), false)
     assert.equal(await page.getNowPlayingState(), 'active')
     const countdown = await page.getCurrentNote()
-    assert.match(countdown ?? '', /^[1-3]$/)
+    assert.match(countdown ?? '', COUNT_IN_DIGIT)
 
     const note = await page.waitForNotePlaying()
     assert.ok(NOTE_NAMES.has(note), `expected a valid note, got "${note}"`)

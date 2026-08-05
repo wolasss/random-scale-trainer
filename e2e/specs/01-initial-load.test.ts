@@ -2,7 +2,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WebDriver } from 'selenium-webdriver'
 import { buildDriver } from '../driver.ts'
-import { IDLE_NOTE, MESSAGES, TrainerPage } from '../pages/trainer.page.ts'
+import { MESSAGES, TrainerPage } from '../pages/trainer.page.ts'
 
 describe('initial load', () => {
   let driver: WebDriver
@@ -21,17 +21,18 @@ describe('initial load', () => {
     await page.openFresh()
   })
 
-  it('shows the idle note placeholder and prompt', async () => {
-    assert.equal(await page.getCurrentNote(), IDLE_NOTE)
+  it('shows the idle state and prompt with no note on display', async () => {
+    assert.equal(await page.getCurrentNote(), null)
     assert.equal(await page.getNowPlayingState(), 'idle')
     assert.equal(await page.getPlaybackMessage(), MESSAGES.idle)
   })
 
   it('starts with default practice settings', async () => {
-    assert.equal(await page.getBpm(), 30)
-    assert.equal(await page.getSliderAttribute('min'), '10')
-    assert.equal(await page.getSliderAttribute('max'), '100')
-    assert.equal(await page.getCycleTime(), '00:24')
+    assert.equal(await page.getBpm(), 72)
+    assert.equal(await page.getSliderAttribute('min'), '30')
+    assert.equal(await page.getSliderAttribute('max'), '240')
+    // 12 notes x 4 beats at 72 BPM = 40s
+    assert.equal(await page.getCycleTime(), '≈ 0:40')
 
     const continuous = await page.getToggleState('continuous')
     assert.equal(continuous.text, 'On')
