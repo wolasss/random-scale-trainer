@@ -21,6 +21,7 @@ jobs:
       - run: npm run build
 
   e2e:
+    needs: unit
     runs-on: ubuntu-latest
     services:
       selenium:
