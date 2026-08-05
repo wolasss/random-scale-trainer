@@ -4,6 +4,9 @@ import { faHeart, faMoon, faMugHot, faPause, faPlay, faRotateLeft, faSun } from 
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { generateShuffledNotes } from './lib/music'
 import { AudioEngine } from './lib/audio/engine'
+import { usePersistentState } from './hooks/usePersistentState'
+import { useSessionTimer } from './hooks/useSessionTimer'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { formatElapsed } from './lib/time'
 import {
   COUNT_IN_BEATS,
@@ -20,68 +23,37 @@ import { version } from '../package.json'
 type Theme = 'dark' | 'light'
 
 function App() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') {
-      return 'dark'
-    }
-
-    const storedTheme = window.localStorage.getItem(STORAGE_KEYS.theme)
-    if (storedTheme === 'light' || storedTheme === 'dark') {
-      return storedTheme
-    }
-
-    return 'dark'
+  const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
+    defaultValue: 'dark',
+    deserialize: (raw) => (raw === 'light' || raw === 'dark' ? raw : undefined),
   })
-  const [bpm, setBpm] = useState(() => {
-    if (typeof window === 'undefined') {
-      return DEFAULT_BPM
-    }
-
-    const storedBpmRaw = window.localStorage.getItem(STORAGE_KEYS.bpm)
-    if (storedBpmRaw === null) {
-      return DEFAULT_BPM
-    }
-
-    const storedBpm = Number(storedBpmRaw)
-    if (!Number.isFinite(storedBpm)) {
-      return DEFAULT_BPM
-    }
-
-    return Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(storedBpm)))
+  const [bpm, setBpm] = usePersistentState<number>(STORAGE_KEYS.bpm, {
+    defaultValue: DEFAULT_BPM,
+    deserialize: (raw) => {
+      const stored = Number(raw)
+      return Number.isFinite(stored) ? Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(stored))) : undefined
+    },
   })
-  const [continuousMode, setContinuousMode] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-
-    const storedMode = window.localStorage.getItem(STORAGE_KEYS.continuousMode)
-    return storedMode === null ? true : storedMode === 'true'
+  const [continuousMode, setContinuousMode] = usePersistentState<boolean>(STORAGE_KEYS.continuousMode, {
+    defaultValue: true,
+    deserialize: (raw) => raw === 'true',
   })
-  const [speedRampMode, setSpeedRampMode] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-
-    const storedContinuousMode = window.localStorage.getItem(STORAGE_KEYS.continuousMode)
-    const isContinuousEnabled = storedContinuousMode === null ? true : storedContinuousMode === 'true'
-    const storedMode = window.localStorage.getItem(STORAGE_KEYS.speedRampMode)
-    const isSpeedRampEnabled = storedMode === null ? false : storedMode === 'true'
-    return isContinuousEnabled && isSpeedRampEnabled
+  // Speed ramp only applies while looping: a stored "true" is discarded when
+  // continuous mode starts off (continuousMode is initialized just above).
+  const [speedRampMode, setSpeedRampMode] = usePersistentState<boolean>(STORAGE_KEYS.speedRampMode, {
+    defaultValue: false,
+    deserialize: (raw) => raw === 'true' && continuousMode,
   })
-  const [endSoundEnabled, ] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-
-    const storedValue = window.localStorage.getItem(STORAGE_KEYS.endSound)
-    return storedValue === null ? true : storedValue === 'true'
+  // Stored setting without UI: deliberately kept read-only for now.
+  const [endSoundEnabled] = usePersistentState<boolean>(STORAGE_KEYS.endSound, {
+    defaultValue: true,
+    deserialize: (raw) => raw === 'true',
   })
   const [currentNote, setCurrentNote] = useState(IDLE_NOTE)
   const [playbackMessage, setPlaybackMessage] = useState<string>(PLAYBACK_MESSAGES.idle)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const [isSessionRunning, setIsSessionRunning] = useState(false)
-  const [elapsedMs, setElapsedMs] = useState(0)
+  const sessionTimer = useSessionTimer()
 
   const audioEngineRef = useRef<AudioEngine | null>(null)
   const playbackTimeoutRef = useRef<number | null>(null)
@@ -89,16 +61,11 @@ function App() {
   const currentNotesRef = useRef<string[]>(generateShuffledNotes())
   const currentIndexRef = useRef(0)
   const sessionStartQueuedRef = useRef(false)
-  const sessionStartRef = useRef<number | null>(null)
-  const accumulatedSessionMsRef = useRef(elapsedMs)
   const bpmRef = useRef(bpm)
   const continuousModeRef = useRef(continuousMode)
   const speedRampModeRef = useRef(speedRampMode)
   const endSoundEnabledRef = useRef(endSoundEnabled)
   const isPlayingRef = useRef(isPlaying)
-  const startPlaybackRef = useRef<() => void>(() => {})
-  const pausePlaybackRef = useRef<() => void>(() => {})
-  const resetSessionRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     bpmRef.current = bpm
@@ -121,43 +88,8 @@ function App() {
   }, [endSoundEnabled])
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.bpm, String(bpm))
-  }, [bpm])
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.continuousMode, String(continuousMode))
-  }, [continuousMode])
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.speedRampMode, String(speedRampMode))
-  }, [speedRampMode])
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.endSound, String(endSoundEnabled))
-  }, [endSoundEnabled])
-
-  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    window.localStorage.setItem(STORAGE_KEYS.theme, theme)
   }, [theme])
-
-  useEffect(() => {
-    if (!isSessionRunning) {
-      return undefined
-    }
-
-    const timer = window.setInterval(() => {
-      if (sessionStartRef.current === null) {
-        return
-      }
-
-      setElapsedMs(accumulatedSessionMsRef.current + (Date.now() - sessionStartRef.current))
-    }, 200)
-
-    return () => {
-      window.clearInterval(timer)
-    }
-  }, [isSessionRunning])
 
   const getAudioEngine = () => {
     audioEngineRef.current ??= new AudioEngine()
@@ -171,32 +103,13 @@ function App() {
     }
   }
 
-  const startSessionTimer = () => {
-    if (isSessionRunning) {
-      return
-    }
-
-    sessionStartRef.current = Date.now()
-    setIsSessionRunning(true)
-  }
-
-  const stopSessionTimer = () => {
-    if (sessionStartRef.current !== null) {
-      accumulatedSessionMsRef.current += Date.now() - sessionStartRef.current
-      sessionStartRef.current = null
-      setElapsedMs(accumulatedSessionMsRef.current)
-    }
-
-    setIsSessionRunning(false)
-  }
-
   function stopPlayback(message: string = PLAYBACK_MESSAGES.idle) {
     playbackActiveRef.current = false
     clearPlaybackTimeout()
     sessionStartQueuedRef.current = false
     setIsPlaying(false)
     setIsPaused(false)
-    stopSessionTimer()
+    sessionTimer.pause()
     setCurrentNote(IDLE_NOTE)
     setPlaybackMessage(message)
   }
@@ -210,7 +123,7 @@ function App() {
     clearPlaybackTimeout()
     setIsPlaying(false)
     setIsPaused(true)
-    stopSessionTimer()
+    sessionTimer.pause()
     setPlaybackMessage(PLAYBACK_MESSAGES.paused)
   }
 
@@ -292,7 +205,7 @@ function App() {
 
     if (sessionStartQueuedRef.current) {
       sessionStartQueuedRef.current = false
-      startSessionTimer()
+      sessionTimer.start()
     }
 
     setCurrentNote(note)
@@ -312,7 +225,7 @@ function App() {
       setIsPaused(false)
 
       if (!sessionStartQueuedRef.current) {
-        startSessionTimer()
+        sessionTimer.start()
       }
 
       playbackActiveRef.current = true
@@ -350,69 +263,25 @@ function App() {
     }
 
     sessionStartQueuedRef.current = false
-    stopSessionTimer()
-    sessionStartRef.current = null
-    accumulatedSessionMsRef.current = 0
-    setElapsedMs(0)
+    sessionTimer.reset()
     currentNotesRef.current = generateShuffledNotes()
     currentIndexRef.current = 0
     setCurrentNote(IDLE_NOTE)
   }
 
-  useEffect(() => {
-    startPlaybackRef.current = () => {
+  useKeyboardShortcuts({
+    onSpace: () => {
+      if (isPlayingRef.current) {
+        pausePlayback()
+        return
+      }
+
       void startPlayback()
-    }
-    pausePlaybackRef.current = pausePlayback
-    resetSessionRef.current = resetSession
+    },
+    onArrowUp: () => setBpm((current) => Math.min(MAX_BPM, current + 1)),
+    onArrowDown: () => setBpm((current) => Math.max(MIN_BPM, current - 1)),
+    onReset: resetSession,
   })
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      const tagName = target?.tagName?.toLowerCase()
-      const isTypingContext = tagName === 'input' || tagName === 'textarea' || target?.isContentEditable
-
-      if (isTypingContext || event.metaKey || event.ctrlKey || event.altKey) {
-        return
-      }
-
-      if (event.code === 'Space') {
-        event.preventDefault()
-
-        if (isPlayingRef.current) {
-          pausePlaybackRef.current()
-          return
-        }
-
-        startPlaybackRef.current()
-        return
-      }
-
-      if (event.code === 'ArrowUp') {
-        event.preventDefault()
-        setBpm((current) => Math.min(MAX_BPM, current + 1))
-        return
-      }
-
-      if (event.code === 'ArrowDown') {
-        event.preventDefault()
-        setBpm((current) => Math.max(MIN_BPM, current - 1))
-        return
-      }
-
-      if (event.code === 'KeyR') {
-        event.preventDefault()
-        resetSessionRef.current()
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -545,7 +414,7 @@ function App() {
             <p>The timer starts automatically when playback starts and pauses when playback stops.</p>
           </div>
 
-          <div className="timer-face" data-testid="timer">{formatElapsed(elapsedMs)}</div>
+          <div className="timer-face" data-testid="timer">{formatElapsed(sessionTimer.elapsedMs)}</div>
         </section>
       </main>
 
