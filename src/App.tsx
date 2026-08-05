@@ -1,10 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { TopBar, type Theme } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
+import { TempoCard } from './components/TempoCard'
 import { ControlsPanel } from './components/ControlsPanel'
 import { TimerPanel } from './components/TimerPanel'
 import { Footer } from './components/Footer'
+import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useBeatPulse } from './hooks/useBeatPulse'
@@ -49,6 +51,15 @@ function App() {
     sessionTimer.reset()
   }
 
+  const tapTempoRef = useRef<TapTempo | null>(null)
+  const handleTapTempo = () => {
+    tapTempoRef.current ??= createTapTempo()
+    const tapped = tapTempoRef.current.tap()
+    if (tapped !== null) {
+      dispatch({ type: 'setBpm', bpm: tapped })
+    }
+  }
+
   useKeyboardShortcuts({
     onSpace: playOrPause,
     onTempoUp: () => dispatch({ type: 'nudgeBpm', delta: 1 }),
@@ -74,10 +85,17 @@ function App() {
 
         <TransportBar isPlaying={playback.isPlaying} onPlayPause={playOrPause} onReset={resetSession} />
 
-        <ControlsPanel
+        <TempoCard
           bpm={settings.bpm}
           beatsPerNote={settings.beatsPerNote}
+          poolSize={settings.pool.length}
           onBpmChange={(bpm) => dispatch({ type: 'setBpm', bpm })}
+          onNudge={(delta) => dispatch({ type: 'nudgeBpm', delta })}
+          onTap={handleTapTempo}
+          onBeatsPerNoteChange={(value) => dispatch({ type: 'setBeatsPerNote', value })}
+        />
+
+        <ControlsPanel
           continuousMode={settings.continuousMode}
           onToggleContinuousMode={() => dispatch({ type: 'toggle', key: 'continuousMode' })}
           speedRampMode={settings.speedRampMode}

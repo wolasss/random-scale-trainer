@@ -110,6 +110,36 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('60')
   })
 
+  it('steps tempo with the − / + buttons and switches the note-change rate', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('bpm-up'))
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('73')
+    fireEvent.click(screen.getByTestId('bpm-down'))
+    fireEvent.click(screen.getByTestId('bpm-down'))
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('71')
+
+    const noteEvery = screen.getByTestId('note-every')
+    fireEvent.click(noteEvery.querySelector('[data-value="1"]')!)
+    // 12 notes × 1 beat at 71 BPM ≈ 10.1s
+    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 0:10')
+    expect(window.localStorage.getItem('fretboard-beats-per-note')).toBe('1')
+  })
+
+  it('averages tap-tempo taps into the BPM', () => {
+    render(<App />)
+
+    // 500ms between taps → 120 BPM; performance.now is faked, so advance it.
+    const tap = () => fireEvent.click(screen.getByTestId('tap-tempo'))
+    tap()
+    act(() => vi.advanceTimersByTime(500))
+    tap()
+    act(() => vi.advanceTimersByTime(500))
+    tap()
+
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('120')
+  })
+
   it('restores a clamped BPM from storage', () => {
     window.localStorage.setItem('fretboard-bpm', '999')
     render(<App />)

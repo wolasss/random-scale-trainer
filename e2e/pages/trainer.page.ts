@@ -46,6 +46,10 @@ const SELECTORS = {
   heading: By.css('h1'),
   nextNote: By.css('[data-testid="next-note"]'),
   cyclePosition: By.css('[data-testid="cycle-position"]'),
+  bpmDown: By.css('[data-testid="bpm-down"]'),
+  bpmUp: By.css('[data-testid="bpm-up"]'),
+  tapTempo: By.css('[data-testid="tap-tempo"]'),
+  noteEvery: By.css('[data-testid="note-every"]'),
 }
 
 export const timerToSeconds = (timerText: string): number => {
@@ -195,6 +199,27 @@ export class TrainerPage {
 
   async clickThemeToggle(): Promise<void> {
     await this.driver.findElement(SELECTORS.themeToggle).click()
+  }
+
+  async clickBpmStepper(direction: 'up' | 'down'): Promise<void> {
+    await this.driver.findElement(direction === 'up' ? SELECTORS.bpmUp : SELECTORS.bpmDown).click()
+  }
+
+  async tapTempo(times: number, intervalMs: number): Promise<void> {
+    for (let index = 0; index < times; index++) {
+      if (index > 0) {
+        await this.sleep(intervalMs)
+      }
+      await this.driver.findElement(SELECTORS.tapTempo).click()
+    }
+  }
+
+  /** Clicks the note-every segmented option with the given beat count. */
+  async setNoteEvery(beats: 1 | 2 | 4 | 8): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.noteEvery)
+      .findElement(By.css(`[data-value="${beats}"]`))
+      .click()
   }
 
   async clickContinuousToggle(): Promise<void> {
