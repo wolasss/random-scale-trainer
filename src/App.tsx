@@ -4,6 +4,7 @@ import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
+import { FretboardCard } from './components/FretboardCard'
 import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { TimerPanel } from './components/TimerPanel'
 import { Footer } from './components/Footer'
@@ -61,6 +62,10 @@ function App() {
     }
   }
 
+  // Ear-only hides the answer (hero glyph and fretboard dots) until the last
+  // beat of the note's span.
+  const noteRevealed = !settings.earOnly || playback.snapshot.beatInSpan === settings.beatsPerNote - 1
+
   useKeyboardShortcuts({
     onSpace: playOrPause,
     onTempoUp: () => dispatch({ type: 'nudgeBpm', delta: 1 }),
@@ -104,6 +109,8 @@ function App() {
             onPreset={(preset) => dispatch({ type: 'setPreset', preset })}
             onSpelling={(value) => dispatch({ type: 'setSpelling', value })}
           />
+
+          <FretboardCard currentPc={playback.snapshot.currentNote?.pc ?? null} revealed={noteRevealed} />
         </div>
 
         <div className="column-side">

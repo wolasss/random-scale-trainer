@@ -553,6 +553,69 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* Heading and hint stay stacked so they don't crowd at narrow widths. */
+.fretboard-heading {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.fretboard-scroll {
+  overflow-x: auto;
+}
+
+.fretboard {
+  min-width: 480px;
+}
+
+.fret-row {
+  display: grid;
+  grid-template-columns: 1.5rem repeat(13, minmax(0, 1fr));
+  align-items: center;
+}
+
+.string-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.fret-cell {
+  position: relative;
+  height: 30px;
+  /* The string: a 1px line through the middle of the row. */
+  background: linear-gradient(rgba(174, 236, 255, 0.28), rgba(174, 236, 255, 0.28)) center / 100% 1px
+    no-repeat;
+}
+
+:root[data-theme='light'] .fret-cell {
+  background: linear-gradient(rgba(16, 35, 49, 0.3), rgba(16, 35, 49, 0.3)) center / 100% 1px no-repeat;
+}
+
+.fret-cell.nut {
+  border-right: 4px solid var(--panel-border);
+}
+
+.fret-dot {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--primary-soft);
+}
+
+.fret-numbers {
+  margin-top: 0.25rem;
+}
+
+.fret-number {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
 .target-time-info {
   margin-top: 0.7rem;
   padding-top: 0.7rem;

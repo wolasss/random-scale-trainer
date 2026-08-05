@@ -174,6 +174,45 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
   })
 
+  it('lights up every fretboard position of the current pitch class', async () => {
+    // Pool of one note (pc 4, E) makes the called note deterministic. E lives
+    // at: open + 12th on both e strings, B-5, G-9, D-2, A-7 → 8 dots.
+    window.localStorage.setItem('fretboard-note-pool', '4')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    render(<App />)
+
+    expect(screen.queryAllByTestId('fret-dot')).toHaveLength(0)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+
+    expect(screen.getByTestId('current-note')).toHaveTextContent('E')
+    expect(screen.queryAllByTestId('fret-dot')).toHaveLength(8)
+  })
+
+  it('ear-only hides the note and the dots until the last beat of the span', async () => {
+    window.localStorage.setItem('fretboard-ear-only', 'true')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+
+    expect(screen.getByTestId('current-note')).toHaveTextContent('?')
+    expect(screen.queryAllByTestId('fret-dot')).toHaveLength(0)
+
+    // Advance to the 4th beat of the 4-beat span: the answer is revealed.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3 * (60_000 / 72) + 100)
+    })
+    expect(screen.getByTestId('current-note').textContent).toMatch(NOTE_PATTERN)
+    expect(screen.queryAllByTestId('fret-dot').length).toBeGreaterThan(0)
+  })
+
   it('plays through count-in to notes and pauses', async () => {
     render(<App />)
 
