@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AudioEngine } from '../lib/audio/engine'
 import {
   createPlaybackMachine,
@@ -78,6 +78,10 @@ export function usePlayback(options: UsePlaybackOptions) {
 
   // Pool or spelling edits drop the pending deck so they take effect on the
   // next note — while idle, paused, or playing.
+  // Stable, so the visibility listener that drives it binds once rather than
+  // rebinding on every render.
+  const handleVisible = useCallback(() => machineRef.current?.handleVisible(), [])
+
   const poolKey = options.pool.join(',')
   const spelling = options.spelling
   useEffect(() => {
@@ -92,5 +96,6 @@ export function usePlayback(options: UsePlaybackOptions) {
     pause: () => getMachine().pause(),
     stop: (message?: string) => getMachine().stop(message),
     reset: () => getMachine().reset(),
+    handleVisible,
   }
 }

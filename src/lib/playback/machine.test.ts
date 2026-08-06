@@ -152,6 +152,24 @@ const createHarness = (options: HarnessOptions = {}) => {
     pumpFrame()
   }
 
+  /**
+   * Models a backgrounded page: the audio clock runs on for `seconds` while no
+   * timer and no frame callback fires at all, and then everything overdue wakes
+   * up at once. This is what a phone does when it goes into a pocket, and what
+   * a browser does to a throttled background tab.
+   */
+  const freezeAndWake = (seconds: number) => {
+    audio.time += seconds
+
+    const overdue = [...pendingTimers.values()]
+    pendingTimers.clear()
+    for (const entry of overdue) {
+      entry.callback()
+    }
+
+    pumpFrame()
+  }
+
   return {
     machine,
     audio,
@@ -162,6 +180,7 @@ const createHarness = (options: HarnessOptions = {}) => {
     bpmChanges,
     counters,
     advanceTo,
+    freezeAndWake,
     snapshot: () => machine.getSnapshot(),
   }
 }
@@ -608,5 +627,106 @@ describe('reset and dispose', () => {
     await harness.machine.start()
     harness.advanceTo(4)
     expect(harness.audio.clicks.length).toBeGreaterThan(clicksBefore)
+  })
+})
+
+describe('coming back from a backgrounded page', () => {
+  it('does not fire the beats it slept through', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(2.1)
+
+    const clicksBefore = harness.audio.clicks.length
+    // Thirty seconds in a pocket: at 60bpm that is thirty missed beats.
+    harness.freezeAndWake(30)
+
+    const scheduledOnWake = harness.audio.clicks.length - clicksBefore
+    // Only the look-ahead window's worth, never one per missed beat.
+    expect(scheduledOnWake).toBeLessThanOrEqual(3)
+  })
+
+  it('schedules the beats it does fire in the future, not the past', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(2.1)
+
+    const clicksBefore = harness.audio.clicks.length
+    harness.freezeAndWake(30)
+
+    const afterWake = harness.audio.clicks.slice(clicksBefore)
+    expect(afterWake.length).toBeGreaterThan(0)
+    // A click scheduled at a time already gone plays the instant it is
+    // scheduled — which is the burst this exists to prevent.
+    for (const click of afterWake) {
+      expect(click.time).toBeGreaterThanOrEqual(harness.audio.time)
+    }
+  })
+
+  it('drops the notes that were never heard rather than flashing them through', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(2.1)
+
+    const notesBefore = harness.snapshot().notesCalled
+    harness.freezeAndWake(30)
+
+    // Thirty seconds of silence must not land as thirty notes on the counter.
+    expect(harness.snapshot().notesCalled - notesBefore).toBeLessThanOrEqual(1)
+  })
+
+  it('keeps the beat running once it has caught up', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(2.1)
+    harness.freezeAndWake(30)
+
+    const clicksAfterWake = harness.audio.clicks.length
+    const notesAfterWake = harness.snapshot().notesCalled
+
+    harness.advanceTo(harness.audio.time + 3.1)
+
+    expect(harness.audio.clicks.length).toBeGreaterThan(clicksAfterWake)
+    expect(harness.snapshot().notesCalled).toBeGreaterThan(notesAfterWake)
+    expect(harness.snapshot().status).toBe('playing')
+  })
+
+  it('leaves a normally-running scheduler alone', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(4.1)
+
+    // Four seconds at 60bpm: the beats all landed, nothing was re-anchored.
+    expect(harness.audio.clicks.length).toBeGreaterThanOrEqual(4)
+    expect(harness.snapshot().notesCalled).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('handleVisible', () => {
+  it('resumes a context the OS suspended while playing', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+
+    let resumes = 0
+    harness.audio.ensureContext = async () => {
+      resumes += 1
+      return {}
+    }
+
+    harness.machine.handleVisible()
+    expect(resumes).toBe(1)
+  })
+
+  it('does nothing when the transport is stopped', () => {
+    const harness = createHarness()
+
+    let resumes = 0
+    harness.audio.ensureContext = async () => {
+      resumes += 1
+      return {}
+    }
+
+    harness.machine.handleVisible()
+    expect(resumes).toBe(0)
   })
 })

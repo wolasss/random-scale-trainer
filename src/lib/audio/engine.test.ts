@@ -301,3 +301,128 @@ describe('AudioEngine scheduled playback', () => {
     expect(oscillator.stop).toHaveBeenCalledTimes(1) // only the scheduled stop
   })
 })
+
+describe('AudioEngine media-session unlock', () => {
+  const createFakeElement = () => ({ play: vi.fn(async () => undefined) })
+
+  it('plays a media element once, on the first gesture', async () => {
+    const element = createFakeElement()
+    const mediaElementFactory = vi.fn(() => element as unknown as HTMLAudioElement)
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(createFakeContext()),
+      mediaElementFactory,
+    })
+
+    await engine.ensureContext()
+    await engine.ensureContext()
+    await engine.ensureContext()
+
+    // iOS only needs telling once which audio session the page is on.
+    expect(mediaElementFactory).toHaveBeenCalledTimes(1)
+    expect(element.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('still returns the context when the element refuses to play', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(context),
+      mediaElementFactory: () =>
+        ({
+          play: () => {
+            throw new Error('gesture required')
+          },
+        }) as unknown as HTMLAudioElement,
+    })
+
+    // The unlock is a bonus; Web Audio is the real output and must survive it.
+    await expect(engine.ensureContext()).resolves.toBe(context)
+  })
+
+  it('tolerates a browser with no media element at all', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(context),
+      mediaElementFactory: () => null,
+    })
+
+    await expect(engine.ensureContext()).resolves.toBe(context)
+  })
+})
+
+describe('AudioEngine speech fallback', () => {
+  const failingFetch = (failingPath: string) =>
+    vi.fn(async (input: string) =>
+      input === failingPath
+        ? { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) }
+        : { ok: true, arrayBuffer: async () => new ArrayBuffer(8) },
+    ) as unknown as typeof fetch
+
+  it('speaks a note whose clip failed to download', async () => {
+    const speak = vi.fn()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(createFakeContext()),
+      fetchFn: failingFetch(NOTE_AUDIO_FILES['F#']),
+      mediaElementFactory: () => null,
+      speech: { speak },
+    })
+
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+
+    engine.playNoteAt('F#', 1)
+    expect(speak).toHaveBeenCalledWith('F sharp')
+  })
+
+  it('reads a flat as a flat, not as a letter', async () => {
+    const speak = vi.fn()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(createFakeContext()),
+      fetchFn: failingFetch(NOTE_AUDIO_FILES['Bb']),
+      mediaElementFactory: () => null,
+      speech: { speak },
+    })
+
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+
+    engine.playNoteAt('Bb', 1)
+    expect(speak).toHaveBeenCalledWith('B flat')
+  })
+
+  it('never speaks a note that has a clip', async () => {
+    const speak = vi.fn()
+    const context = createFakeContext()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(context),
+      fetchFn: okFetch(),
+      mediaElementFactory: () => null,
+      speech: { speak },
+    })
+
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+
+    engine.playNoteAt('C', 1)
+    // Speech is the last resort, never the path a working clip takes: its
+    // timing is exactly what the pre-rendered clips exist to avoid.
+    expect(speak).not.toHaveBeenCalled()
+    expect(context.createBufferSource).toHaveBeenCalled()
+  })
+
+  it('stays silent when the browser has no speech either', async () => {
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(createFakeContext()),
+      fetchFn: failingFetch(NOTE_AUDIO_FILES['C']),
+      mediaElementFactory: () => null,
+      speech: null,
+    })
+
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+
+    expect(() => engine.playNoteAt('C', 1)).not.toThrow()
+  })
+})

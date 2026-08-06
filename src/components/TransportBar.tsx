@@ -1,5 +1,8 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPause, faPlay, faRotateLeft } from '@fortawesome/free-solid-svg-icons'
+import { transportLabel } from '../lib/transport'
+import { formatElapsed } from '../lib/time'
+import type { SessionGoalMin } from '../hooks/useSettings'
 
 type TransportBarProps = {
   isPlaying: boolean
@@ -9,19 +12,8 @@ type TransportBarProps = {
   routineFinished?: boolean
   onPlayPause: () => void
   onReset: () => void
-}
-
-/** The only start button in the app — it labels itself from state. */
-const transportLabel = (
-  isPlaying: boolean,
-  isPaused: boolean,
-  routineName: string | null | undefined,
-  routineFinished: boolean | undefined,
-) => {
-  if (isPlaying) return 'Pause'
-  if (routineFinished) return 'Restart routine'
-  if (isPaused) return 'Resume'
-  return routineName ? `Start ${routineName}` : 'Start practice'
+  elapsedMs: number
+  goalMin: SessionGoalMin
 }
 
 export function TransportBar({
@@ -31,22 +23,32 @@ export function TransportBar({
   routineFinished,
   onPlayPause,
   onReset,
+  elapsedMs,
+  goalMin,
 }: TransportBarProps) {
   const label = transportLabel(isPlaying, isPaused, routineName, routineFinished)
 
   return (
     <div className="transport-bar">
-      <button
-        type="button"
-        className={`transport-primary ${isPlaying ? 'secondary-button' : 'primary-button'}`}
-        data-testid="play-toggle"
-        onClick={onPlayPause}
-      >
-        <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {label}
-      </button>
-      <button type="button" className="ghost-button transport-reset" data-testid="reset" onClick={onReset}>
-        <FontAwesomeIcon icon={faRotateLeft} /> Reset timer
-      </button>
+      <div className="transport-actions">
+        <button
+          type="button"
+          className={`transport-primary ${isPlaying ? 'secondary-button' : 'primary-button'}`}
+          data-testid="play-toggle"
+          onClick={onPlayPause}
+        >
+          <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {label}
+        </button>
+        <button type="button" className="ghost-button transport-reset" data-testid="reset" onClick={onReset}>
+          <FontAwesomeIcon icon={faRotateLeft} /> Reset timer
+        </button>
+      </div>
+
+      {/* Progress toward the goal, read from the playing position — this is what
+          lets the Session card live at the foot of the page. */}
+      <span className="transport-readout" data-testid="transport-readout">
+        {formatElapsed(elapsedMs)} of {goalMin} min
+      </span>
     </div>
   )
 }

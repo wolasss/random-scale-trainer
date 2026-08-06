@@ -91,7 +91,14 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     deserialize: parseRoutines,
     serialize: (value) => JSON.stringify(value),
   })
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Restored on launch so an installed app comes back to the routine it was
+  // left on. Only the choice is restored — the block settings it implies were
+  // persisted in their own right, and the runtime starts fresh at block 0.
+  const [selectedId, setSelectedId] = usePersistentState<string | null>(STORAGE_KEYS.selectedRoutine, {
+    defaultValue: null,
+    deserialize: (raw) => (raw === '' ? null : raw),
+    serialize: (value) => value ?? '',
+  })
   const [runtime, setRuntime] = useState<RoutineRuntime>(IDLE_RUNTIME)
 
   const selected = routines.find((routine) => routine.id === selectedId) ?? null
@@ -139,7 +146,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     selectedRef.current = null
     setSelectedId(null)
     commit(IDLE_RUNTIME)
-  }, [commit])
+  }, [commit, setSelectedId])
 
   // --- the block clock -----------------------------------------------------
   const blockElapsedMs = Math.max(0, sessionElapsedMs - runtime.blockStartMs)

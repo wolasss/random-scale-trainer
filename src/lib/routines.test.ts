@@ -254,4 +254,57 @@ describe('parseRoutines', () => {
     const stored = JSON.stringify([{ id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 60, beats: 4, dur: 90 }] }])
     expect(parseRoutines(stored)![0].blocks[0].dur).toBeNull()
   })
+
+  /**
+   * An untimed block inside a sequence would stall the routine on it forever,
+   * so the parser must not let one through — it is the trust boundary for
+   * hand-edited storage and version skew.
+   */
+  describe('an untimed block inside a timed sequence', () => {
+    const workoutWith = (...durs: unknown[]) =>
+      JSON.stringify([
+        {
+          id: 'a',
+          name: 'Workout',
+          blocks: durs.map((dur, index) => ({
+            name: `B${index}`,
+            poolKey: 'chromatic',
+            bpm: 60 + index,
+            beats: 4,
+            dur,
+          })),
+        },
+      ])
+
+    it.each([
+      ['missing', undefined],
+      ['null', null],
+      ['zero', 0],
+      ['negative', -30],
+      ['non-numeric', 'soon'],
+    ])('drops the block whose duration is %s', (_label, dur) => {
+      const parsed = parseRoutines(workoutWith(120, dur, 180))!
+
+      expect(parsed[0].blocks.map((block) => block.dur)).toEqual([120, 180])
+      // The surviving blocks keep their own settings, not a fabricated duration.
+      expect(parsed[0].blocks.map((block) => block.bpm)).toEqual([60, 62])
+    })
+
+    it('collapses to a saved setup when only one timed block survives', () => {
+      const parsed = parseRoutines(workoutWith(120, 0, 0))!
+
+      expect(parsed[0].blocks).toHaveLength(1)
+      expect(parsed[0].blocks[0].dur).toBeNull()
+      expect(isOpenEnded(parsed[0])).toBe(true)
+    })
+
+    it('discards a routine whose blocks are all untimed rather than inventing durations', () => {
+      expect(parseRoutines(workoutWith(0, null, -1))).toEqual([])
+    })
+
+    it('leaves a well-formed workout untouched', () => {
+      const parsed = parseRoutines(workoutWith(120, 180, 240))!
+      expect(parsed[0].blocks.map((block) => block.dur)).toEqual([120, 180, 240])
+    })
+  })
 })

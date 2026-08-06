@@ -36,7 +36,25 @@ export const STORAGE_KEYS = {
   sessionGoal: 'fretboard-session-goal',
   showFretboard: 'fretboard-show-neck',
   routines: 'fretboard-routines',
+  selectedRoutine: 'fretboard-selected-routine',
+  // Versioned in the key itself: the practice log is the one store whose shape
+  // is worth migrating rather than dropping.
+  practiceLog: 'rnt.history.v1',
+  iosInstallHint: 'fretboard-ios-install-hint',
 } as const
+
+/**
+ * A metronome clicking in a pocket is worse than one that stopped: playback
+ * gives up after this long off-screen rather than waiting to be found.
+ */
+export const HIDDEN_STOP_MS = 60_000
+
+/**
+ * Background tabs throttle timers while the audio clock keeps running, so a
+ * scheduler that wakes up late would otherwise fire every missed beat at once.
+ * Falling this far behind means re-anchoring to the clock instead of catching up.
+ */
+export const RESYNC_THRESHOLD_S = 0.5
 
 /** User-visible playback strings. The e2e suite pins these exact values
  * (e2e/pages/trainer.page.ts keeps its own golden copies on purpose). */
@@ -52,4 +70,5 @@ export const PLAYBACK_MESSAGES = {
   audioLoadFailed: 'Failed to load audio. Please reload the page.',
   finished: (noteCount: number) => `Finished all ${noteCount} notes.`,
   routineComplete: 'Routine complete — press start to run it again.',
+  hiddenTooLong: 'Stopped — the app was in the background.',
 } as const

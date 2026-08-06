@@ -92,6 +92,31 @@ describe('Routines', () => {
     expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(7)
   })
 
+  it('comes back to the routine it was left on', () => {
+    const first = render(<App />)
+    selectRoutine('seed-warmup-naturals')
+    expect(transport()).toContain('Start Warm-up')
+    first.unmount()
+
+    // A cold launch that forgets the chosen routine makes an installed app feel
+    // like a web page rather than an instrument.
+    render(<App />)
+    expect(chip('seed-warmup-naturals').className).toContain('selected')
+    expect(transport()).toContain('Start Warm-up')
+    expect(screen.getByTestId('routine-strip')).toBeInTheDocument()
+  })
+
+  it('forgets a routine that was deleted before the relaunch', () => {
+    const first = render(<App />)
+    selectRoutine('seed-warmup-naturals')
+    fireEvent.click(chip('seed-warmup-naturals').querySelector('.routine-chip-remove')!)
+    first.unmount()
+
+    render(<App />)
+    expect(transport()).toContain('Start practice')
+    expect(screen.queryByTestId('routine-strip')).toBeNull()
+  })
+
   it('applies block 0 on selection and names the start button', () => {
     render(<App />)
 
@@ -375,6 +400,38 @@ describe('Routines', () => {
     for (const gap of gaps) {
       expect(gap).toBeCloseTo(0.5, 5)
     }
+  })
+
+  it('restores a workout with a corrupt duration as one that can still finish', () => {
+    // A block with no duration never auto-advances, so a restored workout
+    // holding one would stall there forever. Storage is not to be trusted.
+    window.localStorage.setItem(
+      'fretboard-routines',
+      JSON.stringify([
+        {
+          id: 'skewed',
+          name: 'Skewed',
+          blocks: [
+            { name: 'One', poolKey: 'naturals', bpm: 60, beats: 4, dur: 120 },
+            { name: 'Stalls', poolKey: 'chromatic', bpm: 80, beats: 2 },
+            { name: 'Three', poolKey: 'accidentals', bpm: 90, beats: 2, dur: 60 },
+          ],
+        },
+      ]),
+    )
+
+    render(<App />)
+    selectRoutine('skewed')
+
+    expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(2)
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 2 · 2:00 left of 3:00')
+
+    // Every block still advances, and the routine can reach its end.
+    fireEvent.click(screen.getByTestId('routine-skip-block'))
+    expect(bpm()).toBe('90')
+    fireEvent.click(screen.getByTestId('routine-skip-block'))
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 3 min done.')
+    expect(transport()).toContain('Restart routine')
   })
 
   it('resets the routine to block 0 with the session', () => {

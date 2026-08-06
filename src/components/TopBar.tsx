@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
 
@@ -6,9 +7,11 @@ export type Theme = 'dark' | 'light'
 type TopBarProps = {
   theme: Theme
   onToggleTheme: () => void
+  /** The install button, when the browser has an install prompt to offer. */
+  install?: ReactNode
 }
 
-export function TopBar({ theme, onToggleTheme }: TopBarProps) {
+export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="header-copy">
@@ -16,6 +19,7 @@ export function TopBar({ theme, onToggleTheme }: TopBarProps) {
         <p className="lede">Notes are called on the beat. Find them on the neck before the next one lands.</p>
       </div>
       <div className="header-side">
+        {install}
         <div className="key-hints" aria-hidden="true">
           <span>
             <kbd>Space</kbd> play / pause

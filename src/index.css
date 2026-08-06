@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap');
+/* The webfont link lives in index.html so it can load off the critical path —
+   an @import here would block the first paint on a network the app otherwise
+   never needs. Every rule below keeps a system fallback in its stack. */
 
 :root {
   --bg-deep: #06131a;
@@ -128,31 +130,66 @@ button {
   animation: fade-up 360ms ease both;
 }
 
-.hero-card {
+/* --- Practice stage ------------------------------------------------------ */
+
+/* One card for the whole playing view: note, neck, beat, routine, transport.
+   Full width because every part of it is read from a metre away. */
+.practice-stage {
   grid-column: span 12;
   padding: 1.4rem;
 }
 
-.column-main {
-  grid-column: span 7;
+/* Sized by ratio, never by a fixed minimum: a floor here forces the page to
+   scroll sideways at narrow widths and clips the neck. */
+.practice-stage-view {
+  display: grid;
+  gap: 1.4rem;
 }
 
-.column-side {
-  grid-column: span 5;
+.practice-stage-view.with-neck {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 }
 
-.column-main,
-.column-side {
+/* A hairline, not a second card — the neck answers the note, so the two must
+   read as one surface. */
+.practice-stage-neck {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: 1.4rem;
+  border-left: 1px solid var(--panel-border);
+}
+
+.practice-stage-neck > .panel {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.hero-card {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  justify-content: center;
   min-width: 0;
 }
 
-/* The side column stretches to the main column's height; the last card in it
-   takes up the slack so both columns end on the routine card's top edge. */
-.practice-options-card {
-  flex-grow: 1;
+/* Full-width setup bands under the stage — see the notes in App.tsx. */
+.note-pool-card,
+.routine-card {
+  grid-column: span 12;
+}
+
+/* The two-up bands. auto-fit rather than a fixed column count: a hard split
+   hands Tempo ~440px and its −/BPM/+/tap cluster collides. The inner min()
+   keeps the single-column fallback from overflowing a narrow phone. */
+.card-row {
+  grid-column: span 12;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 1.15rem;
 }
 
 .eyebrow {
@@ -375,11 +412,31 @@ h2 {
   font-size: 0.95rem;
 }
 
+/* The controls keep the middle of the card and the readout sits hard right.
+   The cluster takes the rest of the row rather than being sized by the grid:
+   an intrinsically-sized track ignores the play button's own minimum width and
+   squeezes Reset timer into two lines. */
 .transport-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.15rem;
+}
+
+.transport-actions {
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
   gap: 0.9rem;
   flex-wrap: wrap;
+}
+
+.transport-readout {
+  flex: none;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .transport-primary {
@@ -542,9 +599,11 @@ input[type='range'] {
   color: initial;
 }
 
+/* All twelve on one line at full width: the chromatic run reads as the octave
+   it is, and no note sits in a second row as if it were an afterthought. */
 .note-chip-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(48px, 1fr));
+  grid-template-columns: repeat(12, minmax(48px, 1fr));
   gap: 8px;
   margin-bottom: 1rem;
 }
@@ -571,6 +630,29 @@ input[type='range'] {
   border-color: var(--primary);
   color: var(--primary);
   opacity: 1;
+}
+
+/* At full width the spelling choice lies down: label, pills and the line that
+   explains them across one row, instead of a stack in a box that is a metre
+   wide and mostly empty. The sheet keeps the stacked reading. */
+@media (min-width: 901px) {
+  .app-grid .note-pool-card .control-block {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+  }
+
+  .app-grid .note-pool-card .control-label-row {
+    margin: 0;
+  }
+
+  .app-grid .note-pool-card .control-subtitle {
+    margin: 0;
+    margin-left: auto;
+    text-align: right;
+  }
 }
 
 /* Heading and hint stay stacked so they don't crowd at narrow widths. */
@@ -987,7 +1069,7 @@ input[type='range'] {
 }
 
 .routine-card {
-  grid-column: span 12;
+  min-width: 0;
 }
 
 .routine-heading {
@@ -1287,6 +1369,126 @@ input[type='range'] {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Practice log -------------------------------------------------------- */
+
+/* The log is paired with Session in the last band: both are about time
+   practised, one live and one historical, and both are read after a session
+   rather than during one. Placement is the band's job — see .card-row. */
+.practice-options-card,
+.practice-log-card,
+.tempo-card,
+.session-card {
+  min-width: 0;
+}
+
+.practice-log-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+/* Deliberately quiet, and deliberately not called 'Reset' — the hero already
+   has a Reset timer, and these two must never be mistaken for each other. */
+.practice-log-clear {
+  border: 0;
+  padding: 0.2rem 0.1rem;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  transition: color 140ms ease;
+}
+
+.practice-log-clear:hover {
+  color: var(--ink);
+}
+
+.practice-log-streak {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0.1rem 0 1.15rem;
+}
+
+.practice-log-streak-value {
+  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-size: 3.25rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-log-streak-label {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.practice-log-best {
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.practice-log-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.practice-log-column {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+/* Fixed track, bottom-aligned: the bars have to be comparable to each other,
+   not to whatever else the card is doing that day. */
+.practice-log-track {
+  display: flex;
+  align-items: flex-end;
+  height: 74px;
+}
+
+.practice-log-bar {
+  width: 100%;
+  border-radius: 5px;
+  background: var(--primary);
+  /* A two-minute day is still a day — it never rounds away to nothing. */
+  min-height: 8px;
+  transition: height 300ms ease;
+}
+
+/* Present, not absent. The gaps are the point of the strip. */
+.practice-log-bar.is-empty {
+  height: 6px;
+  min-height: 6px;
+  background: var(--button-bg);
+  border: 1px solid var(--control-border);
+}
+
+.practice-log-weekday {
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.practice-log-weekday.is-today {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.practice-log-footer {
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
 .app-footer {
   position: relative;
   max-width: 1180px;
@@ -1367,10 +1569,26 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* The stage splits on its own budget, not the page's: at the 1.3/1 ratio this
+   is the width below which the right column drops under the neck's 400px of
+   frets and the board starts scrolling inside the card. */
+@media (max-width: 1023px) {
+  .practice-stage-view.with-neck {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .practice-stage-neck {
+    padding-left: 0;
+    padding-top: 1.2rem;
+    border-left: 0;
+    border-top: 1px solid var(--panel-border);
+  }
+}
+
 @media (max-width: 900px) {
-  .column-main,
-  .column-side {
-    grid-column: span 12;
+  /* Twelve across needs the desktop's full width to stay tappable. */
+  .note-chip-grid {
+    grid-template-columns: repeat(6, minmax(48px, 1fr));
   }
 
   .panel {
@@ -1381,6 +1599,17 @@ input[type='range'] {
 @media (max-width: 640px) {
   .app-grid {
     padding: 1rem 0.85rem 1.35rem;
+  }
+
+  /* No room left for a side track: the readout drops under the controls
+     rather than squeezing the play button. */
+  .practice-stage {
+    padding: 1.15rem;
+  }
+
+  .transport-bar {
+    flex-direction: column;
+    gap: 0.7rem;
   }
 
   .note-chip-grid {
@@ -1432,6 +1661,418 @@ input[type='range'] {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Install and update -------------------------------------------------- */
+
+/* Quiet: it replaces the browser's own install bar, and it is not the reason
+   anyone opened the app. */
+.install-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink-soft);
+  font-weight: 600;
+  transition: transform 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.install-button:hover {
+  transform: translateY(-1px);
+  color: var(--ink);
+  border-color: var(--primary);
+}
+
+.ios-install-hint {
+  grid-column: span 12;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--control-border);
+  border-radius: 14px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.ios-install-hint span {
+  flex: 1 1 auto;
+}
+
+.ios-install-hint strong {
+  color: var(--ink);
+}
+
+.hint-dismiss {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.hint-dismiss:hover {
+  color: var(--ink);
+  border-color: var(--primary);
+}
+
+/* Never applied on its own — reloading mid-session would kill the metronome. */
+.update-chip {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  transform: translateX(-50%);
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.5rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(13px);
+  animation: fade-up 260ms ease both;
+}
+
+.update-chip-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.update-chip-action:hover {
+  color: var(--primary);
+}
+
+/* --- The stand reading ---------------------------------------------------- */
+
+/*
+  Everything below only applies when the app is running standalone on a touch
+  device — data-stage is set from JS off the same condition, so the stylesheet
+  and the component tree can never disagree. A desktop browser never matches it,
+  installed or not, and the layout above is left exactly as it was.
+
+  The context this is designed for: a phone two metres away on a music stand,
+  hands full, twenty minutes without a touch.
+*/
+
+.stage-shell {
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'note'
+    'foot';
+  height: 100%;
+  /* viewport-fit=cover handed us the whole screen; hand the insets back. */
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 0.5rem)
+    calc(env(safe-area-inset-right, 0px) + 1rem)
+    0
+    calc(env(safe-area-inset-left, 0px) + 1rem);
+}
+
+.stage-hero {
+  grid-area: note;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.stage-side {
+  grid-area: side;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.stage-side > .panel {
+  width: 100%;
+}
+
+/* The product, given the room the browser chrome gave up. */
+.stage-note-line {
+  height: 40vh;
+  width: 100%;
+}
+
+:root[data-stage] .hero-note {
+  font-size: min(38vh, 46vw);
+}
+
+:root[data-stage] .hero-ready {
+  font-size: min(14vh, 18vw);
+}
+
+.stage-readout {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.stage-next-chip {
+  padding: 0.3rem 0.9rem;
+}
+
+/* --- the transport, in the bottom third ---------------------------------- */
+
+.stage-foot {
+  grid-area: foot;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.9rem);
+}
+
+.stage-foot .routine-strip {
+  margin-top: 0;
+  padding-top: 0.6rem;
+}
+
+/* The desktop readout is placed by the transport's grid; here it is one line in
+   a stack, so it takes its own alignment. */
+.stage-readout-line {
+  grid-column: auto;
+  align-self: center;
+  text-align: center;
+}
+
+.stage-secondary {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+.stage-setup {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 48px;
+}
+
+.stage-reset {
+  flex: none;
+  width: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Thumb-reachable and unmistakable: the one control worth hitting without
+   looking, so nothing else down here comes close to its size. */
+.stage-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 68px;
+  border-radius: 18px;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* --- landscape: the stand's natural orientation --------------------------- */
+
+@media (orientation: landscape) {
+  :root[data-stage] .stage {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'note side'
+      'foot side';
+    column-gap: 1rem;
+  }
+
+  /* Height is the scarce axis here, and the neck beside it is doing the work
+     the size used to do. */
+  :root[data-stage] .stage-note-line {
+    height: 46vh;
+  }
+
+  :root[data-stage] .hero-note {
+    font-size: min(42vh, 30vw);
+  }
+}
+
+/* --- readable at two metres ---------------------------------------------- */
+
+/*
+  The glyph, the count-in and the beat dots are the only things meant to carry
+  across a room. Everything else keeps a 15px floor so it is still legible if
+  you go looking for it, and stays receded so it never competes.
+*/
+:root[data-stage] .chip-label,
+:root[data-stage] .chip-text,
+:root[data-stage] .playback-message,
+:root[data-stage] .routine-strip,
+:root[data-stage] .routine-strip-status,
+:root[data-stage] .switch-subtitle,
+:root[data-stage] .control-subtitle,
+:root[data-stage] .range-hints,
+:root[data-stage] .panel-heading p,
+:root[data-stage] .session-stat-label,
+:root[data-stage] .session-goal-label,
+:root[data-stage] .routine-chip-meta,
+:root[data-stage] .routine-segment-meta,
+:root[data-stage] .routine-segment-time,
+:root[data-stage] .routine-status,
+:root[data-stage] .practice-log-footer,
+:root[data-stage] .practice-log-weekday {
+  font-size: 15px;
+}
+
+:root[data-stage] .beat-dot {
+  width: 12px;
+  height: 12px;
+}
+
+/* --- the practice-setup sheet -------------------------------------------- */
+
+.sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+}
+
+.sheet-scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(2, 8, 14, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 92vh;
+  max-height: 92dvh;
+  border: 1px solid var(--panel-border);
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  background: var(--bg-mid);
+  box-shadow: var(--shadow);
+  animation: sheet-up 240ms ease both;
+}
+
+.sheet-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 1.1rem 1rem 0.7rem;
+  border-bottom: 1px solid var(--control-border);
+}
+
+.sheet-grip {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--button-border);
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.sheet-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+  background: var(--button-bg);
+  color: var(--ink);
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.2rem);
+}
+
+/* Inside the sheet the cards are the content, not floating panels. */
+.sheet-body > .panel {
+  animation: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* The transport already owns the bottom of the screen here, so the chip goes
+   to the top rather than covering the one control that matters. */
+:root[data-stage] .update-chip {
+  top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+  bottom: auto;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .update-chip {
+    animation: none;
   }
 }
 

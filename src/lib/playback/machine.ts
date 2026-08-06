@@ -3,6 +3,7 @@ import {
   MAX_BPM,
   PLAYBACK_MESSAGES,
   RAMP_BPM_STEP,
+  RESYNC_THRESHOLD_S,
   SCHEDULE_AHEAD_S,
   SCHEDULER_TICK_MS,
 } from '../../constants'
@@ -107,6 +108,8 @@ export type PlaybackMachine = {
   reset(): void
   /** Pool or spelling changed: drop pending notes, refresh the preview. */
   invalidateDeck(): void
+  /** The page came back on screen — recover a context the OS suspended. */
+  handleVisible(): void
   getSnapshot(): PlaybackSnapshot
   /** Clears timers, frames, and scheduled audio — the machine stays restartable. */
   dispose(): void
@@ -362,12 +365,37 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     stopTimeoutId = timers.set(() => finishStop(message, countCycle), delayMs)
   }
 
+  /**
+   * Background tabs throttle setTimeout and requestAnimationFrame; the audio
+   * clock is unaffected. So a page that comes back after being hidden finds the
+   * scheduler pointing at a time that is already long past — and catching up
+   * beat by beat would fire every missed click at once and flash every missed
+   * note through the hero.
+   *
+   * Those beats are gone, not owed. Re-anchor to the clock and drop the
+   * backlog: the metronome picks up from now.
+   */
+  const resyncIfBehind = () => {
+    const now = audio.getCurrentTime()
+    if (nextBeatTime >= now - RESYNC_THRESHOLD_S) {
+      return
+    }
+
+    audio.stopScheduledSounds()
+    visualQueue = []
+    nextBeatTime = now + 0.05
+  }
+
   const tick = () => {
     if (!active) {
       return
     }
 
     reconcileBpm()
+    if (!schedulingDone) {
+      resyncIfBehind()
+    }
+
     while (active && !schedulingDone && nextBeatTime < audio.getCurrentTime() + SCHEDULE_AHEAD_S) {
       scheduleBeat()
     }
@@ -414,6 +442,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     const now = audio.getCurrentTime()
     while (visualQueue.length > 0 && visualQueue[0].time <= now) {
       const event = visualQueue.shift()!
+      // Frames are throttled off-screen too, so this can wake to a backlog
+      // whose audio has already gone by. Those notes were never heard: showing
+      // them now would flash a burst through the hero and inflate the count.
+      if (now - event.time > RESYNC_THRESHOLD_S) {
+        continue
+      }
+
       onBeat?.(event)
       // One emit per beat (never per frame); React batches same-frame emits.
       emit(applyBeat(event))
@@ -540,6 +575,20 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     emit({ nextNote: deck.peek() })
   }
 
+  /**
+   * iOS suspends the AudioContext when the app is backgrounded and does not
+   * resume it on the way back, which would leave a "playing" transport making
+   * no sound at all. Resuming restarts the audio clock; the scheduler notices
+   * how far behind it is and re-anchors on its next tick.
+   */
+  const handleVisible = () => {
+    if (!active) {
+      return
+    }
+
+    void Promise.resolve(audio.ensureContext()).catch(() => undefined)
+  }
+
   const dispose = () => {
     haltScheduling()
     sessionStartQueued = false
@@ -555,6 +604,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     stop,
     reset,
     invalidateDeck,
+    handleVisible,
     getSnapshot: () => snapshot,
     dispose,
   }
