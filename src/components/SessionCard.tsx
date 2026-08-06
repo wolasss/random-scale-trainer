@@ -61,7 +61,7 @@ export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCom
           <span className="session-stat-value" data-testid="stat-cycles">
             {cyclesCompleted}
           </span>
-          <span className="session-stat-label">full cycles</span>
+          <span className="session-stat-label">rounds</span>
         </div>
       </div>
     </section>

@@ -1,18 +1,18 @@
 import { useEffect, useReducer, useRef, type Dispatch } from 'react'
 import {
   BEAT_SPAN_OPTIONS,
+  clampBpm,
   DEFAULT_BEATS_PER_NOTE,
   DEFAULT_BPM,
   DEFAULT_SESSION_GOAL_MIN,
-  MAX_BPM,
-  MIN_BPM,
   SESSION_GOAL_OPTIONS,
   STORAGE_KEYS,
+  type BeatsPerNote,
 } from '../constants'
 import { PITCH_CLASSES, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
 
-export type BeatsPerNote = (typeof BEAT_SPAN_OPTIONS)[number]
+export type { BeatsPerNote }
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 
 export type Settings = {
@@ -40,9 +40,8 @@ export type SettingsAction =
   | { type: 'setSpelling'; value: SpellingPreference }
   | { type: 'togglePoolNote'; pc: number }
   | { type: 'setPreset'; preset: PresetId }
+  | { type: 'setPool'; pool: readonly number[] }
   | { type: 'setSessionGoal'; minutes: SessionGoalMin }
-
-const clampBpm = (value: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(value)))
 
 const sortedPcs = (pcs: readonly number[]) => [...pcs].sort((left, right) => left - right)
 
@@ -90,6 +89,14 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
       }
 
       return { ...state, pool: sortedPcs(preset.pcs) }
+    }
+    case 'setPool': {
+      // Routines set the pool wholesale; an empty one would starve the deck.
+      if (action.pool.length === 0) {
+        return state
+      }
+
+      return { ...state, pool: sortedPcs(action.pool) }
     }
     case 'setSessionGoal':
       return { ...state, sessionGoalMin: action.minutes }

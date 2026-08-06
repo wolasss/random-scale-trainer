@@ -10,20 +10,20 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
   return (
     <section className="panel practice-options-card">
       <div className="panel-heading">
-        <h2>Practice options</h2>
+        <h2>How it runs</h2>
       </div>
 
       <SwitchRow
         id="continuous-mode"
-        label="Loop continuously"
-        subtitle="Off stops after one full cycle."
+        label="Keep going"
+        subtitle="Off stops once every note has come up."
         checked={settings.continuousMode}
         onChange={() => onToggle('continuousMode')}
       />
       <SwitchRow
         id="speed-ramp-mode"
         label="Speed ramp"
-        subtitle="+2 BPM after every cycle."
+        subtitle="Adds 2 BPM every time you get through them all."
         checked={settings.speedRampMode}
         onChange={() => onToggle('speedRampMode')}
         disabled={!settings.continuousMode}

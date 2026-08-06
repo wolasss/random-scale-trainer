@@ -39,7 +39,8 @@ describe('keyboard shortcuts', () => {
 
     await page.pressBody(Key.SPACE)
     await page.waitForMessage(MESSAGES.paused)
-    assert.equal(await page.getPlayButtonText(), 'Start practice')
+    // The transport labels itself from state: mid-session and paused is a resume.
+    assert.equal(await page.getPlayButtonText(), 'Resume')
 
     await page.pressBody('r')
     assert.equal(await page.getTimer(), '00:00')

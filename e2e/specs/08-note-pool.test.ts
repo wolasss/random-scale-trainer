@@ -23,12 +23,12 @@ describe('note pool', () => {
 
   it('toggling a chip flips the preset to Custom and updates the live count', async () => {
     assert.equal(await page.getPresetValue(), 'all')
-    assert.match(await page.getPoolGuarantee(), /^12 notes, shuffled/)
+    assert.match(await page.getPoolGuarantee(), /you get all 12 before any repeats/)
 
     await page.toggleChip(1)
     assert.equal(await page.getPresetValue(), 'custom')
     assert.equal(await page.isChipSelected(1), false)
-    assert.match(await page.getPoolGuarantee(), /^11 notes, shuffled/)
+    assert.match(await page.getPoolGuarantee(), /you get all 11 before any repeats/)
     assert.equal(await page.getLocalStorage(STORAGE_KEYS.notePool), '0,2,3,4,5,6,7,8,9,10,11')
   })
 
@@ -37,11 +37,11 @@ describe('note pool', () => {
     for (const pc of [0, 2, 4, 7]) {
       await page.toggleChip(pc)
     }
-    assert.match(await page.getPoolGuarantee(), /^1 note, shuffled/)
+    assert.match(await page.getPoolGuarantee(), /you get all 1 before any repeats/)
 
     await page.toggleChip(9)
     assert.equal(await page.isChipSelected(9), true)
-    assert.match(await page.getPoolGuarantee(), /^1 note, shuffled/)
+    assert.match(await page.getPoolGuarantee(), /you get all 1 before any repeats/)
   })
 
   it('presets apply to the chips and persist across a reload', async () => {
@@ -52,7 +52,7 @@ describe('note pool', () => {
 
     await page.refresh()
     assert.equal(await page.getPresetValue(), 'naturals')
-    assert.match(await page.getPoolGuarantee(), /^7 notes, shuffled/)
+    assert.match(await page.getPoolGuarantee(), /you get all 7 before any repeats/)
   })
 
   it('deselected notes are never called', async () => {

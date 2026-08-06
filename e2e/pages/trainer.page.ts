@@ -13,8 +13,8 @@ export const MESSAGES = {
   idle: 'Press start — or hit Space.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
-  playingRamp: 'Speed ramp on: +2 BPM each cycle.',
-  paused: 'Paused — the session timer is paused too.',
+  playingRamp: 'Speed ramp on — it gets faster every round.',
+  paused: 'Paused — the timer stopped too.',
   finished: 'Finished all 12 notes.',
 }
 /** The hero shows the count-in digit where the note normally appears. */

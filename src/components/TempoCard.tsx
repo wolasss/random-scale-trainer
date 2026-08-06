@@ -34,8 +34,9 @@ export function TempoCard({
       <div className="panel-heading">
         <h2>Tempo</h2>
         <p>
-          <span className="label">One full cycle of {poolSize} notes</span>{' '}
-          <span className="target-time">≈ {formatCycleLength(cycleSeconds(poolSize, beatsPerNote, bpm))}</span>
+          <span className="label">All {poolSize} notes take about</span>{' '}
+          <span className="target-time">{formatCycleLength(cycleSeconds(poolSize, beatsPerNote, bpm))}</span>{' '}
+          <span className="label">at this tempo</span>
         </p>
       </div>
 
@@ -94,7 +95,9 @@ export function TempoCard({
           value={beatsPerNote}
           onChange={onBeatsPerNoteChange}
         />
-        <p className="control-subtitle">Keep the click fast, change notes slowly.</p>
+        <p className="control-subtitle">
+          Keep the click fast, change notes slowly — the dots below the note show where you are.
+        </p>
       </div>
     </section>
   )

@@ -12,16 +12,22 @@ function hasInlay(stringIndex: number, fret: number) {
 
 type FretboardCardProps = {
   currentPc: number | null
+  /** Spelled name of the note being called, for the hint line. */
+  currentDisplay?: string | null
 }
 
-export function FretboardCard({ currentPc }: FretboardCardProps) {
+export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps) {
   const showDots = currentPc !== null
+  const hint =
+    showDots && currentDisplay
+      ? `Every ${currentDisplay} from open to the 12th fret`
+      : 'Where each note lives — all six strings, standard tuning'
 
   return (
     <section className="panel fretboard-card">
       <div className="panel-heading fretboard-heading">
         <h2>On the neck</h2>
-        <p>standard tuning</p>
+        <p>{hint}</p>
       </div>
 
       <div className="fretboard-scroll">

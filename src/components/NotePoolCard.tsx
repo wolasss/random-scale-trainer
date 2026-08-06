@@ -35,16 +35,13 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onSpelling 
     <section className="panel note-pool-card">
       <div className="panel-heading note-pool-heading">
         <div>
-          <h2>Note pool</h2>
-          <p data-testid="pool-guarantee">
-            {count} {count === 1 ? 'note' : 'notes'}, shuffled — every note appears once per cycle, no
-            repeats.
-          </p>
+          <h2>Which notes</h2>
+          <p data-testid="pool-guarantee">Shuffled — you get all {count} before any repeats.</p>
         </div>
         <select
           className="preset-select"
           data-testid="preset-select"
-          aria-label="Note pool preset"
+          aria-label="Which notes preset"
           value={matchPreset(pool)}
           onChange={(event) => onPreset(event.target.value as PresetId)}
         >
@@ -73,16 +70,16 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onSpelling 
 
       <div className="control-block">
         <div className="control-label-row">
-          <span className="label">Spell accidentals as</span>
+          <span className="label">Sharps or flats?</span>
         </div>
         <SegmentedControl
-          ariaLabel="Spell accidentals as"
+          ariaLabel="Sharps or flats?"
           testId="spelling"
           options={SPELLING_OPTIONS}
           value={spelling}
           onChange={onSpelling}
         />
-        <p className="control-subtitle">Mixed keeps you fluent in both names.</p>
+        <p className="control-subtitle">Mixed keeps you fluent in both names for the same fret.</p>
       </div>
     </section>
   )

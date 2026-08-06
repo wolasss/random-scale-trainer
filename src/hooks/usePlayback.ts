@@ -90,6 +90,7 @@ export function usePlayback(options: UsePlaybackOptions) {
     isPaused: snapshot.status === 'paused',
     start: () => getMachine().start(),
     pause: () => getMachine().pause(),
+    stop: (message?: string) => getMachine().stop(message),
     reset: () => getMachine().reset(),
   }
 }

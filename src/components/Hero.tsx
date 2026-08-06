@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 
 type HeroProps = {
@@ -6,6 +6,10 @@ type HeroProps = {
   beatsPerNote: number
   poolSize: number
   ringRef: RefObject<HTMLDivElement | null>
+  /** Replaces the coaching line while a multi-block routine names its block. */
+  message?: string
+  /** The routine strip, rendered on the hero's lower edge above the transport. */
+  strip?: ReactNode
 }
 
 function BeatDots({ count, active }: { count: number; active: number }) {
@@ -18,20 +22,19 @@ function BeatDots({ count, active }: { count: number; active: number }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef }: HeroProps) {
-  const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength, message } = snapshot
+export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, strip }: HeroProps) {
+  const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
 
   const nowText =
     currentNote && positionInCycle !== null
       ? `note ${positionInCycle} of ${cycleLength}`
-      : `${poolSize} notes in the bag`
+      : `${poolSize} notes queued`
 
   return (
     <section className="hero-card panel">
       <div className="hero-top">
         <div className="now-chip">
-          <span className="chip-label">Now</span>
           <span className="chip-text" data-testid="cycle-position">
             {nowText}
           </span>
@@ -61,10 +64,12 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef }: HeroProps) {
       </div>
 
       <p className="playback-message" data-testid="playback-message" aria-live="polite">
-        {message}
+        {message ?? snapshot.message}
       </p>
 
       <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+
+      {strip}
     </section>
   )
 }

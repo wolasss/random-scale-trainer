@@ -25,7 +25,7 @@ describe('BPM slider', () => {
     await page.setBpmToMax()
     assert.equal(await page.getBpm(), 240)
     // 12 notes x 4 beats at 240 BPM = 12s
-    assert.equal(await page.getCycleTime(), '≈ 00:12')
+    assert.equal(await page.getCycleTime(), '00:12')
     assert.equal(await page.getLocalStorage(STORAGE_KEYS.bpm), '240')
   })
 
@@ -46,12 +46,12 @@ describe('BPM slider', () => {
   it('changing the note-change rate updates the cycle time', async () => {
     await page.setNoteEvery(1)
     // 12 notes x 1 beat at 72 BPM = 10s
-    assert.equal(await page.getCycleTime(), '≈ 00:10')
+    assert.equal(await page.getCycleTime(), '00:10')
     assert.equal(await page.getLocalStorage(STORAGE_KEYS.beatsPerNote), '1')
 
     await page.setNoteEvery(8)
     // 12 notes x 8 beats at 72 BPM = 80s
-    assert.equal(await page.getCycleTime(), '≈ 01:20')
+    assert.equal(await page.getCycleTime(), '01:20')
   })
 
   it('tap tempo averages the tapped interval into the BPM', async () => {
@@ -73,7 +73,7 @@ describe('BPM slider', () => {
     await page.setBpmToMin()
     assert.equal(await page.getBpm(), 30)
     // 12 notes x 4 beats at 30 BPM = 96s
-    assert.equal(await page.getCycleTime(), '≈ 01:36')
+    assert.equal(await page.getCycleTime(), '01:36')
     assert.equal(await page.getLocalStorage(STORAGE_KEYS.bpm), '30')
   })
 })

@@ -122,6 +122,30 @@ describe('createNoteDeck', () => {
     expect(deck.peek()!).toMatchObject({ pc: 8, display: 'G♯', audioKey: 'G#' })
   })
 
+  /**
+   * invalidate() only empties the bag; the next peek/draw refills it from
+   * getPool() as it reads *at that moment*. So invalidating before the new pool
+   * is observable re-seeds the deck with the old one — which is why a routine
+   * block must not invalidate from inside the timer callback, ahead of React
+   * committing its settings. See the note in useRoutine's applyBlock.
+   */
+  it('re-seeds from the pool visible at invalidation time, not a later one', () => {
+    const { deck, state } = makeDeck([0, 2, 4, 5, 7, 9, 11]) // naturals
+
+    deck.peek()
+    deck.invalidate()
+    const beforeTheSwitchLands = deck.peek()!
+
+    state.pool = [1, 3, 6, 8, 10] // accidentals — the pool the caller wanted
+
+    expect([0, 2, 4, 5, 7, 9, 11]).toContain(beforeTheSwitchLands.pc)
+    expect(deck.draw()!.pc).toBe(beforeTheSwitchLands.pc)
+
+    // Invalidating again once the new pool is visible is what actually switches it.
+    deck.invalidate()
+    expect([1, 3, 6, 8, 10]).toContain(deck.peek()!.pc)
+  })
+
   it('threads the RNG into mixed spelling decisions', () => {
     const { deck } = makeDeck([1], { spelling: 'mixed', random: () => 0 })
 

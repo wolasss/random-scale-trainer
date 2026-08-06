@@ -149,6 +149,12 @@ button {
   min-width: 0;
 }
 
+/* The side column stretches to the main column's height; the last card in it
+   takes up the slack so both columns end on the routine card's top edge. */
+.practice-options-card {
+  flex-grow: 1;
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -911,6 +917,374 @@ input[type='range'] {
   font-weight: 700;
   line-height: 1;
   color: var(--ink);
+}
+
+/* --- Routine ------------------------------------------------------------- */
+
+/* The strip rides the hero's lower edge, just above the transport row, so a
+   running routine never needs a scroll back down to the card. */
+.routine-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--control-border);
+  font-size: 0.82rem;
+}
+
+/* Takes what it can and yields the rest — the bar keeps a floor of its own. */
+.routine-strip-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.routine-strip-track {
+  flex: 1 1 auto;
+  min-width: 64px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--button-bg);
+  overflow: hidden;
+}
+
+.routine-strip-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-strong));
+  transition: width 300ms linear;
+}
+
+.routine-strip-status {
+  flex: none;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-strip-clear {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--button-border);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.routine-strip-clear:hover {
+  color: var(--ink);
+  border-color: var(--primary);
+}
+
+.routine-card {
+  grid-column: span 12;
+}
+
+.routine-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.routine-heading p {
+  max-width: 62ch;
+}
+
+.routine-heading-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.routine-clear,
+.routine-save {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.routine-save {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.routine-save-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--control-border);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.routine-name-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--ink);
+}
+
+.routine-name-input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.routine-save-confirm {
+  padding: 0.55rem 1.1rem;
+}
+
+/* One shelf for every routine — seeded and user-made, setups and workouts. */
+.routine-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.routine-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 16px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.routine-chip.selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.routine-chip-body {
+  display: grid;
+  gap: 0.1rem;
+  justify-items: start;
+  padding: 0.5rem 0.4rem 0.5rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+}
+
+.routine-chip-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.routine-chip-meta {
+  font-size: 0.74rem;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-chip.selected .routine-chip-body,
+.routine-chip.selected .routine-chip-remove {
+  color: var(--primary);
+}
+
+.routine-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.7rem 0 0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  opacity: 0.5;
+  font-size: 0.78rem;
+  transition: opacity 140ms ease;
+}
+
+.routine-chip-remove:hover {
+  opacity: 1;
+}
+
+.routine-empty {
+  margin: 0;
+  padding: 1.1rem;
+  border-radius: 16px;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* Segments flex by duration, so the shape of the session reads at a glance. */
+.routine-timeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-segment {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  min-width: 0;
+  padding: 0.7rem 0.75rem;
+  border-radius: 16px;
+  border: 1px solid var(--control-border);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Grid items default to a min-content floor, which would let a long block name
+   prop a short segment wider than its duration deserves. */
+.routine-segment > * {
+  min-width: 0;
+}
+
+.routine-segment.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.routine-segment.done {
+  opacity: 0.7;
+}
+
+.routine-segment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+/* A wrapping name or meta line would knock this segment's bar out of
+   alignment with its neighbours — both stay on one line, always. */
+.routine-segment-name,
+.routine-segment-meta {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.routine-segment-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.routine-segment.active .routine-segment-name {
+  color: var(--primary);
+}
+
+.routine-segment-meta {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-segment-remove {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 0 0 0 0.2rem;
+  opacity: 0.45;
+  font-size: 0.7rem;
+  transition: opacity 140ms ease;
+}
+
+.routine-segment-remove:hover {
+  opacity: 1;
+}
+
+.routine-segment-track {
+  height: 12px;
+  margin-top: 0.25rem;
+  border-radius: 999px;
+  background: var(--button-bg);
+  overflow: hidden;
+}
+
+.routine-segment-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 300ms linear;
+}
+
+.routine-segment.done .routine-segment-fill {
+  opacity: 0.28;
+  transition: none;
+}
+
+.routine-segment.active .routine-segment-fill {
+  box-shadow: 0 0 12px var(--primary);
+}
+
+/* Lap time on the left, block countdown on the right — one row, so adding the
+   comparison figure costs no height and the bars stay aligned. */
+.routine-segment-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* min-width:0 lets these shrink, so a segment's width stays proportional to
+   its duration instead of being propped up by its own text. */
+.routine-segment-time > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.routine-segment-cycle {
+  opacity: 0.72;
+}
+
+.routine-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.routine-footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.routine-footer-actions .ghost-button {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+.routine-status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-footer {

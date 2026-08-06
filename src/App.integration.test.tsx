@@ -54,7 +54,7 @@ describe('App integration', () => {
     expect(screen.queryByTestId('current-note')).toBeNull()
     expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:40')
+    expect(document.querySelector('.target-time')).toHaveTextContent('00:40')
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
     expect(screen.getByTestId('now-playing').className).toContain('idle')
@@ -105,7 +105,7 @@ describe('App integration', () => {
 
     fireEvent.change(document.getElementById('bpm-slider')!, { target: { value: '60' } })
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('60')
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:48')
+    expect(document.querySelector('.target-time')).toHaveTextContent('00:48')
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('60')
   })
 
@@ -121,7 +121,7 @@ describe('App integration', () => {
     const noteEvery = screen.getByTestId('note-every')
     fireEvent.click(noteEvery.querySelector('[data-value="1"]')!)
     // 12 notes × 1 beat at 71 BPM ≈ 10.1s
-    expect(document.querySelector('.target-time')).toHaveTextContent('≈ 00:10')
+    expect(document.querySelector('.target-time')).toHaveTextContent('00:10')
     expect(window.localStorage.getItem('fretboard-beats-per-note')).toBe('1')
   })
 
@@ -142,12 +142,12 @@ describe('App integration', () => {
   it('note pool chips drive the preset, the guarantee line, and storage', () => {
     render(<App />)
 
-    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('12 notes, shuffled')
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('you get all 12 before any repeats')
     expect(screen.getByTestId('preset-select')).toHaveValue('all')
 
     fireEvent.click(screen.getByTestId('note-chip-1'))
     expect(screen.getByTestId('preset-select')).toHaveValue('custom')
-    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('11 notes, shuffled')
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('you get all 11 before any repeats')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,2,3,4,5,6,7,8,9,10,11')
   })
 
@@ -157,7 +157,7 @@ describe('App integration', () => {
     fireEvent.change(screen.getByTestId('preset-select'), { target: { value: 'naturals' } })
     expect(screen.getByTestId('note-chip-0')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('note-chip-1')).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('7 notes, shuffled')
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('you get all 7 before any repeats')
 
     // Default mixed spelling shows both names, since the call can use either.
     expect(screen.getByTestId('note-chip-1')).toHaveTextContent('D♭/C♯')
@@ -233,7 +233,7 @@ describe('App integration', () => {
 
     fireEvent.click(screen.getByTestId('play-toggle'))
     expect(screen.getByTestId('playback-message')).toHaveTextContent(
-      'Paused — the session timer is paused too.',
+      'Paused — the timer stopped too.',
     )
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Resume')
     expect(screen.getByTestId('now-playing').className).toContain('paused')
