@@ -1,6 +1,8 @@
 import {
   BEAT_SPAN_OPTIONS,
+  clampRampTarget,
   DEFAULT_BLOCK_SECONDS,
+  defaultRampTarget,
   MAX_BPM,
   MIN_BPM,
   OPEN_BLOCK_FLEX_SECONDS,
@@ -27,6 +29,14 @@ export type RoutineBlock = {
   beats: BeatsPerNote
   /** null leaves the user's current spelling alone. */
   acc: RoutineAccidental | null
+  /**
+   * Whether the tempo climbs while this block runs. The ramp belongs to the
+   * block rather than the app: a global one would climb the tempo only for the
+   * next block to silently reset it.
+   */
+  ramp: boolean
+  /** The tempo the ramp stops at; meaningful only while `ramp` is true. */
+  rampTo: number
   /** Seconds; null = open-ended, runs until stopped. */
   dur: number | null
 }
@@ -58,6 +68,8 @@ export type BlockSettings = {
   beatsPerNote: BeatsPerNote
   pool: number[]
   spelling: SpellingPreference
+  ramp: boolean
+  rampTo: number
 }
 
 const PRESET_BY_POOL_KEY: Record<Exclude<PoolKey, 'custom'>, PresetId> = {
@@ -140,19 +152,25 @@ export const formatClock = (seconds: number) => {
 
 export const formatMinutes = (seconds: number) => `${Math.max(1, Math.round(seconds / 60))} min`
 
+/**
+ * Where a ramping block ends up, not how fast it gets there — '+2/round' tells
+ * the player nothing about the tempo they will finish on.
+ */
+const rampMeta = (block: RoutineBlock) => (block.ramp ? ` · climbs to ${block.rampTo}` : '')
+
 /** Chip meta — distinguishes the two shapes without a category label. */
 export const routineMeta = (routine: Routine) => {
   if (routine.blocks.length === 1) {
     const block = routine.blocks[0]
     const size = blockPool(block).length
-    return `${block.bpm} BPM · every ${block.beats} · ${size} ${size === 1 ? 'note' : 'notes'}`
+    return `${block.bpm} BPM · every ${block.beats} · ${size} ${size === 1 ? 'note' : 'notes'}${rampMeta(block)}`
   }
 
   return `${routine.blocks.length} blocks · ${formatMinutes(routineSeconds(routine))}`
 }
 
 export const blockMeta = (block: RoutineBlock) =>
-  `${block.bpm} BPM · every ${block.beats} · ${blockPoolLabel(block)}`
+  `${block.bpm} BPM · every ${block.beats} · ${blockPoolLabel(block)}${rampMeta(block)}`
 
 /**
  * How long one lap of the block's pool takes. BPM alone can't be compared
@@ -171,6 +189,8 @@ export const blockFromSettings = (settings: BlockSettings, dur: number | null): 
     bpm: settings.bpm,
     beats: settings.beatsPerNote,
     acc: ACC_BY_SPELLING[settings.spelling],
+    ramp: settings.ramp,
+    rampTo: clampRampTarget(settings.rampTo, settings.bpm),
     dur,
   }
 }
@@ -240,7 +260,7 @@ const openBlock = (
   bpm: number,
   beats: BeatsPerNote,
   acc: RoutineAccidental | null,
-): RoutineBlock => ({ name, poolKey, pool: null, bpm, beats, acc, dur: null })
+): RoutineBlock => ({ name, poolKey, pool: null, bpm, beats, acc, ramp: false, rampTo: defaultRampTarget(bpm), dur: null })
 
 const timedBlock = (
   name: string,
@@ -248,7 +268,27 @@ const timedBlock = (
   bpm: number,
   beats: BeatsPerNote,
   minutes: number,
-): RoutineBlock => ({ name, poolKey, pool: null, bpm, beats, acc: null, dur: minutes * 60 })
+): RoutineBlock => ({
+  name,
+  poolKey,
+  pool: null,
+  bpm,
+  beats,
+  acc: null,
+  ramp: false,
+  rampTo: defaultRampTarget(bpm),
+  dur: minutes * 60,
+})
+
+/** A timed block that climbs from `bpm` to `rampTo` and then holds there. */
+const rampingBlock = (
+  name: string,
+  poolKey: PoolKey,
+  bpm: number,
+  beats: BeatsPerNote,
+  minutes: number,
+  rampTo: number,
+): RoutineBlock => ({ ...timedBlock(name, poolKey, bpm, beats, minutes), ramp: true, rampTo })
 
 /** Seeded on first load so the shelf demonstrates both shapes side by side. */
 export const SEEDED_ROUTINES: Routine[] = [
@@ -287,13 +327,12 @@ export const SEEDED_ROUTINES: Routine[] = [
     ],
   },
   {
+    // Three hand-built rungs at 70/90/110 were a stepped approximation of a
+    // ramp — two mechanisms for one intent, free to drift apart. One ramping
+    // block is the same exercise stated honestly.
     id: 'seed-speed-ladder-9',
     name: 'Speed ladder (9 min)',
-    blocks: [
-      timedBlock('Rung 1', 'chromatic', 70, 4, 3),
-      timedBlock('Rung 2', 'chromatic', 90, 4, 3),
-      timedBlock('Rung 3', 'chromatic', 110, 2, 3),
-    ],
+    blocks: [rampingBlock('Climb', 'chromatic', 70, 4, 9, 110)],
   },
   {
     id: 'seed-key-focus-8',
@@ -332,32 +371,42 @@ const parseBlock = (raw: unknown): RoutineBlock | null => {
     ? block.pool.filter((pc): pc is number => Number.isInteger(pc) && pc >= 0 && pc <= 11)
     : null
   const dur = block.dur === null || block.dur === undefined ? null : Number(block.dur)
+  const roundedBpm = Math.round(bpm)
+  // A block written before the ramp existed — or one that ramps without naming
+  // a target — gets a ceiling it can actually reach rather than none at all.
+  const rampTo = Number(block.rampTo)
+  const target = Number.isFinite(rampTo) ? clampRampTarget(rampTo, roundedBpm) : defaultRampTarget(roundedBpm)
 
   return {
     name: typeof block.name === 'string' && block.name.trim() !== '' ? block.name : 'Block',
     poolKey: block.poolKey,
     pool: pool !== null && pool.length > 0 ? sortedPcs(pool) : null,
-    bpm: Math.round(bpm),
+    bpm: roundedBpm,
     beats: beats as BeatsPerNote,
     acc: isAcc(block.acc) ? block.acc : null,
+    ramp: block.ramp === true,
+    rampTo: target,
     dur: dur !== null && Number.isFinite(dur) && dur > 0 ? Math.round(dur) : null,
   }
 }
 
 /**
- * Enforces the shape rule the whole feature rests on: a routine is either ONE
- * open-ended block or a sequence of timed ones, never a mix.
+ * Enforces the shape rule the whole feature rests on: every block in a sequence
+ * carries a duration.
  *
  * An untimed block inside a sequence would stall the routine on it forever —
  * nothing with `dur: null` ever auto-advances — so such blocks are dropped
  * rather than handed a duration the user never chose. Dropping can cascade: to
- * one block (which becomes a saved setup) or to none (the caller discards the
- * routine), and both are legitimate ends.
+ * one block, or to none (the caller discards the routine), and both are
+ * legitimate ends.
+ *
+ * A lone block is exempt in either direction. Untimed it is a saved setup, and
+ * timed it is a single exercise that ends on its own clock — the Speed ladder's
+ * nine minutes of climbing is one block, not a stack of rungs.
  */
 const normalizeBlocks = (blocks: RoutineBlock[]): RoutineBlock[] => {
-  // A lone block is a saved setup by definition — it can never be timed.
   if (blocks.length <= 1) {
-    return blocks.map((block) => (block.dur === null ? block : { ...block, dur: null }))
+    return blocks
   }
 
   const timed = blocks.filter((block) => block.dur !== null)
@@ -412,7 +461,7 @@ export const withAppendedBlock = (routine: Routine, settings: BlockSettings): Ro
   return { ...routine, blocks: [...existing, blockFromSettings(settings, DEFAULT_BLOCK_SECONDS)] }
 }
 
-/** Dropping back to one block turns the routine into a saved setup again. */
+/** Whatever is left keeps its own duration, down to a single timed block. */
 export const withRemovedBlock = (routine: Routine, index: number): Routine => {
   const blocks = normalizeBlocks(routine.blocks.filter((_, position) => position !== index))
   if (blocks.length === 0) {

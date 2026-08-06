@@ -2,7 +2,12 @@ export const MIN_BPM = 30
 export const MAX_BPM = 240
 export const DEFAULT_BPM = 72
 export const COUNT_IN_BEATS = 4
+/** How much a completed round adds to the tempo while the ramp is climbing. */
 export const RAMP_BPM_STEP = 2
+/** The ramp target moves in coarser steps than the tempo — it is a goal, not a nudge. */
+export const RAMP_TARGET_STEP = 5
+/** How far above the current tempo a target lands when nobody has named one. */
+export const RAMP_TARGET_OFFSET = 40
 
 export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8] as const
 export const DEFAULT_BEATS_PER_NOTE = 4
@@ -10,6 +15,18 @@ export const DEFAULT_BEATS_PER_NOTE = 4
 export type BeatsPerNote = (typeof BEAT_SPAN_OPTIONS)[number]
 
 export const clampBpm = (value: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(value)))
+
+/**
+ * A target below the tempo you are already at is not a goal, so the floor is
+ * one climb above it. At the very top of the range the floor is the top itself.
+ */
+export const clampRampTarget = (target: number, bpm: number) =>
+  Math.min(MAX_BPM, Math.max(Math.min(bpm + RAMP_BPM_STEP, MAX_BPM), Math.round(target)))
+
+export const defaultRampTarget = (bpm: number) => clampRampTarget(bpm + RAMP_TARGET_OFFSET, bpm)
+
+/** Completed rounds still to come before the tempo settles on its target. */
+export const rampRounds = (bpm: number, target: number) => Math.max(0, Math.ceil((target - bpm) / RAMP_BPM_STEP))
 
 /** Duration a block gets when a saved setup is grown into a workout. */
 export const DEFAULT_BLOCK_SECONDS = 120
@@ -29,6 +46,7 @@ export const STORAGE_KEYS = {
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
+  rampTarget: 'fretboard-ramp-target',
   endSound: 'fretboard-end-sound',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
@@ -62,7 +80,10 @@ export const PLAYBACK_MESSAGES = {
   idle: 'Press start — or hit Space.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
-  playingRamp: 'Speed ramp on — it gets faster every round.',
+  // The ramp names the number it is heading for, then says when it has arrived.
+  // A session that ends at a tempo you chose is the whole point of the ceiling.
+  rampClimbing: (target: number) => `Climbing to ${target} BPM, ${RAMP_BPM_STEP} at a time.`,
+  rampHolding: (bpm: number) => `At your target tempo — holding ${bpm} BPM.`,
   paused: 'Paused — the timer stopped too.',
   loadingAudio: 'Loading audio...',
   noNotes: 'No notes available.',

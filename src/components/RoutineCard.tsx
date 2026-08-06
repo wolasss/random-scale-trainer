@@ -36,6 +36,11 @@ const statusLine = (
     return 'One block, no timer — runs until you stop.'
   }
 
+  // "Block 1 of 1" is a countdown pretending to be a sequence.
+  if (routine.blocks.length === 1) {
+    return `One block · ${formatClock(remaining)} left of ${formatClock(total)}`
+  }
+
   return `Block ${blockIndex + 1} of ${routine.blocks.length} · ${formatClock(remaining)} left of ${formatClock(total)}`
 }
 

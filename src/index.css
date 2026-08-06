@@ -412,27 +412,29 @@ h2 {
   font-size: 0.95rem;
 }
 
-/* The controls keep the middle of the card and the readout sits hard right.
-   The cluster takes the rest of the row rather than being sized by the grid:
-   an intrinsically-sized track ignores the play button's own minimum width and
-   squeezes Reset timer into two lines. */
+/* The two buttons are centred on the card, not on the space the readout leaves
+   over: an empty track mirrors the readout's, so the pair sits dead centre and
+   the readout still ends hard right. The buttons are grid items in their own
+   right — a flex box between them and the grid reports its unwrapped text
+   width, which sizes the track under the play button's own minimum and breaks
+   Reset timer onto a second line. */
 .transport-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(min-content, 1fr);
   align-items: center;
   gap: 0.9rem;
   margin-top: 1.15rem;
 }
 
 .transport-actions {
-  flex: 1 1 auto;
-  display: flex;
-  justify-content: center;
-  gap: 0.9rem;
-  flex-wrap: wrap;
+  display: contents;
 }
 
+/* Clamped at min-content rather than 0, so a squeeze slides the buttons off
+   centre instead of pushing the readout past the card's edge. */
 .transport-readout {
-  flex: none;
+  grid-column: 4;
+  justify-self: end;
   color: var(--ink-soft);
   font-size: 0.92rem;
   font-variant-numeric: tabular-nums;
@@ -440,6 +442,7 @@ h2 {
 }
 
 .transport-primary {
+  grid-column: 2;
   min-height: 56px;
   min-width: min(260px, 100%);
   font-size: 1.05rem;
@@ -447,6 +450,7 @@ h2 {
 
 /* Reset stands a step under the primary action but must stay clearly visible. */
 .transport-reset {
+  grid-column: 3;
   min-height: 56px;
   background: var(--button-bg);
   color: var(--ink);
@@ -563,6 +567,26 @@ input[type='range'] {
 
 .control-block + .control-block {
   margin-top: 1rem;
+}
+
+/* The target hangs off the switch that revealed it, so the pair reads as one
+   rule about tempo rather than two unrelated controls. */
+.ramp-target {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--control-border);
+}
+
+.ramp-target .tempo-readout output {
+  font-size: clamp(1.9rem, 4.2vw, 2.4rem);
+}
+
+.ramp-target .tempo-readout-row {
+  margin-bottom: 0;
+}
+
+.ramp-target .control-subtitle {
+  margin-top: 0.55rem;
 }
 
 .control-label-row {
@@ -1596,20 +1620,39 @@ input[type='range'] {
   }
 }
 
+/* Below this the row cannot hold the buttons, a readout and two equal side
+   tracks, so the readout drops to its own line rather than pulling the pair off
+   centre and squeezing the play button. */
+@media (max-width: 767px) {
+  .transport-bar {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 0.7rem;
+  }
+
+  /* The buttons keep a row of their own above it. */
+  .transport-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .transport-actions,
+  .transport-primary,
+  .transport-reset,
+  .transport-readout {
+    grid-column: 1;
+  }
+}
+
 @media (max-width: 640px) {
   .app-grid {
     padding: 1rem 0.85rem 1.35rem;
   }
 
-  /* No room left for a side track: the readout drops under the controls
-     rather than squeezing the play button. */
   .practice-stage {
     padding: 1.15rem;
-  }
-
-  .transport-bar {
-    flex-direction: column;
-    gap: 0.7rem;
   }
 
   .note-chip-grid {

@@ -6,7 +6,7 @@ import {
   type PlaybackSettings,
   type PlaybackSnapshot,
 } from './machine'
-import { PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
+import { MAX_BPM, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
 import type { SpellingPreference } from '../notes'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
@@ -51,6 +51,8 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   countInEnabled: false,
   continuousMode: true,
   speedRampMode: false,
+  // Out of the way by default, so a test that cares about the ceiling sets one.
+  rampTargetBpm: MAX_BPM,
   speakNotes: true,
   endSoundEnabled: true,
 }
@@ -407,6 +409,38 @@ describe('speed ramp', () => {
     // spaced by the ramped tempo even though settings.bpm still reads 60.
     expect(times[2]).toBeCloseTo(2.05, 6)
     expect(times[3] - times[2]).toBeCloseTo(60 / 62, 6)
+  })
+
+  /**
+   * The ceiling is the whole point of the ramp: without one every session ends
+   * on the first tempo the player could not hold. Reaching it must stop the
+   * climb and nothing else — playback carries on at the tempo they reached.
+   */
+  it('climbs to the target and then holds there, still playing', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true, rampTargetBpm: 64 } })
+    await harness.machine.start()
+
+    harness.advanceTo(7)
+
+    expect(harness.bpmChanges).toEqual([62, 64])
+    expect(harness.snapshot().status).toBe('playing')
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.rampHolding(64))
+  })
+
+  it('lands exactly on a target the step would otherwise stride past', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true, rampTargetBpm: 61 } })
+    await harness.machine.start()
+
+    harness.advanceTo(5)
+    expect(harness.bpmChanges).toEqual([61])
+  })
+
+  it('names the tempo it is heading for while it is still below it', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true, rampTargetBpm: 120 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.rampClimbing(120))
   })
 
   it('does not write back when already clamped at the maximum', async () => {

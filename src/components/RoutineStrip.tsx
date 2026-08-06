@@ -22,7 +22,9 @@ export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, on
     ? 'complete'
     : remaining === null
       ? 'runs until you stop'
-      : `block ${blockIndex + 1} of ${routine.blocks.length} · ${formatClock(remaining)} left`
+      : routine.blocks.length === 1
+        ? `${formatClock(remaining)} left`
+        : `block ${blockIndex + 1} of ${routine.blocks.length} · ${formatClock(remaining)} left`
 
   return (
     <div className="routine-strip" data-testid="routine-strip">

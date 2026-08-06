@@ -74,6 +74,9 @@ const BLOCK_OWNED_ACTIONS = new Set<SettingsAction['type']>([
   'togglePoolNote',
   'setPreset',
   'setPool',
+  'setRamp',
+  'setRampTarget',
+  'nudgeRampTarget',
 ])
 
 const blockSettingsOf = (settings: Settings): BlockSettings => ({
@@ -81,6 +84,8 @@ const blockSettingsOf = (settings: Settings): BlockSettings => ({
   beatsPerNote: settings.beatsPerNote,
   pool: settings.pool,
   spelling: settings.spelling,
+  ramp: settings.speedRampMode,
+  rampTo: settings.rampTargetBpm,
 })
 
 export function useRoutine(options: UseRoutineOptions): RoutineController {
@@ -126,6 +131,11 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       dispatch({ type: 'setBpm', bpm: block.bpm })
       dispatch({ type: 'setBeatsPerNote', value: block.beats })
       dispatch({ type: 'setPool', pool: blockPool(block) })
+      // Both, always: a block that does not ramp still owns where its ceiling
+      // would sit, so switching the ramp back on shows the block's own target
+      // rather than one left over from whatever ran before it.
+      dispatch({ type: 'setRamp', enabled: block.ramp })
+      dispatch({ type: 'setRampTarget', bpm: block.rampTo })
 
       const forcedSpelling = blockSpelling(block)
       if (forcedSpelling !== null) {

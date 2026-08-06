@@ -19,6 +19,8 @@ export type PlaybackSettings = {
   countInEnabled: boolean
   continuousMode: boolean
   speedRampMode: boolean
+  /** The tempo the ramp climbs to and then holds at for the rest of the session. */
+  rampTargetBpm: number
   speakNotes: boolean
   endSoundEnabled: boolean
 }
@@ -208,9 +210,17 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     audio.stopScheduledSounds()
   }
 
+  /** The ceiling the ramp is working towards, never above the app's own limit. */
+  const rampCeiling = () => Math.min(MAX_BPM, getSettings().rampTargetBpm)
+
   const playingMessage = () => {
     const { continuousMode, speedRampMode } = getSettings()
-    return continuousMode && speedRampMode ? PLAYBACK_MESSAGES.playingRamp : PLAYBACK_MESSAGES.playing
+    if (!continuousMode || !speedRampMode) {
+      return PLAYBACK_MESSAGES.playing
+    }
+
+    const target = rampCeiling()
+    return currentBpm >= target ? PLAYBACK_MESSAGES.rampHolding(currentBpm) : PLAYBACK_MESSAGES.rampClimbing(target)
   }
 
   const reconcileBpm = () => {
@@ -229,14 +239,19 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     lastSeenExternalBpm = external
   }
 
+  /**
+   * Reaching the target stops the climb; it never stops playback. An unbounded
+   * ramp ends every session on the first tempo the player couldn't hold, which
+   * is the opposite of what practice should leave you with.
+   */
   const applySpeedRamp = () => {
     const { continuousMode, speedRampMode } = getSettings()
     if (!continuousMode || !speedRampMode) {
       return
     }
 
-    const nextBpm = Math.min(MAX_BPM, currentBpm + RAMP_BPM_STEP)
-    if (nextBpm !== currentBpm) {
+    const nextBpm = Math.min(rampCeiling(), currentBpm + RAMP_BPM_STEP)
+    if (nextBpm > currentBpm) {
       currentBpm = nextBpm
       awaitingWriteback = nextBpm
       onBpmChange(nextBpm)

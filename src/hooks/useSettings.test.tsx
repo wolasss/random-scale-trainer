@@ -7,6 +7,7 @@ const baseSettings = (): Settings => ({
   beatsPerNote: 4,
   continuousMode: true,
   speedRampMode: false,
+  rampTargetBpm: 112,
   showFretboard: true,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -35,7 +36,51 @@ describe('settingsReducer', () => {
 
   it('refuses to enable the ramp while loop is off', () => {
     const state = { ...baseSettings(), continuousMode: false }
-    expect(settingsReducer(state, { type: 'toggle', key: 'speedRampMode' })).toBe(state)
+    expect(settingsReducer(state, { type: 'setRamp', enabled: true })).toBe(state)
+  })
+
+  describe('the ramp target', () => {
+    it('steps in 5s and stops at the app maximum', () => {
+      const state = { ...baseSettings(), rampTargetBpm: 112 }
+
+      expect(settingsReducer(state, { type: 'nudgeRampTarget', delta: 5 }).rampTargetBpm).toBe(117)
+      expect(settingsReducer(state, { type: 'nudgeRampTarget', delta: -5 }).rampTargetBpm).toBe(107)
+      expect(
+        settingsReducer({ ...state, rampTargetBpm: 238 }, { type: 'nudgeRampTarget', delta: 5 }).rampTargetBpm,
+      ).toBe(240)
+    })
+
+    /** A goal behind you is not a goal — one climb ahead is the lowest it means. */
+    it('floors at one climb above the current tempo', () => {
+      const state = { ...baseSettings(), bpm: 100 }
+
+      expect(settingsReducer(state, { type: 'setRampTarget', bpm: 60 }).rampTargetBpm).toBe(102)
+      expect(
+        settingsReducer({ ...state, rampTargetBpm: 104 }, { type: 'nudgeRampTarget', delta: -5 }).rampTargetBpm,
+      ).toBe(102)
+    })
+
+    it('hands the ramp a fresh goal when it switches on past a stale one', () => {
+      const state = { ...baseSettings(), bpm: 130, rampTargetBpm: 112 }
+      expect(settingsReducer(state, { type: 'setRamp', enabled: true })).toMatchObject({
+        speedRampMode: true,
+        rampTargetBpm: 170,
+      })
+    })
+
+    it('leaves a target the tempo has not reached alone when switching on', () => {
+      const state = { ...baseSettings(), bpm: 72, rampTargetBpm: 90 }
+      expect(settingsReducer(state, { type: 'setRamp', enabled: true }).rampTargetBpm).toBe(90)
+    })
+
+    /**
+     * The ramp writes its climb back through setBpm, so re-flooring the target
+     * against the tempo there would move the goalposts every single round.
+     */
+    it('never moves when the tempo climbs into it', () => {
+      const state = { ...baseSettings(), bpm: 108, speedRampMode: true, rampTargetBpm: 110 }
+      expect(settingsReducer(state, { type: 'setBpm', bpm: 110 }).rampTargetBpm).toBe(110)
+    })
   })
 
   it('toggles pool notes but never empties the pool', () => {
@@ -109,6 +154,19 @@ describe('useSettings persistence', () => {
 
     expect(result.current[0].speedRampMode).toBe(false)
     expect(window.localStorage.getItem('fretboard-speed-ramp-mode')).toBe('false')
+  })
+
+  /**
+   * A session that finished at its target saved both numbers as the same value.
+   * Re-flooring on launch would silently hand the player a target they never set.
+   */
+  it('restores a reached target as reached, not as one more climb', () => {
+    window.localStorage.setItem('fretboard-bpm', '110')
+    window.localStorage.setItem('fretboard-ramp-target', '110')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].rampTargetBpm).toBe(110)
   })
 
   it('persists dispatched changes per key', () => {

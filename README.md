@@ -17,8 +17,11 @@ before the next one arrives.
   AudioContext times by a look-ahead scheduler
 - "On the neck" fretboard map showing every position of the called note (frets 0–12, standard
   tuning), hideable from Practice options
-- Practice options: loop continuously, speed ramp (+2 BPM per cycle), and the fretboard map toggle;
-  a four-beat count-in and the spoken note name are always on
+- Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
+  target you choose, then holds there — so a session ends on a tempo you reached, not the first one
+  you missed. Routine blocks own their own ramp and ceiling
+- Practice options: loop continuously and the fretboard map toggle; a four-beat count-in and the
+  spoken note name are always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
 - Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, R reset
 

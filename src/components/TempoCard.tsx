@@ -1,16 +1,23 @@
-import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM } from '../constants'
+import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import type { BeatsPerNote } from '../hooks/useSettings'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { SwitchRow } from './ui/SwitchRow'
 
 type TempoCardProps = {
   bpm: number
   beatsPerNote: BeatsPerNote
   poolSize: number
+  rampEnabled: boolean
+  rampTarget: number
+  /** The ramp needs a second round to climb into, so looping has to be on. */
+  rampAvailable: boolean
   onBpmChange: (bpm: number) => void
   onNudge: (delta: number) => void
   onTap: () => void
   onBeatsPerNoteChange: (value: BeatsPerNote) => void
+  onRampToggle: () => void
+  onRampTargetNudge: (delta: number) => void
 }
 
 const BEAT_SPAN_LABELS: Record<BeatsPerNote, string> = {
@@ -20,14 +27,29 @@ const BEAT_SPAN_LABELS: Record<BeatsPerNote, string> = {
   8: '8 beats',
 }
 
+/** Does the arithmetic out loud, so the target is a plan rather than a number. */
+const rampHelper = (bpm: number, target: number) => {
+  const rounds = rampRounds(bpm, target)
+  if (rounds === 0) {
+    return 'Target reached — holding here.'
+  }
+
+  return `${rounds} ${rounds === 1 ? 'round' : 'rounds'} from ${bpm}, then it holds.`
+}
+
 export function TempoCard({
   bpm,
   beatsPerNote,
   poolSize,
+  rampEnabled,
+  rampTarget,
+  rampAvailable,
   onBpmChange,
   onNudge,
   onTap,
   onBeatsPerNoteChange,
+  onRampToggle,
+  onRampTargetNudge,
 }: TempoCardProps) {
   return (
     <section className="panel tempo-card">
@@ -82,6 +104,54 @@ export function TempoCard({
           <span>{MIN_BPM}</span>
           <span>{MAX_BPM}</span>
         </div>
+      </div>
+
+      {/* The ramp is a rule about tempo, so it sits directly under the number it
+          moves rather than off in a list of app-wide switches. */}
+      <div className="control-block">
+        <SwitchRow
+          id="speed-ramp-mode"
+          label="Speed ramp"
+          subtitle={`Tempo climbs ${RAMP_BPM_STEP} BPM every time you get through all the notes.`}
+          checked={rampEnabled}
+          onChange={onRampToggle}
+          disabled={!rampAvailable}
+        />
+
+        {rampEnabled ? (
+          <div className="ramp-target" data-testid="ramp-target">
+            <div className="control-label-row">
+              <span className="label">Climb to</span>
+            </div>
+            <div className="tempo-readout-row">
+              <button
+                type="button"
+                className="ghost-button stepper-button"
+                data-testid="ramp-target-down"
+                aria-label={`Lower the target by ${RAMP_TARGET_STEP} BPM`}
+                onClick={() => onRampTargetNudge(-RAMP_TARGET_STEP)}
+              >
+                −
+              </button>
+              <div className="tempo-readout">
+                <output data-testid="ramp-target-value">{rampTarget}</output>
+                <span className="tempo-unit">BPM</span>
+              </div>
+              <button
+                type="button"
+                className="ghost-button stepper-button"
+                data-testid="ramp-target-up"
+                aria-label={`Raise the target by ${RAMP_TARGET_STEP} BPM`}
+                onClick={() => onRampTargetNudge(RAMP_TARGET_STEP)}
+              >
+                +
+              </button>
+            </div>
+            <p className="control-subtitle" data-testid="ramp-helper">
+              {rampHelper(bpm, rampTarget)}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="control-block">

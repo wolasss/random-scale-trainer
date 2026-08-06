@@ -21,14 +21,6 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         onChange={() => onToggle('continuousMode')}
       />
       <SwitchRow
-        id="speed-ramp-mode"
-        label="Speed ramp"
-        subtitle="Adds 2 BPM every time you get through them all."
-        checked={settings.speedRampMode}
-        onChange={() => onToggle('speedRampMode')}
-        disabled={!settings.continuousMode}
-      />
-      <SwitchRow
         id="show-fretboard"
         label="Fretboard map"
         subtitle="Show the On the neck card with every position."

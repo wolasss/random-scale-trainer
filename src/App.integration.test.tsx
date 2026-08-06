@@ -100,6 +100,81 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-speed-ramp-mode')).toBe('false')
   })
 
+  /** The ceiling turns the ramp from a treadmill into a goal, so it is only
+      ever presented alongside the arithmetic that reaches it. */
+  it('reveals the climb-to target under the ramp switch, and does the arithmetic', () => {
+    render(<App />)
+
+    expect(screen.queryByTestId('ramp-target')).toBeNull()
+
+    fireEvent.click(document.getElementById('speed-ramp-mode')!)
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('112')
+    expect(screen.getByTestId('ramp-helper')).toHaveTextContent('20 rounds from 72, then it holds.')
+
+    fireEvent.click(screen.getByTestId('ramp-target-up'))
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('117')
+    expect(window.localStorage.getItem('fretboard-ramp-target')).toBe('117')
+    expect(screen.getByTestId('ramp-helper')).toHaveTextContent('23 rounds from 72, then it holds.')
+
+    // The switch lives in the Tempo card now — under the number it moves.
+    expect(document.querySelector('.tempo-card')!.contains(document.getElementById('speed-ramp-mode'))).toBe(true)
+  })
+
+  it('will not let the target be set below the tempo already reached', () => {
+    render(<App />)
+
+    // Past the stored 112, so switching on has to hand out a reachable goal.
+    fireEvent.change(document.getElementById('bpm-slider')!, { target: { value: '130' } })
+    fireEvent.click(document.getElementById('speed-ramp-mode')!)
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('170')
+
+    for (let step = 0; step < 20; step++) {
+      fireEvent.click(screen.getByTestId('ramp-target-down'))
+    }
+
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('132')
+    expect(screen.getByTestId('ramp-helper')).toHaveTextContent('1 round from 130, then it holds.')
+  })
+
+  /**
+   * The ceiling's whole job: the climb stops on the number the player chose and
+   * playback carries on there. Reaching it must never end the session.
+   */
+  it('climbs to the target while playing and then holds, still running', async () => {
+    window.localStorage.setItem('fretboard-note-pool', '0,1')
+    window.localStorage.setItem('fretboard-bpm', '60')
+    window.localStorage.setItem('fretboard-beats-per-note', '1')
+
+    render(<App />)
+
+    fireEvent.click(document.getElementById('speed-ramp-mode')!)
+    for (let step = 0; step < 12; step++) {
+      fireEvent.click(screen.getByTestId('ramp-target-down'))
+    }
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('62')
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    // Looping re-counts in between cycles, so land the read on a note beat
+    // rather than on whichever digit 30s happened to stop at.
+    for (let step = 0; step < 40 && screen.getByTestId('playback-message').textContent === 'Counting in…'; step++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+    }
+
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('62')
+    expect(screen.getByTestId('ramp-helper')).toHaveTextContent('Target reached — holding here.')
+    expect(screen.getByTestId('playback-message')).toHaveTextContent('At your target tempo — holding 62 BPM.')
+    expect(screen.getByTestId('now-playing').className).toContain('active')
+  })
+
   it('drives BPM value, cycle time, and storage from the slider', () => {
     render(<App />)
 
@@ -184,6 +259,39 @@ describe('App integration', () => {
 
     fireEvent.click(document.getElementById('show-fretboard')!)
     expect(screen.getByTestId('fretboard')).toBeInTheDocument()
+  })
+
+  it('keeps the neck in the practice stage and pairs the setup cards two up', () => {
+    render(<App />)
+
+    // The neck answers the question the note asks, so the two share one card.
+    const stage = document.querySelector('.practice-stage')!
+    expect(stage.querySelector('[data-testid="fretboard"]')).not.toBeNull()
+    expect(stage.querySelector('.routine-strip')).toBeNull()
+    expect(stage.querySelector('.transport-bar')).not.toBeNull()
+    expect(document.querySelector('.practice-stage-view')).toHaveClass('with-neck')
+
+    // With the map off the note simply takes the whole stage.
+    fireEvent.click(document.getElementById('show-fretboard')!)
+    expect(document.querySelector('.practice-stage-view')).not.toHaveClass('with-neck')
+
+    // Each two-up band holds real siblings — a card nested inside its
+    // neighbour still looks plausible but renders as a card in a card.
+    const rows = [...document.querySelectorAll('.card-row')]
+    expect(rows).toHaveLength(2)
+    for (const row of rows) {
+      expect(row.children).toHaveLength(2)
+      for (const card of row.children) expect(card.parentElement).toBe(row)
+    }
+  })
+
+  it('reads the session out in the transport, so the timer can live at the foot', () => {
+    render(<App />)
+
+    expect(screen.getByTestId('transport-readout')).toHaveTextContent('00:00 of 10 min')
+
+    fireEvent.click(screen.getByTestId('session-goal').querySelector('[data-value="5"]')!)
+    expect(screen.getByTestId('transport-readout')).toHaveTextContent('00:00 of 5 min')
   })
 
   it('lights up every fretboard position of the current pitch class', async () => {

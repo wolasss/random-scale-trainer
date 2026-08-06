@@ -13,7 +13,9 @@ export const MESSAGES = {
   idle: 'Press start — or hit Space.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
-  playingRamp: 'Speed ramp on — it gets faster every round.',
+  // The ramp names its ceiling, then says when the tempo has settled on it.
+  rampClimbing: (target: number) => `Climbing to ${target} BPM, 2 at a time.`,
+  rampHolding: (bpm: number) => `At your target tempo — holding ${bpm} BPM.`,
   paused: 'Paused — the timer stopped too.',
   finished: 'Finished all 12 notes.',
 }
@@ -25,6 +27,7 @@ export const STORAGE_KEYS = {
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
+  rampTarget: 'fretboard-ramp-target',
   beatsPerNote: 'fretboard-beats-per-note',
   notePool: 'fretboard-note-pool',
   spelling: 'fretboard-spelling',
@@ -45,6 +48,11 @@ const SELECTORS = {
   bpmSlider: By.id('bpm-slider'),
   continuousToggle: By.id('continuous-mode'),
   speedRampToggle: By.id('speed-ramp-mode'),
+  rampTarget: By.css('[data-testid="ramp-target"]'),
+  rampTargetValue: By.css('[data-testid="ramp-target-value"]'),
+  rampTargetUp: By.css('[data-testid="ramp-target-up"]'),
+  rampTargetDown: By.css('[data-testid="ramp-target-down"]'),
+  rampHelper: By.css('[data-testid="ramp-helper"]'),
   cycleTime: By.css('.target-time'),
   heading: By.css('h1'),
   nextNote: By.css('[data-testid="next-note"]'),
@@ -149,6 +157,19 @@ export class TrainerPage {
 
   async getBpm(): Promise<number> {
     return Number(await this.driver.findElement(SELECTORS.bpmValue).getText())
+  }
+
+  /** The Climb to panel only exists while the ramp is on. */
+  async hasRampTarget(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.rampTarget)).length > 0
+  }
+
+  async getRampTarget(): Promise<number> {
+    return Number(await this.driver.findElement(SELECTORS.rampTargetValue).getText())
+  }
+
+  async getRampHelper(): Promise<string> {
+    return this.driver.findElement(SELECTORS.rampHelper).getText()
   }
 
   async getTimer(): Promise<string> {
@@ -290,6 +311,14 @@ export class TrainerPage {
 
   async clickSpeedRampToggle(): Promise<void> {
     await this.driver.findElement(SELECTORS.speedRampToggle).click()
+  }
+
+  async clickRampTargetUp(): Promise<void> {
+    await this.driver.findElement(SELECTORS.rampTargetUp).click()
+  }
+
+  async clickRampTargetDown(): Promise<void> {
+    await this.driver.findElement(SELECTORS.rampTargetDown).click()
   }
 
   /**

@@ -28,6 +28,8 @@ const block = (overrides: Partial<RoutineBlock> = {}): RoutineBlock => ({
   bpm: 72,
   beats: 4,
   acc: null,
+  ramp: false,
+  rampTo: 112,
   dur: 120,
   ...overrides,
 })
@@ -69,11 +71,27 @@ describe('routineMeta', () => {
       '3 blocks · 10 min',
     )
   })
+
+  it('names where a ramping block ends up', () => {
+    expect(routineMeta(routine([block({ poolKey: 'naturals', bpm: 70, ramp: true, rampTo: 110 })]))).toBe(
+      '70 BPM · every 4 · 7 notes · climbs to 110',
+    )
+  })
 })
 
 describe('blockMeta', () => {
   it('reads tempo, rate and pool on one line', () => {
     expect(blockMeta(block({ poolKey: 'accidentals', bpm: 66, beats: 4 }))).toBe('66 BPM · every 4 · accidentals')
+  })
+
+  /** The destination, not the increment — '+2/round' says nothing about where. */
+  it('adds the destination when the block ramps, and nothing when it does not', () => {
+    expect(blockMeta(block({ poolKey: 'chromatic', bpm: 70, ramp: true, rampTo: 110 }))).toBe(
+      '70 BPM · every 4 · all 12 · climbs to 110',
+    )
+    expect(blockMeta(block({ poolKey: 'chromatic', bpm: 70, ramp: false, rampTo: 110 }))).toBe(
+      '70 BPM · every 4 · all 12',
+    )
   })
 })
 
@@ -150,7 +168,10 @@ describe('blockFlex', () => {
 
 describe('blockFromSettings', () => {
   it('names the block from the matched preset and stores no explicit pool', () => {
-    const built = blockFromSettings({ bpm: 60, beatsPerNote: 4, pool: [0, 2, 4, 5, 7, 9, 11], spelling: 'flat' }, null)
+    const built = blockFromSettings(
+      { bpm: 60, beatsPerNote: 4, pool: [0, 2, 4, 5, 7, 9, 11], spelling: 'flat', ramp: false, rampTo: 100 },
+      null,
+    )
 
     expect(built).toEqual({
       name: 'Naturals',
@@ -159,28 +180,66 @@ describe('blockFromSettings', () => {
       bpm: 60,
       beats: 4,
       acc: 'flats',
+      ramp: false,
+      rampTo: 100,
       dur: null,
     })
   })
 
   it('keeps a custom chip selection as an explicit pool', () => {
-    const built = blockFromSettings({ bpm: 90, beatsPerNote: 2, pool: [3, 0], spelling: 'mixed' }, 120)
+    const built = blockFromSettings(
+      { bpm: 90, beatsPerNote: 2, pool: [3, 0], spelling: 'mixed', ramp: false, rampTo: 130 },
+      120,
+    )
 
     expect(built.poolKey).toBe('custom')
     expect(built.pool).toEqual([0, 3])
+  })
+
+  /** Saving is the only way a hand-tuned ramp becomes a routine — it must stick. */
+  it('captures the live ramp and its ceiling', () => {
+    const built = blockFromSettings(
+      { bpm: 70, beatsPerNote: 4, pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], spelling: 'mixed', ramp: true, rampTo: 110 },
+      null,
+    )
+
+    expect(built).toMatchObject({ ramp: true, rampTo: 110 })
+  })
+
+  it('floors a captured ceiling that sits at or below the tempo', () => {
+    const built = blockFromSettings(
+      { bpm: 120, beatsPerNote: 4, pool: [0, 2, 4], spelling: 'mixed', ramp: true, rampTo: 90 },
+      null,
+    )
+
+    expect(built.rampTo).toBe(122)
   })
 })
 
 describe('suggestRoutineName', () => {
   it('pairs the pool label with the tempo', () => {
-    expect(suggestRoutineName({ bpm: 60, beatsPerNote: 4, pool: [0, 2, 4, 5, 7, 9, 11], spelling: 'flat' })).toBe(
-      'Naturals @ 60',
-    )
+    expect(
+      suggestRoutineName({
+        bpm: 60,
+        beatsPerNote: 4,
+        pool: [0, 2, 4, 5, 7, 9, 11],
+        spelling: 'flat',
+        ramp: false,
+        rampTo: 100,
+      }),
+    ).toBe('Naturals @ 60')
   })
 })
 
 describe('withAppendedBlock', () => {
-  const settings = { bpm: 90, beatsPerNote: 2 as const, pool: [1, 3, 6, 8, 10], spelling: 'sharp' as const }
+  const settings = {
+    bpm: 90,
+    beatsPerNote: 2 as const,
+    pool: [1, 3, 6, 8, 10],
+    spelling: 'sharp' as const,
+    ramp: false,
+    rampTo: 130,
+  }
 
   it('times the lone open block on the way, or it could never be passed', () => {
     const grown = withAppendedBlock(routine([block({ dur: null })]), settings)
@@ -198,12 +257,12 @@ describe('withAppendedBlock', () => {
 })
 
 describe('withRemovedBlock', () => {
-  it('turns a workout back into a saved setup at one block', () => {
+  it('leaves the surviving block on its own clock rather than untiming it', () => {
     const shrunk = withRemovedBlock(routine([block({ dur: 120 }), block({ dur: 240 })]), 0)
 
     expect(shrunk.blocks).toHaveLength(1)
-    expect(shrunk.blocks[0].dur).toBeNull()
-    expect(isOpenEnded(shrunk)).toBe(true)
+    expect(shrunk.blocks[0].dur).toBe(240)
+    expect(isOpenEnded(shrunk)).toBe(false)
   })
 
   it('refuses to empty a routine', () => {
@@ -218,7 +277,19 @@ describe('SEEDED_ROUTINES', () => {
     const workouts = SEEDED_ROUTINES.filter((entry) => entry.blocks.length > 1)
 
     expect(setups.map((entry) => entry.name)).toEqual(['Warm-up naturals', 'Chromatic drill', 'A minor box'])
-    expect(workouts.map((entry) => routineSeconds(entry) / 60)).toEqual([6, 12, 9, 8])
+    expect(workouts.map((entry) => routineSeconds(entry) / 60)).toEqual([6, 12, 8])
+  })
+
+  /**
+   * The ladder used to be three hand-built rungs — a stepped imitation of the
+   * ramp, free to drift from it. It is now the feature's own demonstration.
+   */
+  it('states the speed ladder as one ramping block rather than stacked rungs', () => {
+    const ladder = SEEDED_ROUTINES.find((entry) => entry.id === 'seed-speed-ladder-9')!
+
+    expect(ladder.blocks).toHaveLength(1)
+    expect(ladder.blocks[0]).toMatchObject({ poolKey: 'chromatic', bpm: 70, ramp: true, rampTo: 110, dur: 540 })
+    expect(routineMeta(ladder)).toContain('climbs to 110')
   })
 
   it('gives every routine a unique id', () => {
@@ -246,13 +317,33 @@ describe('parseRoutines', () => {
     const parsed = parseRoutines(stored)
     expect(parsed).toHaveLength(1)
     expect(parsed![0].id).toBe('a')
-    // Down to one block, so it is a saved setup and can carry no duration.
-    expect(parsed![0].blocks[0].dur).toBeNull()
+    // The block that survived keeps the duration it was stored with.
+    expect(parsed![0].blocks[0].dur).toBe(120)
   })
 
-  it('clears the duration of a stored lone block', () => {
+  it('keeps the duration of a stored lone block', () => {
     const stored = JSON.stringify([{ id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 60, beats: 4, dur: 90 }] }])
-    expect(parseRoutines(stored)![0].blocks[0].dur).toBeNull()
+    expect(parseRoutines(stored)![0].blocks[0].dur).toBe(90)
+  })
+
+  /** Storage predates the ramp, so absence has to mean "off", never "unknown". */
+  it('reads a block written before the ramp as one that does not climb', () => {
+    const stored = JSON.stringify([{ id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 60, beats: 4 }] }])
+    expect(parseRoutines(stored)![0].blocks[0]).toMatchObject({ ramp: false, rampTo: 100 })
+  })
+
+  it('gives a block that ramps without a usable target a reachable one', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 80, beats: 4, ramp: true, rampTo: 'fast' }] },
+    ])
+    expect(parseRoutines(stored)![0].blocks[0]).toMatchObject({ ramp: true, rampTo: 120 })
+  })
+
+  it('floors a stored target that sits below its own tempo', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 100, beats: 4, ramp: true, rampTo: 60 }] },
+    ])
+    expect(parseRoutines(stored)![0].blocks[0].rampTo).toBe(102)
   })
 
   /**
@@ -290,12 +381,12 @@ describe('parseRoutines', () => {
       expect(parsed[0].blocks.map((block) => block.bpm)).toEqual([60, 62])
     })
 
-    it('collapses to a saved setup when only one timed block survives', () => {
+    it('collapses to the one timed block that survives, clock intact', () => {
       const parsed = parseRoutines(workoutWith(120, 0, 0))!
 
       expect(parsed[0].blocks).toHaveLength(1)
-      expect(parsed[0].blocks[0].dur).toBeNull()
-      expect(isOpenEnded(parsed[0])).toBe(true)
+      expect(parsed[0].blocks[0].dur).toBe(120)
+      expect(isOpenEnded(parsed[0])).toBe(false)
     })
 
     it('discards a routine whose blocks are all untimed rather than inventing durations', () => {

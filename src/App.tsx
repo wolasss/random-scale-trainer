@@ -205,10 +205,17 @@ function App() {
       bpm={settings.bpm}
       beatsPerNote={settings.beatsPerNote}
       poolSize={settings.pool.length}
+      rampEnabled={settings.speedRampMode}
+      rampTarget={settings.rampTargetBpm}
+      rampAvailable={settings.continuousMode}
       onBpmChange={(bpm) => userDispatch({ type: 'setBpm', bpm })}
       onNudge={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
       onTap={handleTapTempo}
       onBeatsPerNoteChange={(value) => userDispatch({ type: 'setBeatsPerNote', value })}
+      // The ramp is block-owned now, so touching it drifts off a routine exactly
+      // as touching the tempo does.
+      onRampToggle={() => userDispatch({ type: 'setRamp', enabled: !settings.speedRampMode })}
+      onRampTargetNudge={(delta) => userDispatch({ type: 'nudgeRampTarget', delta })}
     />
   )
 

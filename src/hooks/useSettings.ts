@@ -2,9 +2,11 @@ import { useEffect, useReducer, useRef, type Dispatch } from 'react'
 import {
   BEAT_SPAN_OPTIONS,
   clampBpm,
+  clampRampTarget,
   DEFAULT_BEATS_PER_NOTE,
   DEFAULT_BPM,
   DEFAULT_SESSION_GOAL_MIN,
+  defaultRampTarget,
   SESSION_GOAL_OPTIONS,
   STORAGE_KEYS,
   type BeatsPerNote,
@@ -20,6 +22,8 @@ export type Settings = {
   beatsPerNote: BeatsPerNote
   continuousMode: boolean
   speedRampMode: boolean
+  /** The tempo the ramp climbs to and then holds; never below `bpm`. */
+  rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
   spelling: SpellingPreference
@@ -30,13 +34,18 @@ export type Settings = {
   endSoundEnabled: boolean
 }
 
-export type SettingsToggleKey = 'continuousMode' | 'speedRampMode' | 'showFretboard'
+export type SettingsToggleKey = 'continuousMode' | 'showFretboard'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }
   | { type: 'nudgeBpm'; delta: number }
   | { type: 'setBeatsPerNote'; value: BeatsPerNote }
   | { type: 'toggle'; key: SettingsToggleKey }
+  // The ramp and its ceiling are block-owned, so they get action types of their
+  // own rather than riding `toggle` alongside the app-wide switches.
+  | { type: 'setRamp'; enabled: boolean }
+  | { type: 'setRampTarget'; bpm: number }
+  | { type: 'nudgeRampTarget'; delta: number }
   | { type: 'setSpelling'; value: SpellingPreference }
   | { type: 'togglePoolNote'; pc: number }
   | { type: 'setPreset'; preset: PresetId }
@@ -54,18 +63,33 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
     case 'setBeatsPerNote':
       return { ...state, beatsPerNote: action.value }
     case 'toggle': {
-      // The ramp only applies while looping.
-      if (action.key === 'speedRampMode' && !state.continuousMode) {
-        return state
-      }
-
       const next = { ...state, [action.key]: !state[action.key] }
+      // The ramp only applies while looping — a run that stops after one lap
+      // never reaches a second round to climb on.
       if (action.key === 'continuousMode' && !next.continuousMode) {
         next.speedRampMode = false
       }
 
       return next
     }
+    case 'setRamp': {
+      if (action.enabled && !state.continuousMode) {
+        return state
+      }
+
+      const next = { ...state, speedRampMode: action.enabled }
+      // Switching on against a target the tempo has already passed would offer
+      // a ramp with nowhere to go; hand it a fresh goal instead.
+      if (action.enabled && next.rampTargetBpm <= state.bpm) {
+        next.rampTargetBpm = defaultRampTarget(state.bpm)
+      }
+
+      return next
+    }
+    case 'setRampTarget':
+      return { ...state, rampTargetBpm: clampRampTarget(action.bpm, state.bpm) }
+    case 'nudgeRampTarget':
+      return { ...state, rampTargetBpm: clampRampTarget(state.rampTargetBpm + action.delta, state.bpm) }
     case 'setSpelling':
       return { ...state, spelling: action.value }
     case 'togglePoolNote': {
@@ -135,6 +159,17 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   continuousMode: booleanCodec(STORAGE_KEYS.continuousMode),
   speedRampMode: booleanCodec(STORAGE_KEYS.speedRampMode),
+  rampTargetBpm: {
+    storageKey: STORAGE_KEYS.rampTarget,
+    // Read back as a plain tempo, deliberately NOT re-floored against the
+    // stored BPM: a session that finished at its target saved both as the same
+    // number, and flooring on launch would quietly move the goalposts.
+    deserialize: (raw) => {
+      const stored = Number(raw)
+      return Number.isFinite(stored) ? clampBpm(stored) : undefined
+    },
+    serialize: String,
+  },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -170,6 +205,7 @@ const DEFAULT_SETTINGS: Settings = {
   beatsPerNote: DEFAULT_BEATS_PER_NOTE as BeatsPerNote,
   continuousMode: true,
   speedRampMode: false,
+  rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: true,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],

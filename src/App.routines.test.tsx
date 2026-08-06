@@ -259,32 +259,88 @@ describe('Routines', () => {
   it('skips a block on demand', () => {
     render(<App />)
 
-    selectRoutine('seed-speed-ladder-9')
+    selectRoutine('seed-key-focus-8')
     fireEvent.click(screen.getByTestId('routine-skip-block'))
 
-    expect(bpm()).toBe('90')
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 3')
+    expect(bpm()).toBe('72')
+    expect(screen.getByTestId('note-every').querySelector('[aria-checked="true"]')).toHaveTextContent('4 beats')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 4')
   })
 
   it('stops at the end and offers to run the routine again', () => {
     render(<App />)
 
-    selectRoutine('seed-speed-ladder-9')
+    selectRoutine('seed-warmup-6')
     fireEvent.click(screen.getByTestId('routine-skip-block'))
     fireEvent.click(screen.getByTestId('routine-skip-block'))
     fireEvent.click(screen.getByTestId('routine-skip-block'))
 
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 9 min done.')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 6 min done.')
     expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('complete')
     expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '100')
     expect(transport()).toContain('Restart routine')
 
     fireEvent.click(screen.getByTestId('play-toggle'))
-    expect(bpm()).toBe('70')
+    expect(bpm()).toBe('60')
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 3')
   })
 
-  it('grows a saved setup into a workout in one click, and back again', () => {
+  /**
+   * The seeded ladder is the ramp's own demonstration: one block that climbs,
+   * where three hand-built rungs used to imitate it.
+   */
+  it('applies the speed ladder as a single ramping block', () => {
+    render(<App />)
+
+    selectRoutine('seed-speed-ladder-9')
+
+    expect(bpm()).toBe('70')
+    expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('110')
+    expect(screen.getByTestId('ramp-helper')).toHaveTextContent('20 rounds from 70, then it holds.')
+
+    expect(chip('seed-speed-ladder-9')).toHaveTextContent('70 BPM · every 4 · 12 notes · climbs to 110')
+    expect(screen.getByTestId('routine-segment-0')).toHaveTextContent('70 BPM · every 4 · all 12 · climbs to 110')
+    // One timed block is a countdown, not a sequence of one.
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 9:00 left of 9:00')
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('9:00 left')
+    expect(screen.queryByTestId('routine-skip-block')).toBeNull()
+  })
+
+  it('forks out to Custom when the ramp target is retuned while stopped', () => {
+    render(<App />)
+
+    selectRoutine('seed-speed-ladder-9')
+    fireEvent.click(screen.getByTestId('ramp-target-up'))
+
+    expect(screen.getByTestId('routine-empty')).toBeInTheDocument()
+    // The settings are kept — only their tie to the routine is cut.
+    expect(screen.getByTestId('ramp-target-value')).toHaveTextContent('115')
+  })
+
+  it('treats a mid-playback retune of the ceiling as an override, not an exit', async () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-6')
+    await startPractice(60)
+
+    fireEvent.click(document.getElementById('speed-ramp-mode')!)
+
+    expect(screen.queryByTestId('routine-empty')).toBeNull()
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('· adjusted, next block resets it')
+  })
+
+  it('reclaims a ramp the previous block turned on', () => {
+    render(<App />)
+
+    selectRoutine('seed-speed-ladder-9')
+    expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'true')
+
+    selectRoutine('seed-warmup-6')
+    expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('grows a saved setup into a workout in one click, and back down again', () => {
     render(<App />)
 
     selectRoutine('seed-warmup-naturals')
@@ -298,7 +354,8 @@ describe('Routines', () => {
 
     fireEvent.click(screen.getAllByLabelText(/^Remove block /)[1])
     expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(1)
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('One block, no timer')
+    // The survivor keeps the clock it was given — a lone block may be timed.
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 2:00 left of 2:00')
     expect(screen.queryByTestId('routine-skip-block')).toBeNull()
   })
 
@@ -323,8 +380,23 @@ describe('Routines', () => {
     expect(stored).toHaveLength(8)
     expect(stored[7]).toMatchObject({
       name: 'Sharp corners',
-      blocks: [{ poolKey: 'accidentals', bpm: 84, beats: 4, dur: null }],
+      blocks: [{ poolKey: 'accidentals', bpm: 84, beats: 4, ramp: false, dur: null }],
     })
+  })
+
+  /** A ramp tuned by hand in free practice has to survive being saved. */
+  it('captures the ramp and its ceiling when the settings are saved', () => {
+    render(<App />)
+
+    fireEvent.change(document.getElementById('bpm-slider')!, { target: { value: '80' } })
+    fireEvent.click(document.getElementById('speed-ramp-mode')!)
+    fireEvent.click(screen.getByTestId('ramp-target-up'))
+    fireEvent.click(screen.getByTestId('routine-save'))
+    fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+    const stored = JSON.parse(window.localStorage.getItem('fretboard-routines')!)
+    expect(stored[7].blocks[0]).toMatchObject({ bpm: 80, ramp: true, rampTo: 117 })
+    expect(screen.getByTestId('routine-shelf')).toHaveTextContent('climbs to 117')
   })
 
   it('cancels a save without touching the shelf', () => {
