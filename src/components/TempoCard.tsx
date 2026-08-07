@@ -25,6 +25,7 @@ const BEAT_SPAN_LABELS: Record<BeatsPerNote, string> = {
   2: '2 beats',
   4: '4 beats',
   8: '8 beats',
+  12: '12 beats',
 }
 
 /** Does the arithmetic out loud, so the target is a plan rather than a number. */
