@@ -487,6 +487,14 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   const pause = () => {
     if (!active) {
+      // A press while the buffers are still loading: there is no session to
+      // pause yet, but the transport already reads as playing. Settle back on
+      // idle so the pending start's post-load guard bails out — 'paused' would
+      // leave the next start resuming against a tempo that was never set.
+      if (snapshot.status === 'playing') {
+        finishStop(PLAYBACK_MESSAGES.idle)
+      }
+
       return
     }
 
