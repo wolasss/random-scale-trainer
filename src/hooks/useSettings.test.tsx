@@ -147,6 +147,23 @@ describe('useSettings persistence', () => {
     })
   })
 
+  /**
+   * Splitting a corrupted pool key still yields entries, and Number turns each
+   * blank one into 0 — the player would open the app drilling C, or C plus the
+   * pool they actually picked.
+   */
+  it.each([
+    ['an empty value', ''],
+    ['a whitespace value', ' '],
+    ['a gap between entries', '1,,3'],
+  ])('falls back to the full pool on %s', (_label, stored) => {
+    window.localStorage.setItem('fretboard-note-pool', stored)
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].pool).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+  })
+
   it('discards a stored ramp when loop mode starts off', () => {
     window.localStorage.setItem('fretboard-continuous-mode', 'false')
     window.localStorage.setItem('fretboard-speed-ramp-mode', 'true')

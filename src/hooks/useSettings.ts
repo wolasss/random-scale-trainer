@@ -135,6 +135,9 @@ type Codec<T> = {
   serialize: (value: T) => string
 }
 
+/** A stored pool entry: plain digits, no sign, no padding, within an octave. */
+const isPitchClassText = (segment: string) => /^\d{1,2}$/.test(segment) && Number(segment) <= 11
+
 const booleanCodec = (storageKey: string): Codec<boolean> => ({
   storageKey,
   deserialize: (raw) => raw === 'true',
@@ -180,12 +183,13 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   pool: {
     storageKey: STORAGE_KEYS.notePool,
+    // Checked segment by segment as text: `split` always hands back at least
+    // one entry, so a blank or gappy value like '' or '1,,3' would otherwise
+    // coerce through Number into a pool holding C.
     deserialize: (raw) => {
-      const pcs = raw.split(',').map(Number)
-      const valid =
-        pcs.length > 0 &&
-        pcs.every((pc) => Number.isInteger(pc) && pc >= 0 && pc <= 11) &&
-        new Set(pcs).size === pcs.length
+      const segments = raw.split(',')
+      const pcs = segments.map(Number)
+      const valid = segments.every(isPitchClassText) && new Set(pcs).size === pcs.length
       return valid ? sortedPcs(pcs) : undefined
     },
     serialize: (pool) => pool.join(','),
