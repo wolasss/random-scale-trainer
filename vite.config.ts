@@ -67,7 +67,8 @@ const serviceWorkerPlugin = (): Plugin => ({
 export default defineConfig({
   plugins: [react(), serviceWorkerPlugin()],
   preview: {
-    // Lets a Docker-hosted Selenium browser reach the e2e preview server
-    allowedHosts: ['host.docker.internal'],
+    // Lets a Docker-hosted Selenium browser reach the e2e preview server, and
+    // any tailnet host reach a branch preview served through `tailscale serve`.
+    allowedHosts: ['host.docker.internal', '.ts.net'],
   },
 })
