@@ -1,6 +1,7 @@
 // Standard tuning, high e → low E, by MIDI note number.
 const STRING_MIDI = [64, 59, 55, 50, 45, 40]
 const STRING_LABELS = ['e', 'B', 'G', 'D', 'A', 'E']
+const STRING_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th']
 const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
 
 // Classic inlay markers, drawn on the string boundary below the given row so
@@ -8,6 +9,20 @@ const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
 function hasInlay(stringIndex: number, fret: number) {
   if (fret === 12) return stringIndex === 1 || stringIndex === 3
   return stringIndex === 2 && [3, 5, 7, 9].includes(fret)
+}
+
+// Reads the lit dots out in the order they are drawn, high e string first, so
+// someone hearing the label can walk the neck in the same order as someone
+// looking at it. Every string carries the note somewhere in 0–12, and a string
+// whose open note matches also lights the 12th fret.
+function describePositions(pc: number) {
+  return STRING_MIDI.map((midi, stringIndex) => {
+    const frets = FRETS.filter((fret) => (midi + fret) % 12 === pc).map((fret) =>
+      fret === 0 ? 'open' : `fret ${fret}`,
+    )
+
+    return `${STRING_ORDINALS[stringIndex]} string (${STRING_LABELS[stringIndex]}) ${frets.join(' and ')}`
+  }).join(', ')
 }
 
 type FretboardCardProps = {
@@ -23,6 +38,14 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
       ? `Every ${currentDisplay} from open to the 12th fret`
       : 'Where each note lives — all six strings, standard tuning'
 
+  // The grid is a picture of the neck: six rows of blank spans whose only
+  // content is the dot marking the called note, which reads as nothing at all.
+  // Labelling it as an image spells out the positions instead.
+  const label =
+    currentPc !== null
+      ? `Fretboard map: ${currentDisplay ?? 'the called note'} at ${describePositions(currentPc)}`
+      : 'Fretboard map: no note called — all six strings, standard tuning'
+
   return (
     <section className="panel fretboard-card">
       <div className="panel-heading fretboard-heading">
@@ -31,7 +54,7 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
       </div>
 
       <div className="fretboard-scroll">
-        <div className="fretboard" data-testid="fretboard">
+        <div className="fretboard" data-testid="fretboard" role="img" aria-label={label}>
           {STRING_MIDI.map((midi, stringIndex) => (
             <div className="fret-row" key={midi}>
               <span className="string-label">{STRING_LABELS[stringIndex]}</span>
