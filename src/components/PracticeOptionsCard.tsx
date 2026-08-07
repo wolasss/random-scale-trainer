@@ -21,6 +21,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         onChange={() => onToggle('continuousMode')}
       />
       <SwitchRow
+        id="count-in"
+        label="Count in"
+        subtitle="A four-beat lead-in before the first note and each new round."
+        checked={settings.countInEnabled}
+        onChange={() => onToggle('countInEnabled')}
+      />
+      <SwitchRow
         id="show-fretboard"
         label="Fretboard map"
         subtitle="Show the On the neck card with every position."

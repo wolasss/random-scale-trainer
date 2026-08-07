@@ -9,7 +9,7 @@ export const RAMP_TARGET_STEP = 5
 /** How far above the current tempo a target lands when nobody has named one. */
 export const RAMP_TARGET_OFFSET = 40
 
-export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8] as const
+export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8, 12] as const
 export const DEFAULT_BEATS_PER_NOTE = 4
 
 export type BeatsPerNote = (typeof BEAT_SPAN_OPTIONS)[number]
@@ -48,6 +48,7 @@ export const STORAGE_KEYS = {
   speedRampMode: 'fretboard-speed-ramp-mode',
   rampTarget: 'fretboard-ramp-target',
   endSound: 'fretboard-end-sound',
+  countIn: 'fretboard-count-in',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
   notePool: 'fretboard-note-pool',

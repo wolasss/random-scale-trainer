@@ -22,6 +22,8 @@ export type Settings = {
   bpm: number
   beatsPerNote: BeatsPerNote
   continuousMode: boolean
+  /** A four-beat count-in before the first note and each new cycle. */
+  countInEnabled: boolean
   speedRampMode: boolean
   /** The tempo the ramp climbs to and then holds; never below `bpm`. */
   rampTargetBpm: number
@@ -35,7 +37,7 @@ export type Settings = {
   endSoundEnabled: boolean
 }
 
-export type SettingsToggleKey = 'continuousMode' | 'showFretboard'
+export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'showFretboard'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }
@@ -162,6 +164,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   continuousMode: booleanCodec(STORAGE_KEYS.continuousMode),
+  countInEnabled: booleanCodec(STORAGE_KEYS.countIn),
   speedRampMode: booleanCodec(STORAGE_KEYS.speedRampMode),
   rampTargetBpm: {
     storageKey: STORAGE_KEYS.rampTarget,
@@ -209,6 +212,7 @@ const DEFAULT_SETTINGS: Settings = {
   bpm: DEFAULT_BPM,
   beatsPerNote: DEFAULT_BEATS_PER_NOTE as BeatsPerNote,
   continuousMode: true,
+  countInEnabled: true,
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: true,
