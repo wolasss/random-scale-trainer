@@ -1,0 +1,32 @@
+/**
+ * localStorage access that survives a storage that is absent, blocked, or
+ * throwing. Some browsers throw on the very first touch of `window.localStorage`
+ * — Safari private mode, disabled cookies, hardened privacy settings — and a
+ * full quota throws on write. In every one of those cases the app should keep
+ * running on its in-memory state rather than crash on launch.
+ *
+ * Reads fall back to `null` (same as a missing key); writes are dropped silently.
+ */
+export const readRaw = (key: string): string | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+export const writeRaw = (key: string, value: string): void => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Storage unavailable or full — keep the in-memory value and move on.
+  }
+}

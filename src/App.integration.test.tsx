@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { withBlockedStorage } from './test/blockedStorage'
 
 // The fake engine accepts every scheduled sound and reports the faked
 // performance clock, so beats become due as the fake timers advance.
@@ -60,6 +61,19 @@ describe('App integration', () => {
     expect(screen.getByTestId('now-playing').className).toContain('idle')
     expect(document.getElementById('continuous-mode')).toHaveAttribute('aria-checked', 'true')
     expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('still renders the idle state when localStorage is blocked', () => {
+    const restore = withBlockedStorage()
+    try {
+      expect(() => render(<App />)).not.toThrow()
+
+      expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
+      expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
+      expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+    } finally {
+      restore()
+    }
   })
 
   it('shows the ready hint and NEXT preview while idle, then beat dots while playing', async () => {

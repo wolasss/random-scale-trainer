@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withBlockedStorage } from '../test/blockedStorage'
 import { settingsReducer, useSettings, type Settings } from './useSettings'
 
 const baseSettings = (): Settings => ({
@@ -181,5 +182,25 @@ describe('useSettings persistence', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('120')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,1,2,3,4,6,7,8,9,10,11')
     expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
+  })
+
+  it('starts from defaults and stays live when storage is blocked', () => {
+    const restore = withBlockedStorage()
+    try {
+      const { result } = renderHook(() => useSettings())
+
+      // The blocked read on mount yields no stored values — defaults hold.
+      expect(result.current[0]).toMatchObject({ bpm: 72, spelling: 'mixed', showFretboard: true })
+
+      // A refused write must not throw, and the reducer still updates in memory.
+      expect(() =>
+        act(() => {
+          result.current[1]({ type: 'setBpm', bpm: 120 })
+        }),
+      ).not.toThrow()
+      expect(result.current[0].bpm).toBe(120)
+    } finally {
+      restore()
+    }
   })
 })

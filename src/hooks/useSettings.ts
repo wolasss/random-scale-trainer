@@ -13,6 +13,7 @@ import {
 } from '../constants'
 import { PITCH_CLASSES, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
+import { readRaw, writeRaw } from '../lib/storage'
 
 export type { BeatsPerNote }
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
@@ -217,7 +218,7 @@ const SETTING_KEYS = Object.keys(SETTING_CODECS) as (keyof Settings)[]
 
 const readStored = <K extends keyof Settings>(settings: Settings, key: K) => {
   const codec = SETTING_CODECS[key]
-  const raw = window.localStorage.getItem(codec.storageKey)
+  const raw = readRaw(codec.storageKey)
   if (raw === null) {
     return
   }
@@ -262,7 +263,7 @@ export function useSettings(): [Settings, Dispatch<SettingsAction>] {
       const codec = SETTING_CODECS[key] as Codec<Settings[typeof key]>
       const value = settings[key]
       if (previous === null || previous[key] !== value) {
-        window.localStorage.setItem(codec.storageKey, codec.serialize(value))
+        writeRaw(codec.storageKey, codec.serialize(value))
       }
     }
 

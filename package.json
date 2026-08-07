@@ -12,7 +12,7 @@
     "build": "tsc -b && vite build",
     "check": "npm run lint && npm run typecheck:e2e && npm run test && npm run build",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "preview": "vite preview --host 127.0.0.1 --port ${PORT:-4173}",
     "e2e:serve": "vite preview --host --port 4173 --strictPort",
     "test:e2e": "node --import tsx --test --test-concurrency=1 \"e2e/specs/*.test.ts\"",
     "test:e2e:ci": "npm run build && start-server-and-test e2e:serve http-get://localhost:4173 test:e2e",
