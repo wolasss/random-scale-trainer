@@ -144,6 +144,27 @@ describe('AudioEngine.loadNoteBuffers', () => {
     expect(fetchFn).toHaveBeenCalledTimes(Object.keys(NOTE_AUDIO_FILES).length)
   })
 
+  it('retries after a pass where every fetch failed', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    let online = false
+    const fetchFn = vi.fn(async () => {
+      if (!online) throw new Error('offline')
+      return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }
+    }) as unknown as typeof fetch
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context), fetchFn })
+
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+    expect(engine.hasBuffers()).toBe(false)
+
+    // A session that starts offline must not be stuck without audio forever.
+    online = true
+    await engine.loadNoteBuffers()
+    expect(engine.hasBuffers()).toBe(true)
+
+    errorSpy.mockRestore()
+  })
+
   it('does nothing before the context exists', async () => {
     const fetchFn = okFetch()
     const engine = new AudioEngine({ contextFactory: () => asAudioContext(context), fetchFn })
