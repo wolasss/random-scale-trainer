@@ -550,6 +550,36 @@ describe('pause and resume', () => {
     expect(harness.beats.slice(beatsBefore).every((beat) => !beat.isCountIn)).toBe(true)
   })
 
+  it('cancels a start that is still waiting on the audio buffers', async () => {
+    const harness = createHarness()
+
+    let releaseLoad = () => {}
+    let loadCalled = () => {}
+    const loading = new Promise<void>((resolve) => {
+      releaseLoad = resolve
+    })
+    const loadStarted = new Promise<void>((resolve) => {
+      loadCalled = resolve
+    })
+    harness.audio.loadNoteBuffers = () => {
+      loadCalled()
+      return loading
+    }
+
+    const started = harness.machine.start()
+    await loadStarted
+    expect(harness.snapshot()).toMatchObject({ status: 'playing', message: PLAYBACK_MESSAGES.loadingAudio })
+
+    harness.machine.pause()
+    releaseLoad()
+    await started
+
+    harness.advanceTo(3)
+    expect(harness.audio.clicks).toHaveLength(0)
+    expect(harness.beats).toHaveLength(0)
+    expect(harness.snapshot()).toMatchObject({ status: 'idle', message: PLAYBACK_MESSAGES.idle })
+  })
+
   it('resumes a paused count-in where it left off', async () => {
     const harness = createHarness({ settings: { countInEnabled: true } })
     await harness.machine.start()
