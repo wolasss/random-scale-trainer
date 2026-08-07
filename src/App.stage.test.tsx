@@ -124,6 +124,48 @@ describe('the stand reading', () => {
     expect(screen.queryByTestId('practice-sheet')).toBeNull()
   })
 
+  it('hands focus back to the setup button when the sheet closes', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    const openSetup = screen.getByTestId('open-setup')
+    openSetup.focus()
+    fireEvent.click(openSetup)
+    expect(document.activeElement).toBe(screen.getByTestId('practice-sheet-close'))
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.activeElement).toBe(openSetup)
+
+    openSetup.focus()
+    fireEvent.click(openSetup)
+    fireEvent.click(screen.getByTestId('practice-sheet-close'))
+    expect(document.activeElement).toBe(openSetup)
+  })
+
+  it('keeps Tab inside the sheet instead of walking into the transport', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+
+    const sheet = document.querySelector<HTMLElement>('.sheet')
+    expect(sheet).not.toBeNull()
+    const focusable = Array.from(
+      sheet!.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]'),
+    ).filter((element) => element.tabIndex >= 0)
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    expect(first).toBe(screen.getByTestId('practice-sheet-close'))
+    expect(last).not.toBe(first)
+
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+  })
+
   it('gives the page back its scroll when the sheet closes', () => {
     installMatchMedia(PHONE_PORTRAIT)
     render(<App />)

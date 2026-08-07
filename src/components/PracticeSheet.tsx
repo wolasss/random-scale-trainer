@@ -8,6 +8,22 @@ type PracticeSheetProps = {
   children: ReactNode
 }
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]',
+].join(', ')
+
+/** The sheet's tab order, in document order and without anything opted out of it. */
+function focusableWithin(root: HTMLElement) {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (element) => element.tabIndex >= 0 && !element.hasAttribute('hidden'),
+  )
+}
+
 /**
  * Everything that is a choice rather than the practice itself: tempo, the note
  * pool, the option switches, the routine.
@@ -19,18 +35,64 @@ type PracticeSheetProps = {
  */
 export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
+  const sheetRef = useRef<HTMLDivElement | null>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) {
       return undefined
     }
 
+    // Whatever opened the sheet — the setup button, on the stand layout — is
+    // where a keyboard user expects to land again once it is gone.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     closeRef.current?.focus()
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        onCloseRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') {
+        return
+      }
+
+      // aria-modal says nothing about the tab order, so the sheet has to hold
+      // on to it itself — otherwise Tab walks out into the transport behind it.
+      const sheet = sheetRef.current
+      if (sheet === null) {
+        return
+      }
+
+      const focusable = focusableWithin(sheet)
+      if (focusable.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      const inside = active instanceof HTMLElement && sheet.contains(active)
+
+      let next: HTMLElement | null = null
+      if (!inside) {
+        next = event.shiftKey ? last : first
+      } else if (event.shiftKey && active === first) {
+        next = last
+      } else if (!event.shiftKey && active === last) {
+        next = first
+      }
+
+      if (next !== null) {
+        event.preventDefault()
+        next.focus()
       }
     }
 
@@ -43,8 +105,12 @@ export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
+
+      if (opener !== null && opener.isConnected) {
+        opener.focus()
+      }
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) {
     return null
@@ -59,7 +125,7 @@ export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
         tabIndex={-1}
         onClick={onClose}
       />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Practice setup">
+      <div className="sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label="Practice setup">
         <div className="sheet-header">
           <span className="sheet-grip" aria-hidden="true" />
           <h2 className="sheet-title">Practice setup</h2>
