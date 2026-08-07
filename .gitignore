@@ -27,7 +27,3 @@ dist-ssr
 
 # Font download cached by scripts/generate-icons.py
 scripts/.fraunces-cache.ttf
-
-# chunk active sidecar tracking
-.chunk/sidecar.json
-.chunk/sidecar.*.json
