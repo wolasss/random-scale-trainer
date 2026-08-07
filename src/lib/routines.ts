@@ -367,8 +367,10 @@ const parseBlock = (raw: unknown): RoutineBlock | null => {
     return null
   }
 
+  // A repeated pitch class would be dealt twice per lap and give the note chips
+  // two identical keys, so the pool is a set the moment it leaves storage.
   const pool = Array.isArray(block.pool)
-    ? block.pool.filter((pc): pc is number => Number.isInteger(pc) && pc >= 0 && pc <= 11)
+    ? [...new Set(block.pool.filter((pc): pc is number => Number.isInteger(pc) && pc >= 0 && pc <= 11))]
     : null
   const dur = block.dur === null || block.dur === undefined ? null : Number(block.dur)
   const roundedBpm = Math.round(bpm)
@@ -427,19 +429,28 @@ export const parseRoutines = (raw: string): Routine[] | undefined => {
   }
 
   const routines: Routine[] = []
+  // Ids address routines: selection picks the first match while removal deletes
+  // every match, so two routines sharing one id is a shelf the user cannot edit
+  // one entry of. The first usable claimant keeps the id and the rest go.
+  const seenIds = new Set<string>()
   for (const entry of parsed) {
     if (typeof entry !== 'object' || entry === null) {
       continue
     }
 
     const candidate = entry as Record<string, unknown>
-    if (typeof candidate.id !== 'string' || typeof candidate.name !== 'string' || !Array.isArray(candidate.blocks)) {
+    if (typeof candidate.id !== 'string' || candidate.id.trim() === '' || typeof candidate.name !== 'string') {
+      continue
+    }
+
+    if (seenIds.has(candidate.id) || !Array.isArray(candidate.blocks)) {
       continue
     }
 
     const parsedBlocks = candidate.blocks.map(parseBlock).filter((block): block is RoutineBlock => block !== null)
     const blocks = normalizeBlocks(parsedBlocks)
     if (blocks.length > 0) {
+      seenIds.add(candidate.id)
       routines.push({ id: candidate.id, name: candidate.name, blocks })
     }
   }

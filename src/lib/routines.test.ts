@@ -321,6 +321,48 @@ describe('parseRoutines', () => {
     expect(parsed![0].blocks[0].dur).toBe(120)
   })
 
+  /**
+   * Ids address routines — selection takes the first match, removal takes every
+   * match — so a shelf holding two of one id has entries the user cannot reach.
+   */
+  it('keeps the first usable claimant of an id and drops the rest', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: 'First', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+      { id: 'a', name: 'Second', blocks: [{ poolKey: 'chromatic', bpm: 90, beats: 2 }] },
+      { id: 'b', name: 'Other', blocks: [{ poolKey: 'chromatic', bpm: 72, beats: 4 }] },
+    ])
+
+    expect(parseRoutines(stored)!.map((entry) => entry.name)).toEqual(['First', 'Other'])
+  })
+
+  /** A discarded entry never held the id, so a later one is still free to. */
+  it('leaves an id free when the entry holding it has no usable blocks', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: 'Empty', blocks: [{ poolKey: 'nonsense', bpm: 60, beats: 4 }] },
+      { id: 'a', name: 'Usable', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+    ])
+
+    expect(parseRoutines(stored)!.map((entry) => entry.name)).toEqual(['Usable'])
+  })
+
+  it('drops a routine whose id is blank, since nothing can address it', () => {
+    const stored = JSON.stringify([
+      { id: '', name: 'Nameless', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+      { id: '   ', name: 'Spaces', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+    ])
+
+    expect(parseRoutines(stored)).toEqual([])
+  })
+
+  /** A repeat would be dealt twice a lap and give two chips the same key. */
+  it('reduces a stored pool to one of each pitch class', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: 'A', blocks: [{ poolKey: 'custom', pool: [0, 0, 2, 12, 2], bpm: 60, beats: 4 }] },
+    ])
+
+    expect(parseRoutines(stored)![0].blocks[0].pool).toEqual([0, 2])
+  })
+
   it('keeps the duration of a stored lone block', () => {
     const stored = JSON.stringify([{ id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 60, beats: 4, dur: 90 }] }])
     expect(parseRoutines(stored)![0].blocks[0].dur).toBe(90)
