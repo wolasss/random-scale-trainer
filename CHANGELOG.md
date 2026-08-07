@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/wolasss/random-scale-trainer/compare/v1.0.5...v1.1.0) (2026-08-07)
+
+
+### Features
+
+* note pool, presets, fretboard tool, options ([#12](https://github.com/wolasss/random-scale-trainer/issues/12)) ([c197863](https://github.com/wolasss/random-scale-trainer/commit/c197863ac28325d66f01ec0a7731f1603b314b51))
+
 ## [1.0.5](https://github.com/wolasss/random-scale-trainer/compare/v1.0.4...v1.0.5) (2026-06-16)
 
 
