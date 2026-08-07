@@ -66,6 +66,57 @@ describe('useKeyboardShortcuts', () => {
     },
   )
 
+  it.each([
+    ['a button', () => document.createElement('button')],
+    [
+      'a role="radio" element',
+      () => {
+        const element = document.createElement('button')
+        element.setAttribute('role', 'radio')
+        return element
+      },
+    ],
+    [
+      'a link',
+      () => {
+        const element = document.createElement('a')
+        element.setAttribute('href', '#somewhere')
+        return element
+      },
+    ],
+    [
+      'a tabbable element',
+      () => {
+        const element = document.createElement('div')
+        element.setAttribute('tabindex', '0')
+        return element
+      },
+    ],
+  ] as const)('leaves keys alone while focus is on %s', (_name, create) => {
+    renderHook(() => useKeyboardShortcuts(handlers))
+
+    const element = create()
+    document.body.appendChild(element)
+
+    for (const code of ['Space', 'ArrowRight'] as const) {
+      const event = press(code, {}, element)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    for (const handler of Object.values(handlers)) {
+      expect(handler).not.toHaveBeenCalled()
+    }
+
+    element.remove()
+  })
+
+  it('still handles shortcuts when the body has focus', () => {
+    renderHook(() => useKeyboardShortcuts(handlers))
+
+    const event = press('Space', {}, document.body)
+    expect(handlers.onSpace).toHaveBeenCalledTimes(1)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   it('ignores shortcuts inside contentEditable elements', () => {
     renderHook(() => useKeyboardShortcuts(handlers))
 
