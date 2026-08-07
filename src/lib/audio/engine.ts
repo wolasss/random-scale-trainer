@@ -258,7 +258,10 @@ export class AudioEngine {
       })
     )
 
-    this.buffersLoaded = true
+    // Only latch when something actually decoded: a pass where every fetch
+    // failed (started offline, say) must be retried on the next start rather
+    // than short-circuiting into a permanently silent session.
+    this.buffersLoaded = this.noteBuffers.size > 0
   }
 
   hasBuffers(): boolean {
