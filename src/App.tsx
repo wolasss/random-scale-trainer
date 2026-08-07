@@ -56,8 +56,8 @@ function App() {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    // Count-in and the spoken note are always on; only the listed settings vary.
-    settings: { ...settings, countInEnabled: true, speakNotes: true },
+    // The spoken note is always on; count-in and the rest ride the user's settings.
+    settings: { ...settings, speakNotes: true },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
