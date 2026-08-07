@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { readRaw, writeRaw } from '../lib/storage'
 
 export type PersistentStateOptions<T> = {
   defaultValue: T
@@ -23,7 +24,7 @@ export function usePersistentState<T>(
       return defaultValue
     }
 
-    const raw = window.localStorage.getItem(key)
+    const raw = readRaw(key)
     if (raw === null) {
       return defaultValue
     }
@@ -39,7 +40,7 @@ export function usePersistentState<T>(
   })
 
   useEffect(() => {
-    window.localStorage.setItem(key, serializeRef.current(value))
+    writeRaw(key, serializeRef.current(value))
   }, [key, value])
 
   return [value, setValue]

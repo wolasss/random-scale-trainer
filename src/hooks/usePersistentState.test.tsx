@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { withBlockedStorage } from '../test/blockedStorage'
 import { usePersistentState } from './usePersistentState'
 
 const KEY = 'test-key'
@@ -71,6 +72,31 @@ describe('usePersistentState', () => {
     expect(result.current[0]).toBe(100)
     // The mount write-back persists the normalized value
     expect(window.localStorage.getItem(KEY)).toBe('100')
+  })
+
+  it('falls back to the default when the read throws (blocked storage)', () => {
+    const restore = withBlockedStorage()
+    try {
+      const { result } = renderHook(() => usePersistentState(KEY, booleanOptions))
+      expect(result.current[0]).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
+  it('keeps in-memory updates when the write is refused (blocked storage)', () => {
+    const restore = withBlockedStorage()
+    try {
+      const { result } = renderHook(() => usePersistentState(KEY, booleanOptions))
+      expect(() =>
+        act(() => {
+          result.current[1](false)
+        }),
+      ).not.toThrow()
+      expect(result.current[0]).toBe(false)
+    } finally {
+      restore()
+    }
   })
 
   it('uses a custom serializer', () => {
