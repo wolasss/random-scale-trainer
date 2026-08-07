@@ -1,27 +1,37 @@
 import { By, Key, error as seleniumError, until, type WebDriver } from 'selenium-webdriver'
 import { config } from '../config.ts'
 
-// Real note names are ASCII (from src/lib/music.ts); the idle placeholder
-// uses the Unicode flat sign U+266D and can never collide with them.
-export const IDLE_NOTE = 'A♭'
+// Note names use the Unicode accidentals ♭ (U+266D) and ♯ (U+266F) — never
+// ASCII 'b'/'#'. While idle the note element is absent (getCurrentNote → null).
 export const NOTE_NAMES = new Set([
-  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  'Db', 'Eb', 'Gb', 'Ab', 'Bb',
+  'C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B',
+  'D♭', 'E♭', 'G♭', 'A♭', 'B♭',
 ])
 
-// Exact strings from src/App.tsx — update here if the copy changes.
+// Exact strings from src/constants.ts — update here if the copy changes.
 export const MESSAGES = {
-  idle: 'Press play to start.',
-  paused: 'Paused',
+  idle: 'Press start — or hit Space.',
+  countingIn: 'Counting in…',
+  playing: 'Find it on the neck before the next beat.',
+  // The ramp names its ceiling, then says when the tempo has settled on it.
+  rampClimbing: (target: number) => `Climbing to ${target} BPM, 2 at a time.`,
+  rampHolding: (bpm: number) => `At your target tempo — holding ${bpm} BPM.`,
+  paused: 'Paused — the timer stopped too.',
   finished: 'Finished all 12 notes.',
 }
-export const COUNT_IN_PATTERN = /^Starting in [1-3]\.\.\.$/
+/** The hero shows the count-in digit where the note normally appears. */
+export const COUNT_IN_DIGIT = /^[1-4]$/
 
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
+  rampTarget: 'fretboard-ramp-target',
+  beatsPerNote: 'fretboard-beats-per-note',
+  notePool: 'fretboard-note-pool',
+  spelling: 'fretboard-spelling',
+  sessionGoal: 'fretboard-session-goal',
 }
 
 const POLL_MS = 100
@@ -38,9 +48,29 @@ const SELECTORS = {
   bpmSlider: By.id('bpm-slider'),
   continuousToggle: By.id('continuous-mode'),
   speedRampToggle: By.id('speed-ramp-mode'),
+  rampTarget: By.css('[data-testid="ramp-target"]'),
+  rampTargetValue: By.css('[data-testid="ramp-target-value"]'),
+  rampTargetUp: By.css('[data-testid="ramp-target-up"]'),
+  rampTargetDown: By.css('[data-testid="ramp-target-down"]'),
+  rampHelper: By.css('[data-testid="ramp-helper"]'),
   cycleTime: By.css('.target-time'),
   heading: By.css('h1'),
+  nextNote: By.css('[data-testid="next-note"]'),
+  cyclePosition: By.css('[data-testid="cycle-position"]'),
+  bpmDown: By.css('[data-testid="bpm-down"]'),
+  bpmUp: By.css('[data-testid="bpm-up"]'),
+  tapTempo: By.css('[data-testid="tap-tempo"]'),
+  noteEvery: By.css('[data-testid="note-every"]'),
+  presetSelect: By.css('[data-testid="preset-select"]'),
+  poolGuarantee: By.css('[data-testid="pool-guarantee"]'),
+  spelling: By.css('[data-testid="spelling"]'),
+  sessionGoal: By.css('[data-testid="session-goal"]'),
+  sessionProgress: By.css('[data-testid="session-progress"]'),
+  statNotes: By.css('[data-testid="stat-notes"]'),
+  statCycles: By.css('[data-testid="stat-cycles"]'),
 }
+
+const noteChip = (pc: number) => By.css(`[data-testid="note-chip-${pc}"]`)
 
 export const timerToSeconds = (timerText: string): number => {
   const [minutes, seconds] = timerText.split(':').map(Number)
@@ -60,6 +90,12 @@ export class TrainerPage {
   async openFresh(): Promise<void> {
     await this.open()
     await this.driver.executeScript('window.localStorage.clear()')
+    await this.refresh()
+  }
+
+  /** Seed a stored setting, then reload so the app picks it up. */
+  async seedStorageAndReload(key: string, value: string): Promise<void> {
+    await this.driver.executeScript('window.localStorage.setItem(arguments[0], arguments[1])', key, value)
     await this.refresh()
   }
 
@@ -107,8 +143,33 @@ export class TrainerPage {
     return this.driver.findElement(SELECTORS.playbackMessage).getText()
   }
 
+  /** Text of the NEXT chip ('—' while the deck is empty). */
+  async getNextNote(): Promise<string | null> {
+    const elements = await this.driver.findElements(SELECTORS.nextNote)
+    return elements.length > 0 ? elements[0].getText() : null
+  }
+
+  /** e.g. "note 7 of 12"; null while idle. */
+  async getCyclePosition(): Promise<string | null> {
+    const elements = await this.driver.findElements(SELECTORS.cyclePosition)
+    return elements.length > 0 ? elements[0].getText() : null
+  }
+
   async getBpm(): Promise<number> {
     return Number(await this.driver.findElement(SELECTORS.bpmValue).getText())
+  }
+
+  /** The Climb to panel only exists while the ramp is on. */
+  async hasRampTarget(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.rampTarget)).length > 0
+  }
+
+  async getRampTarget(): Promise<number> {
+    return Number(await this.driver.findElement(SELECTORS.rampTargetValue).getText())
+  }
+
+  async getRampHelper(): Promise<string> {
+    return this.driver.findElement(SELECTORS.rampHelper).getText()
   }
 
   async getTimer(): Promise<string> {
@@ -143,16 +204,12 @@ export class TrainerPage {
     return className.includes('primary-button')
   }
 
-  async getToggleState(toggle: 'continuous' | 'speedRamp'): Promise<{ text: string; enabled: boolean }> {
+  /** Switches expose their state via role=switch aria-checked, not text. */
+  async getSwitchState(toggle: 'continuous' | 'speedRamp'): Promise<{ checked: boolean; disabled: boolean }> {
     const locator = toggle === 'continuous' ? SELECTORS.continuousToggle : SELECTORS.speedRampToggle
     const element = this.driver.findElement(locator)
-    const [text, className] = await Promise.all([element.getText(), element.getAttribute('class')])
-    return { text, enabled: (className ?? '').includes('enabled') }
-  }
-
-  async isSpeedRampVisible(): Promise<boolean> {
-    const elements = await this.driver.findElements(SELECTORS.speedRampToggle)
-    return elements.length > 0
+    const [checked, enabled] = await Promise.all([element.getAttribute('aria-checked'), element.isEnabled()])
+    return { checked: checked === 'true', disabled: !enabled }
   }
 
   async getSliderAttribute(name: string): Promise<string | null> {
@@ -177,12 +234,91 @@ export class TrainerPage {
     await this.driver.findElement(SELECTORS.themeToggle).click()
   }
 
+  async clickBpmStepper(direction: 'up' | 'down'): Promise<void> {
+    await this.driver.findElement(direction === 'up' ? SELECTORS.bpmUp : SELECTORS.bpmDown).click()
+  }
+
+  async tapTempo(times: number, intervalMs: number): Promise<void> {
+    for (let index = 0; index < times; index++) {
+      if (index > 0) {
+        await this.sleep(intervalMs)
+      }
+      await this.driver.findElement(SELECTORS.tapTempo).click()
+    }
+  }
+
+  /** Clicks the note-every segmented option with the given beat count. */
+  async setNoteEvery(beats: 1 | 2 | 4 | 8): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.noteEvery)
+      .findElement(By.css(`[data-value="${beats}"]`))
+      .click()
+  }
+
+  async selectPreset(presetId: string): Promise<void> {
+    const select = this.driver.findElement(SELECTORS.presetSelect)
+    await select.click()
+    await select.findElement(By.css(`option[value="${presetId}"]`)).click()
+  }
+
+  async getPresetValue(): Promise<string | null> {
+    return this.driver.findElement(SELECTORS.presetSelect).getAttribute('value')
+  }
+
+  async toggleChip(pc: number): Promise<void> {
+    await this.driver.findElement(noteChip(pc)).click()
+  }
+
+  async isChipSelected(pc: number): Promise<boolean> {
+    return (await this.driver.findElement(noteChip(pc)).getAttribute('aria-pressed')) === 'true'
+  }
+
+  async getChipLabel(pc: number): Promise<string> {
+    return this.driver.findElement(noteChip(pc)).getText()
+  }
+
+  async getPoolGuarantee(): Promise<string> {
+    return this.driver.findElement(SELECTORS.poolGuarantee).getText()
+  }
+
+  async setSpelling(value: 'flat' | 'sharp' | 'mixed'): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.spelling)
+      .findElement(By.css(`[data-value="${value}"]`))
+      .click()
+  }
+
+  async setSessionGoal(minutes: 5 | 10 | 20): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.sessionGoal)
+      .findElement(By.css(`[data-value="${minutes}"]`))
+      .click()
+  }
+
+  async getSessionProgress(): Promise<number> {
+    const value = await this.driver.findElement(SELECTORS.sessionProgress).getAttribute('aria-valuenow')
+    return Number(value)
+  }
+
+  async getStat(stat: 'notes' | 'cycles'): Promise<number> {
+    const locator = stat === 'notes' ? SELECTORS.statNotes : SELECTORS.statCycles
+    return Number(await this.driver.findElement(locator).getText())
+  }
+
   async clickContinuousToggle(): Promise<void> {
     await this.driver.findElement(SELECTORS.continuousToggle).click()
   }
 
   async clickSpeedRampToggle(): Promise<void> {
     await this.driver.findElement(SELECTORS.speedRampToggle).click()
+  }
+
+  async clickRampTargetUp(): Promise<void> {
+    await this.driver.findElement(SELECTORS.rampTargetUp).click()
+  }
+
+  async clickRampTargetDown(): Promise<void> {
+    await this.driver.findElement(SELECTORS.rampTargetDown).click()
   }
 
   /**
@@ -230,16 +366,16 @@ export class TrainerPage {
 
   /** Count-in follows audio load, whose duration varies — hence the long default timeout. */
   async waitForCountIn(timeoutMs = 15_000): Promise<void> {
-    await this.waitForMessage(COUNT_IN_PATTERN, timeoutMs)
+    await this.waitForMessage(MESSAGES.countingIn, timeoutMs)
   }
 
-  /** Resolves with the note once a real note is showing (message empty AND note valid, checked in one poll). */
+  /** Resolves with the note once a real note is showing (valid note name, not a count-in digit). */
   async waitForNotePlaying(timeoutMs = 15_000): Promise<string> {
     let playingNote = ''
     await this.driver.wait(
       async () => {
-        const [message, note] = await Promise.all([this.getPlaybackMessage(), this.getCurrentNote()])
-        if (message === '' && note !== null && NOTE_NAMES.has(note)) {
+        const note = await this.getCurrentNote()
+        if (note !== null && NOTE_NAMES.has(note)) {
           playingNote = note
           return true
         }
@@ -268,6 +404,15 @@ export class TrainerPage {
       POLL_MS,
     )
     return [...seen]
+  }
+
+  async waitForCurrentNote(expected: string, timeoutMs = 5_000): Promise<void> {
+    await this.driver.wait(
+      async () => (await this.getCurrentNote()) === expected,
+      timeoutMs,
+      `current note did not become ${expected}`,
+      POLL_MS,
+    )
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {

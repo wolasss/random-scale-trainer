@@ -4,8 +4,8 @@ import { useKeyboardShortcuts, type KeyboardShortcutHandlers } from './useKeyboa
 
 const createHandlers = (): KeyboardShortcutHandlers => ({
   onSpace: vi.fn(),
-  onArrowUp: vi.fn(),
-  onArrowDown: vi.fn(),
+  onTempoUp: vi.fn(),
+  onTempoDown: vi.fn(),
   onReset: vi.fn(),
 })
 
@@ -24,8 +24,10 @@ describe('useKeyboardShortcuts', () => {
 
   it.each([
     ['Space', 'onSpace'],
-    ['ArrowUp', 'onArrowUp'],
-    ['ArrowDown', 'onArrowDown'],
+    ['ArrowUp', 'onTempoUp'],
+    ['ArrowRight', 'onTempoUp'],
+    ['ArrowDown', 'onTempoDown'],
+    ['ArrowLeft', 'onTempoDown'],
     ['KeyR', 'onReset'],
   ] as const)('dispatches %s to %s and prevents default', (code, handlerName) => {
     renderHook(() => useKeyboardShortcuts(handlers))
@@ -51,15 +53,18 @@ describe('useKeyboardShortcuts', () => {
     expect(handlers.onSpace).not.toHaveBeenCalled()
   })
 
-  it.each([['input'], ['textarea']] as const)('ignores shortcuts while typing in a %s', (tag) => {
-    renderHook(() => useKeyboardShortcuts(handlers))
+  it.each([['input'], ['textarea'], ['select']] as const)(
+    'ignores shortcuts while focus is in a %s',
+    (tag) => {
+      renderHook(() => useKeyboardShortcuts(handlers))
 
-    const element = document.createElement(tag)
-    document.body.appendChild(element)
-    press('Space', {}, element)
-    expect(handlers.onSpace).not.toHaveBeenCalled()
-    element.remove()
-  })
+      const element = document.createElement(tag)
+      document.body.appendChild(element)
+      press('Space', {}, element)
+      expect(handlers.onSpace).not.toHaveBeenCalled()
+      element.remove()
+    },
+  )
 
   it('ignores shortcuts inside contentEditable elements', () => {
     renderHook(() => useKeyboardShortcuts(handlers))

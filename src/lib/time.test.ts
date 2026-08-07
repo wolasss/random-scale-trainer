@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatElapsed } from './time'
+import { cycleSeconds, formatCycleLength, formatElapsed } from './time'
 
 describe('formatElapsed', () => {
   it('formats zero', () => {
@@ -25,9 +25,26 @@ describe('formatElapsed', () => {
     expect(formatElapsed(3_660_000 + 1_000)).toBe('61:01')
   })
 
-  it('formats the 12-note cycle time across the BPM range', () => {
-    expect(formatElapsed((12 * 60_000) / 10)).toBe('01:12')
-    expect(formatElapsed((12 * 60_000) / 30)).toBe('00:24')
-    expect(formatElapsed((12 * 60_000) / 100)).toBe('00:07')
+})
+
+describe('cycleSeconds', () => {
+  it('multiplies pool size by beat span at the given tempo', () => {
+    expect(cycleSeconds(12, 4, 72)).toBe(40)
+    expect(cycleSeconds(12, 4, 240)).toBe(12)
+    expect(cycleSeconds(12, 4, 30)).toBe(96)
+    expect(cycleSeconds(5, 1, 60)).toBe(5)
+  })
+})
+
+describe('formatCycleLength', () => {
+  it('formats compact minutes:seconds', () => {
+    expect(formatCycleLength(40)).toBe('00:40')
+    expect(formatCycleLength(96)).toBe('01:36')
+    expect(formatCycleLength(12)).toBe('00:12')
+  })
+
+  it('rounds fractional seconds', () => {
+    expect(formatCycleLength(39.6)).toBe('00:40')
+    expect(formatCycleLength(60.4)).toBe('01:00')
   })
 })

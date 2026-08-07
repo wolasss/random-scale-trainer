@@ -2,15 +2,19 @@ import { useEffect, useRef } from 'react'
 
 export type KeyboardShortcutHandlers = {
   onSpace: () => void
-  onArrowUp: () => void
-  onArrowDown: () => void
+  onTempoUp: () => void
+  onTempoDown: () => void
   onReset: () => void
 }
+
+const TEMPO_UP_CODES = new Set(['ArrowUp', 'ArrowRight'])
+const TEMPO_DOWN_CODES = new Set(['ArrowDown', 'ArrowLeft'])
 
 /**
  * Global keyboard shortcuts on a single mount-time listener. Handlers are
  * read through a ref so the freshest render's closures always run, and are
- * suppressed while typing or when a modifier key is held.
+ * suppressed while typing, while a select has focus, or when a modifier key
+ * is held.
  */
 export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
   const handlersRef = useRef(handlers)
@@ -23,7 +27,8 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const tagName = target?.tagName?.toLowerCase()
-      const isTypingContext = tagName === 'input' || tagName === 'textarea' || target?.isContentEditable
+      const isTypingContext =
+        tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable
 
       if (isTypingContext || event.metaKey || event.ctrlKey || event.altKey) {
         return
@@ -35,15 +40,15 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
         return
       }
 
-      if (event.code === 'ArrowUp') {
+      if (TEMPO_UP_CODES.has(event.code)) {
         event.preventDefault()
-        handlersRef.current.onArrowUp()
+        handlersRef.current.onTempoUp()
         return
       }
 
-      if (event.code === 'ArrowDown') {
+      if (TEMPO_DOWN_CODES.has(event.code)) {
         event.preventDefault()
-        handlersRef.current.onArrowDown()
+        handlersRef.current.onTempoDown()
         return
       }
 

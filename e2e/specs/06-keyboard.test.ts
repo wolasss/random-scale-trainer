@@ -2,7 +2,7 @@ import { after, before, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { Key, type WebDriver } from 'selenium-webdriver'
 import { buildDriver } from '../driver.ts'
-import { IDLE_NOTE, MESSAGES, STORAGE_KEYS, TrainerPage } from '../pages/trainer.page.ts'
+import { MESSAGES, STORAGE_KEYS, TrainerPage } from '../pages/trainer.page.ts'
 
 describe('keyboard shortcuts', () => {
   let driver: WebDriver
@@ -23,11 +23,11 @@ describe('keyboard shortcuts', () => {
 
   it('adjusts BPM with arrow keys', async () => {
     await page.pressBody(Key.ARROW_UP, Key.ARROW_UP, Key.ARROW_UP)
-    assert.equal(await page.getBpm(), 33)
+    assert.equal(await page.getBpm(), 75)
 
     await page.pressBody(Key.ARROW_DOWN)
-    assert.equal(await page.getBpm(), 32)
-    assert.equal(await page.getLocalStorage(STORAGE_KEYS.bpm), '32')
+    assert.equal(await page.getBpm(), 74)
+    assert.equal(await page.getLocalStorage(STORAGE_KEYS.bpm), '74')
   })
 
   it('starts, pauses, and resets with Space and R', async () => {
@@ -39,14 +39,14 @@ describe('keyboard shortcuts', () => {
 
     await page.pressBody(Key.SPACE)
     await page.waitForMessage(MESSAGES.paused)
-    assert.equal(await page.getPlayButtonText(), 'Play')
+    // The transport labels itself from state: mid-session and paused is a resume.
+    assert.equal(await page.getPlayButtonText(), 'Resume')
 
     await page.pressBody('r')
     assert.equal(await page.getTimer(), '00:00')
-    assert.equal(await page.getCurrentNote(), IDLE_NOTE)
-    // Current behavior: resetting while paused does not clear the "Paused"
-    // message (stopPlayback is skipped when playback is already inactive).
-    // Candidate product bug — if that ever gets fixed, update this assertion.
-    assert.equal(await page.getPlaybackMessage(), MESSAGES.paused)
+    assert.equal(await page.getCurrentNote(), null)
+    // Reset now always returns to the idle prompt, even from paused —
+    // the old "Paused message survives reset" quirk was fixed on purpose.
+    assert.equal(await page.getPlaybackMessage(), MESSAGES.idle)
   })
 })
