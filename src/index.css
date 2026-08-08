@@ -236,11 +236,6 @@ button {
   align-items: center;
   min-width: 0;
   padding-left: 1.4rem;
-  /* The neck ends in a hard vertical fret line, which reads as flush against
-     the stage's edge even when the card's own padding is technically there —
-     text has side bearing to soften it, a 1px rule does not. A little room on
-     the right lets the 12th fret and its number breathe. */
-  padding-right: 1rem;
   border-left: 1px solid var(--panel-border);
 }
 
@@ -824,9 +819,16 @@ input[type='range'] {
   min-width: 400px;
 }
 
+/* The trailing column is an empty gutter, and it is why the neck needs no help
+   from whatever card it lands in. Every fret cell closes with a 1px fret line,
+   so without it the 12th fret's line and its number sit exactly on the content
+   edge and read as flush — text has side bearing to soften that, a hairline
+   rule does not. Putting the room inside the grid keeps the heading and the
+   board aligned, survives the chrome-stripping the practice stage does to this
+   card, and is carried by the fret-numbers row too, since it is a .fret-row. */
 .fret-row {
   display: grid;
-  grid-template-columns: 1.5rem repeat(13, minmax(0, 1fr));
+  grid-template-columns: 1.5rem repeat(13, minmax(0, 1fr)) 1rem;
   align-items: center;
 }
 
@@ -1727,11 +1729,8 @@ input[type='range'] {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Stacked under the hero, the neck spans the full card and takes both its
-     gutters from the stage's own padding, as every other row does. */
   .practice-stage-neck {
     padding-left: 0;
-    padding-right: 0;
     padding-top: 1.2rem;
     border-left: 0;
     border-top: 1px solid var(--panel-border);
