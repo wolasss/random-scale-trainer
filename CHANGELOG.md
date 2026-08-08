@@ -1,3 +1,10 @@
+## [1.2.2](https://github.com/wolasss/random-scale-trainer/compare/v1.2.1...v1.2.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **tempo:** say why the speed ramp switch is disabled ([#54](https://github.com/wolasss/random-scale-trainer/issues/54)) ([35d3793](https://github.com/wolasss/random-scale-trainer/commit/35d3793b4451c8048c1ef0d7d5cc4fdfe6ae3df1))
+
 ## [1.2.1](https://github.com/wolasss/random-scale-trainer/compare/v1.2.0...v1.2.1) (2026-08-08)
 
 
