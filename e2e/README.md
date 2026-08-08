@@ -39,6 +39,30 @@ APP_BASE_URL=http://host.docker.internal:4173 npm run test:e2e   # terminal 2
 
 - `pages/trainer.page.ts` — the **only** place selectors, app strings, and wait conditions live. When refactoring the UI, update this file (and the `data-testid` attributes in `src/components/`); specs should not need to change.
 - `specs/01–11` — initial defaults, playback/pause/resume, tempo controls + persistence, switches + persistence, theme + persistence, keyboard shortcuts, session completion + reset, note pool + presets, NEXT preview, enharmonic spelling, session goal/stats.
+- `specs/12` — the mobile layout guard; see below.
+
+## The mobile layout guard (spec 12)
+
+Controls that grow wider than the phone they run on are not a local problem: the
+scroll container holding one drags every sibling sideways with it. So spec 12
+asserts nothing at all reaches past its container's right edge, at 320/390/430px
+— rather than asserting on whichever control got it wrong last time.
+
+It measures two roots: the page, and the practice sheet in the installed app.
+Reaching the second needs both halves of `useDisplayMode`'s stage test, which
+`buildDriver` takes as options:
+
+| Option | Effect |
+|---|---|
+| `mobileWidth` | Chrome mobile emulation — makes `(pointer: coarse)` match and pins the viewport to an exact CSS width |
+| `standalone` | launches with `--app=`, the only way `(display-mode: standalone)` matches |
+
+Device metrics are fixed when the browser launches, so — unlike the rest of the
+suite — this spec opens one session per width instead of sharing one.
+
+Anything deliberately swipeable is exempt: the walk skips elements inside an
+ancestor whose computed `overflow-x` is `auto` or `scroll`, which is what keeps
+the fretboard's own scroller from reading as a failure.
 
 ## Conventions (anti-flakiness)
 
