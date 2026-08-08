@@ -142,7 +142,10 @@ const isPitchClassText = (segment: string) => /^\d{1,2}$/.test(segment) && Numbe
 
 const booleanCodec = (storageKey: string): Codec<boolean> => ({
   storageKey,
-  deserialize: (raw) => raw === 'true',
+  // Only the two values we write count: anything else is rejected so the
+  // default holds, rather than reading as off for the three toggles that
+  // default to on.
+  deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   serialize: String,
 })
 
