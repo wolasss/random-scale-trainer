@@ -541,4 +541,28 @@ describe('Routines', () => {
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 4')
     expect(bpm()).toBe('72')
   })
+
+  it('keeps a block on time when the practice log clears the session clock', async () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-6')
+    await startPractice(60)
+
+    // Halfway through the two-minute first block, the session clock goes back
+    // to zero underneath it.
+    await act(async () => {
+      vi.advanceTimersByTime(60_000)
+    })
+    fireEvent.click(screen.getByTestId('practice-log-clear'))
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 3')
+
+    // The block still hands over at its own two minutes, not two minutes after
+    // the clear.
+    await act(async () => {
+      vi.advanceTimersByTime(61_000)
+    })
+
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 3')
+    expect(bpm()).toBe('76')
+  })
 })

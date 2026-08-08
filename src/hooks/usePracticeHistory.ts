@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  addPractice,
-  clearHistory,
-  dayKey,
-  EMPTY_HISTORY,
-  HISTORY_FLUSH_MS,
-  readHistory,
-  writeHistory,
-  type PracticeHistory,
-} from '../lib/history'
+import { addPractice, dayKey, HISTORY_FLUSH_MS, readHistory, writeHistory, type PracticeHistory } from '../lib/history'
 
 /**
  * Records practice against the calendar.
@@ -76,16 +67,6 @@ export function usePracticeHistory() {
     }
   }, [])
 
-  const clear = useCallback(() => {
-    // Pending seconds go with it, or the day the user just wiped reappears on
-    // the next tick.
-    pendingMsRef.current = 0
-    pendingNotesRef.current = 0
-    clearHistory()
-    historyRef.current = EMPTY_HISTORY
-    setHistory(EMPTY_HISTORY)
-  }, [])
-
   // A tab closed mid-session still gets its seconds; pagehide is the only
   // unload event iOS Safari fires reliably.
   useEffect(() => {
@@ -106,5 +87,5 @@ export function usePracticeHistory() {
     }
   }, [commit])
 
-  return { history, trackElapsed, trackNotes, commit, clear }
+  return { history, trackElapsed, trackNotes, commit }
 }

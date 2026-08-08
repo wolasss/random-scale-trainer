@@ -127,14 +127,6 @@ export const writeHistory = (history: PracticeHistory) => {
   }
 }
 
-export const clearHistory = () => {
-  try {
-    window.localStorage.removeItem(STORAGE_KEYS.practiceLog)
-  } catch {
-    // Same as above: nothing here is worth interrupting playback for.
-  }
-}
-
 /** Adds to a day without mutating the history it was given. */
 export const addPractice = (
   history: PracticeHistory,

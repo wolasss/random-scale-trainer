@@ -189,6 +189,22 @@ function App() {
     routine.reset()
   }
 
+  // The practice log's own control: it puts the session clock back to zero and
+  // leaves everything else — playback, counters, the stored days — alone. A log
+  // of what someone has actually practised is not something a stray click on a
+  // heading button gets to erase.
+  const clearTimer = () => {
+    // The routine reads its block clock off this same session time, so the time
+    // taken off the clock is handed to it: the block it is on keeps the minutes
+    // it has already run, and still hands over when it is due.
+    routine.rebase(sessionTimer.reset())
+    // reset() stops the ticking; without this the clock would sit at 00:00
+    // while the notes kept coming.
+    if (playback.isPlaying) {
+      sessionTimer.start()
+    }
+  }
+
   const tapTempoRef = useRef<TapTempo | null>(null)
   const handleTapTempo = () => {
     tapTempoRef.current ??= createTapTempo()
@@ -276,7 +292,7 @@ function App() {
     <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
   )
 
-  const practiceLogCard = <PracticeLogCard history={practiceHistory.history} onClear={practiceHistory.clear} />
+  const practiceLogCard = <PracticeLogCard history={practiceHistory.history} onClear={clearTimer} />
 
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
