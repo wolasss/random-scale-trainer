@@ -1,13 +1,13 @@
 - [x] Verify that the copilot-instructions.md file in the .github directory is created.
 
 - [x] Clarify Project Requirements
-  React + Vite + TypeScript app for guitar fretboard memorization practice with random scale generation, spoken note playback, BPM control, session timer, and continuous mode.
+  React + Vite + TypeScript app for guitar fretboard memorization practice with random note calling from a pitch-class pool, spoken note playback, BPM control, session timer, and continuous mode.
 
 - [x] Scaffold the Project
   Initialized a Vite React TypeScript frontend in the current workspace and repaired duplicated scaffold artifacts left by the interrupted generator.
 
 - [x] Customize the Project
-  Implemented the trainer UI, editable scale library, random scale generation, Web Audio metronome click, SpeechSynthesis note announcements, BPM slider, and session timer.
+  Implemented the trainer UI, note-pool selection with presets, shuffled-bag random note calling, Web Audio metronome click, spoken note clips with a SpeechSynthesis fallback, BPM slider, and session timer.
 
 - [x] Install Required Extensions
   No extensions required by the project setup information.

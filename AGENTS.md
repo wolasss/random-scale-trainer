@@ -3,7 +3,7 @@
 Guidance for AI coding agents (Claude Code, Codex, etc.) working in this repository. Human contributors may find it useful too.
 
 ## What this is
-A React + Vite + TypeScript web app for guitar-fretboard / scale practice: random scale generation, spoken note playback (Web Audio + SpeechSynthesis), BPM control, a session timer, a practice log, and a continuous "routines" mode. Ships as a PWA.
+A React + Vite + TypeScript web app for guitar-fretboard memorization practice: random note calling from a user-chosen pitch-class pool (a shuffled bag, so every note comes up once per cycle), spoken note clips scheduled over a Web Audio metronome with a SpeechSynthesis fallback, BPM control, a session timer, a practice log, and a continuous "routines" mode. Ships as a PWA.
 
 ## The one command that defines "done"
 Before considering any change complete, it must pass:
@@ -17,12 +17,13 @@ This runs, in order: `lint` → `typecheck:e2e` → `test` (Vitest) → `build` 
 The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is not part of `npm run check`; run it only when your change could affect real browser behavior.
 
 ## Layout
-- `src/App.tsx` — top-level app; composes the trainer UI. Colocated tests: `App.integration.test.tsx`, `App.routines.test.tsx`, `App.practiceLog.test.tsx`, `App.stage.test.tsx`.
+- `src/App.tsx` — top-level app; composes the trainer UI. Colocated tests: `App.integration.test.tsx`, `App.routines.test.tsx`, `App.practiceLog.test.tsx`, `App.stage.test.tsx`, `App.skin.test.tsx`.
 - `src/components/` — presentational/UI components.
-- `src/hooks/` — React hooks (settings, keyboard shortcuts, session timer, wake lock, service worker, persistent state…), each with a colocated `*.test.tsx`.
+- `src/hooks/` — React hooks (settings, keyboard shortcuts, session timer, wake lock, service worker, persistent state…), most with a colocated `*.test.tsx` (`useBeatPulse.ts` and `usePlayback.ts` have none).
+- `src/lib/` — pure logic modules (notes, presets, routines, transport, history, tap tempo, skins, storage, time), most with colocated tests (`skins.ts` and `storage.ts` have none).
 - `src/lib/audio/` — Web Audio engine (`engine.ts` + tests).
 - `src/lib/playback/` — playback state machine (`machine.ts` + tests).
-- `src/data/`, `src/constants.ts` — scale data and constants.
+- `src/constants.ts` — shared constants (tempo/beat limits, speed ramp, session goals, scheduler timing, storage keys).
 - `src/test/` — test setup/helpers.
 - `e2e/` — Selenium specs (separate `tsconfig`, typechecked via `typecheck:e2e`).
 
@@ -35,7 +36,7 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 
 ## Do NOT touch (unless that IS the task)
 - `.github/workflows/` (CI) and release config (`semantic-release`, version bumps) — releases are automated.
-- Precomputed audio assets and generated files under `src/assets`/`src/data` unless explicitly asked.
+- Precomputed audio assets and generated files — the note clips under `public/audio/notes/` (produced by `scripts/generate-note-audio.sh`) and assets under `src/assets` — unless explicitly asked.
 - `master` directly — always work on a branch and open a PR.
 
 ## Preview servers
