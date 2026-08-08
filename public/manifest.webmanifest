@@ -1,5 +1,5 @@
 {
-  "name": "Random note trainer",
+  "name": "Random notes trainer",
   "short_name": "Notes",
   "start_url": "/?src=pwa",
   "scope": "/",
