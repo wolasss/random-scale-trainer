@@ -8,6 +8,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Random notes trainer</title>
 
+    <!--
+      Apply the stored theme and skin before first paint so a reload never
+      flashes the default and then snaps to the user's choice. Wrapped in
+      try/catch because localStorage throws in some privacy modes.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var theme = localStorage.getItem('fretboard-theme')
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', theme)
+          }
+          var skin = localStorage.getItem('fretboard-skin')
+          var skins = { glass: 1, instrument: 1, editorial: 1, warm: 1 }
+          if (skin && skins[skin]) {
+            document.documentElement.setAttribute('data-skin', skin)
+            var fonts = {
+              instrument:
+                'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
+              warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
+            }
+            if (fonts[skin]) {
+              var link = document.createElement('link')
+              link.rel = 'stylesheet'
+              link.href = fonts[skin]
+              link.setAttribute('data-skin-font', skin)
+              document.head.appendChild(link)
+            }
+          }
+        } catch (e) {}
+      })()
+    </script>
+
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#061014" />
     <link rel="apple-touch-icon" href="/icon-192.png" />

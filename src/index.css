@@ -24,6 +24,10 @@
   --control-border: rgba(174, 236, 255, 0.14);
   /* One signature curve, not the browser default, on every UI transition. */
   --ease-out: cubic-bezier(0.22, 0.7, 0.29, 1);
+  /* Type roles as tokens so a skin can re-voice the whole app by overriding
+     two variables. Glass pairs a serif display with a grotesk body. */
+  --font-display: 'Fraunces', 'Iowan Old Style', serif;
+  --font-body: 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
 }
 
 :root[data-theme='light'] {
@@ -61,7 +65,7 @@ body,
 
 body {
   min-width: 320px;
-  font-family: 'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   color: var(--ink);
   /* One anchored glow, not three: a single teal bloom keeps the atmosphere
      without the tri-colour corner wash that reads as a generated backdrop. */
@@ -138,6 +142,24 @@ button {
   align-items: center;
   gap: 1rem;
   padding-top: 0.9rem;
+}
+
+.skin-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skin-picker-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.skin-select {
+  max-width: 12rem;
 }
 
 /* Flat, solid, hairline-bordered: the setup cards are surfaces, not floating
@@ -257,7 +279,7 @@ h2,
 .hero-ready,
 .next-chip-value,
 .timer-face {
-  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-family: var(--font-display);
 }
 
 h1 {
@@ -568,7 +590,7 @@ input[type='range'] {
 }
 
 .tempo-readout output {
-  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-family: var(--font-display);
   font-size: clamp(2.6rem, 6vw, 3.4rem);
   font-weight: 700;
   line-height: 1;
@@ -660,7 +682,7 @@ input[type='range'] {
 
 .note-chip {
   min-height: 48px;
-  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-family: var(--font-display);
   font-size: 22px;
   border-radius: 14px;
   border: 1px solid var(--control-border);
@@ -1031,7 +1053,7 @@ input[type='range'] {
 }
 
 .session-stat-value {
-  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-family: var(--font-display);
   font-size: 1.6rem;
   font-weight: 700;
   line-height: 1;
@@ -1457,7 +1479,7 @@ input[type='range'] {
 }
 
 .practice-log-streak-value {
-  font-family: 'Fraunces', 'Iowan Old Style', serif;
+  font-family: var(--font-display);
   font-size: 3.25rem;
   font-weight: 700;
   line-height: 1;
@@ -2142,5 +2164,403 @@ input[type='range'] {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* =======================================================================
+   SKINS
+   `data-skin` on <html> swaps the whole visual identity. Glass (no
+   data-skin, defined above) is the default. Each skin below redefines the
+   token palette for both themes, then adds the few signature treatments
+   tokens alone can't carry. The dark/light toggle stays orthogonal —
+   every skin answers to it.
+   ======================================================================= */
+
+/* --- Instrument: studio hardware -------------------------------------- */
+:root[data-skin='instrument'] {
+  --bg-deep: #070809;
+  --bg-mid: #0b0d10;
+  --bg-light: #101418;
+  --ink: #e7e4db;
+  --ink-soft: rgba(231, 228, 219, 0.58);
+  --panel: #121417;
+  --panel-border: #262a30;
+  --card: #121417;
+  --card-shadow: 0 14px 26px rgba(0, 0, 0, 0.45);
+  --primary: #ffb020;
+  --primary-strong: #ff9500;
+  --primary-soft: rgba(255, 176, 32, 0.14);
+  --accent: #35d07f;
+  --shadow: 0 22px 44px rgba(0, 0, 0, 0.55);
+  --button-border: #34383f;
+  --button-bg: #1a1d21;
+  --control-border: #23262c;
+  --font-display: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  /* Instrument-only tokens. The readout glass stays dark in both themes. */
+  --ink-on-amber: #0a0b0d;
+  --lcd-bg: #050607;
+  --lcd-amber: #ffb020;
+}
+
+:root[data-skin='instrument'][data-theme='light'] {
+  --bg-deep: #d7dade;
+  --bg-mid: #c9cdd3;
+  --bg-light: #bcc1c8;
+  --ink: #16181c;
+  --ink-soft: rgba(22, 24, 28, 0.6);
+  --panel: #e9ebef;
+  --panel-border: #b6bbc3;
+  --card: #e9ebef;
+  --card-shadow: 0 12px 24px rgba(40, 46, 54, 0.16);
+  --primary: #a86a00;
+  --primary-strong: #8a5600;
+  --primary-soft: rgba(168, 106, 0, 0.14);
+  --accent: #1f8f57;
+  --shadow: 0 18px 34px rgba(40, 46, 54, 0.2);
+  --button-border: #b6bbc3;
+  --button-bg: #dcdfe4;
+  --control-border: #c3c8cf;
+  --ink-on-amber: #1a1206;
+}
+
+[data-skin='instrument'] body {
+  background:
+    radial-gradient(1100px 480px at 50% -10%, rgba(255, 176, 32, 0.05), transparent 60%),
+    linear-gradient(160deg, var(--bg-deep), var(--bg-mid) 55%, var(--bg-light));
+}
+
+[data-skin='instrument'] .backdrop {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+[data-skin='instrument'] .panel {
+  border-radius: 12px;
+  box-shadow: var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-skin='instrument'] .practice-stage {
+  background: var(--card);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: none;
+}
+
+[data-skin='instrument'] h1 {
+  font-size: clamp(1.3rem, 3vw, 2.05rem);
+  line-height: 1.04;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-skin='instrument'] h2 {
+  font-size: 1.02rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* The readout: a recessed, dark LCD with faint scanlines. */
+[data-skin='instrument'] .hero-note-line {
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px),
+    var(--lcd-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: inset 0 3px 20px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+}
+
+[data-skin='instrument'] .hero-note {
+  color: var(--lcd-amber);
+  text-shadow:
+    0 0 22px rgba(255, 176, 32, 0.55),
+    0 0 60px rgba(255, 176, 32, 0.25);
+}
+
+[data-skin='instrument'] .hero-ready {
+  color: var(--lcd-amber);
+  opacity: 0.38;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* Green — the live pulse rippling out from the lit note. */
+[data-skin='instrument'] .beat-ring {
+  border-color: var(--accent);
+}
+
+[data-skin='instrument'] .beat-dot {
+  border-radius: 2px;
+}
+
+[data-skin='instrument'] .beat-dot.active {
+  box-shadow: 0 0 8px var(--primary);
+}
+
+/* A miniature readout on its own dark panel. */
+[data-skin='instrument'] .next-chip {
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  border-color: var(--panel-border);
+  background: var(--lcd-bg);
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.7);
+}
+
+[data-skin='instrument'] .next-chip-value {
+  color: var(--lcd-amber);
+}
+
+[data-skin='instrument'] .primary-button,
+[data-skin='instrument'] .secondary-button,
+[data-skin='instrument'] .ghost-button {
+  border-radius: 8px;
+}
+
+/* A raised amber cap with a lit top edge and a hard shadow under it. */
+[data-skin='instrument'] .primary-button {
+  background: linear-gradient(#ffc24d, #ff9e00);
+  border: 1px solid #a86400;
+  color: var(--ink-on-amber) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 3px 0 #8a5200,
+    0 9px 16px rgba(0, 0, 0, 0.4);
+}
+
+[data-skin='instrument'] .primary-button:hover {
+  transform: none;
+  filter: brightness(1.05);
+}
+
+[data-skin='instrument'] .primary-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 0 #8a5200;
+}
+
+/* Knurled metal — a fine vertical milling on a solid button body. */
+[data-skin='instrument'] .transport-reset {
+  color: var(--ink);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+    var(--button-bg);
+  border: 1px solid var(--button-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-skin='instrument'] .note-chip {
+  border-radius: 7px;
+  background: var(--button-bg);
+  opacity: 0.7;
+}
+
+[data-skin='instrument'] .fret-dot {
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.6);
+}
+
+/* --- Editorial: method book ------------------------------------------- */
+:root[data-skin='editorial'] {
+  --bg-deep: #141310;
+  --bg-mid: #1a1813;
+  --bg-light: #201d17;
+  --ink: #ece7d8;
+  --ink-soft: rgba(236, 231, 216, 0.6);
+  --panel: #1c1a15;
+  --panel-border: #33302a;
+  --card: #1c1a15;
+  --card-shadow: 0 14px 26px rgba(0, 0, 0, 0.4);
+  --primary: #d66a5f;
+  --primary-strong: #c2504a;
+  --primary-soft: rgba(214, 106, 95, 0.16);
+  --accent: #d2a24f;
+  --shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --button-border: #3a362d;
+  --button-bg: #24211a;
+  --control-border: #2c2921;
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Times New Roman', serif;
+  --editorial-cream: #f7f3e8;
+}
+
+:root[data-skin='editorial'][data-theme='light'] {
+  --bg-deep: #efece2;
+  --bg-mid: #e9e5d8;
+  --bg-light: #e3dece;
+  --ink: #17150f;
+  --ink-soft: rgba(23, 21, 15, 0.62);
+  --panel: #f6f3ea;
+  --panel-border: #d6d0be;
+  --card: #f6f3ea;
+  --card-shadow: 0 10px 24px rgba(60, 50, 30, 0.1);
+  --primary: #9e2b25;
+  --primary-strong: #7f211c;
+  --primary-soft: rgba(158, 43, 37, 0.1);
+  --accent: #b8863b;
+  --shadow: 0 14px 30px rgba(60, 50, 30, 0.14);
+  --button-border: #cfc8b6;
+  --button-bg: #efeadd;
+  --control-border: #d8d2c1;
+}
+
+/* Flat paper — no atmospheric wash, no grid faceplate. */
+[data-skin='editorial'] body {
+  background: linear-gradient(160deg, var(--bg-deep), var(--bg-mid) 55%, var(--bg-light));
+}
+
+[data-skin='editorial'] .backdrop {
+  background-image: none;
+}
+
+[data-skin='editorial'] .panel {
+  border-radius: 4px;
+  box-shadow: var(--card-shadow);
+}
+
+[data-skin='editorial'] .practice-stage {
+  background: var(--card);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: none;
+}
+
+/* Ink on paper — the note is set, not lit. */
+[data-skin='editorial'] .hero-note {
+  color: var(--ink);
+  text-shadow: none;
+}
+
+[data-skin='editorial'] .primary-button,
+[data-skin='editorial'] .secondary-button,
+[data-skin='editorial'] .ghost-button {
+  border-radius: 3px;
+}
+
+[data-skin='editorial'] .primary-button {
+  background: var(--primary);
+  border: 1px solid transparent;
+  color: var(--editorial-cream) !important;
+}
+
+[data-skin='editorial'] .next-chip,
+[data-skin='editorial'] .note-chip {
+  border-radius: 3px;
+}
+
+/* --- Warm: friendly & rounded ----------------------------------------- */
+:root[data-skin='warm'] {
+  --bg-deep: #241a18;
+  --bg-mid: #2c201d;
+  --bg-light: #342523;
+  --ink: #f3e6dd;
+  --ink-soft: rgba(243, 230, 221, 0.62);
+  --panel: #2e221f;
+  --panel-border: #443330;
+  --card: #2e221f;
+  --card-shadow: 0 14px 26px rgba(0, 0, 0, 0.4);
+  --primary: #ff8a5f;
+  --primary-strong: #f56a3d;
+  --primary-soft: rgba(255, 138, 95, 0.16);
+  --accent: #4fd1b3;
+  --shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --button-border: #48352f;
+  --button-bg: #382a26;
+  --control-border: #3c2c28;
+  --font-display: 'Nunito', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'Nunito', 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+:root[data-skin='warm'][data-theme='light'] {
+  --bg-deep: #fff6ee;
+  --bg-mid: #fff0e4;
+  --bg-light: #ffe9db;
+  --ink: #4a3b32;
+  --ink-soft: rgba(74, 59, 50, 0.6);
+  --panel: #fffdfb;
+  --panel-border: #f2e0d2;
+  --card: #fffdfb;
+  --card-shadow: 0 10px 22px rgba(200, 140, 100, 0.12);
+  --primary: #ff7a4d;
+  --primary-strong: #ef5f30;
+  --primary-soft: rgba(255, 122, 77, 0.14);
+  --accent: #2fb896;
+  --shadow: 0 18px 36px rgba(210, 130, 90, 0.18);
+  --button-border: #f0ddcf;
+  --button-bg: #fff4ec;
+  --control-border: #f2e2d5;
+}
+
+[data-skin='warm'] body {
+  background:
+    radial-gradient(900px 500px at 50% -8%, var(--primary-soft), transparent 60%),
+    linear-gradient(160deg, var(--bg-deep), var(--bg-mid) 55%, var(--bg-light));
+}
+
+[data-skin='warm'] .backdrop {
+  background-image: none;
+}
+
+/* Rounded everything, soft shadows. */
+[data-skin='warm'] .panel {
+  border-radius: 24px;
+}
+
+[data-skin='warm'] .practice-stage {
+  border-radius: 26px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+}
+
+[data-skin='warm'] .hero-note {
+  color: var(--primary);
+  text-shadow: 0 6px 18px rgba(255, 122, 77, 0.28);
+}
+
+[data-skin='warm'] .primary-button,
+[data-skin='warm'] .secondary-button,
+[data-skin='warm'] .ghost-button {
+  border-radius: 999px;
+}
+
+/* Solid coral pill — matches the hallmark warm mock, not a gradient. */
+[data-skin='warm'] .primary-button {
+  background: var(--primary);
+  border: 1px solid transparent;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px var(--primary-soft);
+}
+
+/* Reset is the mint counterpart — soft, rounded, friendly. */
+[data-skin='warm'] .transport-reset {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Peach chip with a coral readout. */
+[data-skin='warm'] .next-chip {
+  background: var(--primary-soft);
+  border-color: transparent;
+}
+
+[data-skin='warm'] .next-chip-value {
+  color: var(--primary);
+}
+
+/* Mint neck dots with a soft ring. */
+[data-skin='warm'] .fret-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-skin='warm'] .note-chip {
+  border-radius: 14px;
+}
+
+[data-skin='warm'] .note-chip[aria-pressed='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 

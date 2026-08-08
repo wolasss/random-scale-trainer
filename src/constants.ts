@@ -43,6 +43,7 @@ export const SCHEDULER_TICK_MS = 25
 
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
+  skin: 'fretboard-skin',
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',

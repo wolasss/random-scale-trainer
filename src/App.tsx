@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, type Theme } from './components/TopBar'
+import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, type Skin } from './lib/skins'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
@@ -34,6 +35,10 @@ function App() {
   const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
     defaultValue: 'dark',
     deserialize: (raw) => (raw === 'light' || raw === 'dark' ? raw : undefined),
+  })
+  const [skin, setSkin] = usePersistentState<Skin>(STORAGE_KEYS.skin, {
+    defaultValue: DEFAULT_SKIN,
+    deserialize: (raw) => (isSkin(raw) ? raw : undefined),
   })
   const [settings, dispatch] = useSettings()
 
@@ -103,6 +108,27 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
+
+  // The chosen skin drives every skinned rule in the stylesheet.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-skin', skin)
+  }, [skin])
+
+  // Instrument and warm each need one webfont the base document doesn't load.
+  // Add it the first time that skin is picked, so glass never pays for it, and
+  // leave it in place afterwards (switching back and forth shouldn't re-fetch).
+  useEffect(() => {
+    const href = SKIN_FONT_HREF[skin]
+    if (!href || document.querySelector(`link[data-skin-font="${skin}"]`)) {
+      return
+    }
+
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    link.setAttribute('data-skin-font', skin)
+    document.head.appendChild(link)
+  }, [skin])
 
   // Everything that rearranges for the music stand keys off this one attribute,
   // so the stylesheet and the component tree can never disagree about which
@@ -299,7 +325,7 @@ function App() {
           {practiceLogCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
-          <Footer />
+          <Footer skin={skin} onSkinChange={setSkin} />
         </PracticeSheet>
 
         {updateChip}
@@ -374,7 +400,7 @@ function App() {
         </div>
       </main>
 
-      <Footer />
+      <Footer skin={skin} onSkinChange={setSkin} />
 
       {updateChip}
     </div>
