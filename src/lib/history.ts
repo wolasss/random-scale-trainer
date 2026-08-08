@@ -53,6 +53,13 @@ export const parseDayKey = (key: string) => {
 }
 
 /**
+ * A key is only real if it survives the round trip: `parseDayKey` happily rolls
+ * '2026-02-30' over into March, and a day that no calendar ever had would sit in
+ * the store forever, invisible to the window but still countable as a streak.
+ */
+const isDayKey = (key: string) => DAY_KEY_PATTERN.test(key) && dayKey(parseDayKey(key)) === key
+
+/**
  * Calendar-day arithmetic, so a DST change still moves exactly one day —
  * subtracting 24 hours would land on the same date twice a year.
  */
@@ -83,7 +90,7 @@ const sanitize = (parsed: unknown): PracticeHistory => {
 
   const days: Record<string, PracticeDay> = {}
   for (const [key, value] of Object.entries(rawDays as Record<string, unknown>)) {
-    if (!DAY_KEY_PATTERN.test(key) || Number.isNaN(parseDayKey(key).getTime())) {
+    if (!isDayKey(key)) {
       continue
     }
 
