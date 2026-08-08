@@ -1802,13 +1802,66 @@ input[type='range'] {
     align-items: flex-start;
   }
 
+  /* The stepper, the readout and the tap button only just fit a phone at the
+     desktop gap, and the tap button is the one that loses — it ends up hanging
+     over the block's right edge. */
+  .tempo-readout-row {
+    gap: 0.6rem;
+  }
+
+  .tempo-readout-row .tap-tempo {
+    padding-inline: 0.9rem;
+  }
+
+  /* Content-sized pills are wider than a phone once there are five of them, so
+     the track spans the row and the spans share it evenly rather than pushing
+     the card — and the sheet around it — wider than the screen. Labels break
+     over two lines at that width, which the stadium radius reads as a blob, so
+     the track squares off to the rounded rectangle used elsewhere. */
+  .segmented:not(.loose) {
+    display: flex;
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .segmented:not(.loose) [role='radio'] {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.25rem;
+    border-radius: 11px;
+    font-size: 0.85rem;
+  }
+
   .app-footer {
     flex-direction: column;
     align-items: flex-start;
   }
 
+  /* The style picker is as wide as its longest skin name, which leaves nothing
+     for the links beside it: it takes the first line to itself and they wrap
+     onto the second. */
   .footer-links {
     width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .skin-picker {
+    flex: 1 1 100%;
+  }
+
+  .skin-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* Below this the tempo row runs out of tricks: two of its three parts are
+   44px tap targets and the third is the number you read from a stand, so
+   nothing left can give and the tap button takes a line of its own. */
+@media (max-width: 359px) {
+  .tempo-readout-row {
+    flex-wrap: wrap;
   }
 }
 
