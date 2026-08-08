@@ -32,6 +32,7 @@ export const STORAGE_KEYS = {
   notePool: 'fretboard-note-pool',
   spelling: 'fretboard-spelling',
   sessionGoal: 'fretboard-session-goal',
+  setupRevealed: 'fretboard-setup-revealed',
 }
 
 const POLL_MS = 100
@@ -70,6 +71,9 @@ const SELECTORS = {
   statCycles: By.css('[data-testid="stat-cycles"]'),
   openSetup: By.css('[data-testid="open-setup"]'),
   practiceSheet: By.css('[data-testid="practice-sheet"]'),
+  setupReveal: By.css('[data-testid="setup-reveal"]'),
+  routineCard: By.css('[data-testid="routine-card"]'),
+  transportReadout: By.css('[data-testid="transport-readout"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -154,8 +158,23 @@ export class TrainerPage {
     await this.disableAnimations()
   }
 
-  /** Open the app with a clean localStorage so every test starts from defaults. */
+  /**
+   * Open the app with a clean localStorage so every test starts from defaults —
+   * except for the first-run fold, which is left open. A fresh profile is a
+   * first run by definition, and every spec below this one is about the
+   * controls the fold hides. `01-initial-load` covers the folded state itself.
+   */
   async openFresh(): Promise<void> {
+    await this.open()
+    await this.driver.executeScript(
+      `window.localStorage.clear(); window.localStorage.setItem(arguments[0], 'true')`,
+      STORAGE_KEYS.setupRevealed,
+    )
+    await this.refresh()
+  }
+
+  /** Open the app exactly as a first-time visitor gets it: setup folded away. */
+  async openFirstRun(): Promise<void> {
     await this.open()
     await this.driver.executeScript('window.localStorage.clear()')
     await this.refresh()
@@ -232,6 +251,21 @@ export class TrainerPage {
     return (await this.driver.findElements(SELECTORS.rampTarget)).length > 0
   }
 
+  /** The first-run fold: present only while the setup cards are folded away. */
+  async hasSetupReveal(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.setupReveal)).length > 0
+  }
+
+  /** Routine is the first of the setup cards — its presence stands for them. */
+  async hasSetupCards(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.routineCard)).length > 0
+  }
+
+  async openSetupFold(): Promise<void> {
+    await this.driver.findElement(SELECTORS.setupReveal).click()
+    await this.driver.wait(until.elementLocated(SELECTORS.routineCard), 5_000)
+  }
+
   async getRampTarget(): Promise<number> {
     return Number(await this.driver.findElement(SELECTORS.rampTargetValue).getText())
   }
@@ -242,6 +276,20 @@ export class TrainerPage {
 
   async getTimer(): Promise<string> {
     return this.driver.findElement(SELECTORS.timer).getText()
+  }
+
+  /** The transport's own clock — the one reading that survives the setup fold. */
+  async getTransportReadout(): Promise<string> {
+    return this.driver.findElement(SELECTORS.transportReadout).getText()
+  }
+
+  /** Reset and the readout only exist once there is something on the clock. */
+  async hasResetControl(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.reset)).length > 0
+  }
+
+  async hasTransportReadout(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.transportReadout)).length > 0
   }
 
   async getCycleTime(): Promise<string> {

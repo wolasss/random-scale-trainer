@@ -56,4 +56,40 @@ describe('initial load', () => {
   it('defaults to the dark theme', async () => {
     assert.equal(await page.getTheme(), 'dark')
   })
+
+  /**
+   * The only spec that takes the app as an actual first-time visitor gets it —
+   * every other one seeds the fold open, because they are about what it hides.
+   */
+  describe('a genuinely first run', () => {
+    beforeEach(async () => {
+      await page.openFirstRun()
+    })
+
+    it('folds the setup away behind a single row', async () => {
+      assert.equal(await page.hasSetupReveal(), true)
+      assert.equal(await page.hasSetupCards(), false)
+      // The stage is fully playable while folded — that is the whole argument.
+      // And a zeroed transport is only the start button: reset and the goal
+      // readout wait until there is something on the clock.
+      assert.equal(await page.getPlayButtonText(), 'Start practice')
+      assert.equal(await page.hasResetControl(), false)
+      assert.equal(await page.hasTransportReadout(), false)
+    })
+
+    it('opens the setup on the fold, and stays open across a reload', async () => {
+      await page.openSetupFold()
+      assert.equal(await page.hasSetupReveal(), false)
+
+      await page.refresh()
+      assert.equal(await page.hasSetupCards(), true)
+      assert.equal(await page.hasSetupReveal(), false)
+    })
+
+    it('opens the setup on the first start press', async () => {
+      await page.clickPlayPause()
+      assert.equal(await page.hasSetupCards(), true)
+      assert.equal(await page.hasSetupReveal(), false)
+    })
+  })
 })

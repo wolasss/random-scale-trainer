@@ -50,8 +50,8 @@ export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, on
         type="button"
         className="routine-strip-clear"
         data-testid="routine-strip-clear"
-        aria-label="Clear routine"
-        title="Clear routine"
+        aria-label={`Unload ${routine.name}`}
+        title={`Unload ${routine.name}`}
         onClick={onClear}
       >
         <FontAwesomeIcon icon={faXmark} />

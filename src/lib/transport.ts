@@ -12,7 +12,9 @@ export const transportLabel = (
   routineFinished: boolean | undefined,
 ): string => {
   if (isPlaying) return 'Pause'
-  if (routineFinished) return 'Restart routine'
+  // Only a timed routine can finish, and the UI's name for that shape is a
+  // workout — "routine" is the code's umbrella word, not the player's.
+  if (routineFinished) return 'Restart workout'
   if (isPaused) return 'Resume'
   return routineName ? `Start ${routineName}` : 'Start practice'
 }

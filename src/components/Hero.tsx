@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
+import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
@@ -8,6 +9,8 @@ type HeroProps = {
   ringRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string
+  /** The idle ghost note — null while playing, paused, or the pool is empty. */
+  idlePreview?: IdlePreviewNote | null
   /**
    * 'stage' is the installed-on-a-phone reading: the glyph takes the room the
    * browser chrome gave up, and the surrounding cards are gone. Everything the
@@ -26,7 +29,7 @@ function BeatDots({ count, active }: { count: number; active: number }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, variant = 'card' }: HeroProps) {
+export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idlePreview, variant = 'card' }: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
@@ -49,7 +52,18 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, varia
         {currentNote.display}
       </strong>
     ) : (
-      <span className="hero-ready">ready</span>
+      // Idle: the ghost note breathes where the real note will land, with the
+      // state still named above it. Decoration only — hidden from screen
+      // readers, keyed per deal so the CSS crossfade replays, and never the
+      // note-pop or beat-ring, which stay exclusive to actual playback.
+      <span className="hero-ready-stack">
+        <span className="hero-ready hero-ready-caption">ready</span>
+        {idlePreview ? (
+          <strong key={idlePreview.tick} className="hero-ghost-note" data-testid="idle-ghost" aria-hidden="true">
+            {idlePreview.display}
+          </strong>
+        ) : null}
+      </span>
     )
 
   if (isStage) {

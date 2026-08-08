@@ -12,6 +12,10 @@ type TransportBarProps = {
   routineFinished?: boolean
   onPlayPause: () => void
   onReset: () => void
+  /** Anything to unwind yet — clock, counters or routine position. Until then
+   * the bar is just the start button: no reset with nothing to reset, and no
+   * second number to parse before the first press. */
+  started: boolean
   elapsedMs: number
   goalMin: SessionGoalMin
 }
@@ -23,13 +27,14 @@ export function TransportBar({
   routineFinished,
   onPlayPause,
   onReset,
+  started,
   elapsedMs,
   goalMin,
 }: TransportBarProps) {
   const label = transportLabel(isPlaying, isPaused, routineName, routineFinished)
 
   return (
-    <div className="transport-bar">
+    <div className={`transport-bar ${started ? '' : 'zeroed'}`}>
       <div className="transport-actions">
         <button
           type="button"
@@ -39,16 +44,29 @@ export function TransportBar({
         >
           <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {label}
         </button>
-        <button type="button" className="ghost-button transport-reset" data-testid="reset" onClick={onReset}>
-          <FontAwesomeIcon icon={faRotateLeft} /> Reset timer
-        </button>
+        {/* Named for its scope, not its most visible effect: this puts the
+            clock, the counters and the routine's place in it all back to the
+            start. The practice log's own control is the narrow one. */}
+        {started ? (
+          <button
+            type="button"
+            className="ghost-button transport-reset"
+            data-testid="reset"
+            onClick={onReset}
+            title="Back to the start — clock, counters and routine position"
+          >
+            <FontAwesomeIcon icon={faRotateLeft} /> Reset session
+          </button>
+        ) : null}
       </div>
 
       {/* Progress toward the goal, read from the playing position — this is what
           lets the Session card live at the foot of the page. */}
-      <span className="transport-readout" data-testid="transport-readout">
-        {formatElapsed(elapsedMs)} of {goalMin} min
-      </span>
+      {started ? (
+        <span className="transport-readout" data-testid="transport-readout">
+          {formatElapsed(elapsedMs)} of {goalMin} min
+        </span>
+      ) : null}
     </div>
   )
 }

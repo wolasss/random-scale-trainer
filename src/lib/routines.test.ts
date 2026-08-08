@@ -164,6 +164,11 @@ describe('blockFlex', () => {
     expect(blockFlex(block({ dur: 240 }))).toBe(240)
     expect(blockFlex(block({ dur: null }))).toBe(240)
   })
+
+  it('floors very short blocks so their segment stays readable', () => {
+    expect(blockFlex(block({ dur: 25 }))).toBe(90)
+    expect(blockFlex(block({ dur: 90 }))).toBe(90)
+  })
 })
 
 describe('blockFromSettings', () => {
@@ -276,8 +281,27 @@ describe('SEEDED_ROUTINES', () => {
     const setups = SEEDED_ROUTINES.filter(isOpenEnded)
     const workouts = SEEDED_ROUTINES.filter((entry) => entry.blocks.length > 1)
 
-    expect(setups.map((entry) => entry.name)).toEqual(['Warm-up naturals', 'Chromatic drill', 'A minor box'])
-    expect(workouts.map((entry) => routineSeconds(entry) / 60)).toEqual([6, 12, 8])
+    expect(setups.map((entry) => entry.name)).toEqual([
+      'Warm-up naturals',
+      'Chromatic drill',
+      'Exam pace',
+      'String by string',
+    ])
+    // Neck fluency runs 25 seconds past its named 12 minutes — the exam lap.
+    expect(workouts.map((entry) => routineSeconds(entry))).toEqual([360, 745])
+  })
+
+  /**
+   * The exam is a pace stated as a deadline: all 12 notes, 25 seconds, and the
+   * block is exactly one lap long — pass is naming every note before it ends.
+   */
+  it('ends neck fluency on a 25-second exam over all 12 notes', () => {
+    const fluency = SEEDED_ROUTINES.find((entry) => entry.id === 'seed-neck-fluency-12')!
+    const exam = fluency.blocks[fluency.blocks.length - 1]
+
+    expect(exam).toMatchObject({ name: 'Exam', poolKey: 'chromatic', dur: 25 })
+    // One lap of the block's own pool takes the whole block, within rounding.
+    expect(Math.round(blockCycleSeconds(exam))).toBe(25)
   })
 
   /**

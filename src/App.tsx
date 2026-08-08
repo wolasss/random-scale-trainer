@@ -14,6 +14,7 @@ import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
+import { SetupReveal } from './components/SetupReveal'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { usePersistentState } from './hooks/usePersistentState'
@@ -22,6 +23,7 @@ import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
 import { useRoutine } from './hooks/useRoutine'
+import { useIdlePreview } from './hooks/useIdlePreview'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { usePracticeHistory } from './hooks/usePracticeHistory'
 import { useDisplayMode } from './hooks/useDisplayMode'
@@ -41,6 +43,12 @@ function App() {
     deserialize: (raw) => (isSkin(raw) ? raw : undefined),
   })
   const [settings, dispatch] = useSettings()
+  // False only until the very first start press (or a tap on the fold itself),
+  // and never goes back — see SetupReveal.
+  const [setupRevealed, setSetupRevealed] = usePersistentState<boolean>(STORAGE_KEYS.setupRevealed, {
+    defaultValue: false,
+    deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
+  })
 
   // The session timer, playback and the routine all need handles on each
   // other, so they go through refs that are refreshed on every render.
@@ -180,6 +188,9 @@ function App() {
       routine.restart()
     }
 
+    // Practice has begun, so the setup below is no longer a page of questions
+    // in front of the thing you came for. It stays out from here on.
+    setSetupRevealed(true)
     void playback.start()
   }
 
@@ -220,6 +231,22 @@ function App() {
     onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
     onReset: resetSession,
   })
+
+  // Anything on the clock, in play, or a routine moved off block 0 — exactly
+  // the state "Reset session" exists to unwind. Until then the transport shows
+  // only Start, and the goal readout waits with it: a reset button at a zeroed
+  // state invites the "what does this do?" click, and a second number gives an
+  // idle screen more to parse than "press start".
+  const sessionTouched =
+    playback.isPlaying ||
+    playback.isPaused ||
+    sessionTimer.elapsedMs > 0 ||
+    routine.blockIndex > 0 ||
+    routine.finished
+
+  // The idle hero's ghost note. Gated on the machine's own status: 'playing'
+  // covers the count-in too, so the ghost is gone from the first press.
+  const idlePreview = useIdlePreview(settings.pool, settings.spelling, playback.snapshot.status === 'idle')
 
   const activeBlock = routine.selected?.blocks[routine.blockIndex] ?? null
   // A multi-block routine names its current block; anything else keeps the
@@ -310,6 +337,7 @@ function App() {
             poolSize={settings.pool.length}
             ringRef={beatPulse.ringRef}
             message={heroMessage}
+            idlePreview={idlePreview}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -325,6 +353,7 @@ function App() {
             onPlayPause={playOrPause}
             onReset={resetSession}
             onOpenSetup={() => setSetupOpen(true)}
+            started={sessionTouched}
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
             strip={routineStrip}
@@ -373,6 +402,7 @@ function App() {
               poolSize={settings.pool.length}
               ringRef={beatPulse.ringRef}
               message={heroMessage}
+              idlePreview={idlePreview}
             />
 
             {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
@@ -387,33 +417,45 @@ function App() {
             routineFinished={routine.finished}
             onPlayPause={playOrPause}
             onReset={resetSession}
+            started={sessionTouched}
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
           />
         </section>
 
-        {/* Setup below, in the order you would actually touch it. What am I
-            practising is settled before any knob, and both of these are wide by
-            nature — a routine's blocks read as a proportional timeline, and
-            twelve chips read as a chromatic scale only on one row. */}
-        <RoutineCard routine={routine} />
+        {/* Setup below, in the order the concepts build on each other: the
+            controls first — notes on one full-width row of chips, then the
+            knobs — and only then Saved setups, which is a layer over those
+            controls ("save these, come back to them") and reads as one once
+            they have been seen. The stage sheet keeps the same order.
 
-        {notePoolCard}
+            None of it is on screen until practice has started once: the stage
+            above plays on the defaults, and a first run that opens on a column
+            of controls reads as a form to fill in. */}
+        {setupRevealed ? (
+          <>
+            {notePoolCard}
 
-        {/* Knobs: touched occasionally, and small enough to pair up. */}
-        <div className="card-row">
-          {tempoCard}
+            {/* Knobs: touched occasionally, and small enough to pair up. */}
+            <div className="card-row">
+              {tempoCard}
 
-          {practiceOptionsCard}
-        </div>
+              {practiceOptionsCard}
+            </div>
 
-        {/* Both of these are about time practised — one live, one historical —
-            and both are read after a session rather than during one. */}
-        <div className="card-row">
-          {sessionCard}
+            <RoutineCard routine={routine} />
 
-          {practiceLogCard}
-        </div>
+            {/* Both of these are about time practised — one live, one historical —
+                and both are read after a session rather than during one. */}
+            <div className="card-row">
+              {sessionCard}
+
+              {practiceLogCard}
+            </div>
+          </>
+        ) : (
+          <SetupReveal onReveal={() => setSetupRevealed(true)} />
+        )}
       </main>
 
       <Footer skin={skin} onSkinChange={setSkin} />

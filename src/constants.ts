@@ -32,6 +32,13 @@ export const rampRounds = (bpm: number, target: number) => Math.max(0, Math.ceil
 export const DEFAULT_BLOCK_SECONDS = 120
 /** Flex basis for an open-ended block, so the timeline still has a shape. */
 export const OPEN_BLOCK_FLEX_SECONDS = 240
+/**
+ * The narrowest share a timeline segment may claim, in flex-seconds. Purely a
+ * readability floor: a 25-second exam after twelve minutes of blocks is a
+ * sliver no label fits inside. A floor on flex-grow can never overflow the row
+ * the way a pixel minimum could — it only re-divides it.
+ */
+export const MIN_BLOCK_FLEX_SECONDS = 90
 
 export const SESSION_GOAL_OPTIONS = [5, 10, 20] as const
 export const DEFAULT_SESSION_GOAL_MIN = 10
@@ -57,11 +64,22 @@ export const STORAGE_KEYS = {
   showFretboard: 'fretboard-show-neck',
   routines: 'fretboard-routines',
   selectedRoutine: 'fretboard-selected-routine',
+  // Set the first time practice starts. Until then the browser layout keeps the
+  // setup cards folded away, so a first run is a stage and a start button
+  // rather than a page of controls.
+  setupRevealed: 'fretboard-setup-revealed',
   // Versioned in the key itself: the practice log is the one store whose shape
   // is worth migrating rather than dropping.
   practiceLog: 'rnt.history.v1',
   iosInstallHint: 'fretboard-ios-install-hint',
 } as const
+
+/**
+ * How long the idle hero holds each ghost note. The CSS breathe animation
+ * (`ghost-breathe` in index.css) is authored to this same length, so a note
+ * has always faded back out by the time the next one is dealt.
+ */
+export const IDLE_PREVIEW_MS = 2_750
 
 /**
  * A metronome clicking in a pocket is worse than one that stopped: playback
