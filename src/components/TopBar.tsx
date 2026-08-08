@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
+import { BrandLockup } from './BrandLockup'
 
 export type Theme = 'dark' | 'light'
 
@@ -15,8 +16,10 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
   return (
     <header className="topbar">
       <div className="header-copy">
-        <h1>Random note trainer</h1>
-        <p className="lede">Notes are called on the beat. Find them on the neck before the next one lands.</p>
+        <h1>
+          <BrandLockup />
+        </h1>
+        <p className="lede">A note is called on the beat. Find it before the next one lands.</p>
       </div>
       <div className="header-side">
         {install}

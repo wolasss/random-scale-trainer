@@ -52,6 +52,32 @@
   --control-border: rgba(10, 125, 109, 0.18);
 }
 
+/* =======================================================================
+   BRAND
+   The callnote.app mark. Its tokens are aliases of the app's own palette
+   rather than literal colours, which is what mechanically enforces the
+   guide's first rule — the call dot IS the Resume button's colour, so a
+   skin cannot drift from its mark. Every skin and both themes are covered
+   by these five lines; see brand/callnote-brand-guide.md.
+   ======================================================================= */
+:root {
+  --brand-ink: var(--ink);
+  --brand-ink-muted: var(--ink-soft);
+  --brand-accent: var(--primary);
+  --brand-accent-glow: color-mix(in srgb, var(--primary) 45%, transparent);
+  /* The guide's stated alternative to a border tone, and the one that holds
+     up across all four skins: --panel-border is near-invisible in warm's
+     light theme, where the response dot still has to read as a dot. */
+  --brand-dot-muted: color-mix(in srgb, var(--ink) 30%, transparent);
+  /* Not a skin token: the wordmark is Gabarito in every skin, by definition. */
+  --font-brand: 'Gabarito', 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+/* A glow on a light ground is a smudge, not a light. The guide drops it. */
+:root[data-theme='light'] {
+  --brand-accent-glow: transparent;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -288,6 +314,52 @@ h1 {
   font-size: clamp(1.8rem, 4.4vw, 3.2rem);
   line-height: 0.95;
   letter-spacing: -0.03em;
+}
+
+/* --- The mark ----------------------------------------------------------
+   Geometry that never changes. It declares its own type, spacing and case
+   so that a skin restyling h1 — instrument uppercases it, editorial sets
+   it in a serif — cannot reach inside and deform the wordmark. Every
+   measurement is in em, so the lockup simply scales with the font-size of
+   whatever it is dropped into. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22em;
+  font-family: var(--font-brand);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-transform: none;
+  line-height: 1;
+  color: var(--brand-ink);
+}
+
+.brand-dots {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.14em;
+}
+
+.brand-dot {
+  width: 0.22em;
+  height: 0.22em;
+  border-radius: 50%;
+}
+
+/* The call, lit. The glow is the dot's alone — never the wordmark's. */
+.brand-dot-call {
+  background: var(--brand-accent);
+  box-shadow: 0 0 12px 2px var(--brand-accent-glow);
+}
+
+/* The response, answering quietly. */
+.brand-dot-response {
+  background: var(--brand-dot-muted);
+}
+
+.brand-suffix {
+  font-weight: 600;
+  color: var(--brand-ink-muted);
 }
 
 h2 {
