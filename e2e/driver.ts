@@ -2,28 +2,74 @@ import { Builder, type WebDriver } from 'selenium-webdriver'
 import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js'
 import { config } from './config.ts'
 
-export const buildDriver = async (): Promise<WebDriver> => {
+export type DriverOptions = {
+  /**
+   * Emulate a phone at this CSS width. Mobile emulation is what makes
+   * `(pointer: coarse)` match, and it pins the viewport exactly — a plain
+   * --window-size is the outer window, browser chrome included, so it lands
+   * tens of pixels away from the width you asked for.
+   */
+  mobileWidth?: number
+  /**
+   * Launch in app mode, which is the only way `(display-mode: standalone)`
+   * matches. With mobileWidth it reproduces the home-screen PWA: the app
+   * swaps to the stage layout and hides setup behind the sheet.
+   */
+  standalone?: boolean
+}
+
+/** Tall enough that the stage layout is never squeezed vertically. */
+const MOBILE_HEIGHT = 844
+
+type DeviceMetrics = { deviceMetrics: { width: number; height: number; pixelRatio: number } }
+
+/**
+ * @types/selenium-webdriver only admits the {deviceName} and flat
+ * {width, height, pixelRatio} forms, but ChromeDriver ignores the flat one —
+ * it wants the {deviceMetrics} wrapper that the very same docblock shows in
+ * its second example. The method assigns whatever it is given straight onto
+ * the capability, so the shape below is what actually reaches the browser.
+ */
+const emulateDevice = (options: ChromeOptions, metrics: DeviceMetrics): void => {
+  const setMobileEmulation = options.setMobileEmulation.bind(options) as unknown as (
+    config: DeviceMetrics,
+  ) => void
+  setMobileEmulation(metrics)
+}
+
+export const buildDriver = async (options: DriverOptions = {}): Promise<WebDriver> => {
   const builder = new Builder().usingServer(config.seleniumUrl).forBrowser(config.browser)
 
   // 'chromium' covers ARM images like seleniarm/standalone-chromium
   if (config.browser === 'chrome' || config.browser === 'chromium') {
-    const options = new ChromeOptions()
+    const chromeOptions = new ChromeOptions()
     if (config.browser === 'chromium') {
-      options.setBrowserName('chromium')
+      chromeOptions.setBrowserName('chromium')
     }
-    options.addArguments(
+    chromeOptions.addArguments(
       // AudioContext must never wait for a user gesture, otherwise playback stalls
       '--autoplay-policy=no-user-gesture-required',
       '--mute-audio',
-      '--window-size=1366,900',
       '--disable-dev-shm-usage',
     )
 
-    if (config.headless) {
-      options.addArguments('--headless=new')
+    if (options.standalone === true) {
+      chromeOptions.addArguments(`--app=${config.appBaseUrl}`)
     }
 
-    builder.setChromeOptions(options)
+    if (options.mobileWidth === undefined) {
+      chromeOptions.addArguments('--window-size=1366,900')
+    } else {
+      emulateDevice(chromeOptions, {
+        deviceMetrics: { width: options.mobileWidth, height: MOBILE_HEIGHT, pixelRatio: 3 },
+      })
+    }
+
+    if (config.headless) {
+      chromeOptions.addArguments('--headless=new')
+    }
+
+    builder.setChromeOptions(chromeOptions)
   }
 
   return builder.build()

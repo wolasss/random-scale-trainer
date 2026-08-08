@@ -68,9 +68,77 @@ const SELECTORS = {
   sessionProgress: By.css('[data-testid="session-progress"]'),
   statNotes: By.css('[data-testid="stat-notes"]'),
   statCycles: By.css('[data-testid="stat-cycles"]'),
+  openSetup: By.css('[data-testid="open-setup"]'),
+  practiceSheet: By.css('[data-testid="practice-sheet"]'),
+}
+
+/** Roots the layout guard measures against. */
+export const OVERFLOW_ROOTS = {
+  page: 'body',
+  sheet: '.sheet-body',
+}
+
+export type Overflow = {
+  /** How far the root's content reaches past its own box, in CSS pixels. */
+  scrollOverhang: number
+  /** The widest few culprits, so a failure names the element to fix. */
+  offenders: Array<{ label: string; over: number }>
 }
 
 const noteChip = (pc: number) => By.css(`[data-testid="note-chip-${pc}"]`)
+
+/**
+ * Reports everything sticking out past a root's right edge, skipping whatever
+ * sits inside a deliberate horizontal scroller — the fretboard rides in one and
+ * is meant to be swiped.
+ *
+ * A hit means the root scrolls sideways, and where the root also scrolls
+ * vertically, as the practice sheet's body does, CSS computes overflow-x to
+ * auto along with it: one over-wide child then drags every one of its siblings
+ * off the screen with it.
+ */
+const OVERFLOW_SCRIPT = `
+  const root = document.querySelector(arguments[0])
+  if (root === null) {
+    throw new Error('overflow root not found: ' + arguments[0])
+  }
+
+  const limit = root.getBoundingClientRect().right
+  const scrollsSideways = (element) => {
+    const overflowX = getComputedStyle(element).overflowX
+    return overflowX === 'auto' || overflowX === 'scroll'
+  }
+
+  const offenders = []
+  for (const element of root.querySelectorAll('*')) {
+    const rect = element.getBoundingClientRect()
+    // Sub-pixel rounding puts plenty of honest layouts a hair over the edge.
+    if (rect.width === 0 || rect.right <= limit + 1) {
+      continue
+    }
+
+    let clipped = false
+    for (let parent = element.parentElement; parent !== null && parent !== root; parent = parent.parentElement) {
+      if (scrollsSideways(parent)) {
+        clipped = true
+        break
+      }
+    }
+
+    if (!clipped) {
+      const classes = String(element.className).trim().split(/\\s+/).filter(Boolean)
+      offenders.push({
+        label: element.tagName.toLowerCase() + (classes.length > 0 ? '.' + classes.join('.') : ''),
+        over: Math.round(rect.right - limit),
+      })
+    }
+  }
+
+  return {
+    scrollOverhang: Math.max(0, root.scrollWidth - root.clientWidth),
+    offenders: offenders.sort((a, b) => b.over - a.over).slice(0, 5),
+  }
+`
 
 export const timerToSeconds = (timerText: string): number => {
   const [minutes, seconds] = timerText.split(':').map(Number)
@@ -220,6 +288,20 @@ export class TrainerPage {
     return this.driver.executeScript('return window.localStorage.getItem(arguments[0])', key)
   }
 
+  /** True once the app has swapped to the propped-on-a-stand layout. */
+  async isStageLayout(): Promise<boolean> {
+    return this.driver.executeScript('return document.documentElement.hasAttribute("data-stage")')
+  }
+
+  async getViewportWidth(): Promise<number> {
+    return this.driver.executeScript('return document.documentElement.clientWidth')
+  }
+
+  /** @see OVERFLOW_SCRIPT */
+  async measureOverflow(root: string): Promise<Overflow> {
+    return this.driver.executeScript<Overflow>(OVERFLOW_SCRIPT, root)
+  }
+
   // --- actions ---
 
   async clickPlayPause(): Promise<void> {
@@ -232,6 +314,17 @@ export class TrainerPage {
 
   async clickThemeToggle(): Promise<void> {
     await this.driver.findElement(SELECTORS.themeToggle).click()
+  }
+
+  /**
+   * Opens the practice sheet, where the stage layout keeps every setting.
+   * Its slide-up is an animation, which disableAnimations() has already
+   * stripped, so the body is at its final size as soon as it is located.
+   */
+  async openSetupSheet(): Promise<void> {
+    await this.driver.findElement(SELECTORS.openSetup).click()
+    await this.driver.wait(until.elementLocated(SELECTORS.practiceSheet), 5_000)
+    await this.driver.wait(until.elementLocated(By.css(OVERFLOW_ROOTS.sheet)), 5_000)
   }
 
   async clickBpmStepper(direction: 'up' | 'down'): Promise<void> {
