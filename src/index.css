@@ -817,6 +817,7 @@ input[type='range'] {
 
 .fretboard {
   min-width: 400px;
+  padding: 10px;
 }
 
 /* The trailing column is an empty gutter, and it is why the neck needs no help
