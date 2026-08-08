@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/wolasss/random-scale-trainer/compare/v1.2.2...v1.3.0) (2026-08-08)
+
+
+### Features
+
+* **ux:** calm the first run and tier routines into setups and workouts ([#55](https://github.com/wolasss/random-scale-trainer/issues/55)) ([87a3352](https://github.com/wolasss/random-scale-trainer/commit/87a33524cfa7257fad86552032e667654bbca6ca))
+
 ## [1.2.2](https://github.com/wolasss/random-scale-trainer/compare/v1.2.1...v1.2.2) (2026-08-08)
 
 
