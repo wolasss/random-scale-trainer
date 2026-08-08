@@ -5,6 +5,7 @@ import {
   defaultRampTarget,
   MAX_BPM,
   MIN_BPM,
+  MIN_BLOCK_FLEX_SECONDS,
   OPEN_BLOCK_FLEX_SECONDS,
   type BeatsPerNote,
 } from '../constants'
@@ -201,8 +202,10 @@ export const suggestRoutineName = (settings: BlockSettings) =>
 
 export const createRoutineId = () => `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 
-/** Flex basis for a timeline segment — an open block still needs a share. */
-export const blockFlex = (block: RoutineBlock) => block.dur ?? OPEN_BLOCK_FLEX_SECONDS
+/** Flex share for a timeline segment: proportional to duration, floored so a
+ * very short block (the 25-second exam) stays wide enough to read. */
+export const blockFlex = (block: RoutineBlock) =>
+  Math.max(block.dur ?? OPEN_BLOCK_FLEX_SECONDS, MIN_BLOCK_FLEX_SECONDS)
 
 export type RoutineProgress = {
   /** Total routine seconds; 0 when nothing is timed. */
@@ -300,12 +303,22 @@ export const SEEDED_ROUTINES: Routine[] = [
   {
     id: 'seed-chromatic-drill',
     name: 'Chromatic drill',
-    blocks: [openBlock('All 12', 'chromatic', 88, 2, 'mixed')],
+    blocks: [openBlock('All 12', 'chromatic', 48, 2, 'mixed')],
   },
   {
-    id: 'seed-a-minor-box',
-    name: 'A minor box',
-    blocks: [openBlock('A minor pent.', 'Am', 72, 4, 'sharps')],
+    // The exam's pace as an open-ended setup: same pool, rate and tempo as the
+    // block that ends Neck fluency, minus the clock — for drilling the pace
+    // until the timed lap stops being frightening.
+    id: 'seed-exam-pace',
+    name: 'Exam pace',
+    blocks: [openBlock('All 12', 'chromatic', 115, 4, null)],
+  },
+  {
+    // Twelve beats a note is not a slow lap — it is time to find the called
+    // note on every string in turn, two beats a string, before the next call.
+    id: 'seed-string-by-string',
+    name: 'String by string',
+    blocks: [openBlock('All 12', 'chromatic', 60, 12, null)],
   },
   {
     id: 'seed-warmup-6',
@@ -322,8 +335,13 @@ export const SEEDED_ROUTINES: Routine[] = [
     blocks: [
       timedBlock('Settle in', 'chromatic', 60, 4, 4),
       timedBlock('Accidentals', 'accidentals', 66, 4, 3),
-      timedBlock('All 12, quicker', 'chromatic', 80, 2, 3),
-      timedBlock('Naturals sprint', 'naturals', 92, 2, 2),
+      // Both paced as lap targets, not tempos: all 12 in 0:30, naturals in 0:20.
+      timedBlock('All 12, quicker', 'chromatic', 48, 2, 3),
+      timedBlock('Naturals sprint', 'naturals', 42, 2, 2),
+      // The exam: one lap of all 12 at a pace that deals the whole deck in
+      // 25 seconds (12 × 4 beats at 115 ≈ 0:25), in a block exactly that long.
+      // Pass/fail is the block itself — name every note before it runs out.
+      { ...timedBlock('Exam', 'chromatic', 115, 4, 0), dur: 25 },
     ],
   },
   {
@@ -333,16 +351,6 @@ export const SEEDED_ROUTINES: Routine[] = [
     id: 'seed-speed-ladder-9',
     name: 'Speed ladder (9 min)',
     blocks: [rampingBlock('Climb', 'chromatic', 70, 4, 9, 110)],
-  },
-  {
-    id: 'seed-key-focus-8',
-    name: 'Key focus (8 min)',
-    blocks: [
-      timedBlock('C major', 'C', 72, 4, 2),
-      timedBlock('G major', 'G', 72, 4, 2),
-      timedBlock('D major', 'D', 76, 4, 2),
-      timedBlock('All 12', 'chromatic', 80, 2, 2),
-    ],
   },
 ]
 

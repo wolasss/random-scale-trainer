@@ -85,6 +85,32 @@ describe('Routines', () => {
     expect(transport()).toContain('Start practice')
   })
 
+  /**
+   * The card is tiered, not split into peers: setups are the card — presets,
+   * under the heading itself — and workouts hang beneath as the labelled,
+   * advanced shape a setup can grow into.
+   */
+  it('presents setups as the card and workouts as the labelled tier below', () => {
+    render(<App />)
+
+    const setups = screen.getByTestId('routine-group-setups')
+    const workouts = screen.getByTestId('routine-group-workouts')
+
+    // The heading names the setups; the group itself carries no second label.
+    expect(screen.getByRole('heading', { name: 'Saved setups' })).toBeInTheDocument()
+    expect(setups).not.toHaveTextContent('Saved setups')
+    expect(setups).toContainElement(chip('seed-warmup-naturals'))
+    expect(setups).toContainElement(chip('seed-chromatic-drill'))
+    expect(setups).toContainElement(chip('seed-exam-pace'))
+    expect(setups).toContainElement(chip('seed-string-by-string'))
+
+    expect(workouts).toHaveTextContent('Workouts')
+    expect(workouts).toContainElement(chip('seed-warmup-6'))
+    expect(workouts).toContainElement(chip('seed-neck-fluency-12'))
+    // One timed block is still a workout: it runs a session and stops itself.
+    expect(workouts).toContainElement(chip('seed-speed-ladder-9'))
+  })
+
   it('persists the seeds so they survive a reload', () => {
     const { unmount } = render(<App />)
     unmount()
@@ -134,12 +160,14 @@ describe('Routines', () => {
 
     selectRoutine('seed-chromatic-drill')
 
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('One block, no timer — runs until you stop.')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('No timer — runs until you stop.')
     expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('runs until you stop')
     expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '0')
-    // A lone block cannot be skipped or removed — there is nothing to advance to.
+    // A lone block cannot be skipped, and a timeline of one is the chip again.
     expect(screen.queryByTestId('routine-skip-block')).toBeNull()
-    expect(screen.getByTestId('routine-segment-0').querySelector('.routine-segment-remove')).toBeNull()
+    expect(screen.queryByTestId('routine-timeline')).toBeNull()
+    // The one control that names the setup → workout step for what it is.
+    expect(screen.getByTestId('routine-add-block')).toHaveTextContent('Turn into a workout')
   })
 
   it('reads a workout as a timeline of blocks proportional to their length', () => {
@@ -148,20 +176,24 @@ describe('Routines', () => {
     selectRoutine('seed-neck-fluency-12')
 
     const segments = screen.getAllByTestId(/^routine-segment-\d+$/)
-    expect(segments).toHaveLength(4)
-    expect(segments.map((segment) => segment.style.flexGrow)).toEqual(['240', '180', '180', '120'])
+    expect(segments).toHaveLength(5)
+    // The 25s exam is floored to 90 flex-seconds so its label stays readable.
+    expect(segments.map((segment) => segment.style.flexGrow)).toEqual(['240', '180', '180', '120', '90'])
     expect(segments[0].dataset.state).toBe('active')
     expect(segments[1].dataset.state).toBe('upcoming')
     expect(segments[1]).toHaveTextContent('66 BPM · every 4 · accidentals')
     expect(segments[1]).toHaveTextContent('3:00')
-    // 5 accidentals every 4 beats at 66 BPM ≈ 18s a lap; the block after it is
-    // faster per beat but laps slower, which BPM alone would not reveal.
+    // The cycle line is why BPM alone can't order the blocks: 'quicker' runs at
+    // 48 BPM against Settle in's 60, yet laps all 12 in 0:30 to its 0:48.
     expect(segments[1].querySelector('.routine-segment-cycle')).toHaveTextContent('0:18 / cycle')
-    expect(segments[2].querySelector('.routine-segment-cycle')).toHaveTextContent('0:18 / cycle')
+    expect(segments[2].querySelector('.routine-segment-cycle')).toHaveTextContent('0:30 / cycle')
     expect(segments[0].querySelector('.routine-segment-cycle')).toHaveTextContent('0:48 / cycle')
+    // The sprint and the exam are lap targets stated as pace: 0:20 and 0:25.
+    expect(segments[3].querySelector('.routine-segment-cycle')).toHaveTextContent('0:20 / cycle')
+    expect(segments[4].querySelector('.routine-segment-cycle')).toHaveTextContent('0:25 / cycle')
 
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 4 · 4:00 left of 12:00')
-    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 1 of 4 · 4:00 left')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 5 · 4:00 left of 12:25')
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 1 of 5 · 4:00 left')
   })
 
   it('deselects when the selected chip is clicked again, keeping the settings', () => {
@@ -191,10 +223,10 @@ describe('Routines', () => {
   it('deletes a routine, clearing the selection when it was the selected one', () => {
     render(<App />)
 
-    selectRoutine('seed-a-minor-box')
-    fireEvent.click(screen.getByLabelText('Delete A minor box'))
+    selectRoutine('seed-chromatic-drill')
+    fireEvent.click(screen.getByLabelText('Delete Chromatic drill'))
 
-    expect(screen.queryByTestId('routine-chip-seed-a-minor-box')).toBeNull()
+    expect(screen.queryByTestId('routine-chip-seed-chromatic-drill')).toBeNull()
     expect(screen.getByTestId('routine-empty')).toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(6)
   })
@@ -283,12 +315,12 @@ describe('Routines', () => {
   it('skips a block on demand', () => {
     render(<App />)
 
-    selectRoutine('seed-key-focus-8')
+    selectRoutine('seed-neck-fluency-12')
     fireEvent.click(screen.getByTestId('routine-skip-block'))
 
-    expect(bpm()).toBe('72')
+    expect(bpm()).toBe('66')
     expect(screen.getByTestId('note-every').querySelector('[aria-checked="true"]')).toHaveTextContent('4 beats')
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 4')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 5')
   })
 
   it('stops at the end and offers to run the routine again', () => {
@@ -302,7 +334,7 @@ describe('Routines', () => {
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 6 min done.')
     expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('complete')
     expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '100')
-    expect(transport()).toContain('Restart routine')
+    expect(transport()).toContain('Restart workout')
 
     fireEvent.click(screen.getByTestId('play-toggle'))
     expect(bpm()).toBe('60')
@@ -324,8 +356,9 @@ describe('Routines', () => {
     expect(screen.getByTestId('ramp-helper')).toHaveTextContent('20 rounds from 70, then it holds.')
 
     expect(chip('seed-speed-ladder-9')).toHaveTextContent('70 BPM · every 4 · 12 notes · climbs to 110')
-    expect(screen.getByTestId('routine-segment-0')).toHaveTextContent('70 BPM · every 4 · all 12 · climbs to 110')
-    // One timed block is a countdown, not a sequence of one.
+    // One timed block is a countdown, not a sequence of one — no timeline, and
+    // the status says so.
+    expect(screen.queryByTestId('routine-timeline')).toBeNull()
     expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 9:00 left of 9:00')
     expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('9:00 left')
     expect(screen.queryByTestId('routine-skip-block')).toBeNull()
@@ -375,9 +408,12 @@ describe('Routines', () => {
     // The formerly open block had to gain a timer, or nothing could follow it.
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 2 · 2:00 left of 4:00')
     expect(screen.getByTestId('routine-skip-block')).toBeInTheDocument()
+    // It is a workout now, so the button stops offering to make one.
+    expect(screen.getByTestId('routine-add-block')).toHaveTextContent('Add a block from current settings')
 
     fireEvent.click(screen.getAllByLabelText(/^Remove block /)[1])
-    expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(1)
+    // Down to one block the sequence is gone, and with it the timeline.
+    expect(screen.queryByTestId('routine-timeline')).toBeNull()
     // The survivor keeps the clock it was given — a lone block may be timed.
     expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 2:00 left of 2:00')
     expect(screen.queryByTestId('routine-skip-block')).toBeNull()
@@ -397,7 +433,10 @@ describe('Routines', () => {
 
     expect(screen.queryByTestId('routine-save-form')).toBeNull()
     expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Sharp corners')
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('One block, no timer')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('No timer — runs until you stop.')
+    // A saved setup lands on the setups shelf, never among the workouts.
+    expect(screen.getByTestId('routine-group-setups')).toHaveTextContent('Sharp corners')
+    expect(screen.getByTestId('routine-group-workouts')).not.toHaveTextContent('Sharp corners')
     expect(transport()).toContain('Start Sharp corners')
 
     const stored = JSON.parse(window.localStorage.getItem('fretboard-routines')!)
@@ -439,7 +478,9 @@ describe('Routines', () => {
    * must never happen is a note being *drawn* from the old pool after the
    * switch — that would mean the deck was re-seeded from stale settings.
    */
-  it('draws nothing from the old pool once a block boundary passes', async () => {
+  // Explicit timeout: 400 awaited act() steps make this the heaviest test in
+  // the suite, and under a loaded parallel run it can brush the 5s default.
+  it('draws nothing from the old pool once a block boundary passes', { timeout: 15_000 }, async () => {
     // Disjoint pools, so every sounded note names the block it came from.
     const NATURAL_KEYS = new Set(['C', 'D', 'E', 'F', 'G', 'A', 'B'])
     window.localStorage.setItem(
@@ -527,19 +568,19 @@ describe('Routines', () => {
     expect(bpm()).toBe('90')
     fireEvent.click(screen.getByTestId('routine-skip-block'))
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 3 min done.')
-    expect(transport()).toContain('Restart routine')
+    expect(transport()).toContain('Restart workout')
   })
 
   it('resets the routine to block 0 with the session', () => {
     render(<App />)
 
-    selectRoutine('seed-key-focus-8')
+    selectRoutine('seed-neck-fluency-12')
     fireEvent.click(screen.getByTestId('routine-skip-block'))
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 4')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 5')
 
     fireEvent.click(screen.getByTestId('reset'))
-    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 4')
-    expect(bpm()).toBe('72')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 5')
+    expect(bpm()).toBe('60')
   })
 
   it('keeps a block on time when the practice log clears the session clock', async () => {

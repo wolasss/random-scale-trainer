@@ -48,8 +48,17 @@ export function PracticeLogCard({ history, onClear, today }: PracticeLogCardProp
     <section className="panel practice-log-card">
       <div className="panel-heading practice-log-heading">
         <h2>Practice log</h2>
-        <button type="button" className="practice-log-clear" onClick={onClear} data-testid="practice-log-clear">
-          Clear
+        {/* "Clear" beside a practice log reads as "delete my history", which is
+            the one thing it does not do. It zeroes the session clock and
+            nothing else — so it is named after the clock. */}
+        <button
+          type="button"
+          className="practice-log-clear"
+          onClick={onClear}
+          data-testid="practice-log-clear"
+          title="Put the session clock back to 00:00 — the log below is kept"
+        >
+          Reset clock
         </button>
       </div>
 

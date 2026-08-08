@@ -61,6 +61,10 @@ describe('App integration', () => {
     expect(screen.getByTestId('now-playing').className).toContain('idle')
     expect(document.getElementById('continuous-mode')).toHaveAttribute('aria-checked', 'true')
     expect(document.getElementById('speed-ramp-mode')).toHaveAttribute('aria-checked', 'false')
+    // Nothing on the clock yet: no reset button with nothing to reset, and no
+    // goal readout adding a second number to an idle screen.
+    expect(screen.queryByTestId('reset')).toBeNull()
+    expect(screen.queryByTestId('transport-readout')).toBeNull()
   })
 
   it('still renders the idle state when localStorage is blocked', () => {
@@ -69,8 +73,13 @@ describe('App integration', () => {
       expect(() => render(<App />)).not.toThrow()
 
       expect(screen.getByTestId('playback-message')).toHaveTextContent('Press start — or hit Space.')
-      expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
       expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+
+      // Blocked storage reads as a first run every time, so the setup is folded
+      // — but the fold still has to open, or the controls are unreachable for
+      // the whole session rather than just the first screen of it.
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      expect(screen.getByTestId('bpm-value')).toHaveTextContent('72')
     } finally {
       restore()
     }
@@ -299,9 +308,16 @@ describe('App integration', () => {
     }
   })
 
-  it('reads the session out in the transport, so the timer can live at the foot', () => {
+  it('reads the session out in the transport, so the timer can live at the foot', async () => {
     render(<App />)
 
+    // The readout and the reset both wait for the first press.
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('reset')).toBeInTheDocument()
     expect(screen.getByTestId('transport-readout')).toHaveTextContent('00:00 of 10 min')
 
     fireEvent.click(screen.getByTestId('session-goal').querySelector('[data-value="5"]')!)

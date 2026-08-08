@@ -8,8 +8,8 @@ describe('transportLabel', () => {
   })
 
   it('offers a restart once the routine has finished, even when paused', () => {
-    expect(transportLabel(false, false, 'Fifths', true)).toBe('Restart routine')
-    expect(transportLabel(false, true, 'Fifths', true)).toBe('Restart routine')
+    expect(transportLabel(false, false, 'Fifths', true)).toBe('Restart workout')
+    expect(transportLabel(false, true, 'Fifths', true)).toBe('Restart workout')
   })
 
   it('resumes a paused transport', () => {

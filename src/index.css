@@ -271,6 +271,63 @@ button {
   gap: 1.15rem;
 }
 
+/* The whole setup stack, folded into one row until practice has started once.
+   Deliberately built on .panel: it stands in the place the cards will take, so
+   it should read as the top of them rather than as a control of its own. */
+.setup-reveal {
+  grid-column: span 12;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+
+.setup-reveal:hover {
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.setup-reveal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 14px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.setup-reveal-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.setup-reveal-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.setup-reveal-subtitle {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* Pushed to the far edge so the row reads as "there is more below here", not
+   as a button with a decoration. */
+.setup-reveal-chevron {
+  margin-left: auto;
+  flex: none;
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -476,6 +533,62 @@ h2 {
   opacity: 0.55;
 }
 
+/* --- The idle ghost note -------------------------------------------------- */
+
+/* Caption over glyph, standing in the note's slot. */
+.hero-ready-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Inside the stack "ready" is the state's name, not the display itself. */
+.hero-ready-caption {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* A watermark of the real note: same slot and family, the muted foreground
+   instead of the accent, no glow. It breathes — never the note-pop, never the
+   beat ring, so idle can't be mistaken for a running session. */
+.hero-ghost-note {
+  font-family: var(--font-display);
+  font-size: clamp(120px, 18vw, 200px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-soft);
+  /* Authored to IDLE_PREVIEW_MS (constants.ts): the deal and the fade share
+     one clock, so a note is always out before the next is in. */
+  animation: ghost-breathe 2750ms ease-in-out both;
+}
+
+/* In over ~600ms, hold at watermark strength, out again. */
+@keyframes ghost-breathe {
+  0% {
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.3;
+  }
+  76% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The hook holds a single note under reduced motion; the fade goes with it. */
+  .hero-ghost-note {
+    animation: none;
+    opacity: 0.3;
+  }
+}
+
 .beat-ring {
   position: absolute;
   left: 50%;
@@ -543,7 +656,7 @@ h2 {
    the readout still ends hard right. The buttons are grid items in their own
    right — a flex box between them and the grid reports its unwrapped text
    width, which sizes the track under the play button's own minimum and breaks
-   Reset timer onto a second line. */
+   Reset session onto a second line. */
 .transport-bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto minmax(min-content, 1fr);
@@ -554,6 +667,13 @@ h2 {
 
 .transport-actions {
   display: contents;
+}
+
+/* Nothing on the clock yet: no reset, no readout, just the start button. Three
+   columns instead of four, or the empty reset track and its two gaps would
+   nudge the lone button off centre. */
+.transport-bar.zeroed {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
 
 /* Clamped at min-content rather than 0, so a squeeze slides the buttons off
@@ -1288,12 +1408,42 @@ input[type='range'] {
   padding: 0.55rem 1.1rem;
 }
 
-/* One shelf for every routine — seeded and user-made, setups and workouts. */
+/* One shelf, two tiers: setups sit unlabelled under the card's own heading,
+   workouts under a label of their own below. The hierarchy does the explaining
+   a paragraph about blocks used to do badly — presets first, the advanced
+   shape underneath for whoever scrolls one row further. */
 .routine-shelf {
+  display: grid;
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.routine-group-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Sentence case and no tracking: this is the gloss, not a second heading. */
+.routine-group-hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+.routine-group-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-bottom: 0.9rem;
 }
 
 .routine-chip {
@@ -1542,8 +1692,9 @@ input[type='range'] {
   gap: 0.8rem;
 }
 
-/* Deliberately quiet, and deliberately not called 'Reset' — the hero already
-   has a Reset timer, and these two must never be mistaken for each other. */
+/* Deliberately quiet, and named for the one thing it touches — the hero has a
+   Reset session, which takes the counters and the routine with it. Same verb,
+   different scope, and the nouns are what keep them apart. */
 .practice-log-clear {
   border: 0;
   padding: 0.2rem 0.1rem;
@@ -2057,6 +2208,16 @@ input[type='range'] {
 
 :root[data-stage] .hero-ready {
   font-size: min(14vh, 18vw);
+}
+
+/* On the stand the ghost fills the note's room and the caption stays a label —
+   the stage .hero-ready blow-up above must not win over the caption size. */
+:root[data-stage] .hero-ghost-note {
+  font-size: min(38vh, 46vw);
+}
+
+:root[data-stage] .hero-ready-caption {
+  font-size: 0.9rem;
 }
 
 .stage-readout {

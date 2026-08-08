@@ -13,6 +13,9 @@ type StageTransportProps = {
   onPlayPause: () => void
   onReset: () => void
   onOpenSetup: () => void
+  /** Anything to unwind yet — hides reset and the readout at a zeroed state,
+   * matching the browser transport. */
+  started: boolean
   elapsedMs: number
   goalMin: SessionGoalMin
   /** The routine strip, kept in view directly above the controls. */
@@ -34,6 +37,7 @@ export function StageTransport({
   onPlayPause,
   onReset,
   onOpenSetup,
+  started,
   elapsedMs,
   goalMin,
   strip,
@@ -45,24 +49,28 @@ export function StageTransport({
       {strip}
 
       {/* How far into the session, without opening the sheet — the same readout
-          the desktop transport carries. */}
-      <span className="transport-readout stage-readout-line" data-testid="transport-readout">
-        {formatElapsed(elapsedMs)} of {goalMin} min
-      </span>
+          the desktop transport carries, and it waits for the first press with it. */}
+      {started ? (
+        <span className="transport-readout stage-readout-line" data-testid="transport-readout">
+          {formatElapsed(elapsedMs)} of {goalMin} min
+        </span>
+      ) : null}
 
       <div className="stage-secondary">
         <button type="button" className="secondary-button stage-setup" onClick={onOpenSetup} data-testid="open-setup">
           <FontAwesomeIcon icon={faSliders} /> Practice setup
         </button>
-        <button
-          type="button"
-          className="ghost-button stage-reset"
-          onClick={onReset}
-          data-testid="reset"
-          aria-label="Reset timer"
-        >
-          <FontAwesomeIcon icon={faRotateLeft} />
-        </button>
+        {started ? (
+          <button
+            type="button"
+            className="ghost-button stage-reset"
+            onClick={onReset}
+            data-testid="reset"
+            aria-label="Reset session"
+          >
+            <FontAwesomeIcon icon={faRotateLeft} />
+          </button>
+        ) : null}
       </div>
 
       <button
