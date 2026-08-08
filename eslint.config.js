@@ -20,4 +20,18 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Shipped as dist/sw.js, so it gets linted like everything else that runs
+    // in a browser — just with the service worker globals and the two names
+    // vite.config.ts substitutes at build time.
+    files: ['src/sw/service-worker.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+        __CACHE_VERSION__: 'readonly',
+        __PRECACHE_MANIFEST__: 'readonly',
+      },
+    },
+  },
 ])
