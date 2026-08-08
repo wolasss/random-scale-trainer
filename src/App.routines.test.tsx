@@ -221,6 +221,30 @@ describe('Routines', () => {
     expect(screen.getByTestId('preset-select')).toHaveValue('custom')
   })
 
+  /**
+   * The other half of the rule: only what a block owns can drift. The session
+   * goal and the how-it-runs switches are app-wide, so touching them has to
+   * leave the routine exactly where it was.
+   */
+  it('keeps the routine when app-wide settings are changed', () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-naturals')
+    fireEvent.click(screen.getByTestId('session-goal').querySelector('[data-value="5"]')!)
+    fireEvent.click(document.getElementById('show-fretboard')!)
+
+    // Both settings really did change — the routine simply does not care.
+    expect(screen.getByTestId('session-goal').querySelector('[aria-checked="true"]')).toHaveTextContent('5 min')
+    expect(screen.queryByTestId('fretboard')).toBeNull()
+
+    expect(screen.queryByTestId('routine-empty')).toBeNull()
+    expect(chip('seed-warmup-naturals').className).toContain('selected')
+    expect(screen.getByTestId('routine-strip')).toBeInTheDocument()
+    expect(transport()).toContain('Start Warm-up naturals')
+    // Nor is it an override: there is nothing for the next block to reclaim.
+    expect(screen.getByTestId('routine-status')).not.toHaveTextContent('adjusted')
+  })
+
   it('treats a mid-playback nudge as an override, not an exit', async () => {
     render(<App />)
 
