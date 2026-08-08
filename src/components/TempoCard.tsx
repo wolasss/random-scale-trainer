@@ -113,7 +113,11 @@ export function TempoCard({
         <SwitchRow
           id="speed-ramp-mode"
           label="Speed ramp"
-          subtitle={`Tempo climbs ${RAMP_BPM_STEP} BPM every time you get through all the notes.`}
+          subtitle={
+            rampAvailable
+              ? `Tempo climbs ${RAMP_BPM_STEP} BPM every time you get through all the notes.`
+              : 'Needs Keep going switched on — the ramp climbs between rounds.'
+          }
           checked={rampEnabled}
           onChange={onRampToggle}
           disabled={!rampAvailable}
