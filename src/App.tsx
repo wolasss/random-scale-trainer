@@ -194,7 +194,10 @@ function App() {
   // of what someone has actually practised is not something a stray click on a
   // heading button gets to erase.
   const clearTimer = () => {
-    sessionTimer.reset()
+    // The routine reads its block clock off this same session time, so the time
+    // taken off the clock is handed to it: the block it is on keeps the minutes
+    // it has already run, and still hands over when it is due.
+    routine.rebase(sessionTimer.reset())
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {

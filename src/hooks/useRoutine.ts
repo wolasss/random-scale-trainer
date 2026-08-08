@@ -48,6 +48,8 @@ export type RoutineController = {
   restart: () => void
   /** Reset session — the block clock goes back to zero with it. */
   reset: () => void
+  /** The session clock lost `removedMs`; the current block keeps its own time. */
+  rebase: (removedMs: number) => void
   /** Wire to the session timer's tick: advances the block when its time is up. */
   tick: (elapsedMs: number) => void
   /** Every settings change the user makes by hand goes through here first. */
@@ -338,6 +340,20 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     }
   }
 
+  /**
+   * The block clock is a reading of the session clock, so putting that clock
+   * back by `removedMs` has to move the block's start with it. Without this the
+   * running block would drop to zero and sit there until the session caught up
+   * again — a routine cleared at ten minutes would run ten minutes long.
+   */
+  const rebase = (removedMs: number) => {
+    if (selected === null || removedMs === 0) {
+      return
+    }
+
+    commit({ ...runtimeRef.current, blockStartMs: runtimeRef.current.blockStartMs - removedMs })
+  }
+
   return {
     routines,
     selected,
@@ -355,6 +371,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     skipBlock,
     restart,
     reset,
+    rebase,
     tick,
     notifyManualChange,
   }

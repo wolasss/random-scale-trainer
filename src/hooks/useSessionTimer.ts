@@ -65,12 +65,18 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
     setIsRunning(false)
   }
 
+  /** Returns the elapsed time it threw away, for clocks measured against it. */
   const reset = () => {
+    const cleared =
+      accumulatedMsRef.current + (startedAtRef.current === null ? 0 : Date.now() - startedAtRef.current)
+
     isRunningRef.current = false
     startedAtRef.current = null
     accumulatedMsRef.current = 0
     setElapsedMs(0)
     setIsRunning(false)
+
+    return cleared
   }
 
   return { elapsedMs, isRunning, start, pause, reset }
