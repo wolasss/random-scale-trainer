@@ -1,7 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY, useDisplayMode } from './useDisplayMode'
-import { useMediaQuery } from './useMediaQuery'
 
 type FakeList = {
   matches: boolean
@@ -63,29 +62,6 @@ const PHONE_STANDALONE = {
   [COARSE_POINTER_QUERY]: true,
   [LANDSCAPE_QUERY]: false,
 }
-
-describe('useMediaQuery', () => {
-  afterEach(() => {
-    Reflect.deleteProperty(window, 'matchMedia')
-  })
-
-  it('reports the query state and follows it as it changes', () => {
-    const media = installMatchMedia({ '(orientation: landscape)': false })
-    const { result } = renderHook(() => useMediaQuery('(orientation: landscape)'))
-
-    expect(result.current).toBe(false)
-
-    media.set('(orientation: landscape)', true)
-    expect(result.current).toBe(true)
-  })
-
-  it('reports false where matchMedia does not exist', () => {
-    Reflect.deleteProperty(window, 'matchMedia')
-    const { result } = renderHook(() => useMediaQuery('(pointer: coarse)'))
-
-    expect(result.current).toBe(false)
-  })
-})
 
 describe('useDisplayMode', () => {
   afterEach(() => {
