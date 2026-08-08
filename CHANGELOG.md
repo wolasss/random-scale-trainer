@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/wolasss/random-scale-trainer/compare/v1.2.0...v1.2.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **mobile:** keep the setup sheet's controls inside the screen ([#52](https://github.com/wolasss/random-scale-trainer/issues/52)) ([3c2c273](https://github.com/wolasss/random-scale-trainer/commit/3c2c273b81800e00a4dee080ef75fc505242cc5f))
+
 # [1.2.0](https://github.com/wolasss/random-scale-trainer/compare/v1.1.0...v1.2.0) (2026-08-08)
 
 
