@@ -164,6 +164,32 @@ describe('useSettings persistence', () => {
     expect(result.current[0].pool).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
   })
 
+  /**
+   * The toggles that default to on must survive a stored value we never wrote —
+   * only a literal 'false' is allowed to switch one off.
+   */
+  it.each([
+    ['an empty value', ''],
+    ['a capitalized value', 'True'],
+    ['a number', '0'],
+    ['junk', 'maybe'],
+  ])('keeps the fretboard shown on %s', (_label, stored) => {
+    window.localStorage.setItem('fretboard-show-neck', stored)
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].showFretboard).toBe(true)
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
+  })
+
+  it('still honours a stored false', () => {
+    window.localStorage.setItem('fretboard-show-neck', 'false')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].showFretboard).toBe(false)
+  })
+
   it('discards a stored ramp when loop mode starts off', () => {
     window.localStorage.setItem('fretboard-continuous-mode', 'false')
     window.localStorage.setItem('fretboard-speed-ramp-mode', 'true')
