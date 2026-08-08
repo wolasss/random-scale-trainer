@@ -9,8 +9,19 @@
  * the cache name, never by interrupting the user.
  */
 
-const CACHE_PREFIX = 'note-trainer-'
+const CACHE_PREFIX = 'callnote-'
 const CACHE_NAME = CACHE_PREFIX + '__CACHE_VERSION__'
+
+/**
+ * Prefixes this worker used before the rebrand. Activate reclaims caches by
+ * prefix, so without this list every already-installed client would keep its
+ * pre-rebrand precache forever: never served, never collected. Safe to drop
+ * once no client can still be running a build that old.
+ */
+const LEGACY_CACHE_PREFIXES = ['note-trainer-']
+
+const isOwnCache = (name) =>
+  name.startsWith(CACHE_PREFIX) || LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
 const PRECACHE_URLS = __PRECACHE_MANIFEST__
 
 /** The webfont, the one thing the app fetches cross-origin. Cached on first use. */
@@ -35,7 +46,7 @@ self.addEventListener('activate', (event) => {
       const names = await caches.keys()
       await Promise.all(
         names
-          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+          .filter((name) => isOwnCache(name) && name !== CACHE_NAME)
           .map((name) => caches.delete(name)),
       )
       await self.clients.claim()

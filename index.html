@@ -2,11 +2,17 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <!-- SVG first for anything that understands one; the PNGs and the .ico are
+         the fallback chain. /favicon.ico is also fetched blind, without being
+         linked at all, by older browsers and by most link-preview crawlers. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="icon" sizes="any" href="/favicon.ico" />
     <!-- viewport-fit=cover hands us the full screen under the notch and home
          indicator; the transport pads itself back out with env(safe-area-inset-*). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Random notes trainer</title>
+    <title>callnote.app — Fretboard fluency, one beat at a time</title>
 
     <!--
       Apply the stored theme and skin before first paint so a reload never
@@ -42,11 +48,15 @@
     </script>
 
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#061014" />
+    <!-- The default skin's deepest ground, so the launch screen and the app
+         agree on a colour instead of stepping between two near-blacks. -->
+    <meta name="theme-color" content="#06131a" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Notes" />
+    <!-- The home-screen label: no room for the suffix, which the brand guide
+         drops rather than shrinks. -->
+    <meta name="apple-mobile-web-app-title" content="callnote" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
     <!--
@@ -54,13 +64,14 @@
       blocking the first paint, and the onload flip applies it the moment it
       lands. Offline — or on a connection that never answers — the link simply
       never applies and every rule falls through to the system serif in its
-      stack. The note glyph always paints.
+      stack. The note glyph always paints, and so does the wordmark — Gabarito
+      falls back to the same grotesk stack the body text uses.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Gabarito:wght@600;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
       media="print"
       onload="this.media='all'"
     />

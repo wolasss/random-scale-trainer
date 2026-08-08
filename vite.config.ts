@@ -30,7 +30,7 @@ const listFilesRecursively = (dir: string): string[] =>
  * cache exactly once.
  */
 const serviceWorkerPlugin = (): Plugin => ({
-  name: 'note-trainer-service-worker',
+  name: 'callnote-service-worker',
   apply: 'build',
   // Runs after Vite's own plugins so the emitted index.html is in the bundle
   // by the time this reads it.

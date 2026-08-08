@@ -1,8 +1,9 @@
-# Random notes trainer
+# callnote.app
 
-Random notes trainer is a small React and Vite practice app for guitar fretboard memorization. A
-metronome clicks, a random note name is called on the beat, and the player finds it on the neck
-before the next one arrives.
+**Fretboard fluency, one beat at a time.**
+
+callnote.app is a small React and Vite practice app for guitar fretboard memorization. A metronome
+clicks, a note name is called on the beat, and you find it on the neck before the next one lands.
 
 ## Features
 
@@ -76,3 +77,20 @@ npm run check        # lint + e2e typecheck + Vitest + build — what CI runs
 - The service worker is built from `src/sw/service-worker.js` by a Vite plugin
   (`vite.config.ts`), which fills in the content-hashed precache list and a cache version derived
   from it, and is registered in production builds only.
+
+## Brand
+
+`brand/callnote-brand-guide.md` is the source of truth for the mark. In the app the lockup is live
+text (`src/components/BrandLockup.tsx` + the BRAND block in `src/index.css`) whose `--brand-*`
+tokens alias the active skin's own palette — so the call dot is always the same colour as the
+Resume button, in every skin, without a per-skin logo.
+
+The exported SVGs in `brand/` and the PWA's PNG icons are generated, not drawn:
+
+```bash
+python3 scripts/generate-brand-assets.py   # brand/*.svg + public/favicon.svg
+node scripts/rasterize-icons.mjs           # public/icon-*.png (needs playwright)
+```
+
+Adding a skin means adding a row to `THEMES` in the first script; there is no second drawing to
+keep in sync.

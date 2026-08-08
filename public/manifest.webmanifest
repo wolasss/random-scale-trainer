@@ -1,12 +1,13 @@
 {
-  "name": "Random note trainer",
-  "short_name": "Notes",
+  "name": "callnote.app",
+  "short_name": "callnote",
+  "description": "Fretboard fluency, one beat at a time.",
   "start_url": "/?src=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#061014",
-  "theme_color": "#061014",
+  "background_color": "#06131a",
+  "theme_color": "#06131a",
   "categories": ["music", "education"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

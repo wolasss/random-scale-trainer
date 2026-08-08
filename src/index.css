@@ -52,6 +52,37 @@
   --control-border: rgba(10, 125, 109, 0.18);
 }
 
+/* =======================================================================
+   BRAND
+   The callnote.app mark. Its tokens are aliases of the app's own palette
+   rather than literal colours, which is what mechanically enforces the
+   guide's first rule — the call dot IS the Resume button's colour, so a
+   skin cannot drift from its mark. Every skin and both themes are covered
+   by these five lines; see brand/callnote-brand-guide.md.
+   ======================================================================= */
+:root {
+  --brand-ink: var(--ink);
+  --brand-ink-muted: var(--ink-soft);
+  --brand-accent: var(--primary);
+  --brand-accent-glow: color-mix(in srgb, var(--primary) 45%, transparent);
+  /* The guide's stated alternative to a border tone, and the one that holds
+     up across all four skins: --panel-border is near-invisible in warm's
+     light theme, where the response dot still has to read as a dot. */
+  --brand-dot-muted: color-mix(in srgb, var(--ink) 30%, transparent);
+  /* Not a skin token: the wordmark is Gabarito in every skin, by definition. */
+  --font-brand: 'Gabarito', 'Avenir Next', 'Segoe UI', sans-serif;
+  /* The mark's own size, deliberately NOT h1's. Skins re-scale their headings
+     to suit their voice — instrument runs a smaller, uppercased h1 — and the
+     mark must stay one size across all of them. Every other measurement in the
+     lockup is in em, so this single value scales the whole thing. */
+  --brand-lockup-size: clamp(1.8rem, 4.4vw, 3.2rem);
+}
+
+/* A glow on a light ground is a smudge, not a light. The guide drops it. */
+:root[data-theme='light'] {
+  --brand-accent-glow: transparent;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -288,6 +319,53 @@ h1 {
   font-size: clamp(1.8rem, 4.4vw, 3.2rem);
   line-height: 0.95;
   letter-spacing: -0.03em;
+}
+
+/* --- The mark ----------------------------------------------------------
+   Geometry that never changes. It declares its own type, size, spacing and
+   case so that a skin restyling h1 — instrument uppercases it and runs it
+   smaller, editorial sets it in a serif — cannot reach inside and deform or
+   rescale the wordmark. Every measurement below is in em, hung off the one
+   font-size, so the mark stays one shape at one size in every skin. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22em;
+  font-family: var(--font-brand);
+  font-size: var(--brand-lockup-size);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-transform: none;
+  line-height: 1;
+  color: var(--brand-ink);
+}
+
+.brand-dots {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.14em;
+}
+
+.brand-dot {
+  width: 0.22em;
+  height: 0.22em;
+  border-radius: 50%;
+}
+
+/* The call, lit. The glow is the dot's alone — never the wordmark's. */
+.brand-dot-call {
+  background: var(--brand-accent);
+  box-shadow: 0 0 12px 2px var(--brand-accent-glow);
+}
+
+/* The response, answering quietly. */
+.brand-dot-response {
+  background: var(--brand-dot-muted);
+}
+
+.brand-suffix {
+  font-weight: 600;
+  color: var(--brand-ink-muted);
 }
 
 h2 {
@@ -739,11 +817,19 @@ input[type='range'] {
 
 .fretboard {
   min-width: 400px;
+  padding: 10px;
 }
 
+/* The trailing column is an empty gutter, and it is why the neck needs no help
+   from whatever card it lands in. Every fret cell closes with a 1px fret line,
+   so without it the 12th fret's line and its number sit exactly on the content
+   edge and read as flush — text has side bearing to soften that, a hairline
+   rule does not. Putting the room inside the grid keeps the heading and the
+   board aligned, survives the chrome-stripping the practice stage does to this
+   card, and is carried by the fret-numbers row too, since it is a .fret-row. */
 .fret-row {
   display: grid;
-  grid-template-columns: 1.5rem repeat(13, minmax(0, 1fr));
+  grid-template-columns: 1.5rem repeat(13, minmax(0, 1fr)) 1rem;
   align-items: center;
 }
 
