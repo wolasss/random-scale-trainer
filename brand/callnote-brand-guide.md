@@ -91,6 +91,9 @@ color; glow = accent at 45% alpha; muted dot/border = the skin's subtle border t
   glows.
 - Don't bold `.app`, don't uppercase anything, don't outline the dots, don't replace the dots with
   musical glyphs.
+- **Motto: "Fretboard fluency, one beat at a time."** The official line — use it verbatim, with
+  that capitalisation and that full stop, wherever the app needs a tagline (header lede, `<title>`,
+  manifest description, store copy). Don't paraphrase it and don't write a second one.
 - Voice: playful, energetic, musician-native. Short imperative copy ("Find it before the next one
   lands").
 

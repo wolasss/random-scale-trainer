@@ -19,7 +19,7 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
         <h1>
           <BrandLockup />
         </h1>
-        <p className="lede">A note is called on the beat. Find it before the next one lands.</p>
+        <p className="lede">Fretboard fluency, one beat at a time.</p>
       </div>
       <div className="header-side">
         {install}

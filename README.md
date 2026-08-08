@@ -1,5 +1,7 @@
 # callnote.app
 
+**Fretboard fluency, one beat at a time.**
+
 callnote.app is a small React and Vite practice app for guitar fretboard memorization. A metronome
 clicks, a note name is called on the beat, and you find it on the neck before the next one lands.
 
