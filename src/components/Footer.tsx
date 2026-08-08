@@ -2,8 +2,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
+import { SKINS, SKIN_LABELS, type Skin } from '../lib/skins'
 
-export function Footer() {
+type FooterProps = {
+  skin: Skin
+  onSkinChange: (skin: Skin) => void
+}
+
+export function Footer({ skin, onSkinChange }: FooterProps) {
   return (
     <footer className="app-footer">
       <p>
@@ -11,6 +17,22 @@ export function Footer() {
       </p>
       <p className="app-version">v{version}</p>
       <div className="footer-links">
+        <label className="skin-picker">
+          <span className="skin-picker-label">Style</span>
+          <select
+            className="preset-select skin-select"
+            data-testid="skin-select"
+            value={skin}
+            onChange={(event) => onSkinChange(event.target.value as Skin)}
+            aria-label="Visual style"
+          >
+            {SKINS.map((option) => (
+              <option key={option} value={option}>
+                {SKIN_LABELS[option]}
+              </option>
+            ))}
+          </select>
+        </label>
         <a
           className="social-link"
           href="https://github.com/wolasss/random-scale-trainer"

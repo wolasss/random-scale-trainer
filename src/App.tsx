@@ -325,7 +325,7 @@ function App() {
           {practiceLogCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
-          <Footer />
+          <Footer skin={skin} onSkinChange={setSkin} />
         </PracticeSheet>
 
         {updateChip}
@@ -340,8 +340,6 @@ function App() {
         <TopBar
           theme={theme}
           onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
-          skin={skin}
-          onSkinChange={setSkin}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
         />
 
@@ -402,7 +400,7 @@ function App() {
         </div>
       </main>
 
-      <Footer />
+      <Footer skin={skin} onSkinChange={setSkin} />
 
       {updateChip}
     </div>

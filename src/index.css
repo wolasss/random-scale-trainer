@@ -2523,14 +2523,44 @@ input[type='range'] {
   border-radius: 999px;
 }
 
+/* Solid coral pill — matches the hallmark warm mock, not a gradient. */
 [data-skin='warm'] .primary-button {
-  background: linear-gradient(145deg, var(--primary), var(--primary-strong));
+  background: var(--primary);
   border: 1px solid transparent;
   color: #ffffff !important;
   box-shadow: 0 8px 18px var(--primary-soft);
 }
 
+/* Reset is the mint counterpart — soft, rounded, friendly. */
+[data-skin='warm'] .transport-reset {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* Peach chip with a coral readout. */
+[data-skin='warm'] .next-chip {
+  background: var(--primary-soft);
+  border-color: transparent;
+}
+
+[data-skin='warm'] .next-chip-value {
+  color: var(--primary);
+}
+
+/* Mint neck dots with a soft ring. */
+[data-skin='warm'] .fret-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
 [data-skin='warm'] .note-chip {
   border-radius: 14px;
+}
+
+[data-skin='warm'] .note-chip[aria-pressed='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
