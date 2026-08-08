@@ -186,29 +186,37 @@ describe('practice log', () => {
     expect(screen.getByTestId('practice-log-footer')).toHaveTextContent('Last 7 days: 15 min, 100 notes')
   })
 
-  it('clears back to the empty state without touching other keys', async () => {
+  it('clears the session timer and leaves the practised days on the board', async () => {
     render(<App />)
     await practiceFor(25_000)
     fireEvent.click(screen.getByTestId('play-toggle'))
+    const banked = stored()?.days[today()]?.sec ?? 0
 
     fireEvent.click(screen.getByTestId('practice-log-clear'))
 
-    expect(stored()).toBeNull()
-    expect(screen.getByTestId('practice-log-footer')).toHaveTextContent('Your first session lands here.')
-    expect(window.localStorage.getItem(STORAGE_KEYS.bpm)).not.toBeNull()
+    expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
+    expect(banked).toBeGreaterThan(0)
+    expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(banked)
   })
 
-  it('keeps a cleared day cleared while the session is still running', async () => {
+  it('keeps the session running when the timer is cleared mid-play', async () => {
     render(<App />)
     await practiceFor(25_000)
+    const banked = stored()?.days[today()]?.sec ?? 0
+    const notesBefore = Number(screen.getByTestId('stat-notes').textContent)
 
     fireEvent.click(screen.getByTestId('practice-log-clear'))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000)
     })
 
-    // Only the seconds since the clear may come back, never the banked ones.
-    expect(stored()?.days[today()]?.sec ?? 0).toBeLessThan(10)
+    // The clock restarted from zero and is counting again — five seconds of it,
+    // not the twenty-five it had before.
+    expect(screen.getByTestId('timer')).toHaveTextContent(/^00:0[1-9]$/)
+    // Playback never stopped, so the notes kept coming rather than rewinding.
+    expect(Number(screen.getByTestId('stat-notes').textContent)).toBeGreaterThanOrEqual(notesBefore)
+    expect(notesBefore).toBeGreaterThan(0)
+    expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(banked)
   })
 
   it('does not subtract from the log when the session timer is reset', async () => {

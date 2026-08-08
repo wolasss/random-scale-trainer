@@ -4,7 +4,6 @@ import {
   addPractice,
   bestStreak,
   buildWindow,
-  clearHistory,
   currentStreak,
   dayKey,
   hasHistory,
@@ -295,15 +294,5 @@ describe('storage', () => {
 
     getItem.mockRestore()
     setItem.mockRestore()
-  })
-
-  it('clears only its own key', () => {
-    window.localStorage.setItem('fretboard-bpm', '96')
-    writeHistory({ days: { '2026-02-14': { sec: 600, notes: 12 } } })
-
-    clearHistory()
-
-    expect(window.localStorage.getItem(STORAGE_KEYS.practiceLog)).toBeNull()
-    expect(window.localStorage.getItem('fretboard-bpm')).toBe('96')
   })
 })
