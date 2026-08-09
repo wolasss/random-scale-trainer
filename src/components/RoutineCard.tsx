@@ -21,6 +21,12 @@ type RoutineCardProps = {
 
 const ADJUSTED_SUFFIX = ' · adjusted, next block resets it'
 
+// Armed, the button's visible text shrinks to a bare "Delete?" — enough beside
+// a name you can already see, and nothing at all to a screen reader reading the
+// button alone. The accessible name has to say both which thing is at stake and
+// that the press just made was not the one that deletes it.
+const confirmLabel = (label: string, armed: boolean) => (armed ? `${label}? Press again to confirm` : label)
+
 const statusLine = (
   routine: Routine,
   blockIndex: number,
@@ -80,6 +86,8 @@ function RoutineTimeline({
       {routine.blocks.map((block, index) => {
         const state = finished || index < blockIndex ? 'done' : index === blockIndex ? 'active' : 'upcoming'
         const fill = blockFill(block, state, blockElapsedMs)
+        const armed = armedIndex === index
+        const removeLabel = confirmLabel(`Remove block ${block.name}`, armed)
         const caption =
           state === 'done'
             ? 'done'
@@ -103,13 +111,13 @@ function RoutineTimeline({
               <span className="routine-segment-name">{block.name}</span>
               <button
                 type="button"
-                className={`routine-segment-remove ${armedIndex === index ? 'armed' : ''}`}
-                aria-label={`Remove block ${block.name}`}
-                title={`Remove block ${block.name}`}
+                className={`routine-segment-remove ${armed ? 'armed' : ''}`}
+                aria-label={removeLabel}
+                title={removeLabel}
                 onClick={() => onRemoveBlock(index)}
                 onBlur={onDisarm}
               >
-                {armedIndex === index ? 'Remove?' : <FontAwesomeIcon icon={faXmark} />}
+                {armed ? 'Remove?' : <FontAwesomeIcon icon={faXmark} />}
               </button>
             </div>
             <span className="routine-segment-meta">{blockMeta(block)}</span>
@@ -198,6 +206,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
   const chip = (entry: Routine) => {
     const isSelected = entry.id === selected?.id
     const isArmed = pendingRemove?.kind === 'chip' && pendingRemove.id === entry.id
+    const removeLabel = confirmLabel(`Delete ${entry.name}`, isArmed)
     return (
       <div
         key={entry.id}
@@ -217,8 +226,8 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         <button
           type="button"
           className={`routine-chip-remove ${isArmed ? 'armed' : ''}`}
-          aria-label={`Delete ${entry.name}`}
-          title={`Delete ${entry.name}`}
+          aria-label={removeLabel}
+          title={removeLabel}
           onClick={() => removeChip(entry.id)}
           onBlur={disarmRemove}
         >

@@ -240,6 +240,9 @@ describe('Routines', () => {
     fireEvent.click(remove)
 
     expect(remove).toHaveTextContent('Delete?')
+    // The question is on the button for anyone who can see it, and in its
+    // accessible name for anyone who can't.
+    expect(remove).toHaveAccessibleName('Delete Chromatic drill? Press again to confirm')
     expect(screen.getByTestId('routine-chip-seed-chromatic-drill')).toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(7)
 
@@ -286,6 +289,7 @@ describe('Routines', () => {
     // It armed rather than fired: all five blocks are still there.
     expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(5)
     expect(remove).toHaveTextContent('Remove?')
+    expect(remove).toHaveAccessibleName(/^Remove block .+\? Press again to confirm$/)
 
     fireEvent.click(remove)
     expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(4)
