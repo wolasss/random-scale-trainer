@@ -209,6 +209,12 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       return
     }
 
+    // 'Custom' is read off the chips, never applied, so the reducer drops it —
+    // an edit that changes nothing must not fork the routine either.
+    if (action.type === 'setPreset' && action.preset === 'custom') {
+      return
+    }
+
     if (isPlaying) {
       if (!runtime.adjusted) {
         commit({ ...runtime, adjusted: true })
