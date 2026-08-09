@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/wolasss/random-scale-trainer/compare/v1.3.0...v1.3.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **a11y:** give the joined segmented controls a full-size touch target ([#56](https://github.com/wolasss/random-scale-trainer/issues/56)) ([beda550](https://github.com/wolasss/random-scale-trainer/commit/beda550c7614df8de4a9d88be51efec7c4c85919))
+
 # [1.3.0](https://github.com/wolasss/random-scale-trainer/compare/v1.2.2...v1.3.0) (2026-08-08)
 
 
