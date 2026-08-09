@@ -109,4 +109,121 @@ describe('useSessionTimer', () => {
     })
     expect(result.current.elapsedMs).toBe(0)
   })
+
+  it('does not bank a frozen stretch when paused before any tick fires', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+    // Phone goes in the pocket: the clock runs on, the page fires nothing.
+    act(() => {
+      vi.setSystemTime(Date.now() + 3 * 60 * 60 * 1_000)
+    })
+    act(() => {
+      result.current.pause()
+    })
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(800)
+    expect(result.current.elapsedMs).toBeLessThanOrEqual(1_200)
+
+    const frozen = result.current.elapsedMs
+    act(() => {
+      result.current.start()
+    })
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(frozen + 800)
+    expect(result.current.elapsedMs).toBeLessThanOrEqual(frozen + 1_200)
+  })
+
+  it('does not bank a frozen stretch on the first tick after thawing', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+    act(() => {
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1_000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(1_000)
+    expect(result.current.elapsedMs).toBeLessThanOrEqual(1_400)
+  })
+
+  it('ignores a clock that jumps backwards', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    act(() => {
+      vi.advanceTimersByTime(1_000)
+    })
+
+    const beforeJump = result.current.elapsedMs
+    act(() => {
+      vi.setSystemTime(Date.now() - 60_000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    act(() => {
+      result.current.pause()
+    })
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(beforeJump)
+    expect(result.current.elapsedMs).toBeLessThanOrEqual(1_400)
+  })
+
+  it('still accrues while a live background tab ticks slowly', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    // Throttled to roughly one tick a second — real time, still practising.
+    for (let i = 0; i < 3; i += 1) {
+      act(() => {
+        vi.setSystemTime(Date.now() + 1_000)
+      })
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+    }
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(3_600)
+  })
+
+  it('still accrues under intensive throttling of one tick a minute', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    // Chrome throttles a long-backgrounded tab this hard; the practice is real.
+    for (let i = 0; i < 5; i += 1) {
+      act(() => {
+        vi.setSystemTime(Date.now() + 60_000)
+      })
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+    }
+    act(() => {
+      result.current.pause()
+    })
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(5 * 60_000)
+  })
 })

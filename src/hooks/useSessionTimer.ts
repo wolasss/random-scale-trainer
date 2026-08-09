@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 
 const TICK_MS = 200
 
+/**
+ * A gap this far past `TICK_MS` means the page was frozen, not merely slow.
+ * The bar has to clear the slowest tab that is still *running*: Chrome's
+ * intensive throttling drops a backgrounded tab to about one callback a
+ * minute, so anything under a couple of minutes is treated as real practice
+ * time rather than thrown away. Freezes worth catching — a phone pocketed
+ * mid-session, a lid closed — run far longer than that.
+ */
+const FROZEN_GAP_MS = 120_000
+
 export type UseSessionTimerOptions = {
   /** Fired on every tick while running — the routine's block clock rides it. */
   onTick?: (elapsedMs: number) => void
@@ -16,6 +26,7 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
   const [elapsedMs, setElapsedMs] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
   const startedAtRef = useRef<number | null>(null)
+  const lastSeenAtRef = useRef<number | null>(null)
   const accumulatedMsRef = useRef(0)
   const isRunningRef = useRef(false)
   const onTickRef = useRef(options.onTick)
@@ -23,6 +34,28 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
   useEffect(() => {
     onTickRef.current = options.onTick
   })
+
+  /**
+   * Reads the clock, discounting time the page could not have been practised
+   * through: a phone pocketed mid-session freezes the page, so the next read
+   * lands hours later with no ticks in between, and a device clock can also
+   * jump backwards. Both shift the start anchor by the whole gap, leaving
+   * elapsed exactly where the last live read left it.
+   */
+  const observeNow = () => {
+    const now = Date.now()
+
+    if (startedAtRef.current !== null && lastSeenAtRef.current !== null) {
+      const gap = now - lastSeenAtRef.current
+
+      if (gap < 0 || gap > FROZEN_GAP_MS) {
+        startedAtRef.current += gap
+      }
+    }
+
+    lastSeenAtRef.current = now
+    return now
+  }
 
   useEffect(() => {
     if (!isRunning) {
@@ -34,7 +67,8 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
         return
       }
 
-      const elapsed = accumulatedMsRef.current + (Date.now() - startedAtRef.current)
+      const now = observeNow()
+      const elapsed = accumulatedMsRef.current + (now - startedAtRef.current)
       setElapsedMs(elapsed)
       onTickRef.current?.(elapsed)
     }, TICK_MS)
@@ -51,12 +85,14 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
 
     isRunningRef.current = true
     startedAtRef.current = Date.now()
+    lastSeenAtRef.current = startedAtRef.current
     setIsRunning(true)
   }
 
   const pause = () => {
     if (startedAtRef.current !== null) {
-      accumulatedMsRef.current += Date.now() - startedAtRef.current
+      const now = observeNow()
+      accumulatedMsRef.current += now - startedAtRef.current
       startedAtRef.current = null
       setElapsedMs(accumulatedMsRef.current)
     }
@@ -67,8 +103,11 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
 
   /** Returns the elapsed time it threw away, for clocks measured against it. */
   const reset = () => {
-    const cleared =
-      accumulatedMsRef.current + (startedAtRef.current === null ? 0 : Date.now() - startedAtRef.current)
+    let cleared = accumulatedMsRef.current
+    if (startedAtRef.current !== null) {
+      const now = observeNow()
+      cleared += now - startedAtRef.current
+    }
 
     isRunningRef.current = false
     startedAtRef.current = null
