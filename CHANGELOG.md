@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/wolasss/random-scale-trainer/compare/v1.3.1...v1.3.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* **routines:** keep the selected routine when the preset dropdown says Custom ([#63](https://github.com/wolasss/random-scale-trainer/issues/63)) ([349dadb](https://github.com/wolasss/random-scale-trainer/commit/349dadb13e5b42a05551a76d9c9b9b863c3a9bc8))
+
 ## [1.3.1](https://github.com/wolasss/random-scale-trainer/compare/v1.3.0...v1.3.1) (2026-08-09)
 
 
