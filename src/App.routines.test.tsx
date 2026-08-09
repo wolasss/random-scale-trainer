@@ -35,6 +35,13 @@ vi.mock('./lib/audio/engine', () => ({
 const chip = (id: string) => screen.getByTestId(`routine-chip-${id}`)
 const selectRoutine = (id: string) => fireEvent.click(chip(id).querySelector('.routine-chip-body')!)
 
+/** Deleting takes two taps: one to arm the button, one to answer it. */
+const deleteRoutine = (id: string) => {
+  const remove = chip(id).querySelector('.routine-chip-remove')!
+  fireEvent.click(remove)
+  fireEvent.click(remove)
+}
+
 const bpm = () => screen.getByTestId('bpm-value').textContent
 const transport = () => screen.getByTestId('play-toggle').textContent
 
@@ -135,7 +142,7 @@ describe('Routines', () => {
   it('forgets a routine that was deleted before the relaunch', () => {
     const first = render(<App />)
     selectRoutine('seed-warmup-naturals')
-    fireEvent.click(chip('seed-warmup-naturals').querySelector('.routine-chip-remove')!)
+    deleteRoutine('seed-warmup-naturals')
     first.unmount()
 
     render(<App />)
@@ -220,15 +227,68 @@ describe('Routines', () => {
     expect(screen.queryByTestId('routine-clear')).toBeNull()
   })
 
-  it('deletes a routine, clearing the selection when it was the selected one', () => {
+  /**
+   * The delete is final, so one tap can never be enough: the first only turns
+   * the X into a question, and the storage behind it is untouched until the
+   * same button is pressed again.
+   */
+  it('deletes a routine on the second tap, clearing the selection when it was the selected one', () => {
     render(<App />)
 
     selectRoutine('seed-chromatic-drill')
-    fireEvent.click(screen.getByLabelText('Delete Chromatic drill'))
+    const remove = screen.getByLabelText('Delete Chromatic drill')
+    fireEvent.click(remove)
+
+    expect(remove).toHaveTextContent('Delete?')
+    expect(screen.getByTestId('routine-chip-seed-chromatic-drill')).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(7)
+
+    fireEvent.click(remove)
 
     expect(screen.queryByTestId('routine-chip-seed-chromatic-drill')).toBeNull()
     expect(screen.getByTestId('routine-empty')).toBeInTheDocument()
     expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(6)
+  })
+
+  /** An armed button that loses focus has been left behind — it has to relax. */
+  it('disarms a stray delete tap when focus moves away', () => {
+    render(<App />)
+
+    const remove = screen.getByLabelText('Delete Chromatic drill')
+    fireEvent.click(remove)
+    fireEvent.blur(remove)
+    fireEvent.click(remove)
+
+    expect(screen.getByTestId('routine-chip-seed-chromatic-drill')).toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(7)
+
+    // Still armed from that last tap, so one more answer finishes the job.
+    fireEvent.click(remove)
+    expect(screen.queryByTestId('routine-chip-seed-chromatic-drill')).toBeNull()
+    expect(JSON.parse(window.localStorage.getItem('fretboard-routines')!)).toHaveLength(6)
+  })
+
+  /**
+   * The card is never remounted when another routine is loaded, so an armed
+   * block delete must not travel with it and greet the next workout primed at
+   * the same position.
+   */
+  it('does not carry an armed block delete over to another workout', () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-6')
+    fireEvent.click(screen.getAllByLabelText(/^Remove block /)[1])
+
+    selectRoutine('seed-neck-fluency-12')
+    const remove = screen.getAllByLabelText(/^Remove block /)[1]
+    fireEvent.click(remove)
+
+    // It armed rather than fired: all five blocks are still there.
+    expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(5)
+    expect(remove).toHaveTextContent('Remove?')
+
+    fireEvent.click(remove)
+    expect(screen.getAllByTestId(/^routine-segment-\d+$/)).toHaveLength(4)
   })
 
   it('forks out to Custom when the controls are touched while stopped', () => {
@@ -411,7 +471,9 @@ describe('Routines', () => {
     // It is a workout now, so the button stops offering to make one.
     expect(screen.getByTestId('routine-add-block')).toHaveTextContent('Add a block from current settings')
 
-    fireEvent.click(screen.getAllByLabelText(/^Remove block /)[1])
+    const remove = screen.getAllByLabelText(/^Remove block /)[1]
+    fireEvent.click(remove)
+    fireEvent.click(remove)
     // Down to one block the sequence is gone, and with it the timeline.
     expect(screen.queryByTestId('routine-timeline')).toBeNull()
     // The survivor keeps the clock it was given — a lone block may be timed.

@@ -1518,6 +1518,25 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* Both remove buttons delete for good, so the first tap only arms them: the X
+   becomes the question, and the answer is the same button again. Armed, it has
+   to read as the loudest thing on the chip. */
+.routine-chip-remove.armed,
+.routine-segment-remove.armed {
+  opacity: 1;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--primary);
+}
+
+.routine-chip-remove.armed {
+  font-size: 0.74rem;
+}
+
+.routine-segment-remove.armed {
+  font-size: 0.68rem;
+}
+
 .routine-empty {
   margin: 0;
   padding: 1.1rem;
@@ -1609,6 +1628,27 @@ input[type='range'] {
 
 .routine-segment-remove:hover {
   opacity: 1;
+}
+
+/* A delete this small is a miss waiting to happen on a phone. Both buttons get
+   the 44px fingertip target the segmented control already gets; the segment's
+   negative margins spend the segment's own padding on the target instead of
+   growing every block in the timeline. */
+@media (pointer: coarse) {
+  .routine-chip-remove {
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .routine-segment-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    margin: -0.7rem -0.75rem -0.2rem 0;
+  }
 }
 
 .routine-segment-track {
