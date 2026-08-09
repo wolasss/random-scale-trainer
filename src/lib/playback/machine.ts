@@ -70,7 +70,7 @@ export type PlaybackAudioPort = {
   playClickAt(time: number, accent: boolean): void
   playNoteAt(audioKey: string, time: number): void
   playSessionEndChime(at?: number): void
-  stopScheduledSounds(): void
+  stopScheduledSounds(keepSessionEndChime?: boolean): void
 }
 
 export type PlaybackTimers = {
@@ -200,14 +200,14 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
   }
 
-  const haltScheduling = () => {
+  const haltScheduling = (keepSessionEndChime = false) => {
     active = false
     schedulingDone = false
     clearTick()
     clearFrame()
     clearStopTimeout()
     visualQueue = []
-    audio.stopScheduledSounds()
+    audio.stopScheduledSounds(keepSessionEndChime)
   }
 
   /** The ceiling the ramp is working towards, never above the app's own limit. */
@@ -258,8 +258,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
   }
 
-  const finishStop = (message: string, countCycle = false) => {
-    haltScheduling()
+  const finishStop = (message: string, countCycle = false, keepSessionEndChime = false) => {
+    haltScheduling(keepSessionEndChime)
     sessionStartQueued = false
     onSessionPause()
     emit({
@@ -374,10 +374,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     nextBeatTime += 60 / currentBpm
   }
 
+  /**
+   * The stop lands on the boundary beat itself, which is also when any end
+   * chime starts — so this teardown, unlike every other one, leaves the chime
+   * alone. A later press of stop or reset still cuts it off.
+   */
   const scheduleStopAt = (time: number, message: string, countCycle = false) => {
     clearStopTimeout()
     const delayMs = Math.max(0, (time - audio.getCurrentTime()) * 1000)
-    stopTimeoutId = timers.set(() => finishStop(message, countCycle), delayMs)
+    stopTimeoutId = timers.set(() => finishStop(message, countCycle, true), delayMs)
   }
 
   /**

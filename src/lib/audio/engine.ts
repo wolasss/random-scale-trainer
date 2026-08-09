@@ -100,6 +100,8 @@ export class AudioEngine {
   private missingClips = new Set<string>()
   /** Sources scheduled into the future; stopScheduledSounds() silences them all. */
   private scheduledNodes = new Set<AudioScheduledSourceNode>()
+  /** The end chime is tracked apart so a stop can spare it — see below. */
+  private chimeNodes = new Set<AudioScheduledSourceNode>()
   private readonly contextFactory: () => AudioContext | null
   private readonly fetchFn: typeof fetch
   private readonly mediaElementFactory: () => HTMLAudioElement | null
@@ -158,14 +160,13 @@ export class AudioEngine {
     return this.context?.currentTime ?? 0
   }
 
-  private track(node: AudioScheduledSourceNode): void {
-    this.scheduledNodes.add(node)
-    node.onended = () => this.scheduledNodes.delete(node)
+  private track(node: AudioScheduledSourceNode, nodes = this.scheduledNodes): void {
+    nodes.add(node)
+    node.onended = () => nodes.delete(node)
   }
 
-  /** Silences everything already scheduled — including the look-ahead window. */
-  stopScheduledSounds(): void {
-    for (const node of this.scheduledNodes) {
+  private stopTracked(nodes: Set<AudioScheduledSourceNode>): void {
+    for (const node of nodes) {
       try {
         node.stop()
       } catch {
@@ -173,7 +174,21 @@ export class AudioEngine {
       }
     }
 
-    this.scheduledNodes.clear()
+    nodes.clear()
+  }
+
+  /**
+   * Silences everything already scheduled — including the look-ahead window.
+   *
+   * `keepSessionEndChime` is for the one stop that isn't a cancellation: a
+   * session that finishes on its own tears the transport down at the very
+   * instant the chime is due to sound, and that cleanup must let it ring.
+   */
+  stopScheduledSounds(keepSessionEndChime = false): void {
+    this.stopTracked(this.scheduledNodes)
+    if (!keepSessionEndChime) {
+      this.stopTracked(this.chimeNodes)
+    }
   }
 
   playClickAt(startTime: number, accent: boolean): void {
@@ -230,8 +245,8 @@ export class AudioEngine {
       shimmerOscillator.start(toneStart)
       bodyOscillator.stop(toneStart + duration + 0.03)
       shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
-      this.track(bodyOscillator)
-      this.track(shimmerOscillator)
+      this.track(bodyOscillator, this.chimeNodes)
+      this.track(shimmerOscillator, this.chimeNodes)
     }
 
     playTone(783.99, 0, 0.24, 0.11)

@@ -326,6 +326,29 @@ describe('AudioEngine scheduled playback', () => {
     }
   })
 
+  it('spares the chime when asked, while still silencing the transport', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    // The session that ends on its own tears down exactly when the chime is
+    // due, so that teardown has to leave the chime scheduled.
+    engine.playClickAt(5, true)
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds(true)
+
+    const [click, ...chime] = context.createOscillator.mock.results.map((result) => result.value)
+    expect(click.stop).toHaveBeenCalledTimes(2) // scheduled stop + cancel
+    for (const oscillator of chime) {
+      expect(oscillator.stop).toHaveBeenCalledTimes(1) // its own scheduled stop only
+    }
+
+    // A later stop — the player pressing it — still cancels the chime.
+    engine.stopScheduledSounds()
+    for (const oscillator of chime) {
+      expect(oscillator.stop).toHaveBeenCalledTimes(2)
+    }
+  })
+
   it('prunes finished nodes via onended so they are not re-stopped', async () => {
     const engine = await readyEngine()
 

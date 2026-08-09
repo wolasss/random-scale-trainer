@@ -20,6 +20,8 @@ class FakeAudioPort implements PlaybackAudioPort {
   notes: { key: string; time: number }[] = []
   chimes: number[] = []
   stopCalls = 0
+  /** Stops that would have silenced a chime scheduled but not yet sounding. */
+  chimeCancels = 0
 
   async ensureContext() {
     return this.contextAvailable ? {} : null
@@ -40,8 +42,11 @@ class FakeAudioPort implements PlaybackAudioPort {
   playSessionEndChime(at?: number) {
     this.chimes.push(at ?? this.time)
   }
-  stopScheduledSounds() {
+  stopScheduledSounds(keepSessionEndChime = false) {
     this.stopCalls += 1
+    if (!keepSessionEndChime) {
+      this.chimeCancels += 1
+    }
   }
 }
 
@@ -496,6 +501,26 @@ describe('end of cycle without looping', () => {
       notesCalled: 2,
       cyclesCompleted: 1,
     })
+  })
+
+  it('lets the chime ring through the stop that lands on the same beat', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+
+    harness.advanceTo(3)
+
+    expect(harness.audio.stopCalls).toBeGreaterThanOrEqual(1)
+    expect(harness.audio.chimeCancels).toBe(0)
+  })
+
+  it('still cuts the chime off when the player stops after the session ends', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+
+    harness.advanceTo(3)
+    harness.machine.stop()
+
+    expect(harness.audio.chimeCancels).toBe(1)
   })
 
   it('skips the chime when the end sound is disabled', async () => {
