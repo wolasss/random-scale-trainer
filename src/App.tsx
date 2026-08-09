@@ -1,3 +1,33 @@
+/**
+ * The composition root. Every hook the app runs is called here, and the wiring
+ * between four of them is most of what this file is.
+ *
+ * `useSettings` holds the practice settings, and they feed both `usePlayback`
+ * (with `speakNotes` forced on) and `useRoutine`. There are two ways to write
+ * to them. `userDispatch` takes the edits the user makes to the settings a
+ * routine block owns — tempo, beats per note, the note pool, spelling, the
+ * ramp — so the routine can tell someone drifting off a block from its own
+ * writes. The raw `dispatch` takes everything else: the routine applying a
+ * block, the speed ramp's BPM write-back, and the settings no block owns (the
+ * session goal, the practice toggles), which the user is free to change without
+ * it meaning anything to the routine.
+ *
+ * `useSessionTimer` is the one clock. Playback starts and pauses it, and its
+ * tick both advances the routine's block clock and banks time into the practice
+ * log — so a pause stops all three at once, and neither the block nor the log
+ * counts time nobody played.
+ *
+ * That leaves a cycle: the timer ticks the routine, the routine stops playback
+ * when its last timed block runs out, playback starts and pauses the timer.
+ * `routineRef` and `playbackRef` are what break it — the tick reaches the
+ * routine through one and `onFinish` reaches playback through the other, so
+ * neither hook has to be declared before the other.
+ *
+ * `useDisplayMode` picks the reading. On the stage this returns the stage shell
+ * — hero, `StageTransport`, and the setup cards tucked into the slide-up
+ * `PracticeSheet`; otherwise it returns the scrolling page grid. The cards are
+ * built once above the branch and placed by whichever one runs.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar, type Theme } from './components/TopBar'
 import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, type Skin } from './lib/skins'
