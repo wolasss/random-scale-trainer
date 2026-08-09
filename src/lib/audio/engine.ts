@@ -230,6 +230,8 @@ export class AudioEngine {
       shimmerOscillator.start(toneStart)
       bodyOscillator.stop(toneStart + duration + 0.03)
       shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
+      this.track(bodyOscillator)
+      this.track(shimmerOscillator)
     }
 
     playTone(783.99, 0, 0.24, 0.11)

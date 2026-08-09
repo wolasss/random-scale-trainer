@@ -311,6 +311,21 @@ describe('AudioEngine scheduled playback', () => {
     expect(source.stop).toHaveBeenCalledTimes(1)
   })
 
+  it('stopScheduledSounds silences a chime scheduled ahead of the clock', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    // The transport schedules the chime a look-ahead window early, so a stop
+    // landing before it sounds has to cancel it like any other queued node.
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds()
+
+    expect(context.createOscillator).toHaveBeenCalledTimes(4)
+    for (const result of context.createOscillator.mock.results) {
+      expect(result.value.stop).toHaveBeenCalledTimes(2) // scheduled stop + cancel
+    }
+  })
+
   it('prunes finished nodes via onended so they are not re-stopped', async () => {
     const engine = await readyEngine()
 
