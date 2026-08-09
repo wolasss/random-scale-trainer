@@ -204,4 +204,26 @@ describe('useSessionTimer', () => {
 
     expect(result.current.elapsedMs).toBeGreaterThanOrEqual(3_600)
   })
+
+  it('still accrues under intensive throttling of one tick a minute', () => {
+    const { result } = renderHook(() => useSessionTimer())
+
+    act(() => {
+      result.current.start()
+    })
+    // Chrome throttles a long-backgrounded tab this hard; the practice is real.
+    for (let i = 0; i < 5; i += 1) {
+      act(() => {
+        vi.setSystemTime(Date.now() + 60_000)
+      })
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+    }
+    act(() => {
+      result.current.pause()
+    })
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(5 * 60_000)
+  })
 })

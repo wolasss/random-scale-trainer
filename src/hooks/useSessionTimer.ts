@@ -3,10 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 const TICK_MS = 200
 
 /**
- * A gap this far past `TICK_MS` means the page was frozen, not merely slow:
- * a backgrounded tab that keeps running is throttled to ~1s ticks at worst.
+ * A gap this far past `TICK_MS` means the page was frozen, not merely slow.
+ * The bar has to clear the slowest tab that is still *running*: Chrome's
+ * intensive throttling drops a backgrounded tab to about one callback a
+ * minute, so anything under a couple of minutes is treated as real practice
+ * time rather than thrown away. Freezes worth catching — a phone pocketed
+ * mid-session, a lid closed — run far longer than that.
  */
-const FROZEN_GAP_MS = 5_000
+const FROZEN_GAP_MS = 120_000
 
 export type UseSessionTimerOptions = {
   /** Fired on every tick while running — the routine's block clock rides it. */
