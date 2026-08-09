@@ -48,6 +48,27 @@ export const DEFAULT_SESSION_GOAL_MIN = 10
 export const SCHEDULE_AHEAD_S = 0.25
 export const SCHEDULER_TICK_MS = 25
 
+/**
+ * Every localStorage key the app owns. The store holds strings and nothing
+ * else, so each key carries its own codec rather than a shared format.
+ *
+ * The contract for everything read through `usePersistentState` — directly, or
+ * through `useSettings`' per-key codecs: a stored value the codec doesn't
+ * recognise is rejected outright (`deserialize` returns undefined) and the
+ * default stands in for it. The mount-time write-back then persists whatever
+ * was accepted, so the store normalises itself on the way in — a BPM saved
+ * above the ceiling comes back clamped, a junk theme comes back as the default
+ * and is rewritten as such. Nothing partially-valid survives: rejection is per
+ * key, never per field.
+ *
+ * Underneath, `src/lib/storage.ts` keeps both halves crash-proof. A store that
+ * is absent, blocked or throwing (Safari private mode, cookies off) reads as a
+ * missing key, and a write that fails — a full quota — is dropped silently and
+ * the value lives on in memory for the rest of the session.
+ *
+ * `practiceLog` and `iosInstallHint` reach localStorage on their own, with the
+ * same crash-proofing but different salvage rules; see their notes below.
+ */
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
   skin: 'fretboard-skin',
@@ -59,18 +80,37 @@ export const STORAGE_KEYS = {
   countIn: 'fretboard-count-in',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
+  // Pitch classes as comma-joined indices — '0,4,7'. Rejected as a whole
+  // unless every segment is a distinct integer within the octave, so a gappy
+  // '1,,3' can't coerce its way into a pool holding C.
   notePool: 'fretboard-note-pool',
   sessionGoal: 'fretboard-session-goal',
   showFretboard: 'fretboard-show-neck',
+  // A JSON array of the saved setups and workouts on the shelf. The exception
+  // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
+  // every routine (and block) it can read and dropping the rest. Only a value
+  // that isn't parseable JSON, or isn't an array, loses the lot — and then the
+  // seeded shelf takes over.
   routines: 'fretboard-routines',
+  // Which of the above is chosen, as its id; '' means none. Any non-empty
+  // string is accepted and written back as it stands, because an id can only
+  // be judged against the shelf: one that no longer matches anything simply
+  // resolves to no selection when it is looked up.
   selectedRoutine: 'fretboard-selected-routine',
   // Set the first time practice starts. Until then the browser layout keeps the
   // setup cards folded away, so a first run is a stage and a start button
   // rather than a page of controls.
   setupRevealed: 'fretboard-setup-revealed',
   // Versioned in the key itself: the practice log is the one store whose shape
-  // is worth migrating rather than dropping.
+  // is worth migrating rather than dropping. JSON, read and written by
+  // src/lib/history.ts rather than the hooks above, and sanitised a day at a
+  // time — a day that doesn't survive validation is dropped and the rest of the
+  // log stands. The cleaned-up shape only reaches storage on the next practice
+  // write, not on mount.
   practiceLog: 'rnt.history.v1',
+  // Literally 'dismissed', or unset. Anything else reads as not yet dismissed
+  // and is left exactly where it is: the hint costs a launch to show and a tap
+  // to send away, which is cheaper than rewriting a value nobody asked about.
   iosInstallHint: 'fretboard-ios-install-hint',
 } as const
 
