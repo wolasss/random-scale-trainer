@@ -58,6 +58,30 @@ button.
 npm run build
 ```
 
+## Deploy
+
+The repo ships a multi-stage `Dockerfile`: `node:24-alpine` builds the Vite app, and
+`nginx:1.30-alpine` serves the static `dist/` output on port 80.
+
+```bash
+docker build -t callnote .
+docker run --rm -p 8080:80 callnote                            # http://localhost:8080
+
+docker run --rm -p 8080:80 wolasss/random-scale-trainer:latest # the published image
+```
+
+Every release pushes `wolasss/random-scale-trainer` to Docker Hub for linux/amd64 and
+linux/arm64, tagged with the semantic-release version and `latest`
+(`.github/workflows/release.yml`).
+
+`nginx.conf` sets the caching deliberately. Unknown paths fall back to `index.html`, so client-side
+routes resolve. `/sw.js` is sent `no-cache, no-store, must-revalidate`, and `index.html` and
+`manifest.webmanifest` are sent `no-cache`: a cached service worker is a build the browser can
+never move off, and index.html is what names the hashed bundles, so a stale shell pins everyone to
+the old ones. Everything else matching the static-file extension list (js, css, images, fonts,
+mp3) gets `expires 7d` and `Cache-Control: public` — that rule is matched on extension, not on the
+presence of a content hash, so only the three exact-match locations above it escape it.
+
 ## Tests
 
 ```bash
