@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/wolasss/random-scale-trainer/compare/v1.3.2...v1.3.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* **history:** stop crediting a frozen background stretch as practice time ([#66](https://github.com/wolasss/random-scale-trainer/issues/66)) ([ed7d571](https://github.com/wolasss/random-scale-trainer/commit/ed7d57173f701e36b056371b35f8725f8a23f3b9))
+
 ## [1.3.2](https://github.com/wolasss/random-scale-trainer/compare/v1.3.1...v1.3.2) (2026-08-09)
 
 
