@@ -9,7 +9,7 @@ import {
   OPEN_BLOCK_FLEX_SECONDS,
   type BeatsPerNote,
 } from '../constants'
-import { PITCH_CLASSES, type SpellingPreference } from './notes'
+import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { matchPreset, PRESETS, type PresetId } from './presets'
 import { cycleSeconds } from './time'
 
@@ -115,8 +115,6 @@ const ACC_BY_SPELLING: Record<SpellingPreference, RoutineAccidental> = {
 const POOL_KEY_BY_PRESET = Object.fromEntries(
   Object.entries(PRESET_BY_POOL_KEY).map(([key, presetId]) => [presetId, key as PoolKey]),
 ) as Partial<Record<PresetId, PoolKey>>
-
-const sortedPcs = (pcs: readonly number[]) => [...pcs].sort((left, right) => left - right)
 
 /** The pitch classes a block drills: its explicit pool, else its preset. */
 export const blockPool = (block: RoutineBlock): number[] => {

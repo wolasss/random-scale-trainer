@@ -21,6 +21,9 @@ export const SHARP_AUDIO = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A'
 
 export const PITCH_CLASSES = Array.from({ length: 12 }, (_, pc) => pc)
 
+/** Copy of a pitch-class pool, sorted ascending. */
+export const sortedPcs = (pcs: readonly number[]) => [...pcs].sort((left, right) => left - right)
+
 export const isNaturalPitchClass = (pc: number) => FLAT_DISPLAY[pc] === SHARP_DISPLAY[pc]
 
 /**

@@ -11,7 +11,7 @@ import {
   STORAGE_KEYS,
   type BeatsPerNote,
 } from '../constants'
-import { PITCH_CLASSES, type SpellingPreference } from '../lib/notes'
+import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
 import { readRaw, writeRaw } from '../lib/storage'
 
@@ -54,8 +54,6 @@ export type SettingsAction =
   | { type: 'setPreset'; preset: PresetId }
   | { type: 'setPool'; pool: readonly number[] }
   | { type: 'setSessionGoal'; minutes: SessionGoalMin }
-
-const sortedPcs = (pcs: readonly number[]) => [...pcs].sort((left, right) => left - right)
 
 export const settingsReducer = (state: Settings, action: SettingsAction): Settings => {
   switch (action.type) {
