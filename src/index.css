@@ -1157,6 +1157,21 @@ input[type='range'] {
   border-color: var(--primary);
 }
 
+/* The joined track is how the tempo span and the note spelling get set, and on a
+   phone that happens inside the practice sheet at arm's length — so its options
+   need the same 44px fingertip target the loose variant already gives. The track
+   gives up a pixel of its own padding in exchange, keeping the grown pill level
+   with the tap button and the steppers it shares a row with. */
+@media (pointer: coarse) {
+  .segmented:not(.loose) {
+    padding: 2px;
+  }
+
+  .segmented:not(.loose) [role='radio'] {
+    min-height: 44px;
+  }
+}
+
 .note-pop {
   animation: note-pop 220ms ease;
 }
