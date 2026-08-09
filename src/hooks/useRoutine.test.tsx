@@ -2,9 +2,10 @@ import { act, renderHook } from '@testing-library/react'
 import { useReducer } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
-import type { Routine, RoutineBlock } from '../lib/routines'
+import { matchPreset } from '../lib/presets'
+import { blockPool, type Routine, type RoutineBlock } from '../lib/routines'
 import { useRoutine } from './useRoutine'
-import { settingsReducer, type Settings } from './useSettings'
+import { settingsReducer, type SettingsAction, type Settings } from './useSettings'
 
 const baseSettings = (): Settings => ({
   bpm: 72,
@@ -45,11 +46,11 @@ const WORKOUT: Routine = {
 }
 
 /** The routine against a live settings reducer, so applied blocks really land. */
-const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void) => {
+const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPlaying = true) => {
   const [settings, dispatch] = useReducer(settingsReducer, null, baseSettings)
-  const routine = useRoutine({ settings, dispatch, sessionElapsedMs, isPlaying: true, onFinish })
+  const routine = useRoutine({ settings, dispatch, sessionElapsedMs, isPlaying, onFinish })
 
-  return { settings, routine }
+  return { settings, dispatch, routine }
 }
 
 /**
@@ -83,6 +84,65 @@ const renderOnBlock = (blockIndex: number) => {
 /** The block the routine says it is on, by name — index alone proves nothing. */
 const activeBlockName = (routine: { selected: Routine | null; blockIndex: number }) =>
   routine.selected!.blocks[routine.blockIndex].name
+
+/** The workout, selected and sitting on its first block. */
+const renderOnFirstBlock = (isPlaying: boolean) => {
+  window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+
+  const view = renderHook(() => useRoutineHarness(0, vi.fn(), isPlaying))
+  act(() => {
+    view.result.current.routine.select(WORKOUT.id)
+  })
+
+  return view
+}
+
+/** What App does on every hand-made change: tell the routine, then apply it. */
+const userDispatch = (
+  view: ReturnType<typeof renderOnFirstBlock>,
+  action: SettingsAction,
+) => {
+  act(() => {
+    view.result.current.routine.notifyManualChange(action)
+    view.result.current.dispatch(action)
+  })
+}
+
+describe('the Custom preset is not a manual edit', () => {
+  const firstBlockPool = blockPool(WORKOUT.blocks[0])
+
+  it('keeps the routine, and the selector still shows its preset, while stopped', () => {
+    const view = renderOnFirstBlock(false)
+
+    userDispatch(view, { type: 'setPreset', preset: 'custom' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected).toEqual(WORKOUT)
+    expect(settings.pool).toEqual(firstBlockPool)
+    // The select is driven by the pool, so it reads the block's preset — not 'Custom'.
+    expect(matchPreset(settings.pool)).toBe('naturals')
+  })
+
+  it('does not flag the block adjusted while playing', () => {
+    const view = renderOnFirstBlock(true)
+
+    userDispatch(view, { type: 'setPreset', preset: 'custom' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.adjusted).toBe(false)
+    expect(settings.pool).toEqual(firstBlockPool)
+  })
+
+  it('still forks to the edited pool when a real preset is picked while stopped', () => {
+    const view = renderOnFirstBlock(false)
+
+    userDispatch(view, { type: 'setPreset', preset: 'accidentals' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected).toBeNull()
+    expect(settings.pool).toEqual([1, 3, 6, 8, 10])
+  })
+})
 
 describe('removeBlock around the active block', () => {
   it('shifts the active index down when an earlier block goes, clock intact', () => {
