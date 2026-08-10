@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/wolasss/random-scale-trainer/compare/v1.5.0...v1.5.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **routines:** make deleting a saved setup deliberate ([#69](https://github.com/wolasss/random-scale-trainer/issues/69)) ([3e5b3cd](https://github.com/wolasss/random-scale-trainer/commit/3e5b3cd556177b1e38deeb7169bcacd6ac6c2906))
+
 # [1.5.0](https://github.com/wolasss/random-scale-trainer/compare/v1.4.1...v1.5.0) (2026-08-10)
 
 
