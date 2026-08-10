@@ -2,6 +2,7 @@
   "name": "callnote-app",
   "private": true,
   "version": "1.5.1",
+  "license": "MIT",
   "type": "module",
   "packageManager": "npm@10.9.8",
   "engines": {
