@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
+import { withBlockedStorage } from '../test/blockedStorage'
 import {
   addPractice,
   bestStreak,
@@ -14,6 +15,7 @@ import {
   writeHistory,
   type PracticeHistory,
 } from './history'
+import { removeRaw } from './storage'
 
 const at = (year: number, month: number, day: number, hour = 12) => new Date(year, month - 1, day, hour)
 
@@ -294,5 +296,15 @@ describe('storage', () => {
 
     getItem.mockRestore()
     setItem.mockRestore()
+  })
+
+  it('reads empty and clears cleanly when the whole store is blocked', () => {
+    const restore = withBlockedStorage()
+    try {
+      expect(readHistory()).toEqual({ days: {} })
+      expect(() => removeRaw(STORAGE_KEYS.practiceLog)).not.toThrow()
+    } finally {
+      restore()
+    }
   })
 })

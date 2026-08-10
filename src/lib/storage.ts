@@ -30,3 +30,15 @@ export const writeRaw = (key: string, value: string): void => {
     // Storage unavailable or full — keep the in-memory value and move on.
   }
 }
+
+export const removeRaw = (key: string): void => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Storage unavailable — there is nothing stored to remove anyway.
+  }
+}

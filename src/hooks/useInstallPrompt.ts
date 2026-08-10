@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { STORAGE_KEYS } from '../constants'
+import { readRaw, writeRaw } from '../lib/storage'
 import { isIos } from './useDisplayMode'
 
 /** Chromium's install event. Not in lib.dom, and not implemented anywhere else. */
@@ -20,13 +21,7 @@ export type InstallPrompt = {
   dismissIosHint: () => void
 }
 
-const hintDismissed = (): boolean => {
-  try {
-    return window.localStorage.getItem(STORAGE_KEYS.iosInstallHint) === 'dismissed'
-  } catch {
-    return false
-  }
-}
+const hintDismissed = (): boolean => readRaw(STORAGE_KEYS.iosInstallHint) === 'dismissed'
 
 export function useInstallPrompt(standalone: boolean): InstallPrompt {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
@@ -62,11 +57,9 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
 
   const dismissIosHint = useCallback(() => {
     setIosHintDismissed(true)
-    try {
-      window.localStorage.setItem(STORAGE_KEYS.iosInstallHint, 'dismissed')
-    } catch {
-      // Private mode with storage denied: the hint just comes back next launch.
-    }
+    // Private mode with storage denied drops the write: the hint just comes
+    // back next launch.
+    writeRaw(STORAGE_KEYS.iosInstallHint, 'dismissed')
   }, [])
 
   return {

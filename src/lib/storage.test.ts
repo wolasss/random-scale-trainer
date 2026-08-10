@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { withBlockedStorage } from '../test/blockedStorage'
-import { readRaw, writeRaw } from './storage'
+import { readRaw, removeRaw, writeRaw } from './storage'
 
 const KEY = 'storage-test-key'
 
@@ -41,6 +41,25 @@ describe('writeRaw', () => {
     }
     // Nothing was queued for later — the value is simply gone.
     expect(window.localStorage.getItem(KEY)).toBeNull()
+  })
+})
+
+describe('removeRaw', () => {
+  it('clears a previously written key', () => {
+    writeRaw(KEY, 'doomed')
+    removeRaw(KEY)
+    expect(window.localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('does nothing instead of throwing when the store refuses', () => {
+    const restore = withBlockedStorage()
+    try {
+      expect(() => {
+        removeRaw(KEY)
+      }).not.toThrow()
+    } finally {
+      restore()
+    }
   })
 })
 
