@@ -127,8 +127,10 @@ keep in sync.
 MIT — see [LICENSE](LICENSE). Free for anyone to use, modify and redistribute, personally or
 commercially, as long as the copyright and permission notice travel with the code.
 
-MIT ships the app as-is: no warranty, no support obligation, and nothing granted over the
-`callnote.app` name or the marks in `brand/`. If your team needs more than that — a support
+MIT ships the app as-is: no warranty and no support obligation. It is a copyright licence only —
+the `callnote.app` name and the marks in `brand/` stay trademarks of the copyright holder, so a
+fork can copy and change those files but shouldn't pass itself off as Callnote. If your team needs
+more than that — a support
 commitment, a warranty, indemnity, or different terms — open an issue at
 <https://github.com/wolasss/random-scale-trainer/issues> and we can talk about a commercial
 agreement.
