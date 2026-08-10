@@ -4,6 +4,10 @@
 
 callnote.app is a small React and Vite practice app for guitar fretboard memorization. A metronome clicks, a note name is called on the beat, and you find it on the neck before the next one lands.
 
+![callnote.app calling notes on metronome clicks](docs/callnote.gif)
+
+Pick your notes and a tempo, press start, and it calls a note on the metronome click.
+
 ## Features
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
