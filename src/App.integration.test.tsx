@@ -85,6 +85,36 @@ describe('App integration', () => {
     }
   })
 
+  it('saves a setup but warns it is gone at closing time when localStorage is blocked', () => {
+    const restore = withBlockedStorage()
+    try {
+      render(<App />)
+
+      // Blocked storage reads as a first run, so the setup cards are folded away.
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      fireEvent.click(screen.getByTestId('routine-save'))
+      fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Ephemeral test' } })
+      fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+      // The save still happens — it just lives in memory for this session only.
+      expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Ephemeral test')
+      expect(screen.getByTestId('routine-ephemeral-notice')).toHaveTextContent('close the tab')
+    } finally {
+      restore()
+    }
+  })
+
+  it('says nothing about closing the tab when storage works', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('routine-save'))
+    fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Persistent test' } })
+    fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+    expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Persistent test')
+    expect(screen.queryByTestId('routine-ephemeral-notice')).toBeNull()
+  })
+
   it('shows the ready hint and NEXT preview while idle, then beat dots while playing', async () => {
     render(<App />)
 

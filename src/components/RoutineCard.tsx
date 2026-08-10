@@ -13,6 +13,7 @@ import {
   routineProgress,
   type Routine,
 } from '../lib/routines'
+import { storageWorks } from '../lib/storage'
 import type { RoutineController } from '../hooks/useRoutine'
 
 type RoutineCardProps = {
@@ -121,6 +122,10 @@ function RoutineTimeline({ routine, blockIndex, blockElapsedMs, finished, onRemo
 export function RoutineCard({ routine }: RoutineCardProps) {
   const { selected, blockIndex, blockElapsedMs, finished, adjusted } = routine
   const [draftName, setDraftName] = useState<string | null>(null)
+  // Checked when the save form opens rather than on every render: the answer
+  // only matters at the moment somebody is about to trust the store with
+  // something, and the probe touches localStorage.
+  const [ephemeral, setEphemeral] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const isNaming = draftName !== null
 
@@ -195,7 +200,10 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             type="button"
             className="ghost-button routine-save"
             data-testid="routine-save"
-            onClick={() => setDraftName(routine.suggestedName)}
+            onClick={() => {
+              setDraftName(routine.suggestedName)
+              setEphemeral(!storageWorks())
+            }}
           >
             <FontAwesomeIcon icon={faPlus} /> Save as a setup
           </button>
@@ -222,16 +230,32 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 setDraftName(null)
+                setEphemeral(false)
               }
             }}
           />
           <button type="submit" className="primary-button routine-save-confirm" data-testid="routine-save-confirm">
             Save
           </button>
-          <button type="button" className="ghost-button" onClick={() => setDraftName(null)}>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => {
+              setDraftName(null)
+              setEphemeral(false)
+            }}
+          >
             Cancel
           </button>
         </form>
+      ) : null}
+
+      {/* Survives the save, so it is still on screen beside the chip it is
+          about — the moment somebody would otherwise assume it kept. */}
+      {ephemeral ? (
+        <p className="routine-ephemeral-notice" data-testid="routine-ephemeral-notice">
+          Your browser is blocking saved data — this setup will work now, but it won't be here after you close the tab.
+        </p>
       ) : null}
 
       <div className="routine-shelf" data-testid="routine-shelf">
