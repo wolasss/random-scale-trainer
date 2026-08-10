@@ -15,7 +15,28 @@ describe('PRESETS', () => {
     expect(byId['e-major']).toEqual([1, 3, 4, 6, 8, 9, 11])
     expect(byId['f-major']).toEqual([0, 2, 4, 5, 7, 9, 10])
     expect(byId['a-minor-pentatonic']).toEqual([0, 2, 4, 7, 9])
+    expect(byId['e-minor-pentatonic']).toEqual([2, 4, 7, 9, 11])
+    expect(byId['d-minor-pentatonic']).toEqual([0, 2, 5, 7, 9])
+    expect(byId['a-minor-blues']).toEqual([0, 2, 3, 4, 7, 9])
     expect(byId['custom']).toBeNull()
+  })
+
+  it('gives every minor preset a pitch-class set no other preset already has', () => {
+    const setKey = (pcs: readonly number[]) => JSON.stringify([...pcs].sort((a, b) => a - b))
+    const minorIds = ['a-minor-pentatonic', 'e-minor-pentatonic', 'd-minor-pentatonic', 'a-minor-blues']
+
+    for (const minor of PRESETS) {
+      if (minor.pcs === null || !minorIds.includes(minor.id)) {
+        continue
+      }
+
+      const minorKey = setKey(minor.pcs)
+      const clashes = PRESETS.filter(
+        (other) => other.id !== minor.id && other.pcs !== null && setKey(other.pcs) === minorKey,
+      )
+
+      expect(clashes.map((other) => other.id)).toEqual([])
+    }
   })
 })
 
