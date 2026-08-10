@@ -9,6 +9,9 @@ export type PresetId =
   | 'e-major'
   | 'f-major'
   | 'a-minor-pentatonic'
+  | 'e-minor-pentatonic'
+  | 'd-minor-pentatonic'
+  | 'a-minor-blues'
   | 'custom'
 
 export type PoolPreset = {
@@ -29,6 +32,9 @@ export const PRESETS: readonly PoolPreset[] = [
   { id: 'e-major', label: 'Key of E major', pcs: [1, 3, 4, 6, 8, 9, 11] },
   { id: 'f-major', label: 'Key of F major', pcs: [0, 2, 4, 5, 7, 9, 10] },
   { id: 'a-minor-pentatonic', label: 'Key of A minor (pentatonic)', pcs: [0, 2, 4, 7, 9] },
+  { id: 'e-minor-pentatonic', label: 'Key of E minor (pentatonic)', pcs: [2, 4, 7, 9, 11] },
+  { id: 'd-minor-pentatonic', label: 'Key of D minor (pentatonic)', pcs: [0, 2, 5, 7, 9] },
+  { id: 'a-minor-blues', label: 'Key of A minor (blues)', pcs: [0, 2, 3, 4, 7, 9] },
   { id: 'custom', label: 'Custom', pcs: null },
 ]
 

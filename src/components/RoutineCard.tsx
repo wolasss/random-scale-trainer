@@ -151,6 +151,10 @@ export function RoutineCard({ routine }: RoutineCardProps) {
   const { selected, blockIndex, blockElapsedMs, finished, adjusted } = routine
   const [draftName, setDraftName] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
+  // Whether anybody has reached for the save button yet. A store that drops
+  // writes is only worth mentioning to someone about to trust it with
+  // something; until then it is noise about a browser setting.
+  const [saveOffered, setSaveOffered] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const isNaming = draftName !== null
 
@@ -259,7 +263,10 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             type="button"
             className="ghost-button routine-save"
             data-testid="routine-save"
-            onClick={() => setDraftName(routine.suggestedName)}
+            onClick={() => {
+              setDraftName(routine.suggestedName)
+              setSaveOffered(true)
+            }}
           >
             <FontAwesomeIcon icon={faPlus} /> Save as a setup
           </button>
@@ -286,16 +293,34 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 setDraftName(null)
+                setSaveOffered(false)
               }
             }}
           />
           <button type="submit" className="primary-button routine-save-confirm" data-testid="routine-save-confirm">
             Save
           </button>
-          <button type="button" className="ghost-button" onClick={() => setDraftName(null)}>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => {
+              setDraftName(null)
+              setSaveOffered(false)
+            }}
+          >
             Cancel
           </button>
         </form>
+      ) : null}
+
+      {/* Reports on the shelf's own last write, so a store that had room for
+          everything else but not for this list still gets caught. Survives the
+          save, so it is still on screen beside the chip it is about — the
+          moment somebody would otherwise assume it kept. */}
+      {saveOffered && !routine.persisted ? (
+        <p className="routine-ephemeral-notice" data-testid="routine-ephemeral-notice">
+          Your browser is blocking saved data — this setup will work now, but it won't be here after you close the tab.
+        </p>
       ) : null}
 
       <div className="routine-shelf" data-testid="routine-shelf">

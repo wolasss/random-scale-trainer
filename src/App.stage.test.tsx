@@ -213,6 +213,24 @@ describe('the stand reading', () => {
     expect(document.querySelector('.fretboard')).not.toBeNull()
   })
 
+  it('gives Escape to the history it opened, not to the sheet underneath it', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+    fireEvent.click(screen.getByTestId('practice-log-history'))
+    expect(screen.getByTestId('practice-history-view')).toBeInTheDocument()
+
+    // As a browser dispatches it: at the focused element, on its way up.
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+
+    expect(screen.queryByTestId('practice-history-view')).toBeNull()
+    expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
+
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+    expect(screen.queryByTestId('practice-sheet')).toBeNull()
+  })
+
   it('keeps the routine strip above the transport', () => {
     installMatchMedia(PHONE_PORTRAIT)
     render(<App />)

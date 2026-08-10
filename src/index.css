@@ -1423,6 +1423,17 @@ input[type='range'] {
   padding: 0.55rem 1.1rem;
 }
 
+/* A caveat, not an error: dashed like the empty state rather than alarmed, so
+   it reads as a note about the browser and not a failed save. */
+.routine-ephemeral-notice {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 /* One shelf, two tiers: setups sit unlabelled under the card's own heading,
    workouts under a label of their own below. The hierarchy does the explaining
    a paragraph about blocks used to do badly — presets first, the advanced
@@ -1846,6 +1857,172 @@ input[type='range'] {
   margin: 1rem 0 0;
   color: var(--ink-soft);
   font-size: 0.85rem;
+}
+
+.practice-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+/* --- Practice history ----------------------------------------------------- */
+
+/* The same slide-up sheet as the practice setup, but this one also opens on a
+   desktop, where a full-width dialog would stretch a calendar into a wall. */
+.history-layer {
+  justify-content: center;
+}
+
+.history-sheet {
+  max-width: 480px;
+  border-radius: 22px 22px 0 0;
+}
+
+.practice-history-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 0.9rem;
+}
+
+.practice-history-streak {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.practice-history-best,
+.practice-history-totals {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.practice-history-totals {
+  margin-left: auto;
+}
+
+.practice-history-months {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+/* Capped so a day stays a square you can take in at a glance rather than a
+   tile the width of a finger and a half. */
+.practice-history-month {
+  max-width: 360px;
+  margin-inline: auto;
+}
+
+.practice-history-month-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.practice-history-month-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.practice-history-month-total {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-history-weekdays,
+.practice-history-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.practice-history-weekdays {
+  margin-bottom: 3px;
+  text-align: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.practice-history-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--button-bg);
+  border: 1px solid var(--control-border);
+}
+
+/* Four steps of the skin's own accent rather than four fixed colours, so the
+   calendar carries the theme instead of fighting it. */
+.practice-history-cell.is-l1 {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+  border-color: transparent;
+}
+
+.practice-history-cell.is-l2 {
+  background: color-mix(in srgb, var(--primary) 50%, transparent);
+  border-color: transparent;
+}
+
+.practice-history-cell.is-l3 {
+  background: color-mix(in srgb, var(--primary) 75%, transparent);
+  border-color: transparent;
+}
+
+.practice-history-cell.is-l4 {
+  background: var(--primary);
+  border-color: transparent;
+}
+
+.practice-history-cell.is-today {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* Days the month has but the calendar hasn't reached — present, so the shape of
+   the month is right, but plainly not part of the record yet. */
+.practice-history-cell.is-future {
+  opacity: 0.35;
+}
+
+.practice-history-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--control-border);
+}
+
+.practice-history-backup-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.practice-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* Present for the button that opens it, and out of everything else's way. */
+.practice-history-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.practice-history-error {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
 }
 
 .app-footer {

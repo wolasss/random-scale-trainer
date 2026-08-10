@@ -1,5 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioEngine, NOTE_AUDIO_FILES } from './engine'
+
+// Every console.error spy below is scoped to the test that installs it: a spy
+// left in place is reused by the next vi.spyOn, so its call count would leak
+// into whichever test the shuffled order runs next.
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const createFakeOscillator = () => ({
   type: '',
@@ -130,7 +137,6 @@ describe('AudioEngine.loadNoteBuffers', () => {
 
     expect(engine.hasBuffers()).toBe(true)
     expect(errorSpy).toHaveBeenCalledTimes(1)
-    errorSpy.mockRestore()
   })
 
   it('is idempotent', async () => {
@@ -145,7 +151,7 @@ describe('AudioEngine.loadNoteBuffers', () => {
   })
 
   it('retries after a pass where every fetch failed', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     let online = false
     const fetchFn = vi.fn(async () => {
       if (!online) throw new Error('offline')
@@ -161,8 +167,6 @@ describe('AudioEngine.loadNoteBuffers', () => {
     online = true
     await engine.loadNoteBuffers()
     expect(engine.hasBuffers()).toBe(true)
-
-    errorSpy.mockRestore()
   })
 
   it('does nothing before the context exists', async () => {
