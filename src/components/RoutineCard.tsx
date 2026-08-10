@@ -21,6 +21,12 @@ type RoutineCardProps = {
 
 const ADJUSTED_SUFFIX = ' · adjusted, next block resets it'
 
+// Armed, the button's visible text shrinks to a bare "Delete?" — enough beside
+// a name you can already see, and nothing at all to a screen reader reading the
+// button alone. The accessible name has to say both which thing is at stake and
+// that the press just made was not the one that deletes it.
+const confirmLabel = (label: string, armed: boolean) => (armed ? `${label}? Press again to confirm` : label)
+
 const statusLine = (
   routine: Routine,
   blockIndex: number,
@@ -56,7 +62,9 @@ type RoutineTimelineProps = {
   blockIndex: number
   blockElapsedMs: number
   finished: boolean
+  armedIndex: number | null
   onRemoveBlock: (index: number) => void
+  onDisarm: () => void
 }
 
 /**
@@ -64,12 +72,22 @@ type RoutineTimelineProps = {
  * one block, which is why every segment here carries a remove control — the
  * lone-block case that had to suppress it no longer reaches this far.
  */
-function RoutineTimeline({ routine, blockIndex, blockElapsedMs, finished, onRemoveBlock }: RoutineTimelineProps) {
+function RoutineTimeline({
+  routine,
+  blockIndex,
+  blockElapsedMs,
+  finished,
+  armedIndex,
+  onRemoveBlock,
+  onDisarm,
+}: RoutineTimelineProps) {
   return (
     <ol className="routine-timeline" data-testid="routine-timeline">
       {routine.blocks.map((block, index) => {
         const state = finished || index < blockIndex ? 'done' : index === blockIndex ? 'active' : 'upcoming'
         const fill = blockFill(block, state, blockElapsedMs)
+        const armed = armedIndex === index
+        const removeLabel = confirmLabel(`Remove block ${block.name}`, armed)
         const caption =
           state === 'done'
             ? 'done'
@@ -93,12 +111,13 @@ function RoutineTimeline({ routine, blockIndex, blockElapsedMs, finished, onRemo
               <span className="routine-segment-name">{block.name}</span>
               <button
                 type="button"
-                className="routine-segment-remove"
-                aria-label={`Remove block ${block.name}`}
-                title={`Remove block ${block.name}`}
+                className={`routine-segment-remove ${armed ? 'armed' : ''}`}
+                aria-label={removeLabel}
+                title={removeLabel}
                 onClick={() => onRemoveBlock(index)}
+                onBlur={onDisarm}
               >
-                <FontAwesomeIcon icon={faXmark} />
+                {armed ? 'Remove?' : <FontAwesomeIcon icon={faXmark} />}
               </button>
             </div>
             <span className="routine-segment-meta">{blockMeta(block)}</span>
@@ -118,15 +137,57 @@ function RoutineTimeline({ routine, blockIndex, blockElapsedMs, finished, onRemo
   )
 }
 
+/**
+ * Which remove button, if any, is one tap away from firing. A deletion here is
+ * final — there is no undo and nothing else holds a copy of a hand-built
+ * workout — so the X arms itself first and only deletes on the second tap.
+ * The block variant is keyed by routine as well as index: the card stays
+ * mounted across a select(), and an index alone would arrive at the next
+ * workout already armed.
+ */
+type PendingRemove = { kind: 'chip'; id: string } | { kind: 'block'; routineId: string; index: number }
+
 export function RoutineCard({ routine }: RoutineCardProps) {
   const { selected, blockIndex, blockElapsedMs, finished, adjusted } = routine
   const [draftName, setDraftName] = useState<string | null>(null)
+  const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
   // Whether anybody has reached for the save button yet. A store that drops
   // writes is only worth mentioning to someone about to trust it with
   // something; until then it is noise about a browser setting.
   const [saveOffered, setSaveOffered] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const isNaming = draftName !== null
+
+  const disarmRemove = () => setPendingRemove(null)
+
+  const removeChip = (id: string) => {
+    if (pendingRemove?.kind === 'chip' && pendingRemove.id === id) {
+      setPendingRemove(null)
+      routine.remove(id)
+      return
+    }
+
+    setPendingRemove({ kind: 'chip', id })
+  }
+
+  const armedBlockIndex =
+    pendingRemove?.kind === 'block' && pendingRemove.routineId === selected?.id ? pendingRemove.index : null
+
+  const removeBlock = (index: number) => {
+    if (selected === null) {
+      return
+    }
+
+    // Cleared on the way out either way: the surviving blocks shift up, so a
+    // held index would point at whichever block took the deleted one's place.
+    if (armedBlockIndex === index) {
+      setPendingRemove(null)
+      routine.removeBlock(index)
+      return
+    }
+
+    setPendingRemove({ kind: 'block', routineId: selected.id, index })
+  }
 
   useEffect(() => {
     if (isNaming) {
@@ -148,6 +209,8 @@ export function RoutineCard({ routine }: RoutineCardProps) {
 
   const chip = (entry: Routine) => {
     const isSelected = entry.id === selected?.id
+    const isArmed = pendingRemove?.kind === 'chip' && pendingRemove.id === entry.id
+    const removeLabel = confirmLabel(`Delete ${entry.name}`, isArmed)
     return (
       <div
         key={entry.id}
@@ -166,12 +229,13 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         </button>
         <button
           type="button"
-          className="routine-chip-remove"
-          aria-label={`Delete ${entry.name}`}
-          title={`Delete ${entry.name}`}
-          onClick={() => routine.remove(entry.id)}
+          className={`routine-chip-remove ${isArmed ? 'armed' : ''}`}
+          aria-label={removeLabel}
+          title={removeLabel}
+          onClick={() => removeChip(entry.id)}
+          onBlur={disarmRemove}
         >
-          <FontAwesomeIcon icon={faXmark} />
+          {isArmed ? 'Delete?' : <FontAwesomeIcon icon={faXmark} />}
         </button>
       </div>
     )
@@ -295,7 +359,9 @@ export function RoutineCard({ routine }: RoutineCardProps) {
               blockIndex={blockIndex}
               blockElapsedMs={blockElapsedMs}
               finished={finished}
-              onRemoveBlock={routine.removeBlock}
+              armedIndex={armedBlockIndex}
+              onRemoveBlock={removeBlock}
+              onDisarm={disarmRemove}
             />
           ) : null}
 
