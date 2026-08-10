@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { withBlockedStorage } from '../test/blockedStorage'
-import { readRaw, storageWorks, writeRaw } from './storage'
+import { withBlockedStorage, withFakeStorage } from '../test/blockedStorage'
+import { readRaw, writeRaw } from './storage'
 
 const KEY = 'storage-test-key'
 
@@ -25,60 +25,66 @@ describe('readRaw', () => {
 })
 
 describe('writeRaw', () => {
-  it('persists the value to storage', () => {
-    writeRaw(KEY, 'written')
+  it('persists the value to storage and reports that it stuck', () => {
+    expect(writeRaw(KEY, 'written')).toBe(true)
     expect(window.localStorage.getItem(KEY)).toBe('written')
   })
 
   it('drops the value without throwing when the write is refused', () => {
     const restore = withBlockedStorage()
     try {
-      expect(() => {
-        writeRaw(KEY, 'refused')
-      }).not.toThrow()
+      expect(writeRaw(KEY, 'refused')).toBe(false)
     } finally {
       restore()
     }
     // Nothing was queued for later — the value is simply gone.
     expect(window.localStorage.getItem(KEY)).toBeNull()
   })
-})
 
-describe('storageWorks', () => {
-  it('reports a working store and cleans up after itself', () => {
-    expect(storageWorks()).toBe(true)
-    expect(window.localStorage.getItem('storage-probe')).toBeNull()
-  })
-
-  it('reports a dead store instead of throwing when every operation is refused', () => {
-    const restore = withBlockedStorage()
-    try {
-      expect(storageWorks()).toBe(false)
-    } finally {
-      restore()
-    }
-  })
-
-  it('reports a dead store when a write is accepted but never comes back', () => {
-    // The quiet failure mode: no throw, no value. Only reading the sentinel
-    // back catches it.
-    const original = Object.getOwnPropertyDescriptor(window, 'localStorage')
-    const forgetful: Storage = {
+  it('reports a dropped write when the value is accepted but never comes back', () => {
+    // The quiet failure mode: no throw, no value. Only reading the value back
+    // catches it.
+    const restore = withFakeStorage({
       length: 0,
       clear: () => {},
       getItem: () => null,
       key: () => null,
       removeItem: () => {},
       setItem: () => {},
-    }
-    Object.defineProperty(window, 'localStorage', { configurable: true, value: forgetful })
+    })
 
     try {
-      expect(storageWorks()).toBe(false)
+      expect(writeRaw(KEY, 'forgotten')).toBe(false)
     } finally {
-      if (original) {
-        Object.defineProperty(window, 'localStorage', original)
-      }
+      restore()
+    }
+  })
+
+  it('reports a dropped write when the store has room for small values but not this one', () => {
+    // The reason this asks about the real value rather than a sentinel: a
+    // store can be roomy enough for a flag and still full for a big one.
+    const entries = new Map<string, string>()
+    const restore = withFakeStorage({
+      length: 0,
+      clear: () => entries.clear(),
+      getItem: (key) => entries.get(key) ?? null,
+      key: () => null,
+      removeItem: (key) => {
+        entries.delete(key)
+      },
+      setItem: (key, value) => {
+        if (value.length > 8) {
+          throw new DOMException('Quota exceeded.', 'QuotaExceededError')
+        }
+        entries.set(key, value)
+      },
+    })
+
+    try {
+      expect(writeRaw(KEY, 'small')).toBe(true)
+      expect(writeRaw(KEY, 'a value far too long for this store')).toBe(false)
+    } finally {
+      restore()
     }
   })
 })

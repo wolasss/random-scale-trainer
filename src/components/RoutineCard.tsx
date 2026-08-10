@@ -13,7 +13,6 @@ import {
   routineProgress,
   type Routine,
 } from '../lib/routines'
-import { storageWorks } from '../lib/storage'
 import type { RoutineController } from '../hooks/useRoutine'
 
 type RoutineCardProps = {
@@ -122,10 +121,10 @@ function RoutineTimeline({ routine, blockIndex, blockElapsedMs, finished, onRemo
 export function RoutineCard({ routine }: RoutineCardProps) {
   const { selected, blockIndex, blockElapsedMs, finished, adjusted } = routine
   const [draftName, setDraftName] = useState<string | null>(null)
-  // Checked when the save form opens rather than on every render: the answer
-  // only matters at the moment somebody is about to trust the store with
-  // something, and the probe touches localStorage.
-  const [ephemeral, setEphemeral] = useState(false)
+  // Whether anybody has reached for the save button yet. A store that drops
+  // writes is only worth mentioning to someone about to trust it with
+  // something; until then it is noise about a browser setting.
+  const [saveOffered, setSaveOffered] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const isNaming = draftName !== null
 
@@ -202,7 +201,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             data-testid="routine-save"
             onClick={() => {
               setDraftName(routine.suggestedName)
-              setEphemeral(!storageWorks())
+              setSaveOffered(true)
             }}
           >
             <FontAwesomeIcon icon={faPlus} /> Save as a setup
@@ -230,7 +229,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 setDraftName(null)
-                setEphemeral(false)
+                setSaveOffered(false)
               }
             }}
           />
@@ -242,7 +241,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             className="ghost-button"
             onClick={() => {
               setDraftName(null)
-              setEphemeral(false)
+              setSaveOffered(false)
             }}
           >
             Cancel
@@ -250,9 +249,11 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         </form>
       ) : null}
 
-      {/* Survives the save, so it is still on screen beside the chip it is
-          about — the moment somebody would otherwise assume it kept. */}
-      {ephemeral ? (
+      {/* Reports on the shelf's own last write, so a store that had room for
+          everything else but not for this list still gets caught. Survives the
+          save, so it is still on screen beside the chip it is about — the
+          moment somebody would otherwise assume it kept. */}
+      {saveOffered && !routine.persisted ? (
         <p className="routine-ephemeral-notice" data-testid="routine-ephemeral-notice">
           Your browser is blocking saved data — this setup will work now, but it won't be here after you close the tab.
         </p>
