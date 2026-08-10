@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { withBlockedStorage, withFakeStorage } from '../test/blockedStorage'
-import { readRaw, writeRaw } from './storage'
+import { readRaw, removeRaw, writeRaw } from './storage'
 
 const KEY = 'storage-test-key'
 
