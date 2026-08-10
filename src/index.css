@@ -1423,6 +1423,17 @@ input[type='range'] {
   padding: 0.55rem 1.1rem;
 }
 
+/* A caveat, not an error: dashed like the empty state rather than alarmed, so
+   it reads as a note about the browser and not a failed save. */
+.routine-ephemeral-notice {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 /* One shelf, two tiers: setups sit unlabelled under the card's own heading,
    workouts under a label of their own below. The hierarchy does the explaining
    a paragraph about blocks used to do badly — presets first, the advanced

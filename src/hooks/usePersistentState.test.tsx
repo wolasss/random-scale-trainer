@@ -38,12 +38,13 @@ describe('usePersistentState', () => {
     expect(window.localStorage.getItem(KEY)).toBe('true')
   })
 
-  it('persists on set', () => {
+  it('persists on set, and says the value is on disk', () => {
     const { result } = renderHook(() => usePersistentState(KEY, booleanOptions))
     act(() => {
       result.current[1](false)
     })
     expect(result.current[0]).toBe(false)
+    expect(result.current[2]).toBe(true)
     expect(window.localStorage.getItem(KEY)).toBe('false')
   })
 
@@ -94,6 +95,8 @@ describe('usePersistentState', () => {
         }),
       ).not.toThrow()
       expect(result.current[0]).toBe(false)
+      // ...and reports that they got no further than memory.
+      expect(result.current[2]).toBe(false)
     } finally {
       restore()
     }
