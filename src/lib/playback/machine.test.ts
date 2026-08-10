@@ -653,6 +653,49 @@ describe('failure paths', () => {
       message: PLAYBACK_MESSAGES.audioLoadFailed,
     })
   })
+
+  it('settles when creating the context throws', async () => {
+    const harness = createHarness()
+    harness.audio.ensureContext = () => Promise.reject(new Error('context limit'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioUnsupported,
+    })
+  })
+
+  it('settles when loading the note buffers throws', async () => {
+    const harness = createHarness()
+    harness.audio.loadNoteBuffers = () => Promise.reject(new Error('load failed'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioLoadFailed,
+    })
+  })
+
+  it('settles when resuming from pause cannot revive the context', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    harness.machine.pause()
+
+    // iOS rejects resume() when an audio-session interruption killed the context.
+    harness.audio.ensureContext = () => Promise.reject(new Error('interrupted'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioUnsupported,
+    })
+
+    // The transport really settled: no loop is still scheduling behind the caption.
+    const clicksAfterFailure = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks.length).toBe(clicksAfterFailure)
+  })
 })
 
 describe('reset and dispose', () => {

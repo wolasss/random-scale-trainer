@@ -505,7 +505,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   const start = async () => {
     if (snapshot.status === 'paused') {
-      await audio.ensureContext()
+      try {
+        // iOS rejects resume() after an audio-session interruption. Settle back
+        // on idle rather than resuming a transport with no sound behind it.
+        await audio.ensureContext()
+      } catch {
+        stop(PLAYBACK_MESSAGES.audioUnsupported)
+        return
+      }
+
       if (!sessionStartQueued) {
         onSessionStart()
       }
@@ -522,7 +530,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
-    const context = await audio.ensureContext()
+    // new AudioContext() can throw outright at the browser's context limit —
+    // same outcome for the player as a browser with no Web Audio at all.
+    let context: unknown | null = null
+    try {
+      context = await audio.ensureContext()
+    } catch {
+      context = null
+    }
+
     if (!context) {
       stop(PLAYBACK_MESSAGES.audioUnsupported)
       return
@@ -530,7 +546,12 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
     sessionStartQueued = true
     emit({ status: 'playing', message: PLAYBACK_MESSAGES.loadingAudio })
-    await audio.loadNoteBuffers()
+    try {
+      await audio.loadNoteBuffers()
+    } catch {
+      stop(PLAYBACK_MESSAGES.audioLoadFailed)
+      return
+    }
 
     if (!audio.hasBuffers()) {
       stop(PLAYBACK_MESSAGES.audioLoadFailed)
