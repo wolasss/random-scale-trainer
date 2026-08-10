@@ -61,6 +61,7 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 function App() {
@@ -349,7 +350,34 @@ function App() {
     <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
   )
 
-  const practiceLogCard = <PracticeLogCard history={practiceHistory.history} onClear={clearTimer} />
+  // Both backup paths go through here rather than through the log's own hook,
+  // which holds up to ten seconds of practice in refs and rewrites storage on
+  // every commit. Exporting banks the pending seconds first, so the file is
+  // never short of the session that is running as it is written.
+  const getPracticeBackup = () => {
+    practiceHistory.commit()
+
+    return serializeBackup(readHistory(), new Date())
+  }
+
+  // A restore merges into what is stored and then reloads: the hook reads
+  // storage once, on mount, so anything short of a reload would be overwritten
+  // by its next commit. (A tick landing between the two would cost the seconds
+  // in flight — the same seconds a refresh mid-session costs anyway.)
+  const importPracticeBackup = (incoming: PracticeHistory) => {
+    practiceHistory.commit()
+    writeHistory(mergeHistories(readHistory(), incoming))
+    window.location.reload()
+  }
+
+  const practiceLogCard = (
+    <PracticeLogCard
+      history={practiceHistory.history}
+      onClear={clearTimer}
+      getBackup={getPracticeBackup}
+      onImportBackup={importPracticeBackup}
+    />
+  )
 
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
