@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/wolasss/random-scale-trainer/compare/v1.4.1...v1.5.0) (2026-08-10)
+
+
+### Features
+
+* **pool:** add minor-key presets to the note pool ([#77](https://github.com/wolasss/random-scale-trainer/issues/77)) ([b15b81f](https://github.com/wolasss/random-scale-trainer/commit/b15b81fee093b21ce13a898e4d2ebfca0d74eb8d))
+
 ## [1.4.1](https://github.com/wolasss/random-scale-trainer/compare/v1.4.0...v1.4.1) (2026-08-10)
 
 
