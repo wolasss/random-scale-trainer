@@ -33,7 +33,27 @@ export const BAR_SCALE_FLOOR_SECONDS = 20 * 60
 export const HISTORY_FLUSH_MS = 10_000
 
 const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const
+export const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const
+
+/**
+ * Spelled out here rather than taken from `toLocaleString`: the heatmap headings
+ * have to read the same for everyone, and a month name that changes with the
+ * browser's locale is a test that passes on one machine and fails on the next.
+ */
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const
 
 /**
  * Local date key, never UTC: someone practising at 11pm has to see it counted
@@ -242,3 +262,170 @@ export const recentTotals = (history: PracticeHistory, today = new Date(), days 
 }
 
 export const hasHistory = (history: PracticeHistory) => Object.keys(history.days).length > 0
+
+/**
+ * Folds one history into another, keeping the larger of the two for every day
+ * they share. Restoring a backup is something people do when they are afraid of
+ * losing what they have, so it is written to only ever be additive: an old file
+ * dropped on a newer log tops it up, and never takes a day back down.
+ */
+export const mergeHistories = (base: PracticeHistory, incoming: PracticeHistory): PracticeHistory => {
+  const days: Record<string, PracticeDay> = { ...base.days }
+
+  for (const [key, day] of Object.entries(incoming.days)) {
+    const existing = days[key]
+    days[key] = {
+      sec: Math.max(existing?.sec ?? 0, day.sec),
+      notes: Math.max(existing?.notes ?? 0, day.notes),
+    }
+  }
+
+  return { days }
+}
+
+/**
+ * Stamped into every backup so a file can say what it is. Without them any JSON
+ * object with a `days` key would import cleanly, and a half-recognised file is
+ * worse than a rejected one.
+ */
+const BACKUP_APP = 'callnote'
+const BACKUP_KIND = 'practice-log'
+const BACKUP_VERSION = 1
+
+/** Pretty-printed: a backup someone can open and read is one they can trust. */
+export const serializeBackup = (history: PracticeHistory, exportedOn: Date) =>
+  JSON.stringify(
+    {
+      app: BACKUP_APP,
+      kind: BACKUP_KIND,
+      version: BACKUP_VERSION,
+      exportedOn: dayKey(exportedOn),
+      days: history.days,
+    },
+    null,
+    2,
+  )
+
+/**
+ * A backup back into a history, or `null` for anything this app didn't write.
+ * A version it has never heard of is refused rather than read optimistically —
+ * guessing at a future format is how a restore quietly drops half a log.
+ */
+export const parseBackup = (raw: string): PracticeHistory | null => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null
+  }
+
+  const backup = parsed as { app?: unknown; kind?: unknown; version?: unknown; days?: unknown }
+  if (backup.app !== BACKUP_APP || backup.kind !== BACKUP_KIND || backup.version !== BACKUP_VERSION) {
+    return null
+  }
+
+  if (typeof backup.days !== 'object' || backup.days === null) {
+    return null
+  }
+
+  // Everything past the marker fields is treated as untrusted as the store is:
+  // the file has been on a disk, in a mail attachment, and possibly in an editor.
+  return sanitize(parsed)
+}
+
+export type PracticeCell = {
+  key: string
+  sec: number
+  minutes: number
+  isToday: boolean
+  isFuture: boolean
+  /** 0 for a day without practice, then 1–4 against the busiest day on record. */
+  level: number
+}
+
+export type PracticeMonth = {
+  key: string
+  label: string
+  totalMinutes: number
+  /** Leading nulls pad the first week, so column 0 is always a Sunday. */
+  cells: Array<PracticeCell | null>
+}
+
+const monthIndex = (year: number, month: number) => year * 12 + month
+
+/**
+ * How far either side of today the calendar will draw, however far the stored
+ * keys reach. '0100-01-01' is as well-formed a day as yesterday is, and a
+ * backup is a file that has been on a disk and possibly in an editor: one such
+ * key, taken literally, asks for twenty thousand months and half a million
+ * cells to be built before the sheet can paint. Ten years back covers a
+ * lifetime of this app, and a year forward covers a device whose clock is wrong.
+ * The days themselves are kept — only the drawing is bounded.
+ */
+export const CALENDAR_MONTHS_BACK = 120
+export const CALENDAR_MONTHS_FORWARD = 12
+
+/**
+ * Every month from the first day on record to the current one, newest first.
+ *
+ * The range is clamped around today rather than derived from the stored keys
+ * alone, so an empty log still draws this month and a day dated in the future —
+ * which the sanitiser has no way to rule out, a wrong device clock is enough —
+ * extends the range instead of inverting it. The loop is counted, never open.
+ */
+export const buildMonths = (history: PracticeHistory, today = new Date()): PracticeMonth[] => {
+  const todayKey = dayKey(today)
+  const todayIndex = monthIndex(today.getFullYear(), today.getMonth())
+
+  const stored = Object.keys(history.days)
+    .filter(isDayKey)
+    .map((key) => {
+      const date = parseDayKey(key)
+
+      return monthIndex(date.getFullYear(), date.getMonth())
+    })
+
+  const first = Math.max(todayIndex - CALENDAR_MONTHS_BACK, Math.min(todayIndex, ...stored))
+  const last = Math.min(todayIndex + CALENDAR_MONTHS_FORWARD, Math.max(todayIndex, ...stored))
+  // Scaled against the whole log, not against each month: a quiet January has
+  // to look quiet next to the March that followed it.
+  const scale = Math.max(BAR_SCALE_FLOOR_SECONDS, ...Object.values(history.days).map((day) => day.sec))
+
+  const months: PracticeMonth[] = []
+  for (let index = last; index >= first; index -= 1) {
+    const year = Math.floor(index / 12)
+    const month = index - year * 12
+    // Day 0 of the next month is the last day of this one.
+    const dayCount = new Date(year, month + 1, 0).getDate()
+    const cells: Array<PracticeCell | null> = Array.from({ length: new Date(year, month, 1).getDay() }, () => null)
+    let totalSec = 0
+
+    for (let day = 1; day <= dayCount; day += 1) {
+      const key = dayKey(new Date(year, month, day))
+      const sec = history.days[key]?.sec ?? 0
+      totalSec += sec
+
+      cells.push({
+        key,
+        sec,
+        minutes: Math.round(sec / 60),
+        isToday: key === todayKey,
+        isFuture: key > todayKey,
+        level: sec === 0 ? 0 : Math.min(4, Math.ceil((4 * sec) / scale)),
+      })
+    }
+
+    months.push({
+      key: `${year}-${String(month + 1).padStart(2, '0')}`,
+      label: `${MONTH_NAMES[month]} ${year}`,
+      totalMinutes: Math.round(totalSec / 60),
+      cells,
+    })
+  }
+
+  return months
+}

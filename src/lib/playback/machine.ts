@@ -167,6 +167,16 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   // between-cycle count-in the scheduler re-enters the same boundary to draw.
   let boundaryProcessed = false
 
+  /** Every field the scheduler carries between beats, back to its pre-first-beat state. */
+  const resetSchedulingState = (countIn = 0) => {
+    countInRemaining = countIn
+    beatInSpan = 0
+    schedPosition = 0
+    schedBagSize = 0
+    anyNoteScheduled = false
+    boundaryProcessed = false
+  }
+
   // The machine's authoritative tempo. The ramp bumps it immediately (before
   // React round-trips onBpmChange); external slider/tap changes win when the
   // observed settings value moves to anything other than the pending ramp value.
@@ -275,6 +285,12 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     })
   }
 
+  /** Both draw paths hit the same wall: nothing left to deal. */
+  const stopDeckRanDry = () => {
+    schedulingDone = true
+    scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
+  }
+
   /** Schedules exactly one beat at nextBeatTime and advances the clock. */
   const scheduleBeat = () => {
     const settings = getSettings()
@@ -301,8 +317,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     if (beatInSpan === 0) {
       const peeked = deck.peek()
       if (!peeked) {
-        schedulingDone = true
-        scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
+        stopDeckRanDry()
         return
       }
 
@@ -332,8 +347,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
       const note = deck.draw()
       if (!note) {
-        schedulingDone = true
-        scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
+        stopDeckRanDry()
         return
       }
 
@@ -546,13 +560,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     currentBpm = settings.bpm
     lastSeenExternalBpm = settings.bpm
     awaitingWriteback = null
-    countInRemaining = settings.countInEnabled ? COUNT_IN_BEATS : 0
-    beatInSpan = 0
-    schedPosition = 0
-    schedBagSize = 0
-    anyNoteScheduled = false
+    resetSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
     schedulingDone = false
-    boundaryProcessed = false
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
@@ -571,12 +580,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     sessionStartQueued = false
-    countInRemaining = 0
-    beatInSpan = 0
-    schedPosition = 0
-    schedBagSize = 0
-    anyNoteScheduled = false
-    boundaryProcessed = false
+    resetSchedulingState()
     deck.reset()
 
     emit({

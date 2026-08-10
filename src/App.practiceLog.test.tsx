@@ -219,6 +219,52 @@ describe('practice log', () => {
     expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(banked)
   })
 
+  it('opens the whole history from the card, and closes it again', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('practice-log-history'))
+    expect(screen.getByTestId('practice-history-view')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('practice-history-close'))
+    expect(screen.queryByTestId('practice-history-view')).toBeNull()
+  })
+
+  it('banks the seconds in flight before writing a backup out', async () => {
+    render(<App />)
+    // Under one flush interval, so the pending seconds are still only in memory.
+    await practiceFor(6_000)
+    expect(stored()).toBeNull()
+
+    const blobs: Blob[] = []
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: (blob: Blob) => {
+        blobs.push(blob)
+
+        return 'blob:practice-log'
+      },
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      fireEvent.click(screen.getByTestId('practice-log-history'))
+      fireEvent.click(screen.getByTestId('history-export'))
+
+      expect(blobs).toHaveLength(1)
+      // A backup taken mid-session has to include the session taking it.
+      expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(5)
+    } finally {
+      click.mockRestore()
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
+    }
+  })
+
   it('does not subtract from the log when the session timer is reset', async () => {
     render(<App />)
     await practiceFor(25_000)

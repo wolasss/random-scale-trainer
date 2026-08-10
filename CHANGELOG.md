@@ -1,3 +1,17 @@
+## [1.4.1](https://github.com/wolasss/random-scale-trainer/compare/v1.4.0...v1.4.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **routines:** say when a saved setup cannot outlive the tab ([#75](https://github.com/wolasss/random-scale-trainer/issues/75)) ([cc4490a](https://github.com/wolasss/random-scale-trainer/commit/cc4490ad70d9e62ec87a3fd7ac2b094bc2634fe0))
+
+# [1.4.0](https://github.com/wolasss/random-scale-trainer/compare/v1.3.3...v1.4.0) (2026-08-10)
+
+
+### Features
+
+* **history:** practice history view with a monthly heatmap and backup export/import ([#76](https://github.com/wolasss/random-scale-trainer/issues/76)) ([76c5939](https://github.com/wolasss/random-scale-trainer/commit/76c59391de90b8d5867cc01632e68131a6797134))
+
 ## [1.3.3](https://github.com/wolasss/random-scale-trainer/compare/v1.3.2...v1.3.3) (2026-08-09)
 
 

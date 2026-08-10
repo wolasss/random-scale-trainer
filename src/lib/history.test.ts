@@ -4,12 +4,18 @@ import { withBlockedStorage } from '../test/blockedStorage'
 import {
   addPractice,
   bestStreak,
+  buildMonths,
   buildWindow,
+  CALENDAR_MONTHS_BACK,
+  CALENDAR_MONTHS_FORWARD,
   currentStreak,
   dayKey,
   hasHistory,
+  mergeHistories,
+  parseBackup,
   readHistory,
   recentTotals,
+  serializeBackup,
   shiftDays,
   weekdayInitial,
   writeHistory,
@@ -235,6 +241,217 @@ describe('addPractice', () => {
 
   it('starts a new day from zero', () => {
     expect(addPractice({ days: {} }, '2026-02-15', 10, 2).days['2026-02-15']).toEqual({ sec: 10, notes: 2 })
+  })
+})
+
+describe('mergeHistories', () => {
+  it('keeps every day either side has', () => {
+    const merged = mergeHistories(
+      { days: { '2026-02-14': { sec: 600, notes: 12 } } },
+      { days: { '2026-01-02': { sec: 300, notes: 5 } } },
+    )
+
+    expect(merged.days).toEqual({
+      '2026-02-14': { sec: 600, notes: 12 },
+      '2026-01-02': { sec: 300, notes: 5 },
+    })
+  })
+
+  it('keeps the larger of the two for a day both know about', () => {
+    const merged = mergeHistories(
+      { days: { '2026-02-14': { sec: 600, notes: 40 } } },
+      { days: { '2026-02-14': { sec: 900, notes: 12 } } },
+    )
+
+    // Per field, not per day: an old backup with more notes and fewer minutes
+    // must not drag the minutes back down with it.
+    expect(merged.days['2026-02-14']).toEqual({ sec: 900, notes: 40 })
+  })
+
+  it('never shrinks a log by importing a subset of it', () => {
+    const stored: PracticeHistory = {
+      days: { '2026-02-14': { sec: 600, notes: 12 }, '2026-02-13': { sec: 900, notes: 20 } },
+    }
+
+    expect(mergeHistories(stored, { days: { '2026-02-14': { sec: 60, notes: 1 } } })).toEqual(stored)
+  })
+
+  it('leaves both inputs untouched', () => {
+    const base: PracticeHistory = { days: { '2026-02-14': { sec: 600, notes: 12 } } }
+    const incoming: PracticeHistory = { days: { '2026-02-14': { sec: 900, notes: 30 } } }
+
+    mergeHistories(base, incoming)
+
+    expect(base.days['2026-02-14']).toEqual({ sec: 600, notes: 12 })
+    expect(incoming.days['2026-02-14']).toEqual({ sec: 900, notes: 30 })
+  })
+})
+
+describe('serializeBackup', () => {
+  const history: PracticeHistory = { days: { '2026-02-14': { sec: 1_284, notes: 412 } } }
+
+  it('says what the file is, and when it was taken', () => {
+    expect(JSON.parse(serializeBackup(history, at(2026, 2, 14)))).toEqual({
+      app: 'callnote',
+      kind: 'practice-log',
+      version: 1,
+      exportedOn: '2026-02-14',
+      days: { '2026-02-14': { sec: 1_284, notes: 412 } },
+    })
+  })
+
+  it('round-trips back through parseBackup', () => {
+    expect(parseBackup(serializeBackup(history, at(2026, 2, 14)))).toEqual(history)
+  })
+})
+
+describe('parseBackup', () => {
+  const backup = (fields: Record<string, unknown>) =>
+    JSON.stringify({ app: 'callnote', kind: 'practice-log', version: 1, days: {}, ...fields })
+
+  it('refuses anything that is not json', () => {
+    expect(parseBackup('not json')).toBeNull()
+    expect(parseBackup('"a string"')).toBeNull()
+    expect(parseBackup('null')).toBeNull()
+  })
+
+  it('refuses a file that never claimed to be one of ours', () => {
+    // A bare {days} object is exactly what the store holds, and accepting it
+    // would mean any JSON file with the right key could be read as a log.
+    expect(parseBackup(JSON.stringify({ days: { '2026-02-14': { sec: 600, notes: 12 } } }))).toBeNull()
+    expect(parseBackup(backup({ app: 'something-else' }))).toBeNull()
+    expect(parseBackup(backup({ kind: 'settings' }))).toBeNull()
+  })
+
+  it('refuses a version it has never seen rather than guessing at it', () => {
+    expect(parseBackup(backup({ version: 2 }))).toBeNull()
+  })
+
+  it('refuses a file with no days object', () => {
+    expect(parseBackup(backup({ days: undefined }))).toBeNull()
+    expect(parseBackup(backup({ days: 'lots' }))).toBeNull()
+  })
+
+  it('drops the days a file made up, and keeps the rest', () => {
+    const parsed = parseBackup(
+      backup({
+        days: {
+          '2026-02-14': { sec: 600.7, notes: 12 },
+          'not-a-date': { sec: 600, notes: 12 },
+          '2026-02-30': { sec: 600, notes: 12 },
+          '2026-02-15': { sec: Number.NaN, notes: 12 },
+          '2026-02-16': { sec: -600, notes: -5 },
+        },
+      }),
+    )
+
+    expect(parsed).toEqual({
+      days: { '2026-02-14': { sec: 600, notes: 12 }, '2026-02-15': { sec: 0, notes: 12 } },
+    })
+  })
+})
+
+describe('buildMonths', () => {
+  // 2026-02-14 is a Saturday, so February 2026 starts on a Sunday and needs no
+  // pad; January 2026 starts on a Thursday and needs four.
+  const today = at(2026, 2, 14)
+
+  it('runs from the earliest day on record to this month, newest first', () => {
+    const months = buildMonths(historyOf(today, [[-30, 600]]), today)
+
+    expect(months.map((month) => month.key)).toEqual(['2026-02', '2026-01'])
+    expect(months[0].label).toBe('February 2026')
+    expect(months[1].label).toBe('January 2026')
+  })
+
+  it('draws this month alone when nothing has been practised yet', () => {
+    const months = buildMonths({ days: {} }, today)
+
+    expect(months).toHaveLength(1)
+    expect(months[0].key).toBe('2026-02')
+    expect(months[0].totalMinutes).toBe(0)
+  })
+
+  it('pads the first week so every column is one weekday', () => {
+    const [february, january] = buildMonths(historyOf(today, [[-30, 600]]), today)
+
+    expect(february.cells).toHaveLength(28)
+    expect(february.cells[0]?.key).toBe('2026-02-01')
+
+    expect(january.cells.slice(0, 4)).toEqual([null, null, null, null])
+    expect(january.cells[4]?.key).toBe('2026-01-01')
+    expect(january.cells).toHaveLength(4 + 31)
+  })
+
+  it('marks today, and the days the month has that the calendar has not reached', () => {
+    const [february] = buildMonths({ days: {} }, today)
+
+    expect(february.cells[13]?.isToday).toBe(true)
+    expect(february.cells[13]?.isFuture).toBe(false)
+    expect(february.cells[12]?.isToday).toBe(false)
+    expect(february.cells[14]?.isFuture).toBe(true)
+  })
+
+  it('steps the shading against the busiest day on record', () => {
+    const [february] = buildMonths(
+      historyOf(today, [
+        [0, 30 * 60],
+        [-1, 5 * 60],
+      ]),
+      today,
+    )
+
+    expect(february.cells[13]?.level).toBe(4)
+    expect(february.cells[12]?.level).toBe(1)
+    expect(february.cells[11]?.level).toBe(0)
+  })
+
+  it('holds the same 20-minute floor under the shading as the bars do', () => {
+    // One light day alone in the log must not colour in as a personal best.
+    const [february] = buildMonths(historyOf(today, [[0, 5 * 60]]), today)
+
+    expect(february.cells[13]?.level).toBe(1)
+  })
+
+  it('totals each month on its own', () => {
+    const [february, january] = buildMonths(
+      historyOf(today, [
+        [0, 20 * 60],
+        [-1, 10 * 60],
+        [-30, 45 * 60],
+      ]),
+      today,
+    )
+
+    expect(february.totalMinutes).toBe(30)
+    expect(january.totalMinutes).toBe(45)
+  })
+
+  it('stretches to a day dated in the future instead of stopping short of it', () => {
+    // A device with the wrong clock can bank a day the sanitiser has no reason
+    // to reject; the range has to reach it and still terminate.
+    const months = buildMonths({ days: { '2026-05-02': { sec: 600, notes: 1 } } }, today)
+
+    expect(months.map((month) => month.key)).toEqual(['2026-05', '2026-04', '2026-03', '2026-02'])
+    expect(months[0].totalMinutes).toBe(10)
+  })
+
+  it('ignores stored keys that were never real days', () => {
+    const months = buildMonths({ days: { '2025-13-45': { sec: 600, notes: 1 } } }, today)
+
+    expect(months.map((month) => month.key)).toEqual(['2026-02'])
+  })
+
+  it('stops at the bounds rather than drawing a millennium of empty months', () => {
+    // Both ends of what an imported file can hold and still be well-formed.
+    const months = buildMonths(
+      { days: { '1000-01-01': { sec: 600, notes: 1 }, '9999-12-31': { sec: 600, notes: 1 } } },
+      today,
+    )
+
+    expect(months).toHaveLength(CALENDAR_MONTHS_BACK + CALENDAR_MONTHS_FORWARD + 1)
+    expect(months[0].key).toBe('2027-02')
+    expect(months[months.length - 1].key).toBe('2016-02')
   })
 })
 
