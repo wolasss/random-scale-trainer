@@ -5,6 +5,8 @@ import {
   bestStreak,
   buildMonths,
   buildWindow,
+  CALENDAR_MONTHS_BACK,
+  CALENDAR_MONTHS_FORWARD,
   currentStreak,
   dayKey,
   hasHistory,
@@ -436,6 +438,18 @@ describe('buildMonths', () => {
     const months = buildMonths({ days: { '2025-13-45': { sec: 600, notes: 1 } } }, today)
 
     expect(months.map((month) => month.key)).toEqual(['2026-02'])
+  })
+
+  it('stops at the bounds rather than drawing a millennium of empty months', () => {
+    // Both ends of what an imported file can hold and still be well-formed.
+    const months = buildMonths(
+      { days: { '1000-01-01': { sec: 600, notes: 1 }, '9999-12-31': { sec: 600, notes: 1 } } },
+      today,
+    )
+
+    expect(months).toHaveLength(CALENDAR_MONTHS_BACK + CALENDAR_MONTHS_FORWARD + 1)
+    expect(months[0].key).toBe('2027-02')
+    expect(months[months.length - 1].key).toBe('2016-02')
   })
 })
 

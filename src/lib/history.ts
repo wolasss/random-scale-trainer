@@ -355,6 +355,18 @@ export type PracticeMonth = {
 const monthIndex = (year: number, month: number) => year * 12 + month
 
 /**
+ * How far either side of today the calendar will draw, however far the stored
+ * keys reach. '0100-01-01' is as well-formed a day as yesterday is, and a
+ * backup is a file that has been on a disk and possibly in an editor: one such
+ * key, taken literally, asks for twenty thousand months and half a million
+ * cells to be built before the sheet can paint. Ten years back covers a
+ * lifetime of this app, and a year forward covers a device whose clock is wrong.
+ * The days themselves are kept — only the drawing is bounded.
+ */
+export const CALENDAR_MONTHS_BACK = 120
+export const CALENDAR_MONTHS_FORWARD = 12
+
+/**
  * Every month from the first day on record to the current one, newest first.
  *
  * The range is clamped around today rather than derived from the stored keys
@@ -374,8 +386,8 @@ export const buildMonths = (history: PracticeHistory, today = new Date()): Pract
       return monthIndex(date.getFullYear(), date.getMonth())
     })
 
-  const first = Math.min(todayIndex, ...stored)
-  const last = Math.max(todayIndex, ...stored)
+  const first = Math.max(todayIndex - CALENDAR_MONTHS_BACK, Math.min(todayIndex, ...stored))
+  const last = Math.min(todayIndex + CALENDAR_MONTHS_FORWARD, Math.max(todayIndex, ...stored))
   // Scaled against the whole log, not against each month: a quiet January has
   // to look quiet next to the March that followed it.
   const scale = Math.max(BAR_SCALE_FLOOR_SECONDS, ...Object.values(history.days).map((day) => day.sec))
