@@ -676,6 +676,37 @@ describe('failure paths', () => {
     })
   })
 
+  it('leaves a restarted session alone when the abandoned load rejects', async () => {
+    const harness = createHarness()
+
+    let failLoad = () => {}
+    let loadCalled = () => {}
+    const loading = new Promise<void>((_, reject) => {
+      failLoad = () => reject(new Error('load failed'))
+    })
+    const loadStarted = new Promise<void>((resolve) => {
+      loadCalled = resolve
+    })
+    harness.audio.loadNoteBuffers = () => {
+      loadCalled()
+      return loading
+    }
+
+    const abandoned = harness.machine.start()
+    await loadStarted
+
+    harness.machine.pause()
+    harness.audio.loadNoteBuffers = () => Promise.resolve()
+    await harness.machine.start()
+
+    failLoad()
+    await expect(abandoned).resolves.toBeUndefined()
+
+    expect(harness.snapshot().status).toBe('playing')
+    harness.advanceTo(1.1)
+    expect(harness.audio.clicks.length).toBeGreaterThan(0)
+  })
+
   it('settles when resuming from pause cannot revive the context', async () => {
     const harness = createHarness()
     await harness.machine.start()

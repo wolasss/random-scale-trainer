@@ -154,6 +154,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let stopTimeoutId: number | null = null
   let visualQueue: BeatEvent[] = []
   let sessionStartQueued = false
+  // Bumped by every start that waits on the buffers, so a slow load that lands
+  // after a newer start can tell it no longer owns the transport.
+  let startSequence = 0
 
   // Scheduling state — runs ahead of what the user sees by up to the look-ahead.
   let nextBeatTime = 0
@@ -545,21 +548,25 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     sessionStartQueued = true
+    const startId = ++startSequence
     emit({ status: 'playing', message: PLAYBACK_MESSAGES.loadingAudio })
+
+    let loaded = true
     try {
       await audio.loadNoteBuffers()
     } catch {
-      stop(PLAYBACK_MESSAGES.audioLoadFailed)
+      loaded = false
+    }
+
+    if (startId !== startSequence || snapshot.status !== 'playing') {
+      // Paused, reset, or started again while the buffers were loading: this
+      // call no longer owns the transport, so even a failure stays silent
+      // rather than stomping on the state that replaced it.
       return
     }
 
-    if (!audio.hasBuffers()) {
+    if (!loaded || !audio.hasBuffers()) {
       stop(PLAYBACK_MESSAGES.audioLoadFailed)
-      return
-    }
-
-    if (snapshot.status !== 'playing') {
-      // Paused or reset while the buffers were loading.
       return
     }
 
