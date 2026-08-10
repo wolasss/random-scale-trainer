@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { withBlockedStorage, withFakeStorage } from '../test/blockedStorage'
-import { readRaw, writeRaw } from './storage'
+import { readRaw, removeRaw, writeRaw } from './storage'
 
 const KEY = 'storage-test-key'
 
@@ -83,6 +83,25 @@ describe('writeRaw', () => {
     try {
       expect(writeRaw(KEY, 'small')).toBe(true)
       expect(writeRaw(KEY, 'a value far too long for this store')).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+})
+
+describe('removeRaw', () => {
+  it('clears a previously written key', () => {
+    writeRaw(KEY, 'doomed')
+    removeRaw(KEY)
+    expect(window.localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('does nothing instead of throwing when the store refuses', () => {
+    const restore = withBlockedStorage()
+    try {
+      expect(() => {
+        removeRaw(KEY)
+      }).not.toThrow()
     } finally {
       restore()
     }

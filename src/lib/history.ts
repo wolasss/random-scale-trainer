@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from '../constants'
+import { readRaw, writeRaw } from './storage'
 
 /** One day's practice. Seconds, not minutes — a 90-second day is real. */
 export type PracticeDay = {
@@ -128,23 +129,25 @@ const sanitize = (parsed: unknown): PracticeHistory => {
   return { days }
 }
 
-/** Safari's private mode throws on every localStorage call, so all three wrap. */
+/**
+ * A blocked or full store is the shared helpers' problem; the only failure left
+ * here is corrupt JSON, which reads as no history at all.
+ */
 export const readHistory = (): PracticeHistory => {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEYS.practiceLog)
+  const raw = readRaw(STORAGE_KEYS.practiceLog)
+  if (raw === null) {
+    return EMPTY_HISTORY
+  }
 
-    return raw === null ? EMPTY_HISTORY : sanitize(JSON.parse(raw))
+  try {
+    return sanitize(JSON.parse(raw))
   } catch {
     return EMPTY_HISTORY
   }
 }
 
 export const writeHistory = (history: PracticeHistory) => {
-  try {
-    window.localStorage.setItem(STORAGE_KEYS.practiceLog, JSON.stringify(history))
-  } catch {
-    // A full or locked store costs the log, never the practice session.
-  }
+  writeRaw(STORAGE_KEYS.practiceLog, JSON.stringify(history))
 }
 
 /** Adds to a day without mutating the history it was given. */

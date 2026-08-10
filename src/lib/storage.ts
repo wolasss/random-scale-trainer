@@ -41,3 +41,15 @@ export const writeRaw = (key: string, value: string): boolean => {
     return false
   }
 }
+
+export const removeRaw = (key: string): void => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Storage unavailable — there is nothing stored to remove anyway.
+  }
+}
