@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { HOVER_FINE_QUERY } from './hooks/useDisplayMode'
 import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
 
 // The fake engine accepts every scheduled sound and reports the faked
@@ -66,19 +65,6 @@ const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 
 describe('App integration', () => {
   beforeEach(() => {
-    // This suite reads the desktop app, where the copy still names the keyboard;
-    // jsdom's own matchMedia matches nothing, which would read as touch-only.
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      writable: true,
-      value: (query: string) => ({
-        matches: query === HOVER_FINE_QUERY,
-        media: query,
-        addEventListener: () => undefined,
-        removeEventListener: () => undefined,
-      }),
-    })
-
     vi.useFakeTimers({
       toFake: [
         'setTimeout',
@@ -95,8 +81,6 @@ describe('App integration', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    // Drops the own property, leaving jsdom's implementation in place.
-    Reflect.deleteProperty(window, 'matchMedia')
   })
 
   it('renders the idle state with defaults', () => {

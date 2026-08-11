@@ -2,17 +2,17 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Hero } from './Hero'
 import { PLAYBACK_MESSAGES } from '../constants'
-import { HOVER_FINE_QUERY } from '../hooks/useDisplayMode'
+import { TOUCH_INPUT_QUERY } from '../hooks/useHardwareKeyboard'
 import { INITIAL_PLAYBACK_SNAPSHOT } from '../lib/playback/machine'
 
-/** jsdom's own matchMedia never matches anything, so each test says what kind
- * of pointer the browser reports. */
-const installMatchMedia = (matches: boolean) => {
+/** jsdom's own matchMedia never matches anything, so each test says whether the
+ * browser reports a touchscreen among its inputs. */
+const installMatchMedia = (touchInput: boolean) => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     writable: true,
     value: (query: string) => ({
-      matches: query === HOVER_FINE_QUERY && matches,
+      matches: query === TOUCH_INPUT_QUERY && touchInput,
       media: query,
       addEventListener: () => undefined,
       removeEventListener: () => undefined,
@@ -36,16 +36,16 @@ describe('Hero coaching line', () => {
     Reflect.deleteProperty(window, 'matchMedia')
   })
 
-  it('names the Space shortcut on a hover-and-fine-pointer browser', () => {
-    installMatchMedia(true)
+  it('names the Space shortcut on a browser with no touch input', () => {
+    installMatchMedia(false)
 
     renderHero()
 
     expect(screen.getByTestId('playback-message')).toHaveTextContent(PLAYBACK_MESSAGES.idle)
   })
 
-  it('drops the shortcut where there is no keyboard to press it with', () => {
-    installMatchMedia(false)
+  it('drops the shortcut until there is a keyboard to press it with', () => {
+    installMatchMedia(true)
 
     renderHero()
 
@@ -54,14 +54,8 @@ describe('Hero coaching line', () => {
     expect(line.textContent).not.toContain('Space')
   })
 
-  it('assumes touch where the browser cannot answer the query at all', () => {
-    renderHero()
-
-    expect(screen.getByTestId('playback-message')).toHaveTextContent(PLAYBACK_MESSAGES.idleTouch)
-  })
-
   it('passes every other machine message straight through', () => {
-    installMatchMedia(false)
+    installMatchMedia(true)
 
     renderHero({ snapshot: { ...INITIAL_PLAYBACK_SNAPSHOT, message: PLAYBACK_MESSAGES.playing } })
 
@@ -69,7 +63,7 @@ describe('Hero coaching line', () => {
   })
 
   it('lets a routine block keep the line it asked for', () => {
-    installMatchMedia(false)
+    installMatchMedia(true)
 
     renderHero({ message: 'Block 2 of 3 — string skipping' })
 

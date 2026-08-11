@@ -2,8 +2,7 @@ import type { RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import { PLAYBACK_MESSAGES } from '../constants'
-import { useMediaQuery } from '../hooks/useMediaQuery'
-import { HOVER_FINE_QUERY } from '../hooks/useDisplayMode'
+import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
@@ -37,12 +36,12 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
 
-  // The idle line names the Space shortcut, which is nothing to a phone: without
-  // a hover-and-fine pointer to prove otherwise, say the keyboard-free version.
-  const keyboardPointer = useMediaQuery(HOVER_FINE_QUERY)
+  // The idle line names the Space shortcut, which is nothing to a phone: until
+  // there is a keyboard to press it with, say the keyboard-free version.
+  const hasKeyboard = useHardwareKeyboard()
   const coachingLine =
     message ??
-    (!keyboardPointer && snapshot.message === PLAYBACK_MESSAGES.idle
+    (!hasKeyboard && snapshot.message === PLAYBACK_MESSAGES.idle
       ? PLAYBACK_MESSAGES.idleTouch
       : snapshot.message)
 
