@@ -3,6 +3,9 @@ import { useMediaQuery } from './useMediaQuery'
 export const STANDALONE_QUERY = '(display-mode: standalone)'
 export const COARSE_POINTER_QUERY = '(pointer: coarse)'
 export const LANDSCAPE_QUERY = '(orientation: landscape)'
+/** Names a mouse-and-keyboard browser; anything that cannot answer it is
+ * treated as touch-only, so copy never promises keys that are not there. */
+export const HOVER_FINE_QUERY = '(hover: hover) and (pointer: fine)'
 
 type IosNavigator = Navigator & { standalone?: boolean }
 
