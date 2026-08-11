@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/wolasss/random-scale-trainer/compare/v1.5.2...v1.5.3) (2026-08-11)
+
+
+### Bug Fixes
+
+* **audio:** let stop silence a scheduled end-of-session chime ([#67](https://github.com/wolasss/random-scale-trainer/issues/67)) ([241b498](https://github.com/wolasss/random-scale-trainer/commit/241b49829356b795cab291b747dcdbaa85589c18))
+
 ## [1.5.2](https://github.com/wolasss/random-scale-trainer/compare/v1.5.1...v1.5.2) (2026-08-11)
 
 
