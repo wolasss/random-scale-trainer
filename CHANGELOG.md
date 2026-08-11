@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/wolasss/random-scale-trainer/compare/v1.5.1...v1.5.2) (2026-08-11)
+
+
+### Bug Fixes
+
+* **playback:** settle the transport when the audio context fails to create or resume ([#73](https://github.com/wolasss/random-scale-trainer/issues/73)) ([58d8fee](https://github.com/wolasss/random-scale-trainer/commit/58d8fee5fd5023380284788fc5bc5e9329435a71))
+
 ## [1.5.1](https://github.com/wolasss/random-scale-trainer/compare/v1.5.0...v1.5.1) (2026-08-10)
 
 
