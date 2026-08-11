@@ -154,6 +154,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let stopTimeoutId: number | null = null
   let visualQueue: BeatEvent[] = []
   let sessionStartQueued = false
+  // Bumped by every start that waits on the buffers, so a slow load that lands
+  // after a newer start can tell it no longer owns the transport.
+  let startSequence = 0
 
   // Scheduling state — runs ahead of what the user sees by up to the look-ahead.
   let nextBeatTime = 0
@@ -519,7 +522,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   const start = async () => {
     if (snapshot.status === 'paused') {
-      await audio.ensureContext()
+      try {
+        // iOS rejects resume() after an audio-session interruption. Settle back
+        // on idle rather than resuming a transport with no sound behind it.
+        await audio.ensureContext()
+      } catch {
+        stop(PLAYBACK_MESSAGES.audioUnsupported)
+        return
+      }
+
       if (!sessionStartQueued) {
         onSessionStart()
       }
@@ -536,23 +547,40 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
-    const context = await audio.ensureContext()
+    // new AudioContext() can throw outright at the browser's context limit —
+    // same outcome for the player as a browser with no Web Audio at all.
+    let context: unknown | null = null
+    try {
+      context = await audio.ensureContext()
+    } catch {
+      context = null
+    }
+
     if (!context) {
       stop(PLAYBACK_MESSAGES.audioUnsupported)
       return
     }
 
     sessionStartQueued = true
+    const startId = ++startSequence
     emit({ status: 'playing', message: PLAYBACK_MESSAGES.loadingAudio })
-    await audio.loadNoteBuffers()
 
-    if (!audio.hasBuffers()) {
-      stop(PLAYBACK_MESSAGES.audioLoadFailed)
+    let loaded = true
+    try {
+      await audio.loadNoteBuffers()
+    } catch {
+      loaded = false
+    }
+
+    if (startId !== startSequence || snapshot.status !== 'playing') {
+      // Paused, reset, or started again while the buffers were loading: this
+      // call no longer owns the transport, so even a failure stays silent
+      // rather than stomping on the state that replaced it.
       return
     }
 
-    if (snapshot.status !== 'playing') {
-      // Paused or reset while the buffers were loading.
+    if (!loaded || !audio.hasBuffers()) {
+      stop(PLAYBACK_MESSAGES.audioLoadFailed)
       return
     }
 
