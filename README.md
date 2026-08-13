@@ -12,8 +12,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
   with a NEXT preview and a "note N of M" cycle position
-- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals,
-  six major keys, A minor pentatonic)
+- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the
+  six major keys, the A/E/D minor pentatonics and A minor blues) — plus Custom, which is what the
+  selector reads back once the chips no longer match a preset
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -30,7 +31,10 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   button. A shelf of routines is seeded on first load, and touching a control mid-routine is
   reported as "adjusted, next block resets it" rather than silently overridden
 - Practice log: 14 days of daily bars, current and best streak (a day counts at one minute of
-  practice), and rolling 7-day minutes/notes totals
+  practice), and rolling 7-day minutes/notes totals. A History button on the card opens the whole log
+  — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
+  JSON backup export/import, where an import merges with what is already there (keeping the longer of
+  any two days) rather than replacing it
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, and the
   fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
