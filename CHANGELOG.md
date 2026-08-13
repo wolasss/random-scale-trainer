@@ -1,3 +1,10 @@
+## [1.5.4](https://github.com/wolasss/random-scale-trainer/compare/v1.5.3...v1.5.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* **hero:** drop the hit-Space hint on touch-only devices ([#79](https://github.com/wolasss/random-scale-trainer/issues/79)) ([df68f3f](https://github.com/wolasss/random-scale-trainer/commit/df68f3ffba7b65a5d9bf806fd728cb625035c1c8))
+
 ## [1.5.3](https://github.com/wolasss/random-scale-trainer/compare/v1.5.2...v1.5.3) (2026-08-11)
 
 
