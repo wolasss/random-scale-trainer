@@ -1,6 +1,8 @@
 import type { RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
+import { PLAYBACK_MESSAGES } from '../constants'
+import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
@@ -33,6 +35,15 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
+
+  // The idle line names the Space shortcut, which is nothing to a phone: until
+  // there is a keyboard to press it with, say the keyboard-free version.
+  const hasKeyboard = useHardwareKeyboard()
+  const coachingLine =
+    message ??
+    (!hasKeyboard && snapshot.message === PLAYBACK_MESSAGES.idle
+      ? PLAYBACK_MESSAGES.idleTouch
+      : snapshot.message)
 
   const nowText =
     currentNote && positionInCycle !== null
@@ -89,7 +100,7 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
         </div>
 
         <p className="playback-message" data-testid="playback-message" aria-live="polite">
-          {message ?? snapshot.message}
+          {coachingLine}
         </p>
       </section>
     )
@@ -119,7 +130,7 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       </div>
 
       <p className="playback-message" data-testid="playback-message" aria-live="polite">
-        {message ?? snapshot.message}
+        {coachingLine}
       </p>
 
       <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />

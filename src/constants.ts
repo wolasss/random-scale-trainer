@@ -138,6 +138,8 @@ export const RESYNC_THRESHOLD_S = 0.5
  * (e2e/pages/trainer.page.ts keeps its own golden copies on purpose). */
 export const PLAYBACK_MESSAGES = {
   idle: 'Press start — or hit Space.',
+  // A device with no keyboard has no Space key to name, so Hero swaps this in.
+  idleTouch: 'Press start to begin.',
   countingIn: 'Counting in…',
   playing: 'Find it on the neck before the next beat.',
   // The ramp names the number it is heading for, then says when it has arrived.
