@@ -29,8 +29,7 @@
  * built once above the branch and placed by whichever one runs.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { TopBar, type Theme } from './components/TopBar'
-import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, type Skin } from './lib/skins'
+import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
@@ -47,6 +46,7 @@ import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
+import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useBeatPulse } from './hooks/useBeatPulse'
@@ -65,14 +65,7 @@ import { mergeHistories, readHistory, serializeBackup, writeHistory, type Practi
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 function App() {
-  const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
-    defaultValue: 'dark',
-    deserialize: (raw) => (raw === 'light' || raw === 'dark' ? raw : undefined),
-  })
-  const [skin, setSkin] = usePersistentState<Skin>(STORAGE_KEYS.skin, {
-    defaultValue: DEFAULT_SKIN,
-    deserialize: (raw) => (isSkin(raw) ? raw : undefined),
-  })
+  const { theme, setTheme, skin, setSkin } = useAppearance()
   const [settings, dispatch] = useSettings()
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
@@ -143,31 +136,6 @@ function App() {
   const serviceWorker = useServiceWorker()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
-
-  // The chosen skin drives every skinned rule in the stylesheet.
-  useEffect(() => {
-    document.documentElement.setAttribute('data-skin', skin)
-  }, [skin])
-
-  // Instrument and warm each need one webfont the base document doesn't load.
-  // Add it the first time that skin is picked, so glass never pays for it, and
-  // leave it in place afterwards (switching back and forth shouldn't re-fetch).
-  useEffect(() => {
-    const href = SKIN_FONT_HREF[skin]
-    if (!href || document.querySelector(`link[data-skin-font="${skin}"]`)) {
-      return
-    }
-
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = href
-    link.setAttribute('data-skin-font', skin)
-    document.head.appendChild(link)
-  }, [skin])
 
   // Everything that rearranges for the music stand keys off this one attribute,
   // so the stylesheet and the component tree can never disagree about which
