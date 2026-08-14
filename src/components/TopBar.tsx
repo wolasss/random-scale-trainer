@@ -23,12 +23,15 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
       </div>
       <div className="header-side">
         {install}
-        <div className="key-hints" aria-hidden="true">
+        <div className="key-hints">
           <span>
             <kbd>Space</kbd> play / pause
           </span>
           <span>
             <kbd>←</kbd> <kbd>→</kbd> tempo
+          </span>
+          <span>
+            <kbd>R</kbd> reset
           </span>
         </div>
         <button
