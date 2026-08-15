@@ -39,6 +39,17 @@ describe('useKeyboardShortcuts', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
+  it('does not tap on auto-repeat from a held T, but still repeats the tempo keys', () => {
+    renderHook(() => useKeyboardShortcuts(handlers))
+
+    const event = press('KeyT', { repeat: true })
+    expect(handlers.onTap).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
+
+    press('ArrowUp', { repeat: true })
+    expect(handlers.onTempoUp).toHaveBeenCalledTimes(1)
+  })
+
   it('ignores unrelated keys', () => {
     renderHook(() => useKeyboardShortcuts(handlers))
 
