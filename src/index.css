@@ -868,7 +868,8 @@ input[type='range'] {
   font-size: 0.88rem;
 }
 
-.preset-select option {
+.preset-select option,
+.preset-select optgroup {
   color: initial;
 }
 

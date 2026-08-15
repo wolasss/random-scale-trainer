@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchPreset, PRESETS } from './presets'
+import { FAMILY_ORDER, matchPreset, PRESET_GROUPS, PRESETS } from './presets'
 
 describe('PRESETS', () => {
   it('defines the exact pitch-class sets from the product brief', () => {
@@ -14,6 +14,10 @@ describe('PRESETS', () => {
     expect(byId['a-major']).toEqual([1, 2, 4, 6, 8, 9, 11])
     expect(byId['e-major']).toEqual([1, 3, 4, 6, 8, 9, 11])
     expect(byId['f-major']).toEqual([0, 2, 4, 5, 7, 9, 10])
+    // B♭ C D E♭ F G A
+    expect(byId['b-flat-major']).toEqual([0, 2, 3, 5, 7, 9, 10])
+    // E♭ F G A♭ B♭ C D
+    expect(byId['e-flat-major']).toEqual([0, 2, 3, 5, 7, 8, 10])
     expect(byId['a-minor-pentatonic']).toEqual([0, 2, 4, 7, 9])
     expect(byId['e-minor-pentatonic']).toEqual([2, 4, 7, 9, 11])
     expect(byId['d-minor-pentatonic']).toEqual([0, 2, 5, 7, 9])
@@ -40,6 +44,25 @@ describe('PRESETS', () => {
   })
 })
 
+describe('PRESET_GROUPS', () => {
+  it('lists the families in display order', () => {
+    expect(PRESET_GROUPS.map((group) => group.family)).toEqual(FAMILY_ORDER)
+  })
+
+  it('covers every preset exactly once, in list order', () => {
+    const flattened = PRESET_GROUPS.flatMap((group) => group.presets)
+
+    expect(flattened.map((preset) => preset.id)).toEqual(PRESETS.map((preset) => preset.id))
+  })
+
+  it('puts both flat major keys under the major-keys group', () => {
+    const majors = PRESET_GROUPS.find((group) => group.family === 'Major keys')
+
+    expect(majors?.presets.map((preset) => preset.label)).toContain('Key of B♭ major')
+    expect(majors?.presets.map((preset) => preset.label)).toContain('Key of E♭ major')
+  })
+})
+
 describe('matchPreset', () => {
   it('round-trips every concrete preset, first listed set winning ties', () => {
     for (const preset of PRESETS) {
@@ -51,6 +74,10 @@ describe('matchPreset', () => {
       const expected = preset.id === 'c-major' ? 'naturals' : preset.id
       expect(matchPreset(preset.pcs)).toBe(expected)
     }
+  })
+
+  it('keeps "Naturals only" ahead of "Key of C major"', () => {
+    expect(matchPreset([0, 2, 4, 5, 7, 9, 11])).toBe('naturals')
   })
 
   it('matches regardless of pool ordering', () => {
