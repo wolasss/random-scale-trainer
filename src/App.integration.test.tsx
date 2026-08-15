@@ -195,6 +195,15 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-theme')).toBe('light')
   })
 
+  it('names every keyboard shortcut in the header, screen readers included', () => {
+    render(<App />)
+
+    const hints = document.querySelector('.key-hints')!
+    expect(hints).toHaveTextContent('Space play / pause')
+    expect(hints).toHaveTextContent('R reset')
+    expect(hints).not.toHaveAttribute('aria-hidden')
+  })
+
   it('disables and forces off speed ramp when continuous mode turns off', () => {
     render(<App />)
 
