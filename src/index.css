@@ -934,8 +934,69 @@ input[type='range'] {
   gap: 0.3rem;
 }
 
+/* On a phone the neck is wider than its card — 400px of board in a box nearer
+   294px — so frets 10-12 sit behind an edge that, with every cell closing on a
+   fret hairline, reads as the end of the map rather than the start of a scroll.
+   The fade says there is more board out there. It is a mask, not an overlay
+   gradient: the panel is translucent glass and gets re-skinned by every skin
+   block, so there is no one colour an overlay could honestly fade to, whereas a
+   mask thins the hairlines, dots and numbers themselves. The scroll timeline is
+   only what takes the cue back once you have got there. */
+@property --neck-fade {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 .fretboard-scroll {
   overflow-x: auto;
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--neck-fade)), transparent);
+}
+
+/* The cue every narrow viewport gets, with or without scroll-driven animation.
+   The board stops fitting its card around 460px of viewport; 480px overshoots
+   so no phone width is missed, at the cost of a softened edge in a thin band
+   where there is nothing left to scroll. */
+@media (max-width: 480px) {
+  .fretboard-scroll {
+    --neck-fade: 2.5rem;
+  }
+}
+
+/* The enhancement, and it has to stay behind @supports: without a scroll
+   timeline the animation would run off a clock instead, finish on frame one and
+   hold the 100% keyframe, which is precisely no fade. */
+@supports (animation-timeline: scroll(self inline)) {
+  .fretboard-scroll {
+    /* The shorthand resets animation-timeline, so it has to come first. */
+    animation: neck-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+
+  /* Reduced motion caps every animation at 0.01ms, which would land the neck on
+     that same empty last keyframe. Drop the animation instead and let the plain
+     narrow-screen fade stand. */
+  @media (prefers-reduced-motion: reduce) {
+    .fretboard-scroll {
+      animation: none;
+    }
+  }
+}
+
+/* An active timeline outranks the base cascade, so wherever the neck actually
+   overflows — including the stage's narrow neck column at widths the media
+   query never sees — the fade is held across the scroll and lifted at the end.
+   With nothing to scroll the timeline is inactive and the desktop board keeps
+   its square edge. */
+@keyframes neck-fade {
+  0%,
+  85% {
+    --neck-fade: 2.5rem;
+  }
+
+  100% {
+    --neck-fade: 0px;
+  }
 }
 
 .fretboard {
