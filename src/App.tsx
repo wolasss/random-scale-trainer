@@ -226,6 +226,7 @@ function App() {
 
   useKeyboardShortcuts({
     onSpace: playOrPause,
+    onTap: handleTapTempo,
     onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
     onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
     onReset: resetSession,

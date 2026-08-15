@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type KeyboardShortcutHandlers = {
   onSpace: () => void
+  onTap: () => void
   onTempoUp: () => void
   onTempoDown: () => void
   onReset: () => void
@@ -80,6 +81,12 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
       if (TEMPO_DOWN_CODES.has(event.code)) {
         event.preventDefault()
         handlersRef.current.onTempoDown()
+        return
+      }
+
+      if (event.code === 'KeyT') {
+        event.preventDefault()
+        handlersRef.current.onTap()
         return
       }
 
