@@ -1,7 +1,10 @@
 {
+  "id": "/?src=pwa",
   "name": "callnote.app",
   "short_name": "callnote",
   "description": "Fretboard fluency, one beat at a time.",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/?src=pwa",
   "scope": "/",
   "display": "standalone",
