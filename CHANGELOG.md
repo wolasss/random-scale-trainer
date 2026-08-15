@@ -1,3 +1,15 @@
+# [1.6.0](https://github.com/wolasss/random-scale-trainer/compare/v1.5.4...v1.6.0) (2026-08-15)
+
+
+### Bug Fixes
+
+* **a11y:** list the reset shortcut in the header key hints ([#83](https://github.com/wolasss/random-scale-trainer/issues/83)) ([701e481](https://github.com/wolasss/random-scale-trainer/commit/701e4814ddb7475bfa0e1a6b0b588af40a39f4fd))
+
+
+### Features
+
+* **session:** mark the moment the practice goal is reached ([#81](https://github.com/wolasss/random-scale-trainer/issues/81)) ([6750f29](https://github.com/wolasss/random-scale-trainer/commit/6750f290c1b5e2769ae3fb65c432c202141c3761))
+
 ## [1.5.4](https://github.com/wolasss/random-scale-trainer/compare/v1.5.3...v1.5.4) (2026-08-13)
 
 
