@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/wolasss/random-scale-trainer/compare/v1.6.0...v1.6.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **a11y:** announce each switch's explanation with the switch itself ([#97](https://github.com/wolasss/random-scale-trainer/issues/97)) ([0de9d0f](https://github.com/wolasss/random-scale-trainer/commit/0de9d0f239f149649eed53e015b884fac6969ed2))
+
 # [1.6.0](https://github.com/wolasss/random-scale-trainer/compare/v1.5.4...v1.6.0) (2026-08-15)
 
 
