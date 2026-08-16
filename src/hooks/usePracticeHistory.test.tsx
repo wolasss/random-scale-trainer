@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
-import { dayKey, type PracticeHistory } from '../lib/history'
+import { dayKey, HISTORY_FLUSH_MS, type PracticeHistory, readHistory } from '../lib/history'
 import { usePracticeHistory } from './usePracticeHistory'
 
 const stored = (): PracticeHistory | null => {
@@ -13,6 +13,11 @@ const stored = (): PracticeHistory | null => {
 const today = () => dayKey(new Date())
 
 const secToday = () => stored()?.days[today()]?.sec
+
+/** What the app itself would read back, rather than the raw stored blob. */
+const logged = () => readHistory()
+
+const secOn = (key: string) => logged().days[key]?.sec
 
 /** jsdom's visibilityState is a getter, so it is replaced rather than assigned. */
 const setVisibility = (state: DocumentVisibilityState) => {
@@ -137,5 +142,126 @@ describe('usePracticeHistory', () => {
     pagehide()
 
     expect(secToday()).toBe(9)
+  })
+
+  it('banks nothing until ten seconds have piled up, then writes whole seconds only', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(HISTORY_FLUSH_MS - 1_000)
+    })
+
+    expect(Object.keys(logged().days)).toEqual([])
+    expect(logWrites()).toBe(0)
+
+    act(() => {
+      result.current.trackElapsed(10_500)
+    })
+
+    // The odd 500ms is not rounded up into the day.
+    expect(secOn(today())).toBe(10)
+    expect(logWrites()).toBe(1)
+  })
+
+  it('carries the sub-second remainder forward instead of dropping it', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(10_500)
+    })
+    pagehide()
+
+    // 500ms left pending floors to nothing, so there is nothing to write.
+    expect(secOn(today())).toBe(10)
+    expect(logWrites()).toBe(1)
+
+    act(() => {
+      result.current.trackElapsed(11_500)
+    })
+    pagehide()
+
+    // The carried 500ms plus the new 1000ms makes the whole second.
+    expect(secOn(today())).toBe(11)
+  })
+
+  it('loses no time over a long run of uneven ticks', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      // The timer reports its cumulative elapsed time, 1.5s at a time.
+      for (let tick = 1; tick <= 20; tick += 1) {
+        result.current.trackElapsed(tick * 1_500)
+      }
+    })
+    pagehide()
+
+    expect(secOn(today())).toBe(30)
+  })
+
+  it('accumulates note deltas and re-baselines a rewind instead of subtracting', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackNotes(4)
+      result.current.trackNotes(9)
+      // The session was reset, so the count starts again from a new baseline.
+      result.current.trackNotes(2)
+      result.current.trackNotes(6)
+    })
+
+    // Notes alone never trip the ten-second beat.
+    expect(Object.keys(logged().days)).toEqual([])
+
+    pagehide()
+
+    expect(logged().days[today()]).toEqual({ sec: 0, notes: 13 })
+  })
+
+  it('writes nothing when a commit finds nothing pending', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.commit()
+    })
+
+    expect(logWrites()).toBe(0)
+    expect(Object.keys(logged().days)).toEqual([])
+
+    act(() => {
+      result.current.trackElapsed(400)
+      result.current.commit()
+    })
+
+    // Under a second is still pending, not yet worth a write.
+    expect(logWrites()).toBe(0)
+    expect(Object.keys(logged().days)).toEqual([])
+
+    act(() => {
+      result.current.trackElapsed(1_200)
+      result.current.commit()
+    })
+
+    expect(logWrites()).toBe(1)
+    expect(secOn(today())).toBe(1)
+  })
+
+  it('credits seconds banked after midnight to the new day', () => {
+    vi.setSystemTime(new Date('2026-06-15T23:59:40'))
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(12_000)
+    })
+
+    expect(secOn('2026-06-15')).toBe(12)
+
+    vi.setSystemTime(new Date('2026-06-16T00:00:05'))
+    act(() => {
+      result.current.trackElapsed(22_000)
+    })
+
+    // Yesterday keeps what it earned; the new seconds land on today.
+    expect(secOn('2026-06-15')).toBe(12)
+    expect(secOn('2026-06-16')).toBe(10)
   })
 })
