@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/wolasss/random-scale-trainer/compare/v1.8.0...v1.8.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **manifest:** pin the installed app's id and guard the manifest against drift ([#88](https://github.com/wolasss/random-scale-trainer/issues/88)) ([979b430](https://github.com/wolasss/random-scale-trainer/commit/979b430943e6e706deb9eac2778fd4cf5771025b))
+
 # [1.8.0](https://github.com/wolasss/random-scale-trainer/compare/v1.7.1...v1.8.0) (2026-08-16)
 
 
