@@ -14,6 +14,7 @@ type SessionCardProps = {
 export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCompleted }: SessionCardProps) {
   const goalMs = goalMin * 60_000
   const progressPct = Math.min(100, Math.round((elapsedMs / goalMs) * 100))
+  const goalReached = elapsedMs >= goalMs
 
   return (
     <section className="panel session-card">
@@ -27,6 +28,9 @@ export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCom
           {formatElapsed(elapsedMs)}
         </span>
         <span className="timer-suffix">of practice</span>
+        <span className="session-goal-reached" role="status" data-testid="session-goal-reached">
+          {goalReached ? 'goal reached' : ''}
+        </span>
       </div>
 
       <div
@@ -36,9 +40,16 @@ export function SessionCard({ elapsedMs, goalMin, onGoal, notesCalled, cyclesCom
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={progressPct}
+        aria-valuetext={
+          goalReached ? `Practice goal of ${goalMin} min reached` : `${progressPct}% of the ${goalMin} min goal`
+        }
         data-testid="session-progress"
       >
-        <div className="session-progress-fill" style={{ width: `${progressPct}%` }} />
+        <div
+          className={`session-progress-fill${goalReached ? ' done' : ''}`}
+          style={{ width: `${progressPct}%` }}
+          data-testid="session-progress-fill"
+        />
       </div>
 
       <SegmentedControl

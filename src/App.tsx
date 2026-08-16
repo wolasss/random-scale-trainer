@@ -1,6 +1,35 @@
+/**
+ * The composition root. Every hook the app runs is called here, and the wiring
+ * between four of them is most of what this file is.
+ *
+ * `useSettings` holds the practice settings, and they feed both `usePlayback`
+ * (with `speakNotes` forced on) and `useRoutine`. There are two ways to write
+ * to them. `userDispatch` takes the edits the user makes to the settings a
+ * routine block owns — tempo, beats per note, the note pool, spelling, the
+ * ramp — so the routine can tell someone drifting off a block from its own
+ * writes. The raw `dispatch` takes everything else: the routine applying a
+ * block, the speed ramp's BPM write-back, and the settings no block owns (the
+ * session goal, the practice toggles), which the user is free to change without
+ * it meaning anything to the routine.
+ *
+ * `useSessionTimer` is the one clock. Playback starts and pauses it, and its
+ * tick both advances the routine's block clock and banks time into the practice
+ * log — so a pause stops all three at once, and neither the block nor the log
+ * counts time nobody played.
+ *
+ * That leaves a cycle: the timer ticks the routine, the routine stops playback
+ * when its last timed block runs out, playback starts and pauses the timer.
+ * `routineRef` and `playbackRef` are what break it — the tick reaches the
+ * routine through one and `onFinish` reaches playback through the other, so
+ * neither hook has to be declared before the other.
+ *
+ * `useDisplayMode` picks the reading. On the stage this returns the stage shell
+ * — hero, `StageTransport`, and the setup cards tucked into the slide-up
+ * `PracticeSheet`; otherwise it returns the scrolling page grid. The cards are
+ * built once above the branch and placed by whichever one runs.
+ */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { TopBar, type Theme } from './components/TopBar'
-import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, type Skin } from './lib/skins'
+import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
@@ -17,6 +46,7 @@ import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
+import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useBeatPulse } from './hooks/useBeatPulse'
@@ -31,17 +61,11 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 function App() {
-  const [theme, setTheme] = usePersistentState<Theme>(STORAGE_KEYS.theme, {
-    defaultValue: 'dark',
-    deserialize: (raw) => (raw === 'light' || raw === 'dark' ? raw : undefined),
-  })
-  const [skin, setSkin] = usePersistentState<Skin>(STORAGE_KEYS.skin, {
-    defaultValue: DEFAULT_SKIN,
-    deserialize: (raw) => (isSkin(raw) ? raw : undefined),
-  })
+  const { theme, setTheme, skin, setSkin } = useAppearance()
   const [settings, dispatch] = useSettings()
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
@@ -112,31 +136,6 @@ function App() {
   const serviceWorker = useServiceWorker()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
-
-  // The chosen skin drives every skinned rule in the stylesheet.
-  useEffect(() => {
-    document.documentElement.setAttribute('data-skin', skin)
-  }, [skin])
-
-  // Instrument and warm each need one webfont the base document doesn't load.
-  // Add it the first time that skin is picked, so glass never pays for it, and
-  // leave it in place afterwards (switching back and forth shouldn't re-fetch).
-  useEffect(() => {
-    const href = SKIN_FONT_HREF[skin]
-    if (!href || document.querySelector(`link[data-skin-font="${skin}"]`)) {
-      return
-    }
-
-    const link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = href
-    link.setAttribute('data-skin-font', skin)
-    document.head.appendChild(link)
-  }, [skin])
 
   // Everything that rearranges for the music stand keys off this one attribute,
   // so the stylesheet and the component tree can never disagree about which
@@ -227,6 +226,7 @@ function App() {
 
   useKeyboardShortcuts({
     onSpace: playOrPause,
+    onTap: handleTapTempo,
     onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
     onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
     onReset: resetSession,
@@ -319,7 +319,34 @@ function App() {
     <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
   )
 
-  const practiceLogCard = <PracticeLogCard history={practiceHistory.history} onClear={clearTimer} />
+  // Both backup paths go through here rather than through the log's own hook,
+  // which holds up to ten seconds of practice in refs and rewrites storage on
+  // every commit. Exporting banks the pending seconds first, so the file is
+  // never short of the session that is running as it is written.
+  const getPracticeBackup = () => {
+    practiceHistory.commit()
+
+    return serializeBackup(readHistory(), new Date())
+  }
+
+  // A restore merges into what is stored and then reloads: the hook reads
+  // storage once, on mount, so anything short of a reload would be overwritten
+  // by its next commit. (A tick landing between the two would cost the seconds
+  // in flight — the same seconds a refresh mid-session costs anyway.)
+  const importPracticeBackup = (incoming: PracticeHistory) => {
+    practiceHistory.commit()
+    writeHistory(mergeHistories(readHistory(), incoming))
+    window.location.reload()
+  }
+
+  const practiceLogCard = (
+    <PracticeLogCard
+      history={practiceHistory.history}
+      onClear={clearTimer}
+      getBackup={getPracticeBackup}
+      onImportBackup={importPracticeBackup}
+    />
+  )
 
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />

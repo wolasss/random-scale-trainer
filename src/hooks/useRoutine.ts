@@ -30,6 +30,8 @@ export type UseRoutineOptions = {
 
 export type RoutineController = {
   routines: Routine[]
+  /** False once a save has failed to reach the store — the shelf is memory-only. */
+  persisted: boolean
   selected: Routine | null
   blockIndex: number
   blockElapsedMs: number
@@ -93,7 +95,7 @@ const blockSettingsOf = (settings: Settings): BlockSettings => ({
 export function useRoutine(options: UseRoutineOptions): RoutineController {
   const { settings, dispatch, sessionElapsedMs, isPlaying, onFinish } = options
 
-  const [routines, setRoutines] = usePersistentState<Routine[]>(STORAGE_KEYS.routines, {
+  const [routines, setRoutines, routinesPersisted] = usePersistentState<Routine[]>(STORAGE_KEYS.routines, {
     defaultValue: SEEDED_ROUTINES,
     deserialize: parseRoutines,
     serialize: (value) => JSON.stringify(value),
@@ -206,6 +208,12 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
    */
   const notifyManualChange = (action: SettingsAction) => {
     if (selected === null || !BLOCK_OWNED_ACTIONS.has(action.type)) {
+      return
+    }
+
+    // 'Custom' is read off the chips, never applied, so the reducer drops it —
+    // an edit that changes nothing must not fork the routine either.
+    if (action.type === 'setPreset' && action.preset === 'custom') {
       return
     }
 
@@ -356,6 +364,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
   return {
     routines,
+    persisted: routinesPersisted,
     selected,
     blockIndex: runtime.blockIndex,
     blockElapsedMs,

@@ -4,12 +4,17 @@
 
 callnote.app is a small React and Vite practice app for guitar fretboard memorization. A metronome clicks, a note name is called on the beat, and you find it on the neck before the next one lands.
 
+![callnote.app calling notes on metronome clicks](docs/callnote.gif)
+
+Pick your notes and a tempo, press start, and it calls a note on the metronome click.
+
 ## Features
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
   with a NEXT preview and a "note N of M" cycle position
-- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals,
-  six major keys, A minor pentatonic)
+- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the
+  six major keys, the A/E/D minor pentatonics and A minor blues) — plus Custom, which is what the
+  selector reads back once the chips no longer match a preset
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -26,7 +31,10 @@ callnote.app is a small React and Vite practice app for guitar fretboard memoriz
   button. A shelf of routines is seeded on first load, and touching a control mid-routine is
   reported as "adjusted, next block resets it" rather than silently overridden
 - Practice log: 14 days of daily bars, current and best streak (a day counts at one minute of
-  practice), and rolling 7-day minutes/notes totals
+  practice), and rolling 7-day minutes/notes totals. A History button on the card opens the whole log
+  — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
+  JSON backup export/import, where an import merges with what is already there (keeping the longer of
+  any two days) rather than replacing it
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, and the
   fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
@@ -57,6 +65,30 @@ button.
 ```bash
 npm run build
 ```
+
+## Deploy
+
+The repo ships a multi-stage `Dockerfile`: `node:24-alpine` builds the Vite app, and
+`nginx:1.30-alpine` serves the static `dist/` output on port 80.
+
+```bash
+docker build -t callnote .
+docker run --rm -p 8080:80 callnote                            # http://localhost:8080
+
+docker run --rm -p 8080:80 wolasss/random-scale-trainer:latest # the published image
+```
+
+Every release pushes `wolasss/random-scale-trainer` to Docker Hub for linux/amd64 and
+linux/arm64, tagged with the semantic-release version and `latest`
+(`.github/workflows/release.yml`).
+
+`nginx.conf` sets the caching deliberately. Unknown paths fall back to `index.html`, so client-side
+routes resolve. `/sw.js` is sent `no-cache, no-store, must-revalidate`, and `index.html` and
+`manifest.webmanifest` are sent `no-cache`: a cached service worker is a build the browser can
+never move off, and index.html is what names the hashed bundles, so a stale shell pins everyone to
+the old ones. Everything else matching the static-file extension list (js, css, images, fonts,
+mp3) gets `expires 7d` and `Cache-Control: public` — that rule is matched on extension, not on the
+presence of a content hash, so only the three exact-match locations above it escape it.
 
 ## Tests
 
@@ -93,3 +125,16 @@ node scripts/rasterize-icons.mjs           # public/icon-*.png (needs playwright
 
 Adding a skin means adding a row to `THEMES` in the first script; there is no second drawing to
 keep in sync.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Free for anyone to use, modify and redistribute, personally or
+commercially, as long as the copyright and permission notice travel with the code.
+
+MIT ships the app as-is: no warranty and no support obligation. It is a copyright licence only —
+the `callnote.app` name and the marks in `brand/` stay trademarks of the copyright holder, so a
+fork can copy and change those files but shouldn't pass itself off as Callnote. If your team needs
+more than that — a support
+commitment, a warranty, indemnity, or different terms — open an issue at
+<https://github.com/wolasss/random-scale-trainer/issues> and we can talk about a commercial
+agreement.

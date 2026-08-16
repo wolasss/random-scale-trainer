@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   bestStreak,
   buildWindow,
@@ -7,10 +8,14 @@ import {
   STREAK_MIN_SECONDS,
   type PracticeHistory,
 } from '../lib/history'
+import { PracticeHistoryView } from './PracticeHistoryView'
 
 type PracticeLogCardProps = {
   history: PracticeHistory
   onClear: () => void
+  /** Both handed to the history view; see App for why they go through it. */
+  getBackup: () => string
+  onImportBackup: (incoming: PracticeHistory) => void
   /** Injectable for tests; the card is otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -29,7 +34,8 @@ const barTitle = (minutes: number, sec: number) => {
  * guitar up tonight a specific reason to. The bars exist to make a gap visible
  * without nagging about it — that is the whole mechanic, and it stops there.
  */
-export function PracticeLogCard({ history, onClear, today }: PracticeLogCardProps) {
+export function PracticeLogCard({ history, onClear, getBackup, onImportBackup, today }: PracticeLogCardProps) {
+  const [historyOpen, setHistoryOpen] = useState(false)
   const now = today ?? new Date()
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
@@ -48,18 +54,31 @@ export function PracticeLogCard({ history, onClear, today }: PracticeLogCardProp
     <section className="panel practice-log-card">
       <div className="panel-heading practice-log-heading">
         <h2>Practice log</h2>
-        {/* "Clear" beside a practice log reads as "delete my history", which is
-            the one thing it does not do. It zeroes the session clock and
-            nothing else — so it is named after the clock. */}
-        <button
-          type="button"
-          className="practice-log-clear"
-          onClick={onClear}
-          data-testid="practice-log-clear"
-          title="Put the session clock back to 00:00 — the log below is kept"
-        >
-          Reset clock
-        </button>
+        <div className="practice-log-actions">
+          {/* The fortnight below is the nudge; everything before it is a room
+              you go into on purpose, so it waits behind a word. */}
+          <button
+            type="button"
+            className="practice-log-clear"
+            onClick={() => setHistoryOpen(true)}
+            data-testid="practice-log-history"
+            title="The whole log, month by month — and backups"
+          >
+            History
+          </button>
+          {/* "Clear" beside a practice log reads as "delete my history", which is
+              the one thing it does not do. It zeroes the session clock and
+              nothing else — so it is named after the clock. */}
+          <button
+            type="button"
+            className="practice-log-clear"
+            onClick={onClear}
+            data-testid="practice-log-clear"
+            title="Put the session clock back to 00:00 — the log below is kept"
+          >
+            Reset clock
+          </button>
+        </div>
       </div>
 
       <div className="practice-log-streak">
@@ -102,6 +121,15 @@ export function PracticeLogCard({ history, onClear, today }: PracticeLogCardProp
             ? `${todayBar.sec} sec today — a minute starts the streak`
             : `Last 7 days: ${totals.minutes} min, ${totals.notes} notes`}
       </p>
+
+      <PracticeHistoryView
+        open={historyOpen}
+        history={history}
+        today={today}
+        onClose={() => setHistoryOpen(false)}
+        getBackup={getBackup}
+        onImport={onImportBackup}
+      />
     </section>
   )
 }

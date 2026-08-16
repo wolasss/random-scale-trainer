@@ -1,5 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioEngine, NOTE_AUDIO_FILES } from './engine'
+
+// Every console.error spy below is scoped to the test that installs it: a spy
+// left in place is reused by the next vi.spyOn, so its call count would leak
+// into whichever test the shuffled order runs next.
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 const createFakeOscillator = () => ({
   type: '',
@@ -130,7 +137,6 @@ describe('AudioEngine.loadNoteBuffers', () => {
 
     expect(engine.hasBuffers()).toBe(true)
     expect(errorSpy).toHaveBeenCalledTimes(1)
-    errorSpy.mockRestore()
   })
 
   it('is idempotent', async () => {
@@ -145,7 +151,7 @@ describe('AudioEngine.loadNoteBuffers', () => {
   })
 
   it('retries after a pass where every fetch failed', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     let online = false
     const fetchFn = vi.fn(async () => {
       if (!online) throw new Error('offline')
@@ -161,8 +167,6 @@ describe('AudioEngine.loadNoteBuffers', () => {
     online = true
     await engine.loadNoteBuffers()
     expect(engine.hasBuffers()).toBe(true)
-
-    errorSpy.mockRestore()
   })
 
   it('does nothing before the context exists', async () => {
@@ -309,6 +313,44 @@ describe('AudioEngine scheduled playback', () => {
     // A second call finds nothing left to stop.
     engine.stopScheduledSounds()
     expect(source.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('stopScheduledSounds silences a chime scheduled ahead of the clock', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    // The transport schedules the chime a look-ahead window early, so a stop
+    // landing before it sounds has to cancel it like any other queued node.
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds()
+
+    expect(context.createOscillator).toHaveBeenCalledTimes(4)
+    for (const result of context.createOscillator.mock.results) {
+      expect(result.value.stop).toHaveBeenCalledTimes(2) // scheduled stop + cancel
+    }
+  })
+
+  it('spares the chime when asked, while still silencing the transport', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    // The session that ends on its own tears down exactly when the chime is
+    // due, so that teardown has to leave the chime scheduled.
+    engine.playClickAt(5, true)
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds(true)
+
+    const [click, ...chime] = context.createOscillator.mock.results.map((result) => result.value)
+    expect(click.stop).toHaveBeenCalledTimes(2) // scheduled stop + cancel
+    for (const oscillator of chime) {
+      expect(oscillator.stop).toHaveBeenCalledTimes(1) // its own scheduled stop only
+    }
+
+    // A later stop — the player pressing it — still cancels the chime.
+    engine.stopScheduledSounds()
+    for (const oscillator of chime) {
+      expect(oscillator.stop).toHaveBeenCalledTimes(2)
+    }
   })
 
   it('prunes finished nodes via onended so they are not re-stopped', async () => {

@@ -9,12 +9,22 @@ export type ServiceWorkerStatus = {
 }
 
 /**
+ * Only bounds how often the browser is asked to re-fetch /sw.js. Tab switches
+ * are frequent; a check on every one would be a request per glance at the app.
+ */
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1_000
+
+/**
  * Registers the worker and reports when a new build has activated.
  *
  * The worker calls skipWaiting(), so a new build takes over the cache as soon
  * as it installs — but the running page keeps its own already-loaded bundle
  * until the user reloads. That is the whole point: an automatic reload here
  * would kill a metronome mid-session.
+ *
+ * An installed standalone window is never really closed, so coming back to the
+ * foreground is the only reliable moment to ask the browser to look for a new
+ * build — without it the app can sit on the same one for days.
  */
 export function useServiceWorker(): ServiceWorkerStatus {
   const [updateReady, setUpdateReady] = useState(false)
@@ -49,11 +59,37 @@ export function useServiceWorker(): ServiceWorkerStatus {
     }
 
     container.addEventListener('controllerchange', onControllerChange)
+
+    let registration: ServiceWorkerRegistration | null = null
     // A failed registration is not something the user can act on, and the app
     // works without it. Stay quiet.
-    container.register('/sw.js').catch(() => undefined)
+    container.register('/sw.js').then((result) => {
+      registration = result
+    }, () => undefined)
 
-    return () => container.removeEventListener('controllerchange', onControllerChange)
+    // Zero rather than the mount time, so the first foreground does check.
+    let lastCheckedAt = 0
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible' || registration === null) {
+        return
+      }
+
+      const now = Date.now()
+      if (now - lastCheckedAt < UPDATE_CHECK_INTERVAL_MS) {
+        return
+      }
+
+      lastCheckedAt = now
+      // Offline is the normal case for a PWA; a failed check is not news.
+      void registration.update().catch(() => undefined)
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      container.removeEventListener('controllerchange', onControllerChange)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
 
   return {

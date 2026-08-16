@@ -4,6 +4,7 @@ import { useKeyboardShortcuts, type KeyboardShortcutHandlers } from './useKeyboa
 
 const createHandlers = (): KeyboardShortcutHandlers => ({
   onSpace: vi.fn(),
+  onTap: vi.fn(),
   onTempoUp: vi.fn(),
   onTempoDown: vi.fn(),
   onReset: vi.fn(),
@@ -24,6 +25,7 @@ describe('useKeyboardShortcuts', () => {
 
   it.each([
     ['Space', 'onSpace'],
+    ['KeyT', 'onTap'],
     ['ArrowUp', 'onTempoUp'],
     ['ArrowRight', 'onTempoUp'],
     ['ArrowDown', 'onTempoDown'],
@@ -35,6 +37,17 @@ describe('useKeyboardShortcuts', () => {
     const event = press(code)
     expect(handlers[handlerName]).toHaveBeenCalledTimes(1)
     expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('does not tap on auto-repeat from a held T, but still repeats the tempo keys', () => {
+    renderHook(() => useKeyboardShortcuts(handlers))
+
+    const event = press('KeyT', { repeat: true })
+    expect(handlers.onTap).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
+
+    press('ArrowUp', { repeat: true })
+    expect(handlers.onTempoUp).toHaveBeenCalledTimes(1)
   })
 
   it('ignores unrelated keys', () => {
@@ -51,6 +64,9 @@ describe('useKeyboardShortcuts', () => {
 
     press('Space', { [modifier]: true })
     expect(handlers.onSpace).not.toHaveBeenCalled()
+
+    press('KeyT', { [modifier]: true })
+    expect(handlers.onTap).not.toHaveBeenCalled()
   })
 
   it.each([['input'], ['textarea'], ['select']] as const)(
@@ -62,6 +78,8 @@ describe('useKeyboardShortcuts', () => {
       document.body.appendChild(element)
       press('Space', {}, element)
       expect(handlers.onSpace).not.toHaveBeenCalled()
+      press('KeyT', {}, element)
+      expect(handlers.onTap).not.toHaveBeenCalled()
       element.remove()
     },
   )
@@ -98,7 +116,7 @@ describe('useKeyboardShortcuts', () => {
     const element = create()
     document.body.appendChild(element)
 
-    for (const code of ['Space', 'ArrowRight'] as const) {
+    for (const code of ['Space', 'ArrowRight', 'KeyT'] as const) {
       const event = press(code, {}, element)
       expect(event.defaultPrevented).toBe(false)
     }
