@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PracticeHistoryView } from './PracticeHistoryView'
-import { serializeBackup, type PracticeHistory } from '../lib/history'
+import { MAX_BACKUP_BYTES, serializeBackup, type PracticeHistory } from '../lib/history'
 
 const TODAY = new Date(2026, 1, 14, 12)
 
@@ -76,6 +76,25 @@ const captureDownload = () => {
 }
 
 const fileOf = (contents: string) => new File([contents], 'backup.json', { type: 'application/json' })
+
+/**
+ * A file the picker would hand back that must never be read — faked rather than
+ * allocated, so the size case doesn't cost four megabytes to assert. The `text`
+ * spy is what makes these tests about the guard and not about the error string.
+ */
+const unreadableFile = (overrides: { size?: number; type?: string }) => {
+  const file = fileOf('{}')
+  const text = vi.fn(async () => '{}')
+  Object.defineProperty(file, 'text', { value: text })
+  if (overrides.size !== undefined) {
+    Object.defineProperty(file, 'size', { value: overrides.size })
+  }
+  if (overrides.type !== undefined) {
+    Object.defineProperty(file, 'type', { value: overrides.type })
+  }
+
+  return { file, text }
+}
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -205,5 +224,38 @@ describe('PracticeHistoryView', () => {
 
     expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
     expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('refuses a file past the size ceiling without reading it', async () => {
+    const { props } = renderView()
+    const { file, text } = unreadableFile({ size: MAX_BACKUP_BYTES + 1 })
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    expect(text).not.toHaveBeenCalled()
+    expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('refuses a file that says it is something else without reading it', async () => {
+    const { props } = renderView()
+    const { file, text } = unreadableFile({ type: 'video/mp4' })
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    expect(text).not.toHaveBeenCalled()
+    expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('still imports a backup the system has no type for', async () => {
+    const { props } = renderView()
+
+    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY)
+    const file = new File([backup], 'backup.json', { type: '' })
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 })

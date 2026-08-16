@@ -7,6 +7,8 @@ import {
   buildMonths,
   currentStreak,
   dayKey,
+  isBackupFileType,
+  MAX_BACKUP_BYTES,
   parseBackup,
   WEEKDAY_INITIALS,
   type PracticeHistory,
@@ -175,6 +177,14 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
     // Cleared either way, so picking the same file twice still fires a change.
     input.value = ''
     if (file === undefined) {
+      return
+    }
+
+    // The envelope, before the contents: reading a mis-picked video into a
+    // string and JSON.parsing it would hang the tab long before parseBackup
+    // ever got to say no.
+    if (file.size > MAX_BACKUP_BYTES || !isBackupFileType(file.type)) {
+      setImportError(IMPORT_ERROR)
       return
     }
 
