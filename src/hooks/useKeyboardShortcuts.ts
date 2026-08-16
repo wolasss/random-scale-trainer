@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type KeyboardShortcutHandlers = {
   onSpace: () => void
+  onTap: () => void
   onTempoUp: () => void
   onTempoDown: () => void
   onReset: () => void
@@ -80,6 +81,18 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
       if (TEMPO_DOWN_CODES.has(event.code)) {
         event.preventDefault()
         handlersRef.current.onTempoDown()
+        return
+      }
+
+      if (event.code === 'KeyT') {
+        event.preventDefault()
+        // Auto-repeat from a held key is not a tap: the intervals it feeds in
+        // are the keyboard's, not the player's, and they would drag the
+        // measured tempo along with them. Holding the arrows to sweep the
+        // tempo is still fair game, so the guard stays on this branch.
+        if (!event.repeat) {
+          handlersRef.current.onTap()
+        }
         return
       }
 
