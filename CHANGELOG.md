@@ -1,3 +1,11 @@
+## [1.7.1](https://github.com/wolasss/random-scale-trainer/compare/v1.7.0...v1.7.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **fretboard:** hint that the neck scrolls on narrow screens ([#85](https://github.com/wolasss/random-scale-trainer/issues/85)) ([713ce94](https://github.com/wolasss/random-scale-trainer/commit/713ce9432187c324d7a555c7194369b92085fad2))
+* **pwa:** look for a new build when the app comes back to the foreground ([#86](https://github.com/wolasss/random-scale-trainer/issues/86)) ([f7dbfcb](https://github.com/wolasss/random-scale-trainer/commit/f7dbfcbc7bd21e98b2200822138566010d52ab22))
+
 # [1.7.0](https://github.com/wolasss/random-scale-trainer/compare/v1.6.2...v1.7.0) (2026-08-16)
 
 
