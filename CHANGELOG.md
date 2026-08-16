@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/wolasss/random-scale-trainer/compare/v1.7.1...v1.8.0) (2026-08-16)
+
+
+### Features
+
+* **shortcuts:** tap the tempo with the T key ([#84](https://github.com/wolasss/random-scale-trainer/issues/84)) ([f69c5f4](https://github.com/wolasss/random-scale-trainer/commit/f69c5f4edc21b22f3a625e7e3a60abf2b4c92ca1))
+
 ## [1.7.1](https://github.com/wolasss/random-scale-trainer/compare/v1.7.0...v1.7.1) (2026-08-16)
 
 
