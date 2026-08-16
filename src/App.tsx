@@ -66,6 +66,7 @@ import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 function App() {
   const { theme, setTheme, skin, setSkin } = useAppearance()
+  const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
@@ -397,7 +398,7 @@ function App() {
           {practiceLogCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
-          <Footer skin={skin} onSkinChange={setSkin} />
+          <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
         </PracticeSheet>
 
         {updateChip}
@@ -411,7 +412,7 @@ function App() {
       <main className="app-grid">
         <TopBar
           theme={theme}
-          onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+          onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
         />
 

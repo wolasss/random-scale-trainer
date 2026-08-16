@@ -59,6 +59,9 @@ describe('the stand reading', () => {
     vi.useRealTimers()
     Reflect.deleteProperty(window, 'matchMedia')
     document.documentElement.removeAttribute('data-stage')
+    // The theme persists, so a flip in one test would otherwise decide the next.
+    document.documentElement.removeAttribute('data-theme')
+    window.localStorage.clear()
   })
 
   it('leaves the desktop layout completely alone', () => {
@@ -243,5 +246,32 @@ describe('the stand reading', () => {
 
     const strip = document.querySelector('.stage-foot .routine-strip')
     expect(strip).not.toBeNull()
+  })
+
+  it('puts the theme toggle in the sheet, since there is no header to hold it', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+
+    const toggle = screen.getByTestId('footer-theme-toggle')
+    expect(toggle).toHaveAttribute('aria-label', 'Switch to light mode')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+
+    fireEvent.click(toggle)
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(screen.getByTestId('footer-theme-toggle')).toHaveAttribute(
+      'aria-label',
+      'Switch to dark mode',
+    )
+  })
+
+  it('leaves the browser reading with the one toggle it already had', () => {
+    installMatchMedia({})
+    render(<App />)
+
+    expect(screen.getByTestId('theme-toggle')).toBeInTheDocument()
+    expect(screen.queryByTestId('footer-theme-toggle')).toBeNull()
   })
 })

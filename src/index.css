@@ -193,6 +193,13 @@ button {
   max-width: 12rem;
 }
 
+/* The stage reading has no header, so the toggle lives here instead — sized
+   down to sit level with the picker and the links. */
+.footer-theme-toggle {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+
 /* Flat, solid, hairline-bordered: the setup cards are surfaces, not floating
    glass. The blur + glow is reserved for the practice stage below. */
 .panel {
