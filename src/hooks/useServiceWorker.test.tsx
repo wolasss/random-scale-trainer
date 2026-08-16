@@ -2,12 +2,23 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useServiceWorker } from './useServiceWorker'
 
+const setVisibility = (state: DocumentVisibilityState) => {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state,
+  })
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+}
+
 /** Stands in for navigator.serviceWorker, which jsdom does not implement. */
-const installContainer = (initiallyControlled: boolean) => {
+const installContainer = (initiallyControlled: boolean, update = vi.fn(async () => undefined)) => {
   const listeners: (() => void)[] = []
+  const registration = { update }
   const container = {
     controller: initiallyControlled ? {} : null,
-    register: vi.fn(async () => ({})),
+    register: vi.fn(async () => registration),
     addEventListener: (_type: 'controllerchange', listener: () => void) => listeners.push(listener),
     removeEventListener: (_type: 'controllerchange', listener: () => void) => {
       const index = listeners.indexOf(listener)
@@ -21,6 +32,7 @@ const installContainer = (initiallyControlled: boolean) => {
 
   return {
     container,
+    registration,
     /** A worker calling clients.claim() over this page. */
     claim: () => {
       container.controller = {}
@@ -38,6 +50,7 @@ describe('useServiceWorker', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     Reflect.deleteProperty(navigator, 'serviceWorker')
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
   })
 
   it('registers the worker', () => {
@@ -112,5 +125,80 @@ describe('useServiceWorker', () => {
     Reflect.deleteProperty(navigator, 'serviceWorker')
 
     expect(() => renderHook(() => useServiceWorker())).not.toThrow()
+  })
+
+  describe('update checks', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('asks the browser for a new build when the app comes back', async () => {
+      const worker = installContainer(true)
+      renderHook(() => useServiceWorker())
+      // Let the registration resolve; there is nothing to update before it has.
+      await act(async () => {})
+
+      setVisibility('hidden')
+      setVisibility('visible')
+
+      expect(worker.registration.update).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not check again until the throttle window has passed', async () => {
+      const worker = installContainer(true)
+      renderHook(() => useServiceWorker())
+      await act(async () => {})
+
+      setVisibility('hidden')
+      setVisibility('visible')
+      expect(worker.registration.update).toHaveBeenCalledTimes(1)
+
+      // Flicking away and back again is not a reason to re-fetch /sw.js...
+      setVisibility('hidden')
+      setVisibility('visible')
+      expect(worker.registration.update).toHaveBeenCalledTimes(1)
+
+      // ...but coming back after a while is.
+      vi.setSystemTime(Date.now() + 6 * 60 * 1_000)
+      setVisibility('hidden')
+      setVisibility('visible')
+      expect(worker.registration.update).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops checking once it goes away', async () => {
+      const worker = installContainer(true)
+      const { unmount } = renderHook(() => useServiceWorker())
+      await act(async () => {})
+
+      unmount()
+      setVisibility('hidden')
+      setVisibility('visible')
+
+      expect(worker.registration.update).not.toHaveBeenCalled()
+    })
+
+    it('says nothing when the check fails', async () => {
+      const worker = installContainer(
+        true,
+        vi.fn(async () => {
+          // Offline: the everyday state of an installed app.
+          throw new Error('offline')
+        }),
+      )
+      const { result } = renderHook(() => useServiceWorker())
+      await act(async () => {})
+
+      setVisibility('hidden')
+      setVisibility('visible')
+      // A rejection left floating here would fail the test run.
+      await act(async () => {})
+
+      expect(worker.registration.update).toHaveBeenCalledTimes(1)
+      expect(result.current.updateReady).toBe(false)
+    })
   })
 })
