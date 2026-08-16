@@ -1,3 +1,133 @@
+## [1.8.1](https://github.com/wolasss/random-scale-trainer/compare/v1.8.0...v1.8.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **manifest:** pin the installed app's id and guard the manifest against drift ([#88](https://github.com/wolasss/random-scale-trainer/issues/88)) ([979b430](https://github.com/wolasss/random-scale-trainer/commit/979b430943e6e706deb9eac2778fd4cf5771025b))
+
+# [1.8.0](https://github.com/wolasss/random-scale-trainer/compare/v1.7.1...v1.8.0) (2026-08-16)
+
+
+### Features
+
+* **shortcuts:** tap the tempo with the T key ([#84](https://github.com/wolasss/random-scale-trainer/issues/84)) ([f69c5f4](https://github.com/wolasss/random-scale-trainer/commit/f69c5f4edc21b22f3a625e7e3a60abf2b4c92ca1))
+
+## [1.7.1](https://github.com/wolasss/random-scale-trainer/compare/v1.7.0...v1.7.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **fretboard:** hint that the neck scrolls on narrow screens ([#85](https://github.com/wolasss/random-scale-trainer/issues/85)) ([713ce94](https://github.com/wolasss/random-scale-trainer/commit/713ce9432187c324d7a555c7194369b92085fad2))
+* **pwa:** look for a new build when the app comes back to the foreground ([#86](https://github.com/wolasss/random-scale-trainer/issues/86)) ([f7dbfcb](https://github.com/wolasss/random-scale-trainer/commit/f7dbfcbc7bd21e98b2200822138566010d52ab22))
+
+# [1.7.0](https://github.com/wolasss/random-scale-trainer/compare/v1.6.2...v1.7.0) (2026-08-16)
+
+
+### Bug Fixes
+
+* **build:** key the offline cache on public asset contents, not just their names ([#89](https://github.com/wolasss/random-scale-trainer/issues/89)) ([55a6416](https://github.com/wolasss/random-scale-trainer/commit/55a64160f7625674cdbb89ef81495d3867519e9c))
+
+
+### Features
+
+* **pool:** group the note-pool presets by family and add the flat major keys ([#91](https://github.com/wolasss/random-scale-trainer/issues/91)) ([8d0196d](https://github.com/wolasss/random-scale-trainer/commit/8d0196d6161c98973fa562c7ea0a1753c901d85b))
+
+## [1.6.2](https://github.com/wolasss/random-scale-trainer/compare/v1.6.1...v1.6.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* **history:** reject an oversized or non-JSON file before reading a backup ([#92](https://github.com/wolasss/random-scale-trainer/issues/92)) ([ead2646](https://github.com/wolasss/random-scale-trainer/commit/ead26469d4e3a472712ac48c14ea635e8d90576b))
+
+## [1.6.1](https://github.com/wolasss/random-scale-trainer/compare/v1.6.0...v1.6.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **a11y:** announce each switch's explanation with the switch itself ([#97](https://github.com/wolasss/random-scale-trainer/issues/97)) ([0de9d0f](https://github.com/wolasss/random-scale-trainer/commit/0de9d0f239f149649eed53e015b884fac6969ed2))
+
+# [1.6.0](https://github.com/wolasss/random-scale-trainer/compare/v1.5.4...v1.6.0) (2026-08-15)
+
+
+### Bug Fixes
+
+* **a11y:** list the reset shortcut in the header key hints ([#83](https://github.com/wolasss/random-scale-trainer/issues/83)) ([701e481](https://github.com/wolasss/random-scale-trainer/commit/701e4814ddb7475bfa0e1a6b0b588af40a39f4fd))
+
+
+### Features
+
+* **session:** mark the moment the practice goal is reached ([#81](https://github.com/wolasss/random-scale-trainer/issues/81)) ([6750f29](https://github.com/wolasss/random-scale-trainer/commit/6750f290c1b5e2769ae3fb65c432c202141c3761))
+
+## [1.5.4](https://github.com/wolasss/random-scale-trainer/compare/v1.5.3...v1.5.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* **hero:** drop the hit-Space hint on touch-only devices ([#79](https://github.com/wolasss/random-scale-trainer/issues/79)) ([df68f3f](https://github.com/wolasss/random-scale-trainer/commit/df68f3ffba7b65a5d9bf806fd728cb625035c1c8))
+
+## [1.5.3](https://github.com/wolasss/random-scale-trainer/compare/v1.5.2...v1.5.3) (2026-08-11)
+
+
+### Bug Fixes
+
+* **audio:** let stop silence a scheduled end-of-session chime ([#67](https://github.com/wolasss/random-scale-trainer/issues/67)) ([241b498](https://github.com/wolasss/random-scale-trainer/commit/241b49829356b795cab291b747dcdbaa85589c18))
+
+## [1.5.2](https://github.com/wolasss/random-scale-trainer/compare/v1.5.1...v1.5.2) (2026-08-11)
+
+
+### Bug Fixes
+
+* **playback:** settle the transport when the audio context fails to create or resume ([#73](https://github.com/wolasss/random-scale-trainer/issues/73)) ([58d8fee](https://github.com/wolasss/random-scale-trainer/commit/58d8fee5fd5023380284788fc5bc5e9329435a71))
+
+## [1.5.1](https://github.com/wolasss/random-scale-trainer/compare/v1.5.0...v1.5.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **routines:** make deleting a saved setup deliberate ([#69](https://github.com/wolasss/random-scale-trainer/issues/69)) ([3e5b3cd](https://github.com/wolasss/random-scale-trainer/commit/3e5b3cd556177b1e38deeb7169bcacd6ac6c2906))
+
+# [1.5.0](https://github.com/wolasss/random-scale-trainer/compare/v1.4.1...v1.5.0) (2026-08-10)
+
+
+### Features
+
+* **pool:** add minor-key presets to the note pool ([#77](https://github.com/wolasss/random-scale-trainer/issues/77)) ([b15b81f](https://github.com/wolasss/random-scale-trainer/commit/b15b81fee093b21ce13a898e4d2ebfca0d74eb8d))
+
+## [1.4.1](https://github.com/wolasss/random-scale-trainer/compare/v1.4.0...v1.4.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **routines:** say when a saved setup cannot outlive the tab ([#75](https://github.com/wolasss/random-scale-trainer/issues/75)) ([cc4490a](https://github.com/wolasss/random-scale-trainer/commit/cc4490ad70d9e62ec87a3fd7ac2b094bc2634fe0))
+
+# [1.4.0](https://github.com/wolasss/random-scale-trainer/compare/v1.3.3...v1.4.0) (2026-08-10)
+
+
+### Features
+
+* **history:** practice history view with a monthly heatmap and backup export/import ([#76](https://github.com/wolasss/random-scale-trainer/issues/76)) ([76c5939](https://github.com/wolasss/random-scale-trainer/commit/76c59391de90b8d5867cc01632e68131a6797134))
+
+## [1.3.3](https://github.com/wolasss/random-scale-trainer/compare/v1.3.2...v1.3.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* **history:** stop crediting a frozen background stretch as practice time ([#66](https://github.com/wolasss/random-scale-trainer/issues/66)) ([ed7d571](https://github.com/wolasss/random-scale-trainer/commit/ed7d57173f701e36b056371b35f8725f8a23f3b9))
+
+## [1.3.2](https://github.com/wolasss/random-scale-trainer/compare/v1.3.1...v1.3.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* **routines:** keep the selected routine when the preset dropdown says Custom ([#63](https://github.com/wolasss/random-scale-trainer/issues/63)) ([349dadb](https://github.com/wolasss/random-scale-trainer/commit/349dadb13e5b42a05551a76d9c9b9b863c3a9bc8))
+
+## [1.3.1](https://github.com/wolasss/random-scale-trainer/compare/v1.3.0...v1.3.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **a11y:** give the joined segmented controls a full-size touch target ([#56](https://github.com/wolasss/random-scale-trainer/issues/56)) ([beda550](https://github.com/wolasss/random-scale-trainer/commit/beda550c7614df8de4a9d88be51efec7c4c85919))
+
 # [1.3.0](https://github.com/wolasss/random-scale-trainer/compare/v1.2.2...v1.3.0) (2026-08-08)
 
 

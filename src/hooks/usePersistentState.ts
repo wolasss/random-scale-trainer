@@ -12,11 +12,15 @@ export type PersistentStateOptions<T> = {
  * useState backed by localStorage. Reads once on mount and writes on every
  * change — including a write-back of the initial value on mount, which the
  * app relies on to normalize stored values (e.g. clamped BPM).
+ *
+ * The third element of the tuple says whether the value on screen is the value
+ * on disk: false once a write has been dropped, for the caller that has to tell
+ * the user their data is only as durable as the tab.
  */
 export function usePersistentState<T>(
   key: string,
   options: PersistentStateOptions<T>,
-): [T, Dispatch<SetStateAction<T>>] {
+): [T, Dispatch<SetStateAction<T>>, boolean] {
   const { defaultValue, deserialize, serialize = String } = options
 
   const [value, setValue] = useState<T>(() => {
@@ -33,6 +37,10 @@ export function usePersistentState<T>(
     return parsed === undefined ? defaultValue : parsed
   })
 
+  // Assumed good until a write says otherwise, so nothing is claimed before the
+  // first one has actually been tried.
+  const [persisted, setPersisted] = useState(true)
+
   const serializeRef = useRef(serialize)
 
   useEffect(() => {
@@ -40,8 +48,8 @@ export function usePersistentState<T>(
   })
 
   useEffect(() => {
-    writeRaw(key, serializeRef.current(value))
+    setPersisted(writeRaw(key, serializeRef.current(value)))
   }, [key, value])
 
-  return [value, setValue]
+  return [value, setValue, persisted]
 }

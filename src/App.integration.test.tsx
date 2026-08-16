@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { withBlockedStorage } from './test/blockedStorage'
+import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
 
 // The fake engine accepts every scheduled sound and reports the faked
 // performance clock, so beats become due as the fake timers advance.
@@ -25,6 +25,40 @@ vi.mock('./lib/audio/engine', () => ({
 }))
 
 const NOTE_PATTERN = /^[A-G][♯♭]?$/
+
+/**
+ * A store carrying everything it holds today with no room to grow: a key can be
+ * rewritten at its current size or smaller, never larger. The quota-full case,
+ * where reads and modest writes all work and only the bigger value is refused.
+ */
+const withCappedStorage = (): (() => void) => {
+  const entries = new Map<string, string>()
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (key !== null) {
+      entries.set(key, window.localStorage.getItem(key) ?? '')
+    }
+  }
+
+  return withFakeStorage({
+    get length(): number {
+      return entries.size
+    },
+    clear: () => entries.clear(),
+    getItem: (key) => entries.get(key) ?? null,
+    key: (index) => [...entries.keys()][index] ?? null,
+    removeItem: (key) => {
+      entries.delete(key)
+    },
+    setItem: (key, value) => {
+      const existing = entries.get(key)
+      if (existing !== undefined && value.length > existing.length) {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
+      }
+      entries.set(key, value)
+    },
+  })
+}
 
 // Default 72 BPM → 0.833s beats; count-in is 4 beats starting 50ms in.
 const COUNT_IN_MS = 4 * (60_000 / 72) + 100
@@ -85,6 +119,57 @@ describe('App integration', () => {
     }
   })
 
+  it('saves a setup but warns it is gone at closing time when localStorage is blocked', () => {
+    const restore = withBlockedStorage()
+    try {
+      render(<App />)
+
+      // Blocked storage reads as a first run, so the setup cards are folded away.
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      fireEvent.click(screen.getByTestId('routine-save'))
+      fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Ephemeral test' } })
+      fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+      // The save still happens — it just lives in memory for this session only.
+      expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Ephemeral test')
+      expect(screen.getByTestId('routine-ephemeral-notice')).toHaveTextContent('close the tab')
+    } finally {
+      restore()
+    }
+  })
+
+  it('warns when the store held the old shelf but has no room for the new setup', () => {
+    // The failure a sentinel-sized probe would sail straight through: reads
+    // fine, small writes fine, and only the grown routine list is refused.
+    const restore = withCappedStorage()
+    try {
+      render(<App />)
+
+      fireEvent.click(screen.getByTestId('routine-save'))
+      // Nothing has been asked of the store yet, so nothing to say yet either.
+      expect(screen.queryByTestId('routine-ephemeral-notice')).toBeNull()
+
+      fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Too big to keep' } })
+      fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+      expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Too big to keep')
+      expect(screen.getByTestId('routine-ephemeral-notice')).toHaveTextContent('close the tab')
+    } finally {
+      restore()
+    }
+  })
+
+  it('says nothing about closing the tab when storage works', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('routine-save'))
+    fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Persistent test' } })
+    fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+    expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Persistent test')
+    expect(screen.queryByTestId('routine-ephemeral-notice')).toBeNull()
+  })
+
   it('shows the ready hint and NEXT preview while idle, then beat dots while playing', async () => {
     render(<App />)
 
@@ -108,6 +193,15 @@ describe('App integration', () => {
     fireEvent.click(screen.getByTestId('theme-toggle'))
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(window.localStorage.getItem('fretboard-theme')).toBe('light')
+  })
+
+  it('names every keyboard shortcut in the header, screen readers included', () => {
+    render(<App />)
+
+    const hints = document.querySelector('.key-hints')!
+    expect(hints).toHaveTextContent('Space play / pause')
+    expect(hints).toHaveTextContent('R reset')
+    expect(hints).not.toHaveAttribute('aria-hidden')
   })
 
   it('disables and forces off speed ramp when continuous mode turns off', () => {

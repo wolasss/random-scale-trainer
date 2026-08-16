@@ -2,9 +2,10 @@ import { act, renderHook } from '@testing-library/react'
 import { useReducer } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
-import type { Routine, RoutineBlock } from '../lib/routines'
+import { matchPreset } from '../lib/presets'
+import { blockPool, type Routine, type RoutineBlock } from '../lib/routines'
 import { useRoutine } from './useRoutine'
-import { settingsReducer, type Settings } from './useSettings'
+import { settingsReducer, type SettingsAction, type Settings } from './useSettings'
 
 const baseSettings = (): Settings => ({
   bpm: 72,
@@ -45,11 +46,11 @@ const WORKOUT: Routine = {
 }
 
 /** The routine against a live settings reducer, so applied blocks really land. */
-const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void) => {
+const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPlaying = true) => {
   const [settings, dispatch] = useReducer(settingsReducer, null, baseSettings)
-  const routine = useRoutine({ settings, dispatch, sessionElapsedMs, isPlaying: true, onFinish })
+  const routine = useRoutine({ settings, dispatch, sessionElapsedMs, isPlaying, onFinish })
 
-  return { settings, routine }
+  return { settings, dispatch, routine }
 }
 
 /**
@@ -83,6 +84,214 @@ const renderOnBlock = (blockIndex: number) => {
 /** The block the routine says it is on, by name — index alone proves nothing. */
 const activeBlockName = (routine: { selected: Routine | null; blockIndex: number }) =>
   routine.selected!.blocks[routine.blockIndex].name
+
+/** The workout, selected and sitting on its first block. */
+const renderOnFirstBlock = (isPlaying: boolean) => {
+  window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+
+  const view = renderHook(() => useRoutineHarness(0, vi.fn(), isPlaying))
+  act(() => {
+    view.result.current.routine.select(WORKOUT.id)
+  })
+
+  return view
+}
+
+/** What App does on every hand-made change: tell the routine, then apply it. */
+const userDispatch = (
+  view: ReturnType<typeof renderOnFirstBlock>,
+  action: SettingsAction,
+) => {
+  act(() => {
+    view.result.current.routine.notifyManualChange(action)
+    view.result.current.dispatch(action)
+  })
+}
+
+/** One object for every render: a fresh one churns the settings ref effect. */
+const STATIC_SETTINGS = baseSettings()
+
+/**
+ * The routine against a recording dispatch. The live-reducer harness proves the
+ * block settings landed; this one proves *which* actions a handover fired, and
+ * in what order, which is the part the block clock is responsible for.
+ */
+const renderClock = () => {
+  window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+
+  const dispatch = vi.fn<(action: SettingsAction) => void>()
+  const onFinish = vi.fn()
+  const view = renderHook(
+    ({ sessionElapsedMs }) =>
+      useRoutine({ settings: STATIC_SETTINGS, dispatch, sessionElapsedMs, isPlaying: true, onFinish }),
+    { initialProps: { sessionElapsedMs: 0 } },
+  )
+
+  act(() => {
+    view.result.current.select(WORKOUT.id)
+  })
+  // Selecting applies block one; from here on, only handovers are recorded.
+  dispatch.mockClear()
+
+  const applied = () => dispatch.mock.calls.map(([action]) => action)
+  return { view, dispatch, onFinish, applied }
+}
+
+/** Tick the session clock to `ms`, then re-render at it so the block clock reads. */
+const tickAt = (view: ReturnType<typeof renderClock>['view'], ms: number) => {
+  act(() => {
+    view.result.current.tick(ms)
+  })
+  view.rerender({ sessionElapsedMs: ms })
+}
+
+describe('the block clock', () => {
+  it('hands over at the block duration, not a millisecond before', () => {
+    const { view, applied } = renderClock()
+
+    tickAt(view, 119_999)
+
+    expect(view.result.current.blockIndex).toBe(0)
+    expect(view.result.current.blockElapsedMs).toBe(119_999)
+    expect(applied()).toEqual([])
+
+    tickAt(view, 120_000)
+
+    expect(view.result.current.blockIndex).toBe(1)
+    expect(view.result.current.blockElapsedMs).toBe(0)
+    // No setSpelling: the second block's acc is null, so it leaves the choice alone.
+    expect(applied()).toEqual([
+      { type: 'setBpm', bpm: 80 },
+      { type: 'setBeatsPerNote', value: 2 },
+      { type: 'setPool', pool: [1, 3, 6, 8, 10] },
+      { type: 'setRamp', enabled: false },
+      { type: 'setRampTarget', bpm: 112 },
+    ])
+  })
+
+  it('advances a late tick by the block own length, so nothing drifts', () => {
+    const { view, dispatch, applied } = renderClock()
+
+    tickAt(view, 125_000)
+
+    // The second block starts at its boundary, not at the tick that noticed it.
+    expect(view.result.current.blockIndex).toBe(1)
+    expect(view.result.current.blockElapsedMs).toBe(5_000)
+
+    dispatch.mockClear()
+    tickAt(view, 305_000)
+
+    expect(view.result.current.blockIndex).toBe(2)
+    expect(view.result.current.blockElapsedMs).toBe(5_000)
+    expect(applied()).toContainEqual({ type: 'setSpelling', value: 'sharp' })
+
+    // Three blocks in and the last boundary is still 2:00 + 3:00 + 4:00 exactly.
+    tickAt(view, 539_999)
+
+    expect(view.result.current.blockIndex).toBe(2)
+    expect(view.result.current.finished).toBe(false)
+  })
+
+  it('never hands over a block with no duration, even inside a timed sequence', () => {
+    const { view, onFinish, applied } = renderClock()
+
+    // normalizeBlocks drops untimed blocks out of a stored sequence, so this
+    // shape only exists if it is planted on the object tick reads. Mutating the
+    // parsed routine is safe: it came back out of localStorage, not from WORKOUT.
+    view.result.current.selected!.blocks[0].dur = null
+
+    tickAt(view, 120_000)
+    tickAt(view, 600_000)
+
+    expect(view.result.current.blockIndex).toBe(0)
+    expect(view.result.current.finished).toBe(false)
+    expect(view.result.current.blockElapsedMs).toBe(600_000)
+    expect(onFinish).not.toHaveBeenCalled()
+    expect(applied()).toEqual([])
+  })
+
+  it('finishes once on the last block, and later ticks do nothing', () => {
+    const { view, dispatch, onFinish, applied } = renderClock()
+
+    tickAt(view, 120_000)
+    tickAt(view, 300_000)
+    tickAt(view, 540_000)
+
+    expect(view.result.current.finished).toBe(true)
+    // Finishing stops the routine on its last block rather than past the end.
+    expect(view.result.current.blockIndex).toBe(2)
+    expect(onFinish).toHaveBeenCalledTimes(1)
+
+    dispatch.mockClear()
+    tickAt(view, 600_000)
+    tickAt(view, 1_000_000)
+
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(view.result.current.finished).toBe(true)
+    expect(applied()).toEqual([])
+  })
+
+  it('keeps the active block on time when the session clock is cleared under it', () => {
+    const { view } = renderClock()
+
+    tickAt(view, 120_000)
+    view.rerender({ sessionElapsedMs: 200_000 })
+
+    expect(view.result.current.blockIndex).toBe(1)
+    expect(view.result.current.blockElapsedMs).toBe(80_000)
+
+    act(() => {
+      view.result.current.rebase(200_000)
+    })
+    view.rerender({ sessionElapsedMs: 0 })
+
+    // The session went back to zero; the block kept the 1:20 it had run.
+    expect(view.result.current.blockElapsedMs).toBe(80_000)
+
+    tickAt(view, 99_999)
+    expect(view.result.current.blockIndex).toBe(1)
+
+    // 1:20 already run plus 1:40 more is the block's own 3:00, and no more.
+    tickAt(view, 100_000)
+    expect(view.result.current.blockIndex).toBe(2)
+  })
+})
+
+describe('the Custom preset is not a manual edit', () => {
+  const firstBlockPool = blockPool(WORKOUT.blocks[0])
+
+  it('keeps the routine, and the selector still shows its preset, while stopped', () => {
+    const view = renderOnFirstBlock(false)
+
+    userDispatch(view, { type: 'setPreset', preset: 'custom' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected).toEqual(WORKOUT)
+    expect(settings.pool).toEqual(firstBlockPool)
+    // The select is driven by the pool, so it reads the block's preset — not 'Custom'.
+    expect(matchPreset(settings.pool)).toBe('naturals')
+  })
+
+  it('does not flag the block adjusted while playing', () => {
+    const view = renderOnFirstBlock(true)
+
+    userDispatch(view, { type: 'setPreset', preset: 'custom' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.adjusted).toBe(false)
+    expect(settings.pool).toEqual(firstBlockPool)
+  })
+
+  it('still forks to the edited pool when a real preset is picked while stopped', () => {
+    const view = renderOnFirstBlock(false)
+
+    userDispatch(view, { type: 'setPreset', preset: 'accidentals' })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected).toBeNull()
+    expect(settings.pool).toEqual([1, 3, 6, 8, 10])
+  })
+})
 
 describe('removeBlock around the active block', () => {
   it('shifts the active index down when an earlier block goes, clock intact', () => {

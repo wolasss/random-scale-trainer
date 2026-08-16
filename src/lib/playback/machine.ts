@@ -70,7 +70,7 @@ export type PlaybackAudioPort = {
   playClickAt(time: number, accent: boolean): void
   playNoteAt(audioKey: string, time: number): void
   playSessionEndChime(at?: number): void
-  stopScheduledSounds(): void
+  stopScheduledSounds(keepSessionEndChime?: boolean): void
 }
 
 export type PlaybackTimers = {
@@ -154,6 +154,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let stopTimeoutId: number | null = null
   let visualQueue: BeatEvent[] = []
   let sessionStartQueued = false
+  // Bumped by every start that waits on the buffers, so a slow load that lands
+  // after a newer start can tell it no longer owns the transport.
+  let startSequence = 0
 
   // Scheduling state — runs ahead of what the user sees by up to the look-ahead.
   let nextBeatTime = 0
@@ -166,6 +169,16 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   // A cycle boundary is processed once (ramp, stop, count-in); after a
   // between-cycle count-in the scheduler re-enters the same boundary to draw.
   let boundaryProcessed = false
+
+  /** Every field the scheduler carries between beats, back to its pre-first-beat state. */
+  const resetSchedulingState = (countIn = 0) => {
+    countInRemaining = countIn
+    beatInSpan = 0
+    schedPosition = 0
+    schedBagSize = 0
+    anyNoteScheduled = false
+    boundaryProcessed = false
+  }
 
   // The machine's authoritative tempo. The ramp bumps it immediately (before
   // React round-trips onBpmChange); external slider/tap changes win when the
@@ -200,14 +213,14 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
   }
 
-  const haltScheduling = () => {
+  const haltScheduling = (keepSessionEndChime = false) => {
     active = false
     schedulingDone = false
     clearTick()
     clearFrame()
     clearStopTimeout()
     visualQueue = []
-    audio.stopScheduledSounds()
+    audio.stopScheduledSounds(keepSessionEndChime)
   }
 
   /** The ceiling the ramp is working towards, never above the app's own limit. */
@@ -258,8 +271,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
   }
 
-  const finishStop = (message: string, countCycle = false) => {
-    haltScheduling()
+  const finishStop = (message: string, countCycle = false, keepSessionEndChime = false) => {
+    haltScheduling(keepSessionEndChime)
     sessionStartQueued = false
     onSessionPause()
     emit({
@@ -273,6 +286,12 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       // The ending cycle never emits its boundary beat, so count it here.
       cyclesCompleted: snapshot.cyclesCompleted + (countCycle ? 1 : 0),
     })
+  }
+
+  /** Both draw paths hit the same wall: nothing left to deal. */
+  const stopDeckRanDry = () => {
+    schedulingDone = true
+    scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
   }
 
   /** Schedules exactly one beat at nextBeatTime and advances the clock. */
@@ -301,8 +320,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     if (beatInSpan === 0) {
       const peeked = deck.peek()
       if (!peeked) {
-        schedulingDone = true
-        scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
+        stopDeckRanDry()
         return
       }
 
@@ -332,8 +350,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
       const note = deck.draw()
       if (!note) {
-        schedulingDone = true
-        scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
+        stopDeckRanDry()
         return
       }
 
@@ -374,10 +391,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     nextBeatTime += 60 / currentBpm
   }
 
+  /**
+   * The stop lands on the boundary beat itself, which is also when any end
+   * chime starts — so this teardown, unlike every other one, leaves the chime
+   * alone. A later press of stop or reset still cuts it off.
+   */
   const scheduleStopAt = (time: number, message: string, countCycle = false) => {
     clearStopTimeout()
     const delayMs = Math.max(0, (time - audio.getCurrentTime()) * 1000)
-    stopTimeoutId = timers.set(() => finishStop(message, countCycle), delayMs)
+    stopTimeoutId = timers.set(() => finishStop(message, countCycle, true), delayMs)
   }
 
   /**
@@ -505,7 +527,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   const start = async () => {
     if (snapshot.status === 'paused') {
-      await audio.ensureContext()
+      try {
+        // iOS rejects resume() after an audio-session interruption. Settle back
+        // on idle rather than resuming a transport with no sound behind it.
+        await audio.ensureContext()
+      } catch {
+        stop(PLAYBACK_MESSAGES.audioUnsupported)
+        return
+      }
+
       if (!sessionStartQueued) {
         onSessionStart()
       }
@@ -522,23 +552,40 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
-    const context = await audio.ensureContext()
+    // new AudioContext() can throw outright at the browser's context limit —
+    // same outcome for the player as a browser with no Web Audio at all.
+    let context: unknown | null = null
+    try {
+      context = await audio.ensureContext()
+    } catch {
+      context = null
+    }
+
     if (!context) {
       stop(PLAYBACK_MESSAGES.audioUnsupported)
       return
     }
 
     sessionStartQueued = true
+    const startId = ++startSequence
     emit({ status: 'playing', message: PLAYBACK_MESSAGES.loadingAudio })
-    await audio.loadNoteBuffers()
 
-    if (!audio.hasBuffers()) {
-      stop(PLAYBACK_MESSAGES.audioLoadFailed)
+    let loaded = true
+    try {
+      await audio.loadNoteBuffers()
+    } catch {
+      loaded = false
+    }
+
+    if (startId !== startSequence || snapshot.status !== 'playing') {
+      // Paused, reset, or started again while the buffers were loading: this
+      // call no longer owns the transport, so even a failure stays silent
+      // rather than stomping on the state that replaced it.
       return
     }
 
-    if (snapshot.status !== 'playing') {
-      // Paused or reset while the buffers were loading.
+    if (!loaded || !audio.hasBuffers()) {
+      stop(PLAYBACK_MESSAGES.audioLoadFailed)
       return
     }
 
@@ -546,13 +593,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     currentBpm = settings.bpm
     lastSeenExternalBpm = settings.bpm
     awaitingWriteback = null
-    countInRemaining = settings.countInEnabled ? COUNT_IN_BEATS : 0
-    beatInSpan = 0
-    schedPosition = 0
-    schedBagSize = 0
-    anyNoteScheduled = false
+    resetSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
     schedulingDone = false
-    boundaryProcessed = false
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
@@ -571,12 +613,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     sessionStartQueued = false
-    countInRemaining = 0
-    beatInSpan = 0
-    schedPosition = 0
-    schedBagSize = 0
-    anyNoteScheduled = false
-    boundaryProcessed = false
+    resetSchedulingState()
     deck.reset()
 
     emit({

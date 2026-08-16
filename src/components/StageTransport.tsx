@@ -1,15 +1,11 @@
 import type { ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPause, faPlay, faRotateLeft, faSliders } from '@fortawesome/free-solid-svg-icons'
-import { transportLabel } from '../lib/transport'
-import { formatElapsed } from '../lib/time'
+import { faRotateLeft, faSliders } from '@fortawesome/free-solid-svg-icons'
+import { GoalReadout, PlayToggle } from './TransportControls'
+import type { TransportState } from '../lib/transport'
 import type { SessionGoalMin } from '../hooks/useSettings'
 
-type StageTransportProps = {
-  isPlaying: boolean
-  isPaused: boolean
-  routineName?: string | null
-  routineFinished?: boolean
+type StageTransportProps = TransportState & {
   onPlayPause: () => void
   onReset: () => void
   onOpenSetup: () => void
@@ -30,10 +26,6 @@ type StageTransportProps = {
  * reachable, but never the thing you hit reaching for pause.
  */
 export function StageTransport({
-  isPlaying,
-  isPaused,
-  routineName,
-  routineFinished,
   onPlayPause,
   onReset,
   onOpenSetup,
@@ -41,20 +33,15 @@ export function StageTransport({
   elapsedMs,
   goalMin,
   strip,
+  ...transport
 }: StageTransportProps) {
-  const label = transportLabel(isPlaying, isPaused, routineName, routineFinished)
-
   return (
     <div className="stage-foot">
       {strip}
 
       {/* How far into the session, without opening the sheet — the same readout
           the desktop transport carries, and it waits for the first press with it. */}
-      {started ? (
-        <span className="transport-readout stage-readout-line" data-testid="transport-readout">
-          {formatElapsed(elapsedMs)} of {goalMin} min
-        </span>
-      ) : null}
+      {started ? <GoalReadout elapsedMs={elapsedMs} goalMin={goalMin} className="stage-readout-line" /> : null}
 
       <div className="stage-secondary">
         <button type="button" className="secondary-button stage-setup" onClick={onOpenSetup} data-testid="open-setup">
@@ -73,14 +60,7 @@ export function StageTransport({
         ) : null}
       </div>
 
-      <button
-        type="button"
-        className={`stage-play ${isPlaying ? 'secondary-button' : 'primary-button'}`}
-        data-testid="play-toggle"
-        onClick={onPlayPause}
-      >
-        <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} /> {label}
-      </button>
+      <PlayToggle transport={transport} className="stage-play" onClick={onPlayPause} />
     </div>
   )
 }

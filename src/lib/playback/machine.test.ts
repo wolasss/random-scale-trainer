@@ -20,6 +20,8 @@ class FakeAudioPort implements PlaybackAudioPort {
   notes: { key: string; time: number }[] = []
   chimes: number[] = []
   stopCalls = 0
+  /** Stops that would have silenced a chime scheduled but not yet sounding. */
+  chimeCancels = 0
 
   async ensureContext() {
     return this.contextAvailable ? {} : null
@@ -40,8 +42,11 @@ class FakeAudioPort implements PlaybackAudioPort {
   playSessionEndChime(at?: number) {
     this.chimes.push(at ?? this.time)
   }
-  stopScheduledSounds() {
+  stopScheduledSounds(keepSessionEndChime = false) {
     this.stopCalls += 1
+    if (!keepSessionEndChime) {
+      this.chimeCancels += 1
+    }
   }
 }
 
@@ -498,6 +503,26 @@ describe('end of cycle without looping', () => {
     })
   })
 
+  it('lets the chime ring through the stop that lands on the same beat', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+
+    harness.advanceTo(3)
+
+    expect(harness.audio.stopCalls).toBeGreaterThanOrEqual(1)
+    expect(harness.audio.chimeCancels).toBe(0)
+  })
+
+  it('still cuts the chime off when the player stops after the session ends', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+
+    harness.advanceTo(3)
+    harness.machine.stop()
+
+    expect(harness.audio.chimeCancels).toBe(1)
+  })
+
   it('skips the chime when the end sound is disabled', async () => {
     const harness = createHarness({
       pool: [0, 1],
@@ -652,6 +677,80 @@ describe('failure paths', () => {
       status: 'idle',
       message: PLAYBACK_MESSAGES.audioLoadFailed,
     })
+  })
+
+  it('settles when creating the context throws', async () => {
+    const harness = createHarness()
+    harness.audio.ensureContext = () => Promise.reject(new Error('context limit'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioUnsupported,
+    })
+  })
+
+  it('settles when loading the note buffers throws', async () => {
+    const harness = createHarness()
+    harness.audio.loadNoteBuffers = () => Promise.reject(new Error('load failed'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioLoadFailed,
+    })
+  })
+
+  it('leaves a restarted session alone when the abandoned load rejects', async () => {
+    const harness = createHarness()
+
+    let failLoad = () => {}
+    let loadCalled = () => {}
+    const loading = new Promise<void>((_, reject) => {
+      failLoad = () => reject(new Error('load failed'))
+    })
+    const loadStarted = new Promise<void>((resolve) => {
+      loadCalled = resolve
+    })
+    harness.audio.loadNoteBuffers = () => {
+      loadCalled()
+      return loading
+    }
+
+    const abandoned = harness.machine.start()
+    await loadStarted
+
+    harness.machine.pause()
+    harness.audio.loadNoteBuffers = () => Promise.resolve()
+    await harness.machine.start()
+
+    failLoad()
+    await expect(abandoned).resolves.toBeUndefined()
+
+    expect(harness.snapshot().status).toBe('playing')
+    harness.advanceTo(1.1)
+    expect(harness.audio.clicks.length).toBeGreaterThan(0)
+  })
+
+  it('settles when resuming from pause cannot revive the context', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    harness.machine.pause()
+
+    // iOS rejects resume() when an audio-session interruption killed the context.
+    harness.audio.ensureContext = () => Promise.reject(new Error('interrupted'))
+
+    await expect(harness.machine.start()).resolves.toBeUndefined()
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.audioUnsupported,
+    })
+
+    // The transport really settled: no loop is still scheduling behind the caption.
+    const clicksAfterFailure = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks.length).toBe(clicksAfterFailure)
   })
 })
 
