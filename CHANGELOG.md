@@ -1,3 +1,15 @@
+# [1.7.0](https://github.com/wolasss/random-scale-trainer/compare/v1.6.2...v1.7.0) (2026-08-16)
+
+
+### Bug Fixes
+
+* **build:** key the offline cache on public asset contents, not just their names ([#89](https://github.com/wolasss/random-scale-trainer/issues/89)) ([55a6416](https://github.com/wolasss/random-scale-trainer/commit/55a64160f7625674cdbb89ef81495d3867519e9c))
+
+
+### Features
+
+* **pool:** group the note-pool presets by family and add the flat major keys ([#91](https://github.com/wolasss/random-scale-trainer/issues/91)) ([8d0196d](https://github.com/wolasss/random-scale-trainer/commit/8d0196d6161c98973fa562c7ea0a1753c901d85b))
+
 ## [1.6.2](https://github.com/wolasss/random-scale-trainer/compare/v1.6.1...v1.6.2) (2026-08-16)
 
 
