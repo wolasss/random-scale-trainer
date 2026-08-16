@@ -1,3 +1,12 @@
+/** What the transport needs to know about the session to label its play control. */
+export type TransportState = {
+  isPlaying: boolean
+  isPaused: boolean
+  /** Name of the selected routine, or null for free practice. */
+  routineName?: string | null
+  routineFinished?: boolean
+}
+
 /**
  * The only start button in the app labels itself from state. Both readings of
  * the transport — the desktop bar and the stand's bottom control — share this,
