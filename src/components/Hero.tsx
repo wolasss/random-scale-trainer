@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import { PLAYBACK_MESSAGES } from '../constants'
@@ -28,6 +28,52 @@ function BeatDots({ count, active }: { count: number; active: number }) {
         <span key={index} className={`beat-dot ${index === active ? 'active' : ''}`} />
       ))}
     </div>
+  )
+}
+
+// The four readings below are shared verbatim by both variants; only the class
+// string and the surrounding chrome differ, so those stay with the caller.
+function NoteLine({
+  className,
+  ringRef,
+  glyph,
+}: {
+  className: string
+  ringRef: RefObject<HTMLDivElement | null>
+  glyph: ReactNode
+}) {
+  return (
+    <div className={className} data-testid="now-playing">
+      <div className="beat-ring" ref={ringRef} aria-hidden="true" />
+      {glyph}
+    </div>
+  )
+}
+
+function NextChipContent({ nextNote }: { nextNote: PlaybackSnapshot['nextNote'] }) {
+  return (
+    <>
+      <span className="chip-label">Next</span>
+      <span className="next-chip-value" data-testid="next-note">
+        {nextNote?.display ?? '—'}
+      </span>
+    </>
+  )
+}
+
+function CyclePosition({ text }: { text: string }) {
+  return (
+    <span className="chip-text" data-testid="cycle-position">
+      {text}
+    </span>
+  )
+}
+
+function PlaybackMessage({ children }: { children: ReactNode }) {
+  return (
+    <p className="playback-message" data-testid="playback-message" aria-live="polite">
+      {children}
+    </p>
   )
 }
 
@@ -80,28 +126,18 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   if (isStage) {
     return (
       <section className="stage-hero">
-        <div className={`hero-note-line stage-note-line ${state}`} data-testid="now-playing">
-          <div className="beat-ring" ref={ringRef} aria-hidden="true" />
-          {glyph}
-        </div>
+        <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
         <div className="stage-readout">
           <span className="next-chip stage-next-chip">
-            <span className="chip-label">Next</span>
-            <span className="next-chip-value" data-testid="next-note">
-              {nextNote?.display ?? '—'}
-            </span>
+            <NextChipContent nextNote={nextNote} />
           </span>
-          <span className="chip-text" data-testid="cycle-position">
-            {nowText}
-          </span>
+          <CyclePosition text={nowText} />
         </div>
 
-        <p className="playback-message" data-testid="playback-message" aria-live="polite">
-          {coachingLine}
-        </p>
+        <PlaybackMessage>{coachingLine}</PlaybackMessage>
       </section>
     )
   }
@@ -112,26 +148,16 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
     <section className="hero-card">
       <div className="hero-top">
         <div className="now-chip">
-          <span className="chip-text" data-testid="cycle-position">
-            {nowText}
-          </span>
+          <CyclePosition text={nowText} />
         </div>
         <div className="next-chip">
-          <span className="chip-label">Next</span>
-          <span className="next-chip-value" data-testid="next-note">
-            {nextNote?.display ?? '—'}
-          </span>
+          <NextChipContent nextNote={nextNote} />
         </div>
       </div>
 
-      <div className={`hero-note-line ${state}`} data-testid="now-playing">
-        <div className="beat-ring" ref={ringRef} aria-hidden="true" />
-        {glyph}
-      </div>
+      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
 
-      <p className="playback-message" data-testid="playback-message" aria-live="polite">
-        {coachingLine}
-      </p>
+      <PlaybackMessage>{coachingLine}</PlaybackMessage>
 
       <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
     </section>
