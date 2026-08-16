@@ -5,7 +5,7 @@ import {
   SHARP_DISPLAY,
   type SpellingPreference,
 } from '../lib/notes'
-import { matchPreset, PRESETS, type PresetId } from '../lib/presets'
+import { matchPreset, PRESET_GROUPS, type PresetId } from '../lib/presets'
 import { SegmentedControl } from './ui/SegmentedControl'
 
 type NotePoolCardProps = {
@@ -45,10 +45,14 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onSpelling 
           value={matchPreset(pool)}
           onChange={(event) => onPreset(event.target.value as PresetId)}
         >
-          {PRESETS.map((preset) => (
-            <option key={preset.id} value={preset.id}>
-              {preset.label}
-            </option>
+          {PRESET_GROUPS.map((group) => (
+            <optgroup key={group.family} label={group.family}>
+              {group.presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>
