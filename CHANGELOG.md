@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/wolasss/random-scale-trainer/compare/v1.6.1...v1.6.2) (2026-08-16)
+
+
+### Bug Fixes
+
+* **history:** reject an oversized or non-JSON file before reading a backup ([#92](https://github.com/wolasss/random-scale-trainer/issues/92)) ([ead2646](https://github.com/wolasss/random-scale-trainer/commit/ead26469d4e3a472712ac48c14ea635e8d90576b))
+
 ## [1.6.1](https://github.com/wolasss/random-scale-trainer/compare/v1.6.0...v1.6.1) (2026-08-16)
 
 
