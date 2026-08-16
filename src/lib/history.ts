@@ -292,6 +292,24 @@ const BACKUP_APP = 'callnote'
 const BACKUP_KIND = 'practice-log'
 const BACKUP_VERSION = 1
 
+/**
+ * A year of daily practice serialises to a few tens of kilobytes, so this is
+ * generous by orders of magnitude. It is not a format check — it is there so a
+ * mis-picked video is refused at the picker instead of being read into a string
+ * and JSON.parsed, which freezes the tab before any of the validation below runs.
+ */
+export const MAX_BACKUP_BYTES = 4 * 1024 * 1024
+
+/**
+ * The browser's guess at what was picked, which is all that is known before the
+ * file is read. An empty type is allowed through: plenty of systems have no
+ * registration for `.json` and report nothing at all, and refusing those would
+ * lock people out of their own backups. Only a type that positively claims to be
+ * something else — `video/mp4`, `image/png` — is turned away here.
+ */
+export const isBackupFileType = (type: string) =>
+  type === '' || type === 'text/plain' || type === 'text/json' || /^application\/(x-)?json$/.test(type)
+
 /** Pretty-printed: a backup someone can open and read is one they can trust. */
 export const serializeBackup = (history: PracticeHistory, exportedOn: Date) =>
   JSON.stringify(
