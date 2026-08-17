@@ -1,6 +1,15 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { detectPitch } from './lib/audio/pitch'
+
+// Only the detector is faked; the frequency-to-pitch-class arithmetic under it
+// is the real one, so a test that names a note has to name it the way the app
+// would from a real frequency.
+vi.mock('./lib/audio/pitch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./lib/audio/pitch')>()),
+  detectPitch: vi.fn(() => null),
+}))
 
 /**
  * The same fake engine the other App suites use, plus the three methods the
@@ -62,17 +71,49 @@ const start = async () => {
   })
 }
 
+const advance = async (ms: number) => {
+  await act(async () => {
+    vi.advanceTimersByTime(ms)
+  })
+}
+
+// Default 72 BPM, four beats to a note. Far enough in that a note is on screen
+// with most of its span still ahead of it.
+const BEAT_MS = 60_000 / 72
+const NOTE_MS = 4 * BEAT_MS
+const INTO_A_NOTE_MS = NOTE_MS + 100
+
+/** The named pitch class, played in the fourth octave. */
+const play = (pitchClass: number) => {
+  vi.mocked(detectPitch).mockReturnValue({
+    frequency: 440 * 2 ** ((60 + pitchClass - 69) / 12),
+    clarity: 0.99,
+  })
+}
+
+const hush = () => vi.mocked(detectPitch).mockReturnValue(null)
+
+/** Pitch class of whatever the app is calling right now, from its own glyph. */
+const calledPitchClass = () => {
+  const glyph = screen.getByTestId('current-note').textContent ?? ''
+  const natural = 'C.D.EF.G.A.B'.indexOf(glyph[0])
+
+  return natural + (glyph.includes('♯') ? 1 : glyph.includes('♭') ? -1 : 0)
+}
+
 describe('listening for the player', () => {
   beforeEach(() => {
     vi.useFakeTimers({
       toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
     })
+    hush()
     // Past the first run, so the setup cards (and the switch) are on the page.
     window.localStorage.setItem('fretboard-setup-revealed', 'true')
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     Reflect.deleteProperty(navigator, 'mediaDevices')
   })
 
@@ -119,5 +160,58 @@ describe('listening for the player', () => {
 
     fireEvent.click(document.getElementById('mic-listen')!)
     expect(screen.queryByTestId('mic-readout')).toBeNull()
+  })
+
+  /**
+   * On the default 'mixed' spelling the call is a coin flip between E♭ and D♯,
+   * and a readout that flips it again reads as a wrong note to the player who
+   * just played the right one. The coin is loaded here to the side the readout
+   * would not have picked on its own.
+   */
+  it('names what it heard the way the note was called', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    // One pitch class, spelled by the coin flip 'mixed' makes on every call.
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    // A one-note pool ends a cycle on every note, and a count-in between them
+    // would put a stretch with no note called in the middle of the test.
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    vi.spyOn(Math, 'random').mockReturnValue(0.9)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+
+    expect(screen.getByTestId('current-note')).toHaveTextContent('E♭')
+    play(calledPitchClass())
+    await advance(100)
+
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('E♭')
+    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('D♯')
+  })
+
+  it('holds the note it heard until the next one is called', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+
+    play(calledPitchClass())
+    await advance(100)
+    const heard = screen.getByTestId('heard-note').textContent
+
+    // The string decays out of the detector long before the note is over. The
+    // reading is the answer to a note still on screen, so it stays with it.
+    hush()
+    await advance(NOTE_MS / 2)
+    expect(screen.getByTestId('heard-note')).toHaveTextContent(heard!)
+
+    // ...and goes when the question does.
+    await advance(NOTE_MS)
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('nothing yet')
   })
 })

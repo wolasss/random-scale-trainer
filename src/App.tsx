@@ -123,8 +123,15 @@ function App() {
   })
 
   // Default off, and only ever open alongside playback: with the setting off
-  // nothing here touches a microphone API at all.
-  const mic = useMicPitch({ engine, enabled: settings.micEnabled, running: playback.isPlaying })
+  // nothing here touches a microphone API at all. The note count is what the
+  // readout is cleared by — what you played last is an answer to the note that
+  // was on screen when you played it, and stale the moment the next one lands.
+  const mic = useMicPitch({
+    engine,
+    enabled: settings.micEnabled,
+    running: playback.isPlaying,
+    callId: playback.snapshot.notesCalled,
+  })
 
   const routine = useRoutine({
     settings,
@@ -367,7 +374,12 @@ function App() {
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
   const micReadout = settings.micEnabled ? (
-    <MicReadout status={mic.status} heard={mic.heard} spelling={settings.spelling} />
+    <MicReadout
+      status={mic.status}
+      heard={mic.heard}
+      spelling={settings.spelling}
+      called={playback.snapshot.currentNote}
+    />
   ) : null
 
   const updateChip = serviceWorker.updateReady ? (

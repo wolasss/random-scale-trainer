@@ -49,6 +49,12 @@ export type UseMicPitchOptions = {
   enabled: boolean
   /** Playback is running. The microphone is only ever open alongside it. */
   running: boolean
+  /**
+   * Which called note the readout belongs to — the running count of notes
+   * called does the job. A reading survives silence but not the next call, so
+   * what is shown is always an answer to the note on screen.
+   */
+  callId?: number
 }
 
 /**
@@ -59,14 +65,21 @@ export type UseMicPitchOptions = {
  * stop, an unmount, a refusal, or an acquire that a newer one has already
  * superseded — stops the stream's tracks, not just the nodes. A browser that
  * leaves its recording indicator lit after you press pause is a bug report.
+ *
+ * A reading is stamped with the call it was heard under and held from there:
+ * a plucked string decays out of the detector's reach in well under a second,
+ * and a readout that blinks out with it is unreadable. What replaces a reading
+ * is the next note heard or the next note called, nothing else.
  */
-export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
+export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOptions) {
   const [status, setStatus] = useState<MicStatus>('idle')
-  const [heard, setHeard] = useState<HeardPitch | null>(null)
+  const [reading, setReading] = useState<{ heard: HeardPitch; callId: number | undefined } | null>(null)
 
   const engineRef = useRef(engine)
+  const callIdRef = useRef(callId)
   useEffect(() => {
     engineRef.current = engine
+    callIdRef.current = callId
   })
 
   const listenersRef = useRef<Set<HeardPitchListener> | null>(null)
@@ -88,7 +101,7 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
       // Nothing below this line may touch a microphone API: with the setting
       // off, the app must behave exactly as it did before it existed.
       setStatus('idle')
-      setHeard(null)
+      setReading(null)
       return
     }
 
@@ -114,8 +127,10 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
       // pointed at, so clarity alone can never tell the cue from the player.
       // Only what falls outside every cue interval, tail included, counts as
       // playing — the engine knows how long each of its own sounds lingers.
+      //
+      // Neither the app's own sound nor the silence after a note is news: the
+      // reading already on screen stands until something is actually heard.
       if (detected === null || engineRef.current.isWithinCue(audioTime)) {
-        setHeard((current) => (current === null ? current : null))
         return
       }
 
@@ -130,12 +145,14 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
       // note is one render rather than twenty a second. Cents count as a
       // change, or bending and tuning would freeze the reading the moment the
       // pitch class settled — which is exactly when it is being watched.
-      setHeard((current) =>
+      const heardUnder = callIdRef.current
+      setReading((current) =>
         current !== null &&
-        current.pitchClass === pitchClass &&
-        Math.abs(current.cents - cents) < HEARD_CENTS_TOLERANCE
+        current.callId === heardUnder &&
+        current.heard.pitchClass === pitchClass &&
+        Math.abs(current.heard.cents - cents) < HEARD_CENTS_TOLERANCE
           ? current
-          : event
+          : { heard: event, callId: heardUnder }
       )
     }
 
@@ -180,6 +197,10 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
       capture = null
     }
   }, [active])
+
+  // Derived rather than cleared by an effect, so the note that was heard for
+  // the last call is gone in the same render that puts the new call on screen.
+  const heard = reading !== null && reading.callId === callId ? reading.heard : null
 
   return { status, heard, subscribe }
 }

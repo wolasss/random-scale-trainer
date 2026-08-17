@@ -5,6 +5,8 @@ type MicReadoutProps = {
   status: MicStatus
   heard: { pitchClass: number; cents: number } | null
   spelling: SpellingPreference
+  /** The note being called, so a hit can be named the way it was asked for. */
+  called: { pc: number; display: string } | null
 }
 
 const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
@@ -19,10 +21,13 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * all, and it is the only way to tell a mic that is off from one that is on and
  * hearing nothing.
  *
- * Only 'mixed' has a choice to make and no note to make it about, so it reads
- * as sharps; a player who asked for flats gets flats.
+ * A note that matches the call is named exactly as the call named it. E♭ and D♯
+ * are the same string on the same fret, and "you played D♯" under a screen
+ * reading E♭ reads as a miss to everyone who has not been told otherwise.
+ * Anything else follows the spelling preference, and 'mixed' — which has a coin
+ * to flip and no call to flip it for — reads as sharps.
  */
-export function MicReadout({ status, heard, spelling }: MicReadoutProps) {
+export function MicReadout({ status, heard, spelling, called }: MicReadoutProps) {
   if (status !== 'listening') {
     return (
       <div className="mic-readout" data-testid="mic-readout" data-status={status}>
@@ -35,20 +40,22 @@ export function MicReadout({ status, heard, spelling }: MicReadoutProps) {
   const names = spelling === 'flat' ? FLAT_DISPLAY : SHARP_DISPLAY
   // Math.round hands back -0 just under the note, which reads as "-0 cents".
   const cents = heard === null ? 0 : Math.round(heard.cents) || 0
+  const name =
+    heard === null ? '' : called !== null && called.pc === heard.pitchClass ? called.display : names[heard.pitchClass]
 
   return (
     <div className="mic-readout" data-testid="mic-readout" data-status={status}>
-      <span className="mic-readout-label">Hearing</span>
+      <span className="mic-readout-label">Heard</span>
       {heard === null ? (
         <span className="mic-readout-message" data-testid="heard-note">
           <span className="mic-readout-none" aria-hidden="true">
             —
           </span>{' '}
-          no pitch
+          nothing yet
         </span>
       ) : (
         <span className="mic-readout-heard" data-testid="heard-note">
-          <span className="mic-readout-note">{names[heard.pitchClass]}</span>
+          <span className="mic-readout-note">{name}</span>
           <span className="mic-readout-cents">
             {cents > 0 ? '+' : ''}
             {cents} cents

@@ -217,20 +217,73 @@ describe('useMicPitch', () => {
     expect(events[0].pitchClass).toBe(9)
   })
 
-  it('reads silence as no pitch and clears the readout', async () => {
+  /**
+   * A plucked string is under the detector's clarity gate within a second, so a
+   * readout that emptied with the sound would be gone before it could be read.
+   * It stands until the next thing heard or the next note called.
+   */
+  it('holds what it heard through the silence after it', async () => {
     const { stream } = createFakeStream()
     installGetUserMedia(async () => stream)
     const { context, analyser } = createFakeContext()
     const engine = createFakeEngine(context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+    await tick()
+
+    const heard = result.current.heard
+    expect(heard?.pitchClass).toBe(9)
+
+    analyser.getFloatTimeDomainData.mockImplementation((target: Float32Array) => target.fill(0))
+    await tick(4)
+
+    expect(result.current.heard).toBe(heard)
+  })
+
+  it('replaces the reading as soon as another note is heard', async () => {
+    const { stream } = createFakeStream()
+    installGetUserMedia(async () => stream)
+    const { context, analyser } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+    await tick()
+    expect(result.current.heard?.pitchClass).toBe(9)
+
+    // 262 Hz is middle C — pitch class 0.
+    analyser.getFloatTimeDomainData.mockImplementation((target: Float32Array) => {
+      for (let index = 0; index < target.length; index += 1) {
+        target[index] = 0.5 * Math.sin((2 * Math.PI * 262 * index) / SAMPLE_RATE)
+      }
+    })
+    await tick()
+
+    expect(result.current.heard?.pitchClass).toBe(0)
+  })
+
+  it('clears the reading when the next note is called', async () => {
+    const { stream } = createFakeStream()
+    installGetUserMedia(async () => stream)
+    const { context, analyser } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { rerender, result } = renderHook(
+      ({ callId }) => useMicPitch({ engine, enabled: true, running: true, callId }),
+      { initialProps: { callId: 1 } },
+    )
     await flush()
     await tick()
     expect(result.current.heard).not.toBeNull()
 
     analyser.getFloatTimeDomainData.mockImplementation((target: Float32Array) => target.fill(0))
-    await tick()
+    await act(async () => {
+      rerender({ callId: 2 })
+    })
 
+    // The note you played last answers the note that was on screen then, not
+    // the one that has just replaced it.
     expect(result.current.heard).toBeNull()
   })
 
