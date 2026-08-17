@@ -1,3 +1,18 @@
+# [1.9.0](https://github.com/wolasss/random-scale-trainer/compare/v1.8.1...v1.9.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **a11y:** give the installed app a way to switch between light and dark ([#101](https://github.com/wolasss/random-scale-trainer/issues/101)) ([191f33d](https://github.com/wolasss/random-scale-trainer/commit/191f33dbfe461416cf6a1295284afa3303fd7cd3))
+* **a11y:** hide the header key hints when there is no hardware keyboard ([#102](https://github.com/wolasss/random-scale-trainer/issues/102)) ([ae1c154](https://github.com/wolasss/random-scale-trainer/commit/ae1c154d3c9b13e309515b883c7ab6eeec8855ae))
+* **sw:** stop the background revalidate from overwriting precached entries ([#98](https://github.com/wolasss/random-scale-trainer/issues/98)) ([230a673](https://github.com/wolasss/random-scale-trainer/commit/230a67338ad74b0dca0846cf01c72fdc33594e23))
+
+
+### Features
+
+* **history:** tap a day in the practice calendar to read it out ([#103](https://github.com/wolasss/random-scale-trainer/issues/103)) ([79c8133](https://github.com/wolasss/random-scale-trainer/commit/79c8133362b264ec3dc502882e44b49ff1a9d142))
+* **mic:** hear the player with an autocorrelation pitch detector and a live heard-note readout ([#105](https://github.com/wolasss/random-scale-trainer/issues/105)) ([bc4fc4e](https://github.com/wolasss/random-scale-trainer/commit/bc4fc4e9d0f0de18b2ca83021b64e7f2e92dcc57))
+
 ## [1.8.1](https://github.com/wolasss/random-scale-trainer/compare/v1.8.0...v1.8.1) (2026-08-16)
 
 
