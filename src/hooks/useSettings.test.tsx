@@ -10,6 +10,7 @@ const baseSettings = (): Settings => ({
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -211,6 +212,50 @@ describe('useSettings persistence', () => {
     const { result } = renderHook(() => useSettings())
 
     expect(result.current[0].rampTargetBpm).toBe(110)
+  })
+
+  /**
+   * The one setting that opens a device the player has to consent to. It stays
+   * off until they ask for it, however the stored value got there.
+   */
+  it('leaves the microphone off by default', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].micEnabled).toBe(false)
+    expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('false')
+  })
+
+  it('restores a stored microphone setting', () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].micEnabled).toBe(true)
+  })
+
+  it.each([
+    ['an empty value', ''],
+    ['a capitalized value', 'True'],
+    ['a number', '1'],
+    ['junk', 'yes please'],
+  ])('keeps the microphone off on %s', (_label, stored) => {
+    window.localStorage.setItem('fretboard-mic-listen', stored)
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].micEnabled).toBe(false)
+    expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('false')
+  })
+
+  it('persists the microphone toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'micEnabled' })
+    })
+
+    expect(result.current[0].micEnabled).toBe(true)
+    expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('true')
   })
 
   it('persists dispatched changes per key', () => {
