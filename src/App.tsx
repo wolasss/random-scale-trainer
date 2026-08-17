@@ -89,6 +89,11 @@ function App() {
   const [recap, setRecap] = useState<RoutineRecap | null>(null)
   const elapsedMsRef = useRef(0)
   const runStartRef = useRef({ elapsedMs: 0, notesCalled: 0 })
+  // The highest tempo the ramp climbed to during the run, taken from the ramp's
+  // own write-back rather than the tempo the workout ends on: a block that
+  // follows a ramping one puts its own tempo in the settings, and what the
+  // recap reports is where the climb got to.
+  const rampPeakRef = useRef<number | null>(null)
 
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
@@ -113,7 +118,11 @@ function App() {
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
     // own doing, never the user drifting off one.
-    onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
+    onBpmChange: (bpm) => {
+      // Nothing but the ramp writes here, so every value is a rung of the climb.
+      rampPeakRef.current = Math.max(rampPeakRef.current ?? 0, bpm)
+      dispatch({ type: 'setBpm', bpm })
+    },
     onSessionStart: sessionTimer.start,
     onSessionPause: () => {
       sessionTimer.pause()
@@ -132,21 +141,19 @@ function App() {
     onFinish: () => {
       const elapsedMs = elapsedMsRef.current - runStartRef.current.elapsedMs
       const notesCalled = (playbackRef.current?.snapshot.notesCalled ?? 0) - runStartRef.current.notesCalled
-      // The ramp writes its climb back into the settings, so the live tempo is
-      // where it got to. Only a workout that ramps has a tempo worth reporting.
-      const ramped = routineRef.current?.selected?.blocks.some((block) => block.ramp) ?? false
 
       // A workout clicked through to its end without ever being played has
       // nothing to recap — say 'complete' and leave it at that.
       setRecap(
         elapsedMs > 0
-          ? { elapsedMs, notesCalled: Math.max(0, notesCalled), rampedToBpm: ramped ? settings.bpm : null }
+          ? { elapsedMs, notesCalled: Math.max(0, notesCalled), rampedToBpm: rampPeakRef.current }
           : null,
       )
       playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete)
     },
     onRunStart: () => {
       runStartRef.current = { elapsedMs: elapsedMsRef.current, notesCalled: playback.snapshot.notesCalled }
+      rampPeakRef.current = null
     },
   })
 
@@ -232,6 +239,7 @@ function App() {
     routine.reset()
     // Everything the recap was measured against has just gone back to zero.
     runStartRef.current = { elapsedMs: 0, notesCalled: 0 }
+    rampPeakRef.current = null
     setRecap(null)
   }
 

@@ -479,6 +479,36 @@ describe('Routines', () => {
   })
 
   /**
+   * A block after the ramp puts its own tempo back in the settings, so the
+   * tempo the workout ends on is not the one the climb reached.
+   */
+  it('reports the climb when a slower block follows the ramp', { timeout: 30_000 }, async () => {
+    window.localStorage.setItem(
+      'fretboard-routines',
+      JSON.stringify([
+        {
+          id: 'climb-then-cool',
+          name: 'Climb then cool down',
+          blocks: [
+            { name: 'Climb', poolKey: 'chromatic', bpm: 70, beats: 4, ramp: true, rampTo: 110, dur: 180 },
+            { name: 'Cool down', poolKey: 'naturals', bpm: 50, beats: 4, dur: 60 },
+          ],
+        },
+      ]),
+    )
+
+    render(<App />)
+    selectRoutine('climb-then-cool')
+    await startPractice(70)
+    await practiseFor(240_000)
+
+    const status = screen.getByTestId('routine-strip-status')
+    expect(status).toHaveTextContent(/reached \d+ BPM$/)
+    // Above where the climb began, rather than the 50 the workout ends on.
+    expect(Number(/reached (\d+) BPM/.exec(status.textContent ?? '')![1])).toBeGreaterThan(70)
+  })
+
+  /**
    * The seeded ladder is the ramp's own demonstration: one block that climbs,
    * where three hand-built rungs used to imitate it.
    */
