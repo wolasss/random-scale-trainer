@@ -130,7 +130,8 @@ function App() {
     engine,
     enabled: settings.micEnabled,
     running: playback.isPlaying,
-    callId: playback.snapshot.notesCalled,
+    // Null through the count-in, which has no note on screen to answer.
+    callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
   })
 
   const routine = useRoutine({

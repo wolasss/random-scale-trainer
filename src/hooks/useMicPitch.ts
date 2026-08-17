@@ -48,10 +48,12 @@ export type UseMicPitchOptions = {
   running: boolean
   /**
    * Which called note the readout belongs to — the running count of notes
-   * called does the job. A reading survives silence but not the next call, so
-   * what is shown is always an answer to the note on screen.
+   * called does the job — or null when nothing is being called, as during a
+   * count-in. A reading survives silence but not the next call, so what is
+   * shown is always an answer to the note on screen, and when no note is on
+   * screen there is nothing to show.
    */
-  callId?: number
+  callId: number | null
 }
 
 /**
@@ -66,11 +68,12 @@ export type UseMicPitchOptions = {
  * A reading is stamped with the call it was heard under and held from there:
  * a plucked string decays out of the detector's reach in well under a second,
  * and a readout that blinks out with it is unreadable. What replaces a reading
- * is the next note heard or the next note called, nothing else.
+ * is the next note heard or the next note called, nothing else — and between
+ * the two, while the count-in runs and no note is being called, nothing at all.
  */
 export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOptions) {
   const [status, setStatus] = useState<MicStatus>('idle')
-  const [reading, setReading] = useState<{ heard: HeardPitch; callId: number | undefined } | null>(null)
+  const [reading, setReading] = useState<{ heard: HeardPitch; callId: number } | null>(null)
 
   const engineRef = useRef(engine)
   const callIdRef = useRef(callId)
@@ -139,8 +142,14 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       }
 
       // Subscribers get every frame; React only gets a new note, so a note held
-      // across a whole span is one render rather than twenty a second.
+      // across a whole span is one render rather than twenty a second. With no
+      // note being called there is nothing for a reading to be an answer to, so
+      // one is not kept — a subscriber that scores playing still hears it.
       const heardUnder = callIdRef.current
+      if (heardUnder === null) {
+        return
+      }
+
       setReading((current) =>
         current !== null && current.callId === heardUnder && current.heard.pitchClass === pitchClass
           ? current
@@ -192,7 +201,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
 
   // Derived rather than cleared by an effect, so the note that was heard for
   // the last call is gone in the same render that puts the new call on screen.
-  const heard = reading !== null && reading.callId === callId ? reading.heard : null
+  const heard = callId !== null && reading?.callId === callId ? reading.heard : null
 
   return { status, heard, subscribe }
 }

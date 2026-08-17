@@ -39,8 +39,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
   that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
-  D♯ — and the reading stays up until you play something else or the next note is called,
-  rather than blinking out with the string. The detector is a hand-rolled Web Audio autocorrelation
+  D♯ — and the reading stays up until you play something else or the next note is called, rather
+  than blinking out with the string. The count-in between rounds clears it: no note on screen, so
+  nothing to be right or wrong about. The detector is a hand-rolled Web Audio autocorrelation
   on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and

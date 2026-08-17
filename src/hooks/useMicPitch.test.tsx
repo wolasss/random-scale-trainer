@@ -81,7 +81,7 @@ describe('useMicPitch', () => {
     const getUserMedia = installGetUserMedia(async () => stream)
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: false, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: false, running: true, callId: 1 }))
     await flush()
 
     expect(getUserMedia).not.toHaveBeenCalled()
@@ -93,7 +93,7 @@ describe('useMicPitch', () => {
     const getUserMedia = installGetUserMedia(async () => stream)
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: false }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: false, callId: 1 }))
     await flush()
 
     expect(getUserMedia).not.toHaveBeenCalled()
@@ -106,7 +106,7 @@ describe('useMicPitch', () => {
     const { context } = createFakeContext()
     const engine = createFakeEngine(context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     expect(result.current.status).toBe('listening')
@@ -136,7 +136,7 @@ describe('useMicPitch', () => {
     const { context, analyser } = createFakeContext()
     const engine = createFakeEngine(context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
     await tick()
 
@@ -159,7 +159,7 @@ describe('useMicPitch', () => {
     installGetUserMedia(async () => stream)
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     const events: HeardPitch[] = []
@@ -188,7 +188,7 @@ describe('useMicPitch', () => {
     const isWithinCue = vi.mocked(engine.isWithinCue)
     isWithinCue.mockReturnValue(true)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     const events: HeardPitch[] = []
@@ -281,13 +281,55 @@ describe('useMicPitch', () => {
     expect(result.current.heard).toBeNull()
   })
 
+  /**
+   * The count-in between rounds has no note on screen. A reading left standing
+   * through it is an answer to a question that has been taken away, and it
+   * would still be sitting there when the next note arrives.
+   */
+  it('shows nothing while no note is being called, and keeps hearing anyway', async () => {
+    const { stream } = createFakeStream()
+    installGetUserMedia(async () => stream)
+    const engine = createFakeEngine(createFakeContext().context)
+
+    const { rerender, result } = renderHook(
+      ({ callId }: { callId: number | null }) => useMicPitch({ engine, enabled: true, running: true, callId }),
+      { initialProps: { callId: 1 as number | null } },
+    )
+    await flush()
+    await tick()
+    expect(result.current.heard).not.toBeNull()
+
+    const events: HeardPitch[] = []
+    act(() => {
+      result.current.subscribe((event) => events.push(event))
+    })
+
+    await act(async () => {
+      rerender({ callId: null })
+    })
+    expect(result.current.heard).toBeNull()
+
+    // Playing on through the count-in shows nothing either — but a subscriber
+    // scoring the playing still gets every frame of it.
+    await tick(2)
+    expect(result.current.heard).toBeNull()
+    expect(events.length).toBeGreaterThan(0)
+
+    // And the reading from before the count-in does not come back with the
+    // next note: it answered a note two calls ago.
+    await act(async () => {
+      rerender({ callId: 2 })
+    })
+    expect(result.current.heard).toBeNull()
+  })
+
   it('says so when the microphone is refused', async () => {
     installGetUserMedia(async () => {
       throw new DOMException('Permission denied', 'NotAllowedError')
     })
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     expect(result.current.status).toBe('denied')
@@ -297,7 +339,7 @@ describe('useMicPitch', () => {
   it('says so where the browser has no microphone API at all', async () => {
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     expect(result.current.status).toBe('unsupported')
@@ -308,7 +350,7 @@ describe('useMicPitch', () => {
     installGetUserMedia(async () => stream)
     const engine = createFakeEngine(null)
 
-    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     expect(track.stop).toHaveBeenCalled()
@@ -321,7 +363,7 @@ describe('useMicPitch', () => {
     const { context, analyser } = createFakeContext()
     const engine = createFakeEngine(context)
 
-    const { rerender, result } = renderHook(({ running }) => useMicPitch({ engine, enabled: true, running }), {
+    const { rerender, result } = renderHook(({ running }) => useMicPitch({ engine, enabled: true, running, callId: 1 }), {
       initialProps: { running: true },
     })
     await flush()
@@ -346,7 +388,7 @@ describe('useMicPitch', () => {
     installGetUserMedia(async () => stream)
     const engine = createFakeEngine(createFakeContext().context)
 
-    const { unmount } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    const { unmount } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
     await flush()
 
     unmount()
@@ -365,7 +407,7 @@ describe('useMicPitch', () => {
     const { context, raw } = createFakeContext()
     const engine = createFakeEngine(context)
 
-    const { rerender, result } = renderHook(({ running }) => useMicPitch({ engine, enabled: true, running }), {
+    const { rerender, result } = renderHook(({ running }) => useMicPitch({ engine, enabled: true, running, callId: 1 }), {
       initialProps: { running: true },
     })
 

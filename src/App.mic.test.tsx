@@ -82,6 +82,8 @@ const advance = async (ms: number) => {
 const BEAT_MS = 60_000 / 72
 const NOTE_MS = 4 * BEAT_MS
 const INTO_A_NOTE_MS = NOTE_MS + 100
+// With the count-in on, the first note lands a beat after the fourth count.
+const COUNT_IN_MS = 4 * BEAT_MS
 
 /** The named pitch class, played in the fourth octave. */
 const play = (pitchClass: number) => {
@@ -208,6 +210,32 @@ describe('listening for the player', () => {
     play(called)
     await advance(100)
     expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+  })
+
+  /**
+   * A one-note pool ends a cycle on every note, so the count-in runs between
+   * every round — the same stretch a full pool gets once a cycle. There is no
+   * note on screen through it, and a reading standing there answers nothing.
+   */
+  it('clears the reading through the count-in between rounds', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    // The first count-in, then far enough into the note that it is on screen.
+    await advance(COUNT_IN_MS + 200)
+
+    play(calledPitchClass())
+    await advance(100)
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+
+    // Into the count-in for the next round, still playing the note.
+    await advance(NOTE_MS)
+
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('nothing yet')
+    expect(screen.getByTestId('heard-note')).not.toHaveAttribute('data-match')
   })
 
   it('holds the note it heard until the next one is called', async () => {
