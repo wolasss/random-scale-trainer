@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HEARD_CENTS_TOLERANCE, MIC_POLL_MS, useMicPitch, type HeardPitch, type MicEngine } from './useMicPitch'
+import { MIC_POLL_MS, useMicPitch, type HeardPitch, type MicEngine } from './useMicPitch'
 
 const SAMPLE_RATE = 44100
 
@@ -127,11 +127,10 @@ describe('useMicPitch', () => {
   })
 
   /**
-   * A player tuning up, or bending one, never leaves the pitch class — and the
-   * cents are the only part of the readout that means anything to them while
-   * they do it. A reading held because the note "hasn't changed" is a dead one.
+   * Twenty frames a second, all of them the same note. Only the first is news;
+   * the rest would be twenty renders a second of the same line.
    */
-  it('keeps the cents current while the note holds its pitch class', async () => {
+  it('reports a held note once rather than on every frame', async () => {
     const { stream } = createFakeStream()
     installGetUserMedia(async () => stream)
     const { context, analyser } = createFakeContext()
@@ -141,23 +140,18 @@ describe('useMicPitch', () => {
     await flush()
     await tick()
 
-    const inTune = result.current.heard
-    expect(inTune?.pitchClass).toBe(9)
+    const heard = result.current.heard
+    expect(heard?.pitchClass).toBe(9)
 
+    // A couple of cents of drift is the same note under the same finger.
     analyser.getFloatTimeDomainData.mockImplementation((target: Float32Array) => {
       for (let index = 0; index < target.length; index += 1) {
         target[index] = 0.5 * Math.sin((2 * Math.PI * 222 * index) / SAMPLE_RATE)
       }
     })
-    await tick()
+    await tick(3)
 
-    expect(result.current.heard?.pitchClass).toBe(9)
-    expect(result.current.heard?.cents ?? 0).toBeGreaterThan((inTune?.cents ?? 0) + HEARD_CENTS_TOLERANCE)
-
-    // Jitter of a cent or two is not news, and re-rendering on it would be.
-    const sharp = result.current.heard
-    await tick()
-    expect(result.current.heard).toBe(sharp)
+    expect(result.current.heard).toBe(heard)
   })
 
   it('unsubscribes cleanly', async () => {

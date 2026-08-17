@@ -1417,11 +1417,6 @@ input[type='range'] {
   color: var(--ink);
 }
 
-.mic-readout-cents {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.75;
-}
-
 /* The verdict, tick or cross. It leads the line rather than trailing it: the
    answer to "did I get it" is what the glance is for, and the name and the
    tuning are what you read once you have it. */

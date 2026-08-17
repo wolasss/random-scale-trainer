@@ -5,7 +5,7 @@ import type { MicStatus } from '../hooks/useMicPitch'
 
 type MicReadoutProps = {
   status: MicStatus
-  heard: { pitchClass: number; cents: number } | null
+  heard: { pitchClass: number } | null
   spelling: SpellingPreference
   /** The note being called, so a hit can be named the way it was asked for. */
   called: { pc: number; display: string } | null
@@ -18,30 +18,14 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
 }
 
 /**
- * How far off the note may be and still read as in tune. A cent is a hundredth
- * of a semitone, and five of them is under what an ear picks out — a tuner's
- * usual tolerance, and well inside what a fretted string does under a finger.
- */
-export const IN_TUNE_CENTS = 5
-
-/**
- * How far off the note is, said rather than signed: "+7 cents" is only legible
- * to someone who already knows the convention, and the readout is for a player
- * who came here to name notes, not to read a tuner.
- */
-const tuning = (cents: number) => {
-  // Math.round hands back -0 just under the note, which reads as "-0 cents".
-  const rounded = Math.round(cents) || 0
-
-  return Math.abs(rounded) <= IN_TUNE_CENTS
-    ? 'in tune'
-    : `${Math.abs(rounded)} cents ${rounded > 0 ? 'sharp' : 'flat'}`
-}
-
-/**
- * What the microphone is hearing, one line of it: the note, whether it is the
- * one being called, and how far off it is. It is also the only way to tell a
- * mic that is off from one that is on and hearing nothing.
+ * What the microphone is hearing, one line of it: which note, and whether it is
+ * the one being called. It is also the only way to tell a mic that is off from
+ * one that is on and hearing nothing.
+ *
+ * How far off the pitch was is deliberately not here. This app calls note names
+ * to be found on the neck; whether the string was a few cents sharp is a
+ * tuner's business, and a second number to parse mid-phrase is a cost with no
+ * matching use.
  *
  * A note that matches the call is named exactly as the call named it. E♭ and D♯
  * are the same string on the same fret, and "you played D♯" under a screen
@@ -95,9 +79,6 @@ export function MicReadout({ status, heard, spelling, called }: MicReadoutProps)
             </span>
           )}
           <span className="mic-readout-note">{name}</span>
-          {/* How in tune the wrong note was is no use to anybody: on a miss the
-              line says which note it was and stops there. */}
-          {match !== false && <span className="mic-readout-cents">{tuning(heard.cents)}</span>}
         </span>
       )}
     </div>

@@ -3,22 +3,20 @@ import { describe, expect, it } from 'vitest'
 import { MicReadout } from './MicReadout'
 
 describe('MicReadout', () => {
-  it('names the note it is hearing and how far off it is', () => {
-    render(<MicReadout status="listening" heard={{ pitchClass: 9, cents: 7.4 }} spelling="sharp" called={null} />)
+  it('names the note it is hearing', () => {
+    render(<MicReadout status="listening" heard={{ pitchClass: 9 }} spelling="sharp" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('A')
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('7 cents sharp')
   })
 
   it('shows a flat name to a player who asked for flats', () => {
-    render(<MicReadout status="listening" heard={{ pitchClass: 1, cents: -12 }} spelling="flat" called={null} />)
+    render(<MicReadout status="listening" heard={{ pitchClass: 1 }} spelling="flat" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('D♭')
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('12 cents flat')
   })
 
   it('spells mixed as sharps — there is no note being called to follow', () => {
-    render(<MicReadout status="listening" heard={{ pitchClass: 1, cents: 0 }} spelling="mixed" called={null} />)
+    render(<MicReadout status="listening" heard={{ pitchClass: 1 }} spelling="mixed" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('C♯')
   })
@@ -31,7 +29,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening"
-        heard={{ pitchClass: 3, cents: 4 }}
+        heard={{ pitchClass: 3 }}
         spelling="mixed"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -45,7 +43,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening"
-        heard={{ pitchClass: 6, cents: 0 }}
+        heard={{ pitchClass: 6 }}
         spelling="flat"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -62,7 +60,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening"
-        heard={{ pitchClass: 3, cents: 2 }}
+        heard={{ pitchClass: 3 }}
         spelling="sharp"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -76,7 +74,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening"
-        heard={{ pitchClass: 5, cents: 2 }}
+        heard={{ pitchClass: 5 }}
         spelling="sharp"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -84,13 +82,10 @@ describe('MicReadout', () => {
 
     expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'false')
     expect(screen.getByTestId('heard-verdict')).toHaveAccessibleName('F — not the note called, E♭')
-    // "F, in tune" under a call for E♭ is a right answer to a question nobody
-    // asked. The miss is the whole of the news.
-    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('in tune')
   })
 
   it('judges nothing while no note is being called', () => {
-    render(<MicReadout status="listening" heard={{ pitchClass: 5, cents: 2 }} spelling="sharp" called={null} />)
+    render(<MicReadout status="listening" heard={{ pitchClass: 5 }} spelling="sharp" called={null} />)
 
     // A count-in has a note on its way and none on screen. There is nothing to
     // be right or wrong about yet, and a cross would be a lie.
@@ -98,11 +93,21 @@ describe('MicReadout', () => {
     expect(screen.getByTestId('heard-note')).not.toHaveAttribute('data-match')
   })
 
-  it('calls a note inside the tolerance in tune rather than counting cents at it', () => {
-    render(<MicReadout status="listening" heard={{ pitchClass: 4, cents: -0.4 }} spelling="sharp" called={null} />)
+  // This app calls note names to be found on the neck. How sharp the string was
+  // is a tuner's business, and a second reading to parse is a cost with no use.
+  it('says nothing about how in tune the note was', () => {
+    render(
+      <MicReadout
+        status="listening"
+        heard={{ pitchClass: 3 }}
+        spelling="sharp"
+        called={{ pc: 3, display: 'E♭' }}
+      />,
+    )
 
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('in tune')
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('E♭')
     expect(screen.getByTestId('heard-note')).not.toHaveTextContent('cents')
+    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('tune')
   })
 
   it('says so when it is listening and has heard nothing yet', () => {

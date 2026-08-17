@@ -13,17 +13,14 @@ import { detectPitch, frequencyToPitch } from '../lib/audio/pitch'
 /** How often a frame is pulled off the analyser and run through the detector. */
 export const MIC_POLL_MS = 50
 
-/**
- * How far the cents reading has to move before the readout is refreshed while
- * the note stays in the same pitch class. Subscribers still see every frame;
- * this only decides when React hears about one, so a held note costs a render
- * when it drifts rather than twenty a second when it doesn't.
- */
-export const HEARD_CENTS_TOLERANCE = 2
-
 export type MicStatus = 'idle' | 'unsupported' | 'denied' | 'listening'
 
-/** One detection, timestamped on the engine's clock so beats can be compared. */
+/**
+ * One detection, timestamped on the engine's clock so beats can be compared.
+ * The cents and the clarity belong to the frame that produced it: subscribers
+ * see every frame, so they are current there. The readout below only names the
+ * note, and its copy is refreshed when the note changes rather than per frame.
+ */
 export type HeardPitch = {
   pitchClass: number
   cents: number
@@ -141,16 +138,11 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         listener(event)
       }
 
-      // Subscribers get every frame; React only gets the changes, so a held
-      // note is one render rather than twenty a second. Cents count as a
-      // change, or bending and tuning would freeze the reading the moment the
-      // pitch class settled — which is exactly when it is being watched.
+      // Subscribers get every frame; React only gets a new note, so a note held
+      // across a whole span is one render rather than twenty a second.
       const heardUnder = callIdRef.current
       setReading((current) =>
-        current !== null &&
-        current.callId === heardUnder &&
-        current.heard.pitchClass === pitchClass &&
-        Math.abs(current.heard.cents - cents) < HEARD_CENTS_TOLERANCE
+        current !== null && current.callId === heardUnder && current.heard.pitchClass === pitchClass
           ? current
           : { heard: event, callId: heardUnder }
       )
