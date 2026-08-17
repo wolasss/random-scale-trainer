@@ -44,11 +44,14 @@ import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
+import { MicReadout } from './components/MicReadout'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
+import { AudioEngine } from './lib/audio/engine'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
+import { useMicPitch } from './hooks/useMicPitch'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -73,6 +76,14 @@ function App() {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   })
+
+  // One engine for the whole app: playback schedules its cues on it and the
+  // microphone hangs its analyser off the very same AudioContext, so a
+  // detection and a beat are timestamps on one clock rather than two. Created
+  // lazily in a ref the way usePlayback used to create its own — the
+  // constructor opens no AudioContext, so building it during render is safe.
+  const engineRef = useRef<AudioEngine | null>(null)
+  const engine = (engineRef.current ??= new AudioEngine())
 
   // The session timer, playback and the routine all need handles on each
   // other, so they go through refs that are refreshed on every render.
@@ -108,7 +119,12 @@ function App() {
       practiceHistory.commit()
     },
     onBeat: beatPulse.handleBeat,
+    audio: engine,
   })
+
+  // Default off, and only ever open alongside playback: with the setting off
+  // nothing here touches a microphone API at all.
+  const mic = useMicPitch({ engine, enabled: settings.micEnabled, running: playback.isPlaying })
 
   const routine = useRoutine({
     settings,
@@ -348,6 +364,12 @@ function App() {
     />
   )
 
+  // Only when asked for: with the setting off the tree is exactly what it was
+  // before the microphone existed.
+  const micReadout = settings.micEnabled ? (
+    <MicReadout status={mic.status} heard={mic.heard} spelling={settings.spelling} />
+  ) : null
+
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
   ) : null
@@ -371,6 +393,8 @@ function App() {
               neck is wide enough to read at arm's length. In portrait it goes
               back in the sheet with the rest of the setup. */}
           {display.landscape && fretboardCard !== null ? <div className="stage-side">{fretboardCard}</div> : null}
+
+          {micReadout}
 
           <StageTransport
             isPlaying={playback.isPlaying}
@@ -434,6 +458,8 @@ function App() {
 
             {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
           </div>
+
+          {micReadout}
 
           {routineStrip}
 

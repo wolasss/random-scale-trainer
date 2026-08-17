@@ -1371,6 +1371,58 @@ input[type='range'] {
   color: var(--ink);
 }
 
+/* --- Microphone readout --------------------------------------------------- */
+
+/* One quiet line under the note: a label, then either what the mic is hearing
+   or why it is hearing nothing. Deliberately small — this reports on the ear,
+   it is not the thing being read from across the room. */
+.mic-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--control-border);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.mic-readout-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+.mic-readout-heard {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+/* The one part worth glancing at mid-phrase, so it gets the foreground. */
+.mic-readout-note {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.mic-readout-cents {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.mic-readout-none {
+  color: var(--ink);
+  opacity: 0.45;
+}
+
+.mic-readout[data-status='denied'] {
+  color: var(--accent);
+}
+
 /* --- Routine ------------------------------------------------------------- */
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
@@ -2484,6 +2536,25 @@ input[type='range'] {
     calc(env(safe-area-inset-left, 0px) + 1rem);
 }
 
+/* The mic readout is the only thing that ever joins the stand's two rows, and
+   only when the setting is on — so the row it needs is opened by its presence
+   rather than reserved for it. A browser without :has() drops the rule and the
+   line lands under the transport instead of above it, which is a placement, not
+   a break. */
+.stage:has(.mic-readout) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'note'
+    'mic'
+    'foot';
+}
+
+.stage > .mic-readout {
+  grid-area: mic;
+  margin-top: 0;
+  border-top: 0;
+}
+
 .stage-hero {
   grid-area: note;
   display: flex;
@@ -2610,6 +2681,14 @@ input[type='range'] {
       'note side'
       'foot side';
     column-gap: 1rem;
+  }
+
+  /* Same row, opened the same way — the neck keeps the column beside it. */
+  :root[data-stage] .stage:has(.mic-readout) {
+    grid-template-areas:
+      'note side'
+      'mic side'
+      'foot side';
   }
 
   /* Height is the scarce axis here, and the neck beside it is doing the work

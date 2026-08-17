@@ -35,8 +35,14 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
   JSON backup export/import, where an import merges with what is already there (keeping the longer of
   any two days) rather than replacing it
-- "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, and the
-  fretboard map toggle. The spoken note name is always on
+- Listen for my playing (off by default): with the setting on, the app opens the microphone
+  alongside playback and shows the note it hears under the called one, named and in cents. The
+  detector is a hand-rolled Web Audio autocorrelation on the same AudioContext playback uses, and
+  what the app plays through the speakers is suppressed by the cue intervals the engine records, so
+  the readout reports you rather than itself. The microphone is released the moment you pause, stop
+  or leave, and a refusal or a browser without one says so and changes nothing else
+- "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
+  your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
 - Installable PWA: a service worker precaches the app shell and every note clip, so it launches
   and runs with no network. Chromium gets an Install button in the header, iOS a one-time

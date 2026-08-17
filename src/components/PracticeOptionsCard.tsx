@@ -28,6 +28,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         onChange={() => onToggle('countInEnabled')}
       />
       <SwitchRow
+        id="mic-listen"
+        label="Listen for my playing"
+        subtitle="Hear what you play through the mic, live on the stage."
+        checked={settings.micEnabled}
+        onChange={() => onToggle('micEnabled')}
+      />
+      <SwitchRow
         id="show-fretboard"
         label="Fretboard map"
         subtitle="Show the On the neck card with every position."

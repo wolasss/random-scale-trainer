@@ -489,3 +489,150 @@ describe('AudioEngine speech fallback', () => {
     expect(() => engine.playNoteAt('C', 1)).not.toThrow()
   })
 })
+
+describe('AudioEngine.getContext', () => {
+  it('is null until the first gesture opens the context, and the context after', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+
+    expect(engine.getContext()).toBeNull()
+
+    await engine.ensureContext()
+    expect(engine.getContext()).toBe(context)
+  })
+
+  it('stays null where the browser has no AudioContext at all', async () => {
+    const engine = new AudioEngine({ contextFactory: () => null })
+
+    await engine.ensureContext()
+    expect(engine.getContext()).toBeNull()
+  })
+})
+
+describe('AudioEngine cue bookkeeping', () => {
+  let context: FakeContext
+
+  const readyEngine = async () => {
+    context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context), fetchFn: okFetch() })
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+    return engine
+  }
+
+  it('records the click for exactly as long as it sounds', async () => {
+    const engine = await readyEngine()
+
+    engine.playClickAt(2, false)
+
+    expect(engine.isWithinCue(2)).toBe(true)
+    expect(engine.isWithinCue(2.13)).toBe(true)
+    expect(engine.isWithinCue(2.2)).toBe(false)
+    expect(engine.isWithinCue(1.99)).toBe(false)
+    expect(engine.getCueEndForBeat(2)).toBeCloseTo(2.14, 5)
+  })
+
+  it('records a spoken note for the length of its clip', async () => {
+    const engine = await readyEngine()
+
+    // The fake decoder yields a one-second buffer for every note.
+    engine.playNoteAt('C', 3)
+
+    expect(engine.isWithinCue(3.9)).toBe(true)
+    expect(engine.isWithinCue(4.1)).toBe(false)
+    expect(engine.getCueEndForBeat(3)).toBeCloseTo(4, 5)
+  })
+
+  it('records a generous interval for the speech fallback', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const failing = createFakeContext()
+    const engine = new AudioEngine({
+      contextFactory: () => asAudioContext(failing),
+      fetchFn: vi.fn(async () => ({ ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) })) as unknown as typeof fetch,
+      mediaElementFactory: () => null,
+      speech: { speak: vi.fn() },
+    })
+
+    await engine.ensureContext()
+    await engine.loadNoteBuffers()
+    failing.currentTime = 1.8
+    engine.playNoteAt('C', 2)
+
+    // Speech begins when it is asked to rather than on the beat, so the cue
+    // covers from the request all the way past a comfortably long note name.
+    expect(engine.isWithinCue(1.85)).toBe(true)
+    expect(engine.isWithinCue(3.1)).toBe(true)
+    expect(engine.isWithinCue(3.3)).toBe(false)
+  })
+
+  it('honours the decay margin without moving the interval itself', async () => {
+    const engine = await readyEngine()
+
+    engine.playClickAt(2, false)
+
+    expect(engine.isWithinCue(2.25)).toBe(false)
+    expect(engine.isWithinCue(2.25, 0.15)).toBe(true)
+    expect(engine.isWithinCue(2.35, 0.15)).toBe(false)
+  })
+
+  it('answers per interval rather than for the last thing scheduled', async () => {
+    const engine = await readyEngine()
+
+    // What the look-ahead scheduler actually does: beat B is queued while beat
+    // A is still the one being heard.
+    engine.playClickAt(1, true)
+    engine.playNoteAt('C', 1)
+    engine.playClickAt(1.25, false)
+
+    expect(engine.getCueEndForBeat(1)).toBeCloseTo(2, 5)
+    expect(engine.isWithinCue(1.2)).toBe(true)
+    expect(engine.isWithinCue(1.3)).toBe(true)
+    // A gap between two cues is a gap, however recently something was queued.
+    engine.stopScheduledSounds()
+    expect(engine.isWithinCue(5)).toBe(false)
+  })
+
+  it('forgets a cue that was cancelled before it sounded', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    engine.playClickAt(1, false)
+    engine.playNoteAt('C', 3)
+    engine.stopScheduledSounds()
+
+    // The click is already out of the speaker; the note never left it.
+    expect(engine.isWithinCue(1.05)).toBe(true)
+    expect(engine.isWithinCue(3.5)).toBe(false)
+    expect(engine.getCueEndForBeat(3)).toBeNull()
+  })
+
+  it('keeps the tail of the previous note in view over the next beat', async () => {
+    const engine = await readyEngine()
+
+    // A one-second clip at a fast tempo is still ringing when the next note is
+    // called, and the app's voice is the app's voice whichever beat rang it.
+    engine.playNoteAt('C', 1)
+    engine.playClickAt(1.5, false)
+
+    expect(engine.getCueEndForBeat(1.5)).toBeCloseTo(2, 5)
+  })
+
+  it('forgets cues that have long since faded', async () => {
+    const engine = await readyEngine()
+
+    engine.playClickAt(1, false)
+    context.currentTime = 30
+    engine.playClickAt(30, false)
+
+    expect(engine.isWithinCue(1.05)).toBe(false)
+    expect(engine.getCueEndForBeat(1)).toBeNull()
+    expect(engine.isWithinCue(30.05)).toBe(true)
+  })
+
+  it('has nothing to report before anything has been played', async () => {
+    const engine = await readyEngine()
+
+    expect(engine.isWithinCue(1)).toBe(false)
+    expect(engine.getCueEndForBeat(1)).toBeNull()
+  })
+})
