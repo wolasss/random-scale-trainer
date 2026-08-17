@@ -23,6 +23,7 @@ const LEGACY_CACHE_PREFIXES = ['note-trainer-']
 const isOwnCache = (name) =>
   name.startsWith(CACHE_PREFIX) || LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
 const PRECACHE_URLS = __PRECACHE_MANIFEST__
+const PRECACHE_SET = new Set(PRECACHE_URLS)
 
 /** The webfont, the one thing the app fetches cross-origin. Cached on first use. */
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
@@ -55,12 +56,25 @@ self.addEventListener('activate', (event) => {
 })
 
 /**
- * Cache-first, with a background revalidate that refreshes the entry for next
- * time. The revalidate is handed to waitUntil so it survives the response.
+ * Cache-first. Runtime entries — the webfont, anything not in the manifest —
+ * get a background revalidate that refreshes the entry for next time, handed
+ * to waitUntil so it survives the response.
+ *
+ * Precached entries are served from the cache and nothing else
+ * (revalidateOnHit false). They are already versioned by the cache name, so a
+ * revalidate can never freshen them, only spoil them: once a newer build is
+ * being served over the network, it would write that build's index.html — which
+ * names hashed bundles this cache does not hold — over this build's shell, and
+ * the next offline launch would render a blank page. A miss still goes to the
+ * network, so an asset whose install-time cache.add failed repairs itself.
  */
-const cacheFirst = async (event, request, cacheKey) => {
+const cacheFirst = async (event, request, cacheKey, revalidateOnHit) => {
   const cache = await caches.open(CACHE_NAME)
   const cached = await cache.match(cacheKey)
+
+  if (cached && !revalidateOnHit) {
+    return cached
+  }
 
   const fromNetwork = fetch(request)
     .then((response) => {
@@ -102,9 +116,12 @@ self.addEventListener('fetch', (event) => {
   // Every navigation is the same shell — there are no server-side routes, and
   // start_url carries a query string the cache must not key on.
   if (request.mode === 'navigate') {
-    event.respondWith(cacheFirst(event, request, '/index.html'))
+    event.respondWith(cacheFirst(event, request, '/index.html', false))
     return
   }
 
-  event.respondWith(cacheFirst(event, request, request))
+  // Manifest entries carry no query string, so a query-bearing URL — a cache
+  // key of its own — counts as a runtime entry and keeps revalidating.
+  const isPrecached = isSameOrigin && PRECACHE_SET.has(url.pathname + url.search)
+  event.respondWith(cacheFirst(event, request, request, !isPrecached))
 })
