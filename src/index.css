@@ -1375,8 +1375,11 @@ input[type='range'] {
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
    running routine never needs a scroll back down to the card. */
+/* Wraps rather than overflows: the end-of-workout recap is a far longer status
+   than "4:00 left", and on a phone it takes a line of its own. */
 .routine-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.7rem;
   margin-top: 1rem;
@@ -1420,6 +1423,9 @@ input[type='range'] {
 
 .routine-strip-clear {
   flex: none;
+  /* No effect on one line; when the status wraps below, this keeps the button
+     on the strip's right edge rather than stranded under the name. */
+  margin-left: auto;
   width: 26px;
   height: 26px;
   display: inline-flex;

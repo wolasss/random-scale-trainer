@@ -56,6 +56,19 @@ const startPractice = async (bpmValue: number) => {
   })
 }
 
+/**
+ * Runs the clock a minute at a time: the note counter and the ramp's write-back
+ * ride React's renders, and one jump of several minutes would land the whole
+ * workout in a single batch with nothing counted along the way.
+ */
+const practiseFor = async (ms: number) => {
+  for (let remaining = ms; remaining > 0; remaining -= 60_000) {
+    await act(async () => {
+      vi.advanceTimersByTime(Math.min(remaining, 60_000))
+    })
+  }
+}
+
 describe('Routines', () => {
   beforeEach(() => {
     scheduled.length = 0
@@ -396,13 +409,73 @@ describe('Routines', () => {
     fireEvent.click(screen.getByTestId('routine-skip-block'))
 
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Finished — 6 min done.')
-    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('complete')
+    // Clicked to the end with nothing played, so there is nothing to recap.
+    expect(screen.getByTestId('routine-strip-status').textContent).toBe('complete')
     expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '100')
     expect(transport()).toContain('Restart workout')
 
     fireEvent.click(screen.getByTestId('play-toggle'))
     expect(bpm()).toBe('60')
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 3')
+  })
+
+  /**
+   * The recap is the run's own reading. The session clock and the note counter
+   * carry the free practice that came before the workout, so a recap taken off
+   * them would hand back the wrong session every time.
+   */
+  it('recaps the run that finished, not the session around it', async () => {
+    render(<App />)
+
+    // A minute of free practice first, which the recap must not claim.
+    await startPractice(60)
+    await practiseFor(60_000)
+
+    selectRoutine('seed-warmup-6')
+    await practiseFor(360_000)
+
+    const status = screen.getByTestId('routine-strip-status')
+    expect(status).toHaveTextContent(/^complete · 6:0\d · \d+ notes$/)
+    expect(status).not.toHaveTextContent('7:0')
+    // Nothing ramped, so there is no tempo to report.
+    expect(status).not.toHaveTextContent('BPM')
+    // The session itself still reads the full seven minutes.
+    expect(screen.getByTestId('timer')).toHaveTextContent('7:0')
+
+    // The practice log's clear puts the session clock back to zero; the recap
+    // of a run that has already finished is a record, and does not move.
+    const finishedText = status.textContent
+    fireEvent.click(screen.getByTestId('practice-log-clear'))
+    expect(screen.getByTestId('routine-strip-status').textContent).toBe(finishedText)
+  })
+
+  it('measures a second run from its own start', async () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-6')
+    await startPractice(60)
+    await practiseFor(360_000)
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent(/^complete · 6:0\d/)
+
+    // Restarting from the finished state runs the six minutes again — which is
+    // six minutes, not twelve.
+    await startPractice(60)
+    await practiseFor(360_000)
+
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent(/^complete · 6:0\d/)
+  })
+
+  it('reports the tempo a ramping workout climbed to', { timeout: 30_000 }, async () => {
+    render(<App />)
+
+    selectRoutine('seed-speed-ladder-9')
+    await startPractice(70)
+    await practiseFor(540_000)
+
+    // The ladder climbs from 70, so the tempo it reached is above where it began.
+    const status = screen.getByTestId('routine-strip-status')
+    expect(status).toHaveTextContent(/^complete · 9:0\d · \d+ notes · reached \d+ BPM$/)
+    expect(Number(/reached (\d+) BPM/.exec(status.textContent ?? '')![1])).toBeGreaterThan(70)
   })
 
   /**
@@ -671,5 +744,19 @@ describe('Routines', () => {
 
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 3')
     expect(bpm()).toBe('76')
+  })
+
+  /** The recap moves with that clear exactly as the block clock does. */
+  it('recaps the whole workout when the log clears the clock mid-run', async () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-6')
+    await startPractice(60)
+    await practiseFor(120_000)
+    fireEvent.click(screen.getByTestId('practice-log-clear'))
+    await practiseFor(240_000)
+
+    // Six minutes of workout, two of them run before the clock went back to zero.
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent(/^complete · 6:0\d · \d+ notes$/)
   })
 })

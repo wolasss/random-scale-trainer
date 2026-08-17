@@ -42,7 +42,7 @@ import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
-import { RoutineStrip } from './components/RoutineStrip'
+import { RoutineStrip, type RoutineRecap } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
@@ -79,6 +79,17 @@ function App() {
   const playbackRef = useRef<ReturnType<typeof usePlayback> | null>(null)
   const routineRef = useRef<ReturnType<typeof useRoutine> | null>(null)
 
+  /**
+   * What a finished workout came to, frozen at the moment it finished. The
+   * session clock and the note counter are the whole session's — they carry
+   * free practice before the workout, and the practice log's own control can
+   * put the clock back to zero — so a run is measured as the distance from
+   * where it started, and the reading is taken once rather than left live.
+   */
+  const [recap, setRecap] = useState<RoutineRecap | null>(null)
+  const elapsedMsRef = useRef(0)
+  const runStartRef = useRef({ elapsedMs: 0, notesCalled: 0 })
+
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
   const practiceHistory = usePracticeHistory()
@@ -86,6 +97,9 @@ function App() {
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
     onTick: (elapsedMs) => {
+      // Stamped before the routine is ticked: the tick is what finishes a
+      // workout, and the recap it captures reads this.
+      elapsedMsRef.current = elapsedMs
       routineRef.current?.tick(elapsedMs)
       practiceHistory.trackElapsed(elapsedMs)
     },
@@ -115,12 +129,31 @@ function App() {
     dispatch,
     sessionElapsedMs: sessionTimer.elapsedMs,
     isPlaying: playback.isPlaying,
-    onFinish: useCallback(() => playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete), []),
+    onFinish: () => {
+      const elapsedMs = elapsedMsRef.current - runStartRef.current.elapsedMs
+      const notesCalled = (playbackRef.current?.snapshot.notesCalled ?? 0) - runStartRef.current.notesCalled
+      // The ramp writes its climb back into the settings, so the live tempo is
+      // where it got to. Only a workout that ramps has a tempo worth reporting.
+      const ramped = routineRef.current?.selected?.blocks.some((block) => block.ramp) ?? false
+
+      // A workout clicked through to its end without ever being played has
+      // nothing to recap — say 'complete' and leave it at that.
+      setRecap(
+        elapsedMs > 0
+          ? { elapsedMs, notesCalled: Math.max(0, notesCalled), rampedToBpm: ramped ? settings.bpm : null }
+          : null,
+      )
+      playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete)
+    },
+    onRunStart: () => {
+      runStartRef.current = { elapsedMs: elapsedMsRef.current, notesCalled: playback.snapshot.notesCalled }
+    },
   })
 
   useEffect(() => {
     playbackRef.current = playback
     routineRef.current = routine
+    elapsedMsRef.current = sessionTimer.elapsedMs
   })
 
   /**
@@ -197,6 +230,9 @@ function App() {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
+    // Everything the recap was measured against has just gone back to zero.
+    runStartRef.current = { elapsedMs: 0, notesCalled: 0 }
+    setRecap(null)
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -207,7 +243,11 @@ function App() {
     // The routine reads its block clock off this same session time, so the time
     // taken off the clock is handed to it: the block it is on keeps the minutes
     // it has already run, and still hands over when it is due.
-    routine.rebase(sessionTimer.reset())
+    const removedMs = sessionTimer.reset()
+    routine.rebase(removedMs)
+    // The recap is measured off the same clock, and for the same reason moves
+    // with it: a workout cleared halfway through still recaps its full length.
+    runStartRef.current = { ...runStartRef.current, elapsedMs: runStartRef.current.elapsedMs - removedMs }
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {
@@ -265,6 +305,7 @@ function App() {
         blockIndex={routine.blockIndex}
         blockElapsedMs={routine.blockElapsedMs}
         finished={routine.finished}
+        recap={recap}
         onClear={routine.clear}
       />
     ) : null

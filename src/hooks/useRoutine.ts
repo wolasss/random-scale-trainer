@@ -26,6 +26,8 @@ export type UseRoutineOptions = {
   isPlaying: boolean
   /** The last timed block ran out: stop playback cleanly. */
   onFinish: () => void
+  /** A fresh run is starting at block 0 — whatever measures a run starts here. */
+  onRunStart?: () => void
 }
 
 export type RoutineController = {
@@ -93,7 +95,7 @@ const blockSettingsOf = (settings: Settings): BlockSettings => ({
 })
 
 export function useRoutine(options: UseRoutineOptions): RoutineController {
-  const { settings, dispatch, sessionElapsedMs, isPlaying, onFinish } = options
+  const { settings, dispatch, sessionElapsedMs, isPlaying, onFinish, onRunStart } = options
 
   const [routines, setRoutines, routinesPersisted] = usePersistentState<Routine[]>(STORAGE_KEYS.routines, {
     defaultValue: SEEDED_ROUTINES,
@@ -246,6 +248,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
     setSelectedId(id)
     selectedRef.current = routine
+    onRunStart?.()
     startAt(0, routine)
   }
 
@@ -268,6 +271,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     setRoutines((list) => [...list, routine])
     setSelectedId(routine.id)
     selectedRef.current = routine
+    onRunStart?.()
     // Built from the live settings, so there is nothing to apply.
     commit({ blockIndex: 0, blockStartMs: sessionElapsedMs, finished: false, adjusted: false })
   }
@@ -337,6 +341,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
   const restart = () => {
     if (selected !== null) {
+      onRunStart?.()
       startAt(0, selected)
     }
   }
