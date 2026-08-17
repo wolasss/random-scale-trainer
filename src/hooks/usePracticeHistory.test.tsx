@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
 import { dayKey, HISTORY_FLUSH_MS, type PracticeHistory, readHistory } from '../lib/history'
+import { withBlockedStorage } from '../test/blockedStorage'
 import { usePracticeHistory } from './usePracticeHistory'
 
 const stored = (): PracticeHistory | null => {
@@ -243,6 +244,33 @@ describe('usePracticeHistory', () => {
 
     expect(logWrites()).toBe(1)
     expect(secOn(today())).toBe(1)
+  })
+
+  it('reports a flush the store refused, and keeps counting anyway', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    expect(result.current.persisted).toBe(true)
+
+    const restore = withBlockedStorage()
+    try {
+      act(() => {
+        result.current.trackElapsed(HISTORY_FLUSH_MS + 1_000)
+      })
+
+      expect(result.current.persisted).toBe(false)
+      // The session in front of the user is still counted — only the store lost it.
+      expect(result.current.history.days[today()]?.sec).toBe(11)
+    } finally {
+      restore()
+    }
+
+    act(() => {
+      result.current.trackElapsed(HISTORY_FLUSH_MS * 3)
+    })
+
+    // Storage came back — so does the log, and so does the silence about it.
+    expect(result.current.persisted).toBe(true)
+    expect(secOn(today())).toBe(30)
   })
 
   it('credits seconds banked after midnight to the new day', () => {

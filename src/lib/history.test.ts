@@ -524,4 +524,26 @@ describe('storage', () => {
       restore()
     }
   })
+
+  it('says whether the log actually stuck', () => {
+    expect(writeHistory({ days: { '2026-02-14': { sec: 600, notes: 12 } } })).toBe(true)
+
+    const restore = withBlockedStorage()
+    try {
+      expect(writeHistory({ days: { '2026-02-14': { sec: 600, notes: 12 } } })).toBe(false)
+    } finally {
+      restore()
+    }
+  })
+
+  it('says the log was dropped by a store that takes the write and keeps nothing', () => {
+    // Quota-full browsers do exactly this: setItem returns, the value doesn't.
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {})
+
+    try {
+      expect(writeHistory({ days: { '2026-02-14': { sec: 600, notes: 12 } } })).toBe(false)
+    } finally {
+      setItem.mockRestore()
+    }
+  })
 })

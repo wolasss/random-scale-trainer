@@ -146,9 +146,13 @@ export const readHistory = (): PracticeHistory => {
   }
 }
 
-export const writeHistory = (history: PracticeHistory) => {
+/**
+ * Returns whether the log actually stuck. A dropped practice write is not
+ * something to swallow: the callers above use this to say so rather than let
+ * somebody keep practising into a log that is never saved.
+ */
+export const writeHistory = (history: PracticeHistory): boolean =>
   writeRaw(STORAGE_KEYS.practiceLog, JSON.stringify(history))
-}
 
 /** Adds to a day without mutating the history it was given. */
 export const addPractice = (
