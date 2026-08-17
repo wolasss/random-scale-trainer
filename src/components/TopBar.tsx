@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
 import { BrandLockup } from './BrandLockup'
+import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
 
 export type Theme = 'dark' | 'light'
 
@@ -13,6 +14,10 @@ type TopBarProps = {
 }
 
 export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
+  // The hints name keys a touch-only browser has no way to press: keep them for
+  // the machines that can act on them.
+  const hasKeyboard = useHardwareKeyboard()
+
   return (
     <header className="topbar">
       <div className="header-copy">
@@ -23,17 +28,19 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
       </div>
       <div className="header-side">
         {install}
-        <div className="key-hints">
-          <span>
-            <kbd>Space</kbd> play / pause
-          </span>
-          <span>
-            <kbd>←</kbd> <kbd>→</kbd> tempo
-          </span>
-          <span>
-            <kbd>R</kbd> reset
-          </span>
-        </div>
+        {hasKeyboard && (
+          <div className="key-hints">
+            <span>
+              <kbd>Space</kbd> play / pause
+            </span>
+            <span>
+              <kbd>←</kbd> <kbd>→</kbd> tempo
+            </span>
+            <span>
+              <kbd>R</kbd> reset
+            </span>
+          </div>
+        )}
         <button
           type="button"
           className="theme-toggle"
