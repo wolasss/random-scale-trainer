@@ -2033,6 +2033,17 @@ input[type='range'] {
   border: 1px solid var(--control-border);
 }
 
+/* The days you can ask about are buttons; stripped back to the square the
+   spans next to them draw, or the browser's own chrome would resize the grid. */
+button.practice-history-cell {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 /* Four steps of the skin's own accent rather than four fixed colours, so the
    calendar carries the theme instead of fighting it. */
 .practice-history-cell.is-l1 {
@@ -2060,10 +2071,24 @@ input[type='range'] {
   outline-offset: 1px;
 }
 
+/* An inner ring, not an outline, so the day being read out is still legible as
+   today when it is both — the two marks stack instead of one hiding the other. */
+.practice-history-cell.is-selected {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
 /* Days the month has but the calendar hasn't reached — present, so the shape of
    the month is right, but plainly not part of the record yet. */
 .practice-history-cell.is-future {
   opacity: 0.35;
+}
+
+.practice-history-day {
+  margin: 0;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .practice-history-backup {
