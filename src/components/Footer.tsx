@@ -1,15 +1,19 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
+import { faHeart, faMoon, faMugHot, faSun } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
 import { SKINS, SKIN_LABELS, type Skin } from '../lib/skins'
+import type { Theme } from './TopBar'
 
 type FooterProps = {
   skin: Skin
   onSkinChange: (skin: Skin) => void
+  /** Only the stage reading passes these: it has no header to hold the toggle. */
+  theme?: Theme
+  onToggleTheme?: () => void
 }
 
-export function Footer({ skin, onSkinChange }: FooterProps) {
+export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps) {
   return (
     <footer className="app-footer">
       <p>
@@ -33,6 +37,18 @@ export function Footer({ skin, onSkinChange }: FooterProps) {
             ))}
           </select>
         </label>
+        {theme && onToggleTheme ? (
+          <button
+            type="button"
+            className="theme-toggle footer-theme-toggle"
+            data-testid="footer-theme-toggle"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
+        ) : null}
         <a
           className="social-link"
           href="https://github.com/wolasss/random-scale-trainer"

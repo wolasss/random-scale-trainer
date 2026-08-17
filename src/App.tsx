@@ -44,11 +44,14 @@ import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
+import { MicReadout } from './components/MicReadout'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
+import { AudioEngine } from './lib/audio/engine'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
+import { useMicPitch } from './hooks/useMicPitch'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -66,6 +69,7 @@ import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 function App() {
   const { theme, setTheme, skin, setSkin } = useAppearance()
+  const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
@@ -73,6 +77,14 @@ function App() {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   })
+
+  // One engine for the whole app: playback schedules its cues on it and the
+  // microphone hangs its analyser off the very same AudioContext, so a
+  // detection and a beat are timestamps on one clock rather than two. Created
+  // lazily in a ref the way usePlayback used to create its own — the
+  // constructor opens no AudioContext, so building it during render is safe.
+  const engineRef = useRef<AudioEngine | null>(null)
+  const engine = (engineRef.current ??= new AudioEngine())
 
   // The session timer, playback and the routine all need handles on each
   // other, so they go through refs that are refreshed on every render.
@@ -108,6 +120,19 @@ function App() {
       practiceHistory.commit()
     },
     onBeat: beatPulse.handleBeat,
+    audio: engine,
+  })
+
+  // Default off, and only ever open alongside playback: with the setting off
+  // nothing here touches a microphone API at all. The note count is what the
+  // readout is cleared by — what you played last is an answer to the note that
+  // was on screen when you played it, and stale the moment the next one lands.
+  const mic = useMicPitch({
+    engine,
+    enabled: settings.micEnabled,
+    running: playback.isPlaying,
+    // Null through the count-in, which has no note on screen to answer.
+    callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
   })
 
   const routine = useRoutine({
@@ -348,6 +373,17 @@ function App() {
     />
   )
 
+  // Only when asked for: with the setting off the tree is exactly what it was
+  // before the microphone existed.
+  const micReadout = settings.micEnabled ? (
+    <MicReadout
+      status={mic.status}
+      heard={mic.heard}
+      spelling={settings.spelling}
+      called={playback.snapshot.currentNote}
+    />
+  ) : null
+
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
   ) : null
@@ -371,6 +407,8 @@ function App() {
               neck is wide enough to read at arm's length. In portrait it goes
               back in the sheet with the rest of the setup. */}
           {display.landscape && fretboardCard !== null ? <div className="stage-side">{fretboardCard}</div> : null}
+
+          {micReadout}
 
           <StageTransport
             isPlaying={playback.isPlaying}
@@ -397,7 +435,7 @@ function App() {
           {practiceLogCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
-          <Footer skin={skin} onSkinChange={setSkin} />
+          <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
         </PracticeSheet>
 
         {updateChip}
@@ -411,7 +449,7 @@ function App() {
       <main className="app-grid">
         <TopBar
           theme={theme}
-          onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+          onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
         />
 
@@ -434,6 +472,8 @@ function App() {
 
             {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
           </div>
+
+          {micReadout}
 
           {routineStrip}
 

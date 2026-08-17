@@ -29,6 +29,8 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Listen through the microphone while practice runs. Off until asked for. */
+  micEnabled: boolean
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
@@ -37,7 +39,7 @@ export type Settings = {
   endSoundEnabled: boolean
 }
 
-export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'showFretboard'
+export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'showFretboard' | 'micEnabled'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }
@@ -179,6 +181,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -217,6 +220,7 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: true,
+  micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

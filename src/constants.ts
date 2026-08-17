@@ -86,6 +86,9 @@ export const STORAGE_KEYS = {
   notePool: 'fretboard-note-pool',
   sessionGoal: 'fretboard-session-goal',
   showFretboard: 'fretboard-show-neck',
+  // Off unless it literally reads 'true'. The microphone is the one setting
+  // where a value we did not write must never be read as consent.
+  micListen: 'fretboard-mic-listen',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value
