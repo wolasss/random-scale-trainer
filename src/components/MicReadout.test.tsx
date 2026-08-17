@@ -7,14 +7,14 @@ describe('MicReadout', () => {
     render(<MicReadout status="listening" heard={{ pitchClass: 9, cents: 7.4 }} spelling="sharp" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('A')
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('+7 cents')
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('7 cents sharp')
   })
 
   it('shows a flat name to a player who asked for flats', () => {
     render(<MicReadout status="listening" heard={{ pitchClass: 1, cents: -12 }} spelling="flat" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('D♭')
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('-12 cents')
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('12 cents flat')
   })
 
   it('spells mixed as sharps — there is no note being called to follow', () => {
@@ -54,11 +54,55 @@ describe('MicReadout', () => {
     expect(screen.getByTestId('heard-note')).toHaveTextContent('G♭')
   })
 
-  it('never reads a note a hair flat as minus nothing', () => {
+  /**
+   * The verdict has to survive a player who cannot tell the two colours apart,
+   * so it is carried by the glyph and by a label — the colour only agrees.
+   */
+  it('marks a note that matches the call as a hit', () => {
+    render(
+      <MicReadout
+        status="listening"
+        heard={{ pitchClass: 3, cents: 2 }}
+        spelling="sharp"
+        called={{ pc: 3, display: 'E♭' }}
+      />,
+    )
+
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+    expect(screen.getByTestId('heard-verdict')).toHaveAccessibleName('E♭ — the note called')
+  })
+
+  it('marks anything else as a miss, and says what was asked for', () => {
+    render(
+      <MicReadout
+        status="listening"
+        heard={{ pitchClass: 5, cents: 2 }}
+        spelling="sharp"
+        called={{ pc: 3, display: 'E♭' }}
+      />,
+    )
+
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'false')
+    expect(screen.getByTestId('heard-verdict')).toHaveAccessibleName('F — not the note called, E♭')
+    // "F, in tune" under a call for E♭ is a right answer to a question nobody
+    // asked. The miss is the whole of the news.
+    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('in tune')
+  })
+
+  it('judges nothing while no note is being called', () => {
+    render(<MicReadout status="listening" heard={{ pitchClass: 5, cents: 2 }} spelling="sharp" called={null} />)
+
+    // A count-in has a note on its way and none on screen. There is nothing to
+    // be right or wrong about yet, and a cross would be a lie.
+    expect(screen.queryByTestId('heard-verdict')).toBeNull()
+    expect(screen.getByTestId('heard-note')).not.toHaveAttribute('data-match')
+  })
+
+  it('calls a note inside the tolerance in tune rather than counting cents at it', () => {
     render(<MicReadout status="listening" heard={{ pitchClass: 4, cents: -0.4 }} spelling="sharp" called={null} />)
 
-    expect(screen.getByTestId('heard-note')).toHaveTextContent('0 cents')
-    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('-0 cents')
+    expect(screen.getByTestId('heard-note')).toHaveTextContent('in tune')
+    expect(screen.getByTestId('heard-note')).not.toHaveTextContent('cents')
   })
 
   it('says so when it is listening and has heard nothing yet', () => {

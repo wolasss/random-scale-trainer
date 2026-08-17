@@ -36,12 +36,13 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   JSON backup export/import, where an import merges with what is already there (keeping the longer of
   any two days) rather than replacing it
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
-  alongside playback and shows the note it hears under the called one, named and in cents. A note
-  that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
-  D♯ — and the reading stays up until you play something else or the next note is called, rather
-  than blinking out with the string. The detector is a hand-rolled Web Audio autocorrelation on the
-  same AudioContext playback uses, and what the app plays through the speakers is suppressed by the
-  cue intervals the engine records, so the readout reports you rather than itself. The microphone is
+  alongside playback and shows the note it hears under the called one, with a tick or a cross for
+  whether it was the note asked for and how far off it was in words — "in tune", "18 cents sharp".
+  A note that matches the call is named the way the call named it — E♭ stays E♭ rather than turning
+  into D♯ — and the reading stays up until you play something else or the next note is called,
+  rather than blinking out with the string. The detector is a hand-rolled Web Audio autocorrelation
+  on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
+  by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
   changes nothing else
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for

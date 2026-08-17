@@ -190,6 +190,26 @@ describe('listening for the player', () => {
     expect(screen.getByTestId('heard-note')).not.toHaveTextContent('D♯')
   })
 
+  it('marks the wrong note wrong and the right note right', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+
+    const called = calledPitchClass()
+    play(called + 2)
+    await advance(100)
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'false')
+
+    play(called)
+    await advance(100)
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+  })
+
   it('holds the note it heard until the next one is called', async () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
