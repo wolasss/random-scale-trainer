@@ -155,8 +155,30 @@ describe('MicReadout', () => {
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })
 
-    it('stays out while the microphone is not listening', () => {
-      render(<MicReadout {...props} status="denied" score={{ lastVerdict: null, hits: 2, scored: 3 }} />)
+    /**
+     * Stopping playback closes the microphone, and a session that has just
+     * stopped is the one someone actually wants the number from.
+     */
+    it('keeps the session count up once the microphone has closed', () => {
+      render(<MicReadout {...props} status="idle" score={{ lastVerdict: null, hits: 2, scored: 3 }} />)
+
+      expect(screen.getByTestId('score-tally')).toHaveTextContent('2/3')
+      expect(screen.getByTestId('mic-readout')).toHaveTextContent('Listening starts with playback.')
+    })
+
+    it('drops the last note’s verdict once the microphone has closed', () => {
+      // It answers the note that was on screen when it was played, and a
+      // stopped session has no such note to answer.
+      render(
+        <MicReadout {...props} status="idle" score={{ lastVerdict: { hit: false, responseMs: null }, hits: 2, scored: 3 }} />,
+      )
+
+      expect(screen.queryByTestId('score-verdict')).toBeNull()
+      expect(screen.getByTestId('score-tally')).toHaveTextContent('2/3')
+    })
+
+    it('stays out while the microphone has nothing to report either way', () => {
+      render(<MicReadout {...props} status="denied" score={{ lastVerdict: null, hits: 0, scored: 0 }} />)
 
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })

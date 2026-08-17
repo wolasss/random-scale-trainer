@@ -46,6 +46,12 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * running accuracy beside it. That line stays out until there is something to
  * say — a mic that has been on for four seconds has nothing yet, and "0/0"
  * over an untouched session reads as a failure rather than a beginning.
+ *
+ * The tally outlives the microphone. Stopping playback closes the mic, and a
+ * stopped session is exactly when someone wants to read how it went, so the
+ * count stays on the line the status message is on until the session is reset.
+ * The verdict does not follow it there: it answers the note that was on screen
+ * when it was played, and once the listening stops that question is closed.
  */
 export function MicReadout({ status, heard, spelling, called, score }: MicReadoutProps) {
   if (status !== 'listening') {
@@ -53,6 +59,12 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
       <div className="mic-readout" data-testid="mic-readout" data-status={status}>
         <span className="mic-readout-label">Mic</span>
         <span className="mic-readout-message">{STATUS_MESSAGES[status]}</span>
+        {score !== null && score.scored > 0 ? (
+          <div className="mic-readout-score">
+            <span className="mic-readout-label">Score</span>
+            <ScoreTally hits={score.hits} scored={score.scored} />
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -114,14 +126,19 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
             </span>
           ) : null}
 
-          {score.scored > 0 ? (
-            <span className="mic-readout-tally" data-testid="score-tally">
-              {score.hits}/{score.scored} · {Math.round((score.hits / score.scored) * 100)}%
-            </span>
-          ) : null}
+          {score.scored > 0 ? <ScoreTally hits={score.hits} scored={score.scored} /> : null}
         </div>
       ) : null}
     </div>
+  )
+}
+
+/** Read after the session as often as during it, hence its own component. */
+function ScoreTally({ hits, scored }: { hits: number; scored: number }) {
+  return (
+    <span className="mic-readout-tally" data-testid="score-tally">
+      {hits}/{scored} · {Math.round((hits / scored) * 100)}%
+    </span>
   )
 }
 
