@@ -18,6 +18,8 @@ describe('FretboardCard', () => {
       'Fretboard map: C at 1st string (e) fret 8, 2nd string (B) fret 1, 3rd string (G) fret 5, ' +
         '4th string (D) fret 10, 5th string (A) fret 3, 6th string (E) fret 8',
     )
+    // The picture agrees with the reading: one dot per string, six in total.
+    expect(screen.getAllByTestId('fret-dot')).toHaveLength(6)
   })
 
   it('rewrites the accessible name when the called note changes', () => {
