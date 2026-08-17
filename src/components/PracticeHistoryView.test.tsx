@@ -185,6 +185,25 @@ describe('PracticeHistoryView', () => {
     expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-12 · no practice · 0 notes')
   })
 
+  it('starts on today again the next time it is opened', async () => {
+    const user = userEvent.setup()
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    await user.click(screen.getByLabelText('2026-02-13: 15 min'))
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    rerender(<PracticeHistoryView {...props} />)
+
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-14 · 10 min · 60 notes')
+  })
+
   it('puts the days within reach of the keyboard', async () => {
     const user = userEvent.setup()
     renderView()

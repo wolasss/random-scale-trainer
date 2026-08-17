@@ -142,6 +142,9 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown, true)
+      // Closing ends the question that was being asked, so the next opening
+      // starts on today again rather than on whatever was last tapped.
+      setSelectedKey(null)
 
       if (opener !== null && opener.isConnected) {
         opener.focus()
