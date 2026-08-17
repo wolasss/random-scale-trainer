@@ -70,6 +70,7 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   const fileRef = useRef<HTMLInputElement | null>(null)
   const onCloseRef = useRef(onClose)
   const [importError, setImportError] = useState<string | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -141,6 +142,9 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
     return () => {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', onKeyDown, true)
+      // Closing ends the question that was being asked, so the next opening
+      // starts on today again rather than on whatever was last tapped.
+      setSelectedKey(null)
 
       if (opener !== null && opener.isConnected) {
         opener.focus()
@@ -156,6 +160,12 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
   const months = buildMonths(history, now)
+
+  // Today until a square is tapped: the calendar's squares are too small to
+  // hold a reading, and on a phone there is no hover to put one in a tooltip.
+  const selectedDay = selectedKey ?? dayKey(now)
+  const selected = history.days[selectedDay]
+  const selectedSec = selected?.sec ?? 0
 
   const entries = Object.values(history.days)
   const totalSec = entries.reduce((sum, day) => sum + day.sec, 0)
@@ -263,29 +273,45 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
                 </div>
 
                 <div className="practice-history-grid">
-                  {month.cells.map((cell, index) =>
-                    cell === null ? (
-                      <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
+                  {month.cells.map((cell, index) => {
+                    if (cell === null) {
+                      return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
+                    }
+
+                    const label = `${cell.key}: ${dayTitle(cell.minutes, cell.sec)}`
+                    const className = [
+                      `practice-history-cell is-l${cell.level}`,
+                      cell.isToday ? 'is-today' : '',
+                      cell.isFuture ? 'is-future' : '',
+                      !cell.isFuture && cell.key === selectedDay ? 'is-selected' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+
+                    // A day the calendar hasn't reached has nothing to read out,
+                    // so it stays a picture rather than becoming a tab stop.
+                    return cell.isFuture ? (
+                      <span key={cell.key} className={className} role="img" title={label} aria-label={label} />
                     ) : (
-                      <span
+                      <button
                         key={cell.key}
-                        className={[
-                          `practice-history-cell is-l${cell.level}`,
-                          cell.isToday ? 'is-today' : '',
-                          cell.isFuture ? 'is-future' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        role="img"
-                        title={`${cell.key}: ${dayTitle(cell.minutes, cell.sec)}`}
-                        aria-label={`${cell.key}: ${dayTitle(cell.minutes, cell.sec)}`}
+                        type="button"
+                        className={className}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={cell.key === selectedDay}
+                        onClick={() => setSelectedKey(cell.key)}
                       />
-                    ),
-                  )}
+                    )
+                  })}
                 </div>
               </section>
             ))}
           </div>
+
+          <p className="practice-history-day" data-testid="history-day">
+            {selectedDay} · {dayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
+          </p>
 
           <div className="practice-history-backup">
             <p className="practice-history-backup-note">

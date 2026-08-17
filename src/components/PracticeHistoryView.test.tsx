@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PracticeHistoryView } from './PracticeHistoryView'
 import { MAX_BACKUP_BYTES, serializeBackup, type PracticeHistory } from '../lib/history'
@@ -162,6 +163,68 @@ describe('PracticeHistoryView', () => {
     expect(screen.getByLabelText('2026-01-20: 30 min')).toHaveClass('is-l4')
     expect(screen.getByLabelText('2026-02-14: 10 min')).toHaveClass('is-l2')
     expect(screen.getByLabelText('2026-02-12: no practice')).toHaveClass('is-l0')
+  })
+
+  it('reads today out under the calendar before anything is picked', () => {
+    renderView()
+
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-14 · 10 min · 60 notes')
+  })
+
+  it('reads out whichever day is tapped', async () => {
+    const user = userEvent.setup()
+    renderView()
+
+    await user.click(screen.getByLabelText('2026-02-13: 15 min'))
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-13 · 15 min · 80 notes')
+    expect(screen.getByLabelText('2026-02-13: 15 min')).toHaveClass('is-selected')
+    expect(screen.getByLabelText('2026-02-14: 10 min')).not.toHaveClass('is-selected')
+
+    // A day with nothing on it is still an answer, not a dead square.
+    await user.click(screen.getByLabelText('2026-02-12: no practice'))
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-12 · no practice · 0 notes')
+  })
+
+  it('starts on today again the next time it is opened', async () => {
+    const user = userEvent.setup()
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    await user.click(screen.getByLabelText('2026-02-13: 15 min'))
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    rerender(<PracticeHistoryView {...props} />)
+
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-14 · 10 min · 60 notes')
+  })
+
+  it('puts the days within reach of the keyboard', async () => {
+    const user = userEvent.setup()
+    renderView()
+
+    expect(document.activeElement).toBe(screen.getByTestId('practice-history-close'))
+
+    await user.tab()
+
+    expect(document.activeElement).toHaveClass('practice-history-cell')
+    expect(document.activeElement?.tagName).toBe('BUTTON')
+  })
+
+  it('leaves the days it hasn’t reached inert', () => {
+    renderView()
+
+    const future = screen.getByLabelText('2026-02-28: no practice')
+    expect(future.tagName).not.toBe('BUTTON')
+
+    fireEvent.click(future)
+
+    expect(screen.getByTestId('history-day')).toHaveTextContent('2026-02-14 · 10 min · 60 notes')
   })
 
   it('closes on Escape', () => {
