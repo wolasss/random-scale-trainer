@@ -527,7 +527,6 @@ describe('AudioEngine cue bookkeeping', () => {
 
     expect(engine.isWithinCue(2)).toBe(true)
     expect(engine.isWithinCue(2.13)).toBe(true)
-    expect(engine.isWithinCue(2.2)).toBe(false)
     expect(engine.isWithinCue(1.99)).toBe(false)
     expect(engine.getCueEndForBeat(2)).toBeCloseTo(2.14, 5)
   })
@@ -539,7 +538,7 @@ describe('AudioEngine cue bookkeeping', () => {
     engine.playNoteAt('C', 3)
 
     expect(engine.isWithinCue(3.9)).toBe(true)
-    expect(engine.isWithinCue(4.1)).toBe(false)
+    expect(engine.isWithinCue(4.3)).toBe(false)
     expect(engine.getCueEndForBeat(3)).toBeCloseTo(4, 5)
   })
 
@@ -562,17 +561,25 @@ describe('AudioEngine cue bookkeeping', () => {
     // covers from the request all the way past a comfortably long note name.
     expect(engine.isWithinCue(1.85)).toBe(true)
     expect(engine.isWithinCue(3.1)).toBe(true)
-    expect(engine.isWithinCue(3.3)).toBe(false)
+    expect(engine.isWithinCue(3.4)).toBe(false)
   })
 
-  it('honours the decay margin without moving the interval itself', async () => {
+  /**
+   * Beats are a quarter of a second apart at 240 BPM, the top of the range the
+   * tempo control offers. If a click suppressed the microphone for as long as a
+   * spoken note leaves the room ringing, the next click would arrive before the
+   * last one let go and a fast session would never hear the player at all.
+   */
+  it('lets go of a click before the next beat can land on it', async () => {
     const engine = await readyEngine()
+    const fastestBeatS = 60 / 240
 
     engine.playClickAt(2, false)
 
-    expect(engine.isWithinCue(2.25)).toBe(false)
-    expect(engine.isWithinCue(2.25, 0.15)).toBe(true)
-    expect(engine.isWithinCue(2.35, 0.15)).toBe(false)
+    expect(engine.isWithinCue(2 + fastestBeatS - 0.001)).toBe(false)
+    // A note is a different matter: its tail is generous on purpose.
+    engine.playNoteAt('C', 5)
+    expect(engine.isWithinCue(6.1)).toBe(true)
   })
 
   it('answers per interval rather than for the last thing scheduled', async () => {

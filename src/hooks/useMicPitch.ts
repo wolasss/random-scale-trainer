@@ -14,16 +14,12 @@ import { detectPitch, frequencyToPitch } from '../lib/audio/pitch'
 export const MIC_POLL_MS = 50
 
 /**
- * How long after a cue has finished the room is still assumed to be ringing
- * with it. Anything heard inside a cue plus this margin is the app hearing
- * itself, and is dropped rather than shown or published.
- *
- * Named, and deliberately generous, because it is the one number the hardware
- * pass is expected to reach for: if a real room still leaks the spoken note
- * into the readout, widen this rather than trusting the clarity gate to sort
- * out a signal that is genuinely a clean note.
+ * How far the cents reading has to move before the readout is refreshed while
+ * the note stays in the same pitch class. Subscribers still see every frame;
+ * this only decides when React hears about one, so a held note costs a render
+ * when it drifts rather than twenty a second when it doesn't.
  */
-export const CUE_DECAY_MARGIN_S = 0.15
+export const HEARD_CENTS_TOLERANCE = 2
 
 export type MicStatus = 'idle' | 'unsupported' | 'denied' | 'listening'
 
@@ -44,7 +40,7 @@ export type HeardPitchListener = (heard: HeardPitch) => void
 export type MicEngine = {
   getContext(): AudioContext | null
   getCurrentTime(): number
-  isWithinCue(time: number, marginS?: number): boolean
+  isWithinCue(time: number): boolean
 }
 
 export type UseMicPitchOptions = {
@@ -116,8 +112,9 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
 
       // The app plays the called note out of the same speaker the microphone is
       // pointed at, so clarity alone can never tell the cue from the player.
-      // Only what falls outside every cue interval counts as playing.
-      if (detected === null || engineRef.current.isWithinCue(audioTime, CUE_DECAY_MARGIN_S)) {
+      // Only what falls outside every cue interval, tail included, counts as
+      // playing — the engine knows how long each of its own sounds lingers.
+      if (detected === null || engineRef.current.isWithinCue(audioTime)) {
         setHeard((current) => (current === null ? current : null))
         return
       }
@@ -130,8 +127,16 @@ export function useMicPitch({ engine, enabled, running }: UseMicPitchOptions) {
       }
 
       // Subscribers get every frame; React only gets the changes, so a held
-      // note is one render rather than twenty a second.
-      setHeard((current) => (current !== null && current.pitchClass === pitchClass ? current : event))
+      // note is one render rather than twenty a second. Cents count as a
+      // change, or bending and tuning would freeze the reading the moment the
+      // pitch class settled — which is exactly when it is being watched.
+      setHeard((current) =>
+        current !== null &&
+        current.pitchClass === pitchClass &&
+        Math.abs(current.cents - cents) < HEARD_CENTS_TOLERANCE
+          ? current
+          : event
+      )
     }
 
     const open = async () => {

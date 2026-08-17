@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CUE_DECAY_MARGIN_S, MIC_POLL_MS, useMicPitch, type HeardPitch, type MicEngine } from './useMicPitch'
+import { HEARD_CENTS_TOLERANCE, MIC_POLL_MS, useMicPitch, type HeardPitch, type MicEngine } from './useMicPitch'
 
 const SAMPLE_RATE = 44100
 
@@ -126,6 +126,40 @@ describe('useMicPitch', () => {
     expect(result.current.heard?.pitchClass).toBe(9)
   })
 
+  /**
+   * A player tuning up, or bending one, never leaves the pitch class — and the
+   * cents are the only part of the readout that means anything to them while
+   * they do it. A reading held because the note "hasn't changed" is a dead one.
+   */
+  it('keeps the cents current while the note holds its pitch class', async () => {
+    const { stream } = createFakeStream()
+    installGetUserMedia(async () => stream)
+    const { context, analyser } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true }))
+    await flush()
+    await tick()
+
+    const inTune = result.current.heard
+    expect(inTune?.pitchClass).toBe(9)
+
+    analyser.getFloatTimeDomainData.mockImplementation((target: Float32Array) => {
+      for (let index = 0; index < target.length; index += 1) {
+        target[index] = 0.5 * Math.sin((2 * Math.PI * 222 * index) / SAMPLE_RATE)
+      }
+    })
+    await tick()
+
+    expect(result.current.heard?.pitchClass).toBe(9)
+    expect(result.current.heard?.cents ?? 0).toBeGreaterThan((inTune?.cents ?? 0) + HEARD_CENTS_TOLERANCE)
+
+    // Jitter of a cent or two is not news, and re-rendering on it would be.
+    const sharp = result.current.heard
+    await tick()
+    expect(result.current.heard).toBe(sharp)
+  })
+
   it('unsubscribes cleanly', async () => {
     const { stream } = createFakeStream()
     installGetUserMedia(async () => stream)
@@ -173,7 +207,7 @@ describe('useMicPitch', () => {
 
     expect(events).toHaveLength(0)
     expect(result.current.heard).toBeNull()
-    expect(isWithinCue).toHaveBeenCalledWith(7.25, CUE_DECAY_MARGIN_S)
+    expect(isWithinCue).toHaveBeenCalledWith(7.25)
 
     // The very same frame gets through once the cue has decayed.
     isWithinCue.mockReturnValue(false)

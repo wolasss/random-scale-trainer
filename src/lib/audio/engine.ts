@@ -41,6 +41,24 @@ const SILENT_WAV =
 const CLICK_DURATION_S = 0.14
 
 /**
+ * How long the room is assumed to go on ringing with a spoken note after the
+ * clip itself has finished — the tail the microphone must not mistake for the
+ * player. This is the number the hardware pass reaches for: if a real room
+ * still leaks the called note into the readout, widen this rather than trusting
+ * the clarity gate to reject what is genuinely a clean note.
+ */
+const NOTE_DECAY_S = 0.15
+
+/**
+ * The same allowance for the click, which is a tick rather than a note and
+ * needs far less of one. It also cannot afford more: beats are 0.25 s apart at
+ * the top of the tempo range, so a note's tail on every click would suppress
+ * the microphone from one beat straight into the next and leave a fast session
+ * with nothing to listen through.
+ */
+const CLICK_DECAY_S = 0.04
+
+/**
  * How long a spoken note name is assumed to occupy when a clip is missing. The
  * speech engine will not say, so this is a deliberate over-estimate: the number
  * exists to keep the microphone from hearing the app talk to itself, and being
@@ -54,8 +72,13 @@ const CUE_HISTORY_S = 5
 /** A beat's click and its note are scheduled at one time; float maths is not exact. */
 const BEAT_MATCH_EPSILON_S = 0.001
 
-/** When a sound the app makes starts and stops, on the AudioContext clock. */
-type CueInterval = { start: number; end: number }
+/**
+ * When a sound the app makes starts and stops, on the AudioContext clock, plus
+ * how long the room keeps ringing with it afterwards. The decay belongs to the
+ * cue rather than to whoever asks, because a spoken note and a click leave very
+ * different amounts of themselves behind.
+ */
+type CueInterval = { start: number; end: number; decay: number }
 
 export type AudioEngineDeps = {
   contextFactory?: () => AudioContext | null
@@ -196,21 +219,21 @@ export class AudioEngine {
     return this.context
   }
 
-  private recordCue(start: number, end: number): void {
+  private recordCue(start: number, end: number, decay: number): void {
     // Bounded by the clock, not by a count: a long session must not grow an
     // array of every click it has ever played.
     const cutoff = this.getCurrentTime() - CUE_HISTORY_S
     this.cueIntervals = this.cueIntervals.filter((cue) => cue.end >= cutoff)
-    this.cueIntervals.push({ start, end })
+    this.cueIntervals.push({ start, end, decay })
   }
 
   /**
-   * Whether the app itself was making a sound at this moment — the microphone's
-   * defence against scoring the player for the note the speakers just called.
-   * `marginS` covers the room's decay after the cue has technically ended.
+   * Whether the app itself was making a sound at this moment, or had just made
+   * one and left the room ringing — the microphone's defence against scoring
+   * the player for the note the speakers just called.
    */
-  isWithinCue(time: number, marginS = 0): boolean {
-    return this.cueIntervals.some((cue) => time >= cue.start && time <= cue.end + marginS)
+  isWithinCue(time: number): boolean {
+    return this.cueIntervals.some((cue) => time >= cue.start && time <= cue.end + cue.decay)
   }
 
   /**
@@ -291,7 +314,7 @@ export class AudioEngine {
     oscillator.start(startTime)
     oscillator.stop(startTime + CLICK_DURATION_S)
     this.track(oscillator)
-    this.recordCue(startTime, startTime + CLICK_DURATION_S)
+    this.recordCue(startTime, startTime + CLICK_DURATION_S, CLICK_DECAY_S)
   }
 
   playSessionEndChime(at?: number): void {
@@ -390,7 +413,7 @@ export class AudioEngine {
     // Speech starts when it is asked to, not at the beat it was scheduled for,
     // so the cue is recorded from whichever of the two comes first and given a
     // generous tail. Nothing here can be measured, so it is over-estimated.
-    this.recordCue(Math.min(startTime, this.getCurrentTime()), startTime + SPEECH_CUE_FALLBACK_S)
+    this.recordCue(Math.min(startTime, this.getCurrentTime()), startTime + SPEECH_CUE_FALLBACK_S, NOTE_DECAY_S)
   }
 
   playNoteAt(audioKey: string, startTime: number): void {
@@ -408,7 +431,7 @@ export class AudioEngine {
     source.connect(context.destination)
     source.start(startTime)
     this.track(source)
-    this.recordCue(startTime, startTime + buffer.duration)
+    this.recordCue(startTime, startTime + buffer.duration, NOTE_DECAY_S)
   }
 
   playClick(): void {
