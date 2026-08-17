@@ -544,8 +544,9 @@ describe('Routines', () => {
    * must never happen is a note being *drawn* from the old pool after the
    * switch — that would mean the deck was re-seeded from stale settings.
    */
-  // Explicit timeout: 400 awaited act() steps make this the heaviest test in
-  // the suite, and under a loaded parallel run it can brush the 5s default.
+  // The fake clock is driven coarsely — one jump to just short of the computed
+  // boundary, then a short poll for the switch — so the test pays for a handful
+  // of renders rather than hundreds. The explicit timeout is headroom only.
   it('draws nothing from the old pool once a block boundary passes', { timeout: 15_000 }, async () => {
     // Disjoint pools, so every sounded note names the block it came from.
     const NATURAL_KEYS = new Set(['C', 'D', 'E', 'F', 'G', 'A', 'B'])
@@ -567,10 +568,20 @@ describe('Routines', () => {
     selectRoutine('boundary')
     await startPractice(120)
 
+    // The block clock starts on the first real note and runs for the block's
+    // 6s, so one coarse jump gets to within half a second of the switch without
+    // paying for a render in between. The guard makes an overshoot loud.
+    const firstNoteMs = scheduled.find((sound) => sound.kind === 'note')!.time * 1_000
+    await act(async () => {
+      vi.advanceTimersByTime(firstNoteMs + 6_000 - 500 - performance.now())
+    })
+    expect(screen.getByTestId('routine-segment-1').dataset.state).not.toBe('active')
+
+    // Then creep up on the switch, which the session timer quantises to 200ms.
     let boundaryAt: number | null = null
-    for (let step = 0; step < 400 && boundaryAt === null; step++) {
+    for (let step = 0; step < 20 && boundaryAt === null; step++) {
       await act(async () => {
-        vi.advanceTimersByTime(20)
+        vi.advanceTimersByTime(100)
       })
       if (screen.getByTestId('routine-segment-1').dataset.state === 'active') {
         boundaryAt = performance.now() / 1000
