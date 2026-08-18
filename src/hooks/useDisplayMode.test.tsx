@@ -104,6 +104,15 @@ describe('useDisplayMode', () => {
     expect(result.current).toMatchObject({ standalone: true, stage: true })
   })
 
+  it('does not mistake a fullscreened browser tab for an installed app', () => {
+    // F11, or any video going fullscreen, flips (display-mode: fullscreen) on a
+    // page that was never installed. It must not silence the install offer.
+    installMatchMedia({ '(display-mode: fullscreen)': true, [COARSE_POINTER_QUERY]: true })
+    const { result } = renderHook(() => useDisplayMode())
+
+    expect(result.current).toMatchObject({ standalone: false, stage: false })
+  })
+
   it('leaves a phone in a browser tab alone', () => {
     installMatchMedia({ [STANDALONE_QUERY]: false, [COARSE_POINTER_QUERY]: true })
     const { result } = renderHook(() => useDisplayMode())
