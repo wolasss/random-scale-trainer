@@ -30,25 +30,40 @@ export function useWakeLock(active: boolean): void {
 
     let disposed = false
     let sentinel: WakeLockSentinelLike | null = null
+    let pending: Promise<WakeLockSentinelLike> | null = null
 
     const release = () => {
       const current = sentinel
       sentinel = null
+      // A request still in flight sees it was superseded and releases the lock
+      // it ends up with, rather than leaving it held forever.
+      pending = null
       void current?.release().catch(() => undefined)
     }
 
     const acquire = async () => {
-      if (disposed || !active || sentinel !== null || document.visibilityState !== 'visible') {
+      if (
+        disposed ||
+        !active ||
+        sentinel !== null ||
+        pending !== null ||
+        document.visibilityState !== 'visible'
+      ) {
         return
       }
 
+      const request = api.request('screen')
+      pending = request
+
       try {
-        const next = await api.request('screen')
-        // Playback may have stopped while the request was in flight.
-        if (disposed || !active) {
+        const next = await request
+        // Playback may have stopped, or another acquire() taken over, while the
+        // request was in flight.
+        if (disposed || !active || pending !== request) {
           void next.release().catch(() => undefined)
           return
         }
+        pending = null
 
         // The OS releases the lock on its own when the page is backgrounded;
         // clearing the handle is what lets the next acquire() take a new one.
@@ -60,6 +75,9 @@ export function useWakeLock(active: boolean): void {
         sentinel = next
       } catch {
         // Denied, or unsupported despite the API being present.
+        if (pending === request) {
+          pending = null
+        }
       }
     }
 
