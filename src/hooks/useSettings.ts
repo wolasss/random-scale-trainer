@@ -35,11 +35,16 @@ export type Settings = {
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
   sessionGoalMin: SessionGoalMin
-  /** Stored setting without UI: deliberately kept read-only. */
+  /** A short chime when the session ends. */
   endSoundEnabled: boolean
 }
 
-export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'showFretboard' | 'micEnabled'
+export type SettingsToggleKey =
+  | 'continuousMode'
+  | 'countInEnabled'
+  | 'showFretboard'
+  | 'micEnabled'
+  | 'endSoundEnabled'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }

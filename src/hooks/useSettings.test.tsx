@@ -258,6 +258,25 @@ describe('useSettings persistence', () => {
     expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('true')
   })
 
+  it('persists the end-chime toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'endSoundEnabled' })
+    })
+
+    expect(result.current[0].endSoundEnabled).toBe(false)
+    expect(window.localStorage.getItem('fretboard-end-sound')).toBe('false')
+  })
+
+  it('restores a stored end chime that was switched off', () => {
+    window.localStorage.setItem('fretboard-end-sound', 'false')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].endSoundEnabled).toBe(false)
+  })
+
   it('persists dispatched changes per key', () => {
     const { result } = renderHook(() => useSettings())
 

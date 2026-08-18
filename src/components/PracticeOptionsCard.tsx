@@ -41,6 +41,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         checked={settings.showFretboard}
         onChange={() => onToggle('showFretboard')}
       />
+      <SwitchRow
+        id="end-sound"
+        label="End chime"
+        subtitle="A little chime when the session wraps up."
+        checked={settings.endSoundEnabled}
+        onChange={() => onToggle('endSoundEnabled')}
+      />
     </section>
   )
 }
