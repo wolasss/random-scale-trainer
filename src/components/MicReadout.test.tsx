@@ -110,6 +110,21 @@ describe('MicReadout', () => {
     expect(screen.getByTestId('heard-note')).not.toHaveTextContent('tune')
   })
 
+  // Per-note updates land several times a second. Announcing them would bury
+  // the app's own speech under a running commentary nobody asked for.
+  it('does not announce the note it is hearing', () => {
+    render(
+      <MicReadout
+        status="listening"
+        heard={{ pitchClass: 3 }}
+        spelling="sharp"
+        called={{ pc: 3, display: 'E♭' }}
+      />,
+    )
+
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('says so when it is listening and has heard nothing yet', () => {
     render(<MicReadout status="listening" heard={null} spelling="sharp" called={null} />)
 
@@ -135,5 +150,22 @@ describe('MicReadout', () => {
     render(<MicReadout status="idle" heard={null} spelling="sharp" called={null} />)
 
     expect(screen.getByTestId('mic-readout')).toHaveTextContent('Listening starts with playback.')
+  })
+
+  /**
+   * A mic that never starts is a silent failure to anyone reading the screen
+   * rather than looking at it: they switched listening on, playback ran, and
+   * nothing said why nothing was heard. The status line has to speak up.
+   */
+  it('announces the status line', () => {
+    const { rerender } = render(<MicReadout status="idle" heard={null} spelling="sharp" called={null} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Listening starts with playback.')
+
+    rerender(<MicReadout status="denied" heard={null} spelling="sharp" called={null} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Mic blocked')
+
+    rerender(<MicReadout status="unsupported" heard={null} spelling="sharp" called={null} />)
+    expect(screen.getByRole('status')).toHaveTextContent('no microphone')
   })
 })

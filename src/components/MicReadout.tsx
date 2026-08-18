@@ -37,11 +37,16 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * miss on their own, so the line still reports to a player who cannot tell the
  * green from the red. Nothing is judged during a count-in, when there is no
  * note on screen to be right or wrong about.
+ *
+ * Only the status line is announced. A blocked or unsupported mic is silent
+ * failure otherwise — the player turned listening on and nothing ever happens —
+ * so it is a live region. The heard-note line changes with every note played
+ * and would talk over the app it is reporting on, so it is not.
  */
 export function MicReadout({ status, heard, spelling, called }: MicReadoutProps) {
   if (status !== 'listening') {
     return (
-      <div className="mic-readout" data-testid="mic-readout" data-status={status}>
+      <div className="mic-readout" data-testid="mic-readout" data-status={status} role="status">
         <span className="mic-readout-label">Mic</span>
         <span className="mic-readout-message">{STATUS_MESSAGES[status]}</span>
       </div>
