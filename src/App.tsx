@@ -48,6 +48,7 @@ import { MicReadout } from './components/MicReadout'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
+import { isMicSupported } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
@@ -123,13 +124,19 @@ function App() {
     audio: engine,
   })
 
+  // One value for "the mic is on", read by the hook, the readout and the switch
+  // alike: a browser with no microphone API cannot listen, whatever a setting
+  // stored by a browser that could says, and a readout the switch reports as
+  // off is one the user has no way to be rid of.
+  const micEnabled = settings.micEnabled && isMicSupported()
+
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
   // readout is cleared by — what you played last is an answer to the note that
   // was on screen when you played it, and stale the moment the next one lands.
   const mic = useMicPitch({
     engine,
-    enabled: settings.micEnabled,
+    enabled: micEnabled,
     running: playback.isPlaying,
     // Null through the count-in, which has no note on screen to answer.
     callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
@@ -375,7 +382,7 @@ function App() {
 
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
-  const micReadout = settings.micEnabled ? (
+  const micReadout = micEnabled ? (
     <MicReadout
       status={mic.status}
       heard={mic.heard}
