@@ -1,6 +1,10 @@
 import { useMediaQuery } from './useMediaQuery'
 
-export const STANDALONE_QUERY = '(display-mode: standalone)'
+/** A home-screen launch does not always land in standalone: the manifest's
+ * `display_override`, or the browser's own fallback down the display chain, can
+ * put it in any of these. All of them mean installed, none of them is a tab. */
+export const STANDALONE_QUERY =
+  '(display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen), (display-mode: window-controls-overlay)'
 export const COARSE_POINTER_QUERY = '(pointer: coarse)'
 export const LANDSCAPE_QUERY = '(orientation: landscape)'
 

@@ -20,7 +20,11 @@ const installMatchMedia = (initial: Record<string, boolean>) => {
       return existing
     }
 
-    const created: FakeList = { matches: initial[query] ?? false, listeners: [] }
+    // A comma-separated query list matches when any one of its parts does, so a
+    // fixture can flag the whole list or a single mode inside it.
+    const matches =
+      initial[query] ?? query.split(',').some((part) => initial[part.trim()] === true)
+    const created: FakeList = { matches, listeners: [] }
     lists.set(query, created)
     return created
   }
@@ -89,6 +93,15 @@ describe('useDisplayMode', () => {
 
     // A mouse and a keyboard mean a desk, not a music stand.
     expect(result.current).toMatchObject({ standalone: true, stage: false })
+  })
+
+  it('is the stand reading when the home-screen launch lands in minimal-ui', () => {
+    // Nothing matches (display-mode: standalone) here — only the minimal-ui
+    // mode the browser fell back to — and it is still an installed launch.
+    installMatchMedia({ '(display-mode: minimal-ui)': true, [COARSE_POINTER_QUERY]: true })
+    const { result } = renderHook(() => useDisplayMode())
+
+    expect(result.current).toMatchObject({ standalone: true, stage: true })
   })
 
   it('leaves a phone in a browser tab alone', () => {
