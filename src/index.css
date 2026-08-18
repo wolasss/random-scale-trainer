@@ -1668,10 +1668,12 @@ input[type='range'] {
 }
 
 .routine-chip.selected .routine-chip-body,
+.routine-chip.selected .routine-chip-copy,
 .routine-chip.selected .routine-chip-remove {
   color: var(--primary);
 }
 
+.routine-chip-copy,
 .routine-chip-remove {
   display: inline-flex;
   align-items: center;
@@ -1684,6 +1686,13 @@ input[type='range'] {
   transition: opacity 140ms var(--ease-out);
 }
 
+/* Two icons on one chip: the copy sits tight against the remove so the pair
+   reads as one trailing group rather than as padding. */
+.routine-chip-copy {
+  padding: 0 0.2rem 0 0.4rem;
+}
+
+.routine-chip-copy:hover,
 .routine-chip-remove:hover {
   opacity: 1;
 }
@@ -1805,6 +1814,7 @@ input[type='range'] {
    negative margins spend the segment's own padding on the target instead of
    growing every block in the timeline. */
 @media (pointer: coarse) {
+  .routine-chip-copy,
   .routine-chip-remove {
     justify-content: center;
     min-width: 44px;
