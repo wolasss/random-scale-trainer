@@ -194,10 +194,15 @@ export function judgeDetection(noteWindow: NoteWindow, { pitchClass, audioTime }
  * Banks a correct note: the count, the response time, the streak it continues,
  * and the points — `POINTS_PER_HIT`, the streak bonus the new run has earned,
  * and anything else already known to have landed on this note.
+ *
+ * The streak bonus is this function's alone, because it is the one that knows
+ * how long the run now is; a streak handed in among `bonuses` is dropped rather
+ * than paid on top of the one worked out here. Every other kind is added as
+ * given.
  */
 export const applyHit = (tally: Tally, responseMs: number, bonuses: Bonus[] = []): Tally => {
   const streak = tally.streak + 1
-  const extra = bonuses.reduce((total, bonus) => total + bonus.points, 0)
+  const extra = bonuses.reduce((total, bonus) => (bonus.kind === 'streak' ? total : total + bonus.points), 0)
 
   return {
     scored: tally.scored + 1,

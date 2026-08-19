@@ -210,11 +210,13 @@ describe('the tally', () => {
     expect(long.points).toBe(run(19).points + POINTS_PER_HIT + STREAK_BONUS_MAX)
   })
 
-  it('adds a bonus already known when the hit is banked', () => {
-    const banked = applyHit(EMPTY_TALLY, 420, [{ kind: 'streak', points: 7 }])
+  it('pays the streak it worked out itself, never one handed to it as well', () => {
+    // The third note earns +5. Handing the same bonus in with it must not buy a
+    // second one: `applyHit` is the only thing that pays the streak.
+    const banked = applyHit(run(2), 420, [{ kind: 'streak', points: 5 }])
 
-    expect(banked.points).toBe(POINTS_PER_HIT + 7)
-    expect(banked.scored).toBe(1)
+    expect(banked.points).toBe(POINTS_PER_HIT * 3 + 5)
+    expect(banked.scored).toBe(3)
   })
 
   it('breaks the streak on a miss without touching what it earned', () => {
