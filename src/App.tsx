@@ -52,6 +52,7 @@ import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
+import { useNoteScoring } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -90,6 +91,9 @@ function App() {
   // other, so they go through refs that are refreshed on every render.
   const playbackRef = useRef<ReturnType<typeof usePlayback> | null>(null)
   const routineRef = useRef<ReturnType<typeof useRoutine> | null>(null)
+  // Scoring needs the microphone, which needs the engine playback runs on, so
+  // it cannot be declared above the beat handler that feeds it either.
+  const scoringRef = useRef<ReturnType<typeof useNoteScoring> | null>(null)
 
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
@@ -119,7 +123,12 @@ function App() {
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
     },
-    onBeat: beatPulse.handleBeat,
+    // Both of these are ref-only handlers, as onBeat demands: the ring is
+    // mutated in place and the score is queued for a microtask.
+    onBeat: (event) => {
+      beatPulse.handleBeat(event)
+      scoringRef.current?.handleBeat(event)
+    },
     audio: engine,
   })
 
@@ -135,6 +144,16 @@ function App() {
     callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
   })
 
+  // Judging what was heard against what was called. Only ever scores while the
+  // microphone is actually open, so the tally is empty by construction with the
+  // setting off — and the readout that would show it is not rendered anyway.
+  const scoring = useNoteScoring({
+    engine,
+    subscribe: mic.subscribe,
+    active: settings.micEnabled && mic.status === 'listening',
+    running: playback.isPlaying,
+  })
+
   const routine = useRoutine({
     settings,
     dispatch,
@@ -146,6 +165,7 @@ function App() {
   useEffect(() => {
     playbackRef.current = playback
     routineRef.current = routine
+    scoringRef.current = scoring
   })
 
   /**
@@ -222,6 +242,8 @@ function App() {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
+    // The score is a property of the session, so it goes back with it.
+    scoring.reset()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -382,6 +404,7 @@ function App() {
       heard={mic.heard}
       spelling={settings.spelling}
       called={playback.snapshot.currentNote}
+      score={{ lastVerdict: scoring.lastVerdict, hits: scoring.tally.hits, scored: scoring.tally.scored }}
     />
   ) : null
 

@@ -1395,6 +1395,9 @@ input[type='range'] {
   display: flex;
   align-items: baseline;
   justify-content: center;
+  /* The score takes a line of its own below the heard note — see
+     .mic-readout-score, which claims the full row. */
+  flex-wrap: wrap;
   gap: 0.55rem;
   margin-top: 0.9rem;
   padding-top: 0.75rem;
@@ -1442,6 +1445,41 @@ input[type='range'] {
 .mic-readout-heard[data-match='false'] .mic-readout-verdict,
 .mic-readout-heard[data-match='false'] .mic-readout-note {
   color: var(--miss);
+}
+
+/* Second line: how the last note went, and how the session is going. Below
+   the heard note rather than beside it — one is what is happening now and the
+   other is the tally, and a single row of four readings is a paragraph. */
+.mic-readout-score {
+  flex-basis: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.mic-readout-verdict-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.mic-readout-verdict-row[data-hit='true'] {
+  color: var(--hit);
+}
+
+.mic-readout-verdict-row[data-hit='false'] {
+  color: var(--miss);
+}
+
+.mic-readout-response {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Read after the session rather than during it, so it yields the foreground. */
+.mic-readout-tally {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 .mic-readout-none {

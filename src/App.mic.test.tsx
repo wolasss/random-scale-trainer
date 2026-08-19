@@ -238,6 +238,65 @@ describe('listening for the player', () => {
     expect(screen.getByTestId('heard-note')).not.toHaveAttribute('data-match')
   })
 
+  it('scores nothing anywhere while the setting is off', async () => {
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+    play(calledPitchClass())
+    await advance(NOTE_MS)
+
+    expect(screen.queryByTestId('score-verdict')).toBeNull()
+    expect(screen.queryByTestId('score-tally')).toBeNull()
+  })
+
+  it('scores the note that was played while it is still the note on screen', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    // Nothing to report before a note has been judged.
+    expect(screen.queryByTestId('score-tally')).toBeNull()
+
+    // The first note goes by unplayed, so the second one is called with a miss
+    // already on the board — which is what makes the hit below visible as a
+    // change rather than as a first reading.
+    await advance(INTO_A_NOTE_MS)
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('0/1')
+
+    const called = screen.getByTestId('current-note').textContent
+    play(calledPitchClass())
+    // Enough for the window to open past the cue and for two frames to confirm.
+    await advance(300)
+
+    // The verdict is about the note still being called, not the one before it.
+    expect(screen.getByTestId('current-note')).toHaveTextContent(called!)
+    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
+    expect(screen.getByTestId('score-verdict')).toHaveTextContent(/0\.\d\d s/)
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
+  })
+
+  it('scores a miss for a note that came and went unplayed', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    // One whole note span with the guitar silent, and into the next call.
+    await advance(INTO_A_NOTE_MS)
+
+    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'false')
+    expect(screen.getByTestId('score-verdict')).toHaveTextContent('missed')
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('0/1')
+  })
+
   it('holds the note it heard until the next one is called', async () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
