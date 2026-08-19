@@ -56,6 +56,68 @@ self.addEventListener('activate', (event) => {
 })
 
 /**
+ * A navigation is the one request whose failure the user sees directly, so it
+ * cannot fall back to an empty body: the window would render nothing and say
+ * nothing. This document is entirely self-contained — no fonts, no icons, no
+ * stylesheet — because those are exactly the things that may also be missing.
+ * The colour mirrors background_color in public/manifest.webmanifest, which is
+ * --bg-deep in src/index.css, so the placeholder matches the splash screen the
+ * launch just faded out of.
+ */
+const OFFLINE_SHELL_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>callnote — not downloaded yet</title>
+<style>
+  :root { color-scheme: dark }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    box-sizing: border-box;
+    background: #06131a;
+    color: #e6f0f6;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    text-align: center;
+  }
+  h1 { margin: 0; font-size: 1.25rem; font-weight: 600 }
+  p { margin: 0; max-width: 28rem; line-height: 1.5; color: #9fb4c0 }
+</style>
+</head>
+<body>
+<h1>callnote has not finished downloading</h1>
+<p>Connect to the internet and open the app once. After that it works offline.</p>
+</body>
+</html>
+`
+
+/**
+ * Offline and never cached. Nothing here is a network error the user should
+ * see — the app is expected to render without whatever this was.
+ */
+const offlineSubresource = () => new Response('', { status: 504, statusText: 'Offline' })
+
+/**
+ * The same miss for a navigation. Still a 504 — a navigation renders its body
+ * whatever the status, and a 200 would claim the app loaded. no-store keeps the
+ * HTTP cache from pinning this placeholder over the real shell once install
+ * repairs itself.
+ */
+const offlineShell = () =>
+  new Response(OFFLINE_SHELL_HTML, {
+    status: 504,
+    statusText: 'Offline',
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  })
+
+/**
  * Cache-first. Runtime entries — the webfont, anything not in the manifest —
  * get a background revalidate that refreshes the entry for next time, handed
  * to waitUntil so it survives the response.
@@ -68,7 +130,7 @@ self.addEventListener('activate', (event) => {
  * the next offline launch would render a blank page. A miss still goes to the
  * network, so an asset whose install-time cache.add failed repairs itself.
  */
-const cacheFirst = async (event, request, cacheKey, revalidateOnHit) => {
+const cacheFirst = async (event, request, cacheKey, revalidateOnHit, offlineFallback) => {
   const cache = await caches.open(CACHE_NAME)
   const cached = await cache.match(cacheKey)
 
@@ -96,9 +158,7 @@ const cacheFirst = async (event, request, cacheKey, revalidateOnHit) => {
     return fresh
   }
 
-  // Offline and never cached. Nothing here is a network error the user should
-  // see — the app is expected to render without whatever this was.
-  return new Response('', { status: 504, statusText: 'Offline' })
+  return offlineFallback()
 }
 
 self.addEventListener('fetch', (event) => {
@@ -116,12 +176,12 @@ self.addEventListener('fetch', (event) => {
   // Every navigation is the same shell — there are no server-side routes, and
   // start_url carries a query string the cache must not key on.
   if (request.mode === 'navigate') {
-    event.respondWith(cacheFirst(event, request, '/index.html', false))
+    event.respondWith(cacheFirst(event, request, '/index.html', false, offlineShell))
     return
   }
 
   // Manifest entries carry no query string, so a query-bearing URL — a cache
   // key of its own — counts as a runtime entry and keeps revalidating.
   const isPrecached = isSameOrigin && PRECACHE_SET.has(url.pathname + url.search)
-  event.respondWith(cacheFirst(event, request, request, !isPrecached))
+  event.respondWith(cacheFirst(event, request, request, !isPrecached, offlineSubresource))
 })
