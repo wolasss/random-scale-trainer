@@ -20,10 +20,15 @@ export type MicStatus = 'idle' | 'unsupported' | 'denied' | 'listening'
  * The cents and the clarity belong to the frame that produced it: subscribers
  * see every frame, so they are current there. The readout below only names the
  * note, and its copy is refreshed when the note changes rather than per frame.
+ *
+ * The octave is carried for subscribers that care which *pitch* was played
+ * rather than which pitch class — but it is the least certain field here, for
+ * the reason `frequencyToPitch` gives.
  */
 export type HeardPitch = {
   pitchClass: number
   cents: number
+  octave: number
   clarity: number
   audioTime: number
 }
@@ -134,8 +139,8 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         return
       }
 
-      const { pitchClass, cents } = frequencyToPitch(detected.frequency)
-      const event: HeardPitch = { pitchClass, cents, clarity: detected.clarity, audioTime }
+      const { pitchClass, cents, octave } = frequencyToPitch(detected.frequency)
+      const event: HeardPitch = { pitchClass, cents, octave, clarity: detected.clarity, audioTime }
 
       for (const listener of listenersRef.current ?? []) {
         listener(event)

@@ -21,7 +21,10 @@
  * the string was actually struck.
  *
  * Pitch classes are the currency throughout, which makes enharmonics free: a
- * call of D♭ and a detection named C♯ are both 1.
+ * call of D♭ and a detection named C♯ are both 1. The octave a detection was
+ * heard at is carried alongside, but only a bonus ever looks at it — the
+ * verdict itself stays pitch-class-only, so an octave the detector got wrong
+ * can never turn a hit into a miss.
  *
  * On top of the verdict sits the score. A hit is worth `POINTS_PER_HIT`, and a
  * bonus is worth whatever the bonus says it is worth. Bonuses arrive at two
@@ -59,14 +62,32 @@ export const STREAK_BONUS_STEP = 5
 export const STREAK_BONUS_MAX = 25
 
 /**
+ * The octaves bonus: the called note sounded at two different octaves inside
+ * one span.
+ *
+ * Be careful what this is claimed to be. A microphone yields absolute pitch and
+ * nothing else, so what is observable is two *octaves*, never two places on the
+ * neck — the fretboard has several positions per pitch class, some of them
+ * unisons at the very same pitch, and more than two octaves across its range. A
+ * player who finds the note twice in unison earns nothing here, and the copy
+ * says "two octaves" so that reads as the rule rather than a bug.
+ *
+ * It is also the bonus most likely to be built on a wrong reading, because a
+ * plucked string's subharmonic scores nearly as well as its fundamental (see
+ * `OCTAVE_TIE_FRACTION` in audio/pitch.ts). So it may only ever add: a bad
+ * octave read at worst awards nothing, and never costs a point.
+ */
+export const OCTAVES_BONUS_POINTS = 15
+
+/**
  * What happened on one called note. A hit always knows how long it took; a
  * miss has nothing to time, which is why the two are one union rather than a
  * flag beside a nullable number.
  */
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
-/** The bonuses a note can earn. More kinds join `streak` as they are written. */
-export type BonusKind = 'streak'
+/** The bonuses a note can earn. More kinds join these as they are written. */
+export type BonusKind = 'streak' | 'octaves'
 
 /** One bonus that landed: what it was for, and what it was worth. */
 export type Bonus = { kind: BonusKind; points: number }
@@ -109,9 +130,10 @@ export const EMPTY_TALLY: Tally = {
   bestStreak: 0,
 }
 
-/** One detection, reduced to the two fields judging cares about. */
+/** One detection, reduced to the fields judging cares about. */
 export type ScoredDetection = {
   pitchClass: number
+  octave: number
   audioTime: number
 }
 
@@ -120,6 +142,13 @@ export type ScoredDetection = {
  * matching detection still waiting for the second that would confirm it, and
  * `awarded` remembers which bonuses this note has already paid out, so a bonus
  * is earned once per note however many frames go on saying so.
+ *
+ * `octaves` and `octaveCandidate` are the same sustain rule again, run a second
+ * time on the octave: which octaves of the called pitch class have actually
+ * been held, and the frame still waiting to be confirmed by another like it.
+ * They are tracked independently of the verdict, and go on being tracked after
+ * it settles — a second octave is normally played after the note has already
+ * been got right.
  */
 export type NoteWindow = {
   pc: number
@@ -128,6 +157,8 @@ export type NoteWindow = {
   candidateAt: number | null
   verdict: NoteVerdict | null
   awarded: Set<BonusKind>
+  octaves: Set<number>
+  octaveCandidate: { octave: number; at: number } | null
 }
 
 /**
@@ -144,6 +175,8 @@ export function openWindow(pc: number, beatTime: number, cueEnd: number | null):
     candidateAt: null,
     verdict: null,
     awarded: new Set(),
+    octaves: new Set(),
+    octaveCandidate: null,
   }
 }
 
@@ -164,18 +197,46 @@ export function claimBonus(noteWindow: NoteWindow, kind: BonusKind): NoteWindow 
  * Folds one detection into a window. Returns the window unchanged — the same
  * object — when nothing about it moved, so a caller can tell a real change from
  * a frame that told it nothing.
+ *
+ * A window goes on listening after its verdict settles, because the octaves it
+ * has heard are still accumulating. What it will not do is answer twice: the
+ * verdict and the response time behind it are computed once and never revised.
  */
-export function judgeDetection(noteWindow: NoteWindow, { pitchClass, audioTime }: ScoredDetection): NoteWindow {
-  // Already answered, or heard while the app was still the loudest thing in
-  // the room. Neither is the player's playing.
-  if (noteWindow.verdict !== null || audioTime < noteWindow.opensAt) {
+export function judgeDetection(
+  noteWindow: NoteWindow,
+  { pitchClass, octave, audioTime }: ScoredDetection,
+): NoteWindow {
+  // Heard while the app was still the loudest thing in the room, which is the
+  // app hearing its own spoken note rather than the player.
+  if (audioTime < noteWindow.opensAt) {
     return noteWindow
   }
 
   if (pitchClass !== noteWindow.pc) {
     // A different note breaks a sustain in progress — but not the window: the
     // player is allowed to hunt for the right fret and still get there.
-    return noteWindow.candidateAt === null ? noteWindow : { ...noteWindow, candidateAt: null }
+    return noteWindow.candidateAt === null && noteWindow.octaveCandidate === null
+      ? noteWindow
+      : { ...noteWindow, candidateAt: null, octaveCandidate: null }
+  }
+
+  // The octave gets the sustain rule of its own, on the same two-frames-close-
+  // together terms a hit is confirmed on, so one fluke frame at a subharmonic
+  // adds nothing to the set.
+  const lastOctave = noteWindow.octaveCandidate
+  const octaveSustained =
+    lastOctave !== null && lastOctave.octave === octave && audioTime - lastOctave.at <= SUSTAIN_MAX_GAP_S
+  const heard = {
+    octaves:
+      octaveSustained && !noteWindow.octaves.has(octave)
+        ? new Set([...noteWindow.octaves, octave])
+        : noteWindow.octaves,
+    octaveCandidate: { octave, at: audioTime },
+  }
+
+  // Answered already: the octaves move on, the verdict does not.
+  if (noteWindow.verdict !== null) {
+    return { ...noteWindow, ...heard }
   }
 
   // A match with no live candidate behind it — or one too far behind to be the
@@ -183,12 +244,20 @@ export function judgeDetection(noteWindow: NoteWindow, { pitchClass, audioTime }
   const candidateAt = noteWindow.candidateAt
   const sustained = candidateAt !== null && audioTime - candidateAt <= SUSTAIN_MAX_GAP_S
   if (!sustained) {
-    return { ...noteWindow, candidateAt: audioTime }
+    return { ...noteWindow, ...heard, candidateAt: audioTime }
   }
 
   // Timed from the first of the two frames: that is when the string was struck.
-  return { ...noteWindow, verdict: { hit: true, responseMs: (candidateAt - noteWindow.beatTime) * 1000 } }
+  return { ...noteWindow, ...heard, verdict: { hit: true, responseMs: (candidateAt - noteWindow.beatTime) * 1000 } }
 }
+
+/**
+ * The octaves bonus, once two different octaves of the called note have each
+ * been held: two octaves of pitch, which is all a microphone can testify to.
+ * Null until then. Whether it is allowed to be paid is `claimBonus`'s question.
+ */
+export const octavesBonus = (noteWindow: NoteWindow): Bonus | null =>
+  noteWindow.octaves.size >= 2 ? { kind: 'octaves', points: OCTAVES_BONUS_POINTS } : null
 
 /**
  * Banks a correct note: the count, the response time, the streak it continues,

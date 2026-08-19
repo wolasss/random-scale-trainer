@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BeatEvent } from '../lib/playback/machine'
-import { EMPTY_TALLY, POINTS_PER_HIT } from '../lib/scoring'
+import { EMPTY_TALLY, OCTAVES_BONUS_POINTS, POINTS_PER_HIT } from '../lib/scoring'
 import type { HeardPitch } from './useMicPitch'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
@@ -17,9 +17,9 @@ const createFakeMic = () => {
         listeners.delete(listener)
       }
     },
-    emit: (pitchClass: number, audioTime: number) => {
+    emit: (pitchClass: number, audioTime: number, octave = 3) => {
       for (const listener of listeners) {
-        listener({ pitchClass, cents: 0, clarity: 0.99, audioTime })
+        listener({ pitchClass, cents: 0, octave, clarity: 0.99, audioTime })
       }
     },
   }
@@ -251,6 +251,9 @@ describe('useNoteScoring', () => {
   })
 
   it('counts a hit once, however many frames follow it', async () => {
+    // The window goes on listening after it has answered, so the note keeps
+    // being fed frames — including ones that earn a bonus. None of that may
+    // count the note a second time: only the points are allowed to move.
     const { result, mic } = setup()
 
     await act(async () => {
@@ -261,6 +264,9 @@ describe('useNoteScoring', () => {
       mic.emit(3, 10.25)
       mic.emit(3, 10.3)
       mic.emit(3, 10.35)
+      mic.emit(3, 10.5, 4)
+      mic.emit(3, 10.55, 4)
+      mic.emit(3, 10.6, 4)
     })
 
     // ...and closing a window that was already hit adds nothing either.
@@ -268,7 +274,68 @@ describe('useNoteScoring', () => {
       result.current.handleBeat(beat(20, 5))
     })
 
-    expect(result.current.tally).toMatchObject({ scored: 1, hits: 1, points: POINTS_PER_HIT, streak: 1 })
+    expect(result.current.tally).toMatchObject({
+      scored: 1,
+      hits: 1,
+      streak: 1,
+      bestStreak: 1,
+      points: POINTS_PER_HIT + OCTAVES_BONUS_POINTS,
+    })
+    expect(result.current.tally.responseTimesMs).toHaveLength(1)
+  })
+
+  it('names the octaves bonus on the note it was earned on, once', async () => {
+    const { result, mic } = setup()
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2)
+      mic.emit(3, 10.25)
+    })
+
+    expect(result.current.lastBonuses).toEqual([])
+
+    // The same note, found again an octave up while its span is still running.
+    await act(async () => {
+      mic.emit(3, 10.5, 4)
+      mic.emit(3, 10.55, 4)
+      mic.emit(3, 10.6, 4)
+      mic.emit(3, 10.65, 4)
+    })
+
+    expect(result.current.lastBonuses).toEqual([{ kind: 'octaves', points: OCTAVES_BONUS_POINTS }])
+    expect(result.current.lastVerdict?.responseMs).toBeCloseTo(200, 3)
+  })
+
+  it('leaves a missed note unbonused however many octaves follow it', async () => {
+    // The bonus only ever adds to a note already got right; nothing about it
+    // can turn a note that was not played into one that was.
+    const { result, mic } = setup()
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(5, 10.2, 3)
+      mic.emit(5, 10.25, 3)
+      mic.emit(5, 10.5, 4)
+      mic.emit(5, 10.55, 4)
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(20, 5))
+    })
+
+    expect(result.current.tally).toEqual({
+      scored: 1,
+      hits: 0,
+      responseTimesMs: [],
+      points: 0,
+      streak: 0,
+      bestStreak: 0,
+    })
+    expect(result.current.lastBonuses).toEqual([])
   })
 
   /** The anti-self-scoring rule, through the hook: the app's own voice is not playing. */
