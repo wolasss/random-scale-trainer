@@ -318,7 +318,7 @@ describe('fetch', () => {
     expect(cache.entries.get(request.url)?.body).toBe('new font')
   })
 
-  it('answers an uncached request with a 504 when the network is gone', async () => {
+  it('answers an uncached subresource with an empty 504 when the network is gone', async () => {
     const worker = makeWorker({ cacheNames: [CACHE_NAME] })
     worker.fetch.mockRejectedValue(new Error('offline'))
 
@@ -326,6 +326,28 @@ describe('fetch', () => {
 
     const response = (await captured.responded) as Response
     expect(response.status).toBe(504)
+    // The page is expected to render without it, so there is nothing to say.
+    expect(await response.text()).toBe('')
+    expect(currentCache(worker).put).not.toHaveBeenCalled()
+  })
+
+  it('answers a navigation with a readable page when the shell was never cached', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    worker.fetch.mockRejectedValue(new Error('offline'))
+
+    const captured = worker.dispatch('fetch', {
+      method: 'GET',
+      mode: 'navigate',
+      url: `${ORIGIN}/?src=pwa`,
+    })
+
+    // A flaky first visit can leave '/index.html' unprecached. Offline, that
+    // used to be a blank window; it has to explain itself instead.
+    const response = (await captured.responded) as Response
+    expect(response.headers.get('content-type')).toContain('text/html')
+    const body = await response.text()
+    expect(body).not.toBe('')
+    expect(body).toContain('has not finished downloading')
     expect(currentCache(worker).put).not.toHaveBeenCalled()
   })
 })
