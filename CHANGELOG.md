@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/wolasss/random-scale-trainer/compare/v1.12.3...v1.13.0) (2026-08-19)
+
+
+### Features
+
+* **scoring:** give practice a point total with a bonus for a streak ([#123](https://github.com/wolasss/random-scale-trainer/issues/123)) ([19c83c5](https://github.com/wolasss/random-scale-trainer/commit/19c83c58899b84c8a9de25c14f04e23b5bac4fff))
+
 ## [1.12.3](https://github.com/wolasss/random-scale-trainer/compare/v1.12.2...v1.12.3) (2026-08-19)
 
 
