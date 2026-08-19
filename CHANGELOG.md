@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/wolasss/random-scale-trainer/compare/v1.9.0...v1.9.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sw:** answer an offline navigation with a readable page instead of an empty 504 ([#116](https://github.com/wolasss/random-scale-trainer/issues/116)) ([6c1a118](https://github.com/wolasss/random-scale-trainer/commit/6c1a118e239c0b71d13e058f28ef2fa2e46fbb83))
+
 # [1.9.0](https://github.com/wolasss/random-scale-trainer/compare/v1.8.1...v1.9.0) (2026-08-17)
 
 
