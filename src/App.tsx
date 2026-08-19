@@ -428,7 +428,14 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       heard={mic.heard}
       spelling={settings.spelling}
       called={playback.snapshot.currentNote}
-      score={{ lastVerdict: scoring.lastVerdict, hits: scoring.tally.hits, scored: scoring.tally.scored }}
+      score={{
+        lastVerdict: scoring.lastVerdict,
+        hits: scoring.tally.hits,
+        scored: scoring.tally.scored,
+        points: scoring.tally.points,
+        streak: scoring.tally.streak,
+        bonuses: scoring.lastBonuses,
+      }}
     />
   ) : null
 
