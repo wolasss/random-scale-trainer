@@ -1,6 +1,12 @@
 import { useMediaQuery } from './useMediaQuery'
 
-export const STANDALONE_QUERY = '(display-mode: standalone)'
+/** A home-screen launch does not always land in standalone: the browser's
+ * fallback down the display chain lands in minimal-ui, and a `display_override`
+ * can ask for the window-controls overlay. Neither is reachable from a tab.
+ * `fullscreen` is deliberately left out — a plain tab matches it the moment
+ * anything calls the Fullscreen API, or the user presses F11. */
+export const STANDALONE_QUERY =
+  '(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay)'
 export const COARSE_POINTER_QUERY = '(pointer: coarse)'
 export const LANDSCAPE_QUERY = '(orientation: landscape)'
 
