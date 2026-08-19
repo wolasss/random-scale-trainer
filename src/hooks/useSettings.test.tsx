@@ -7,6 +7,7 @@ const baseSettings = (): Settings => ({
   bpm: 72,
   beatsPerNote: 4,
   continuousMode: true,
+  countInEnabled: false,
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,

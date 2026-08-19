@@ -11,7 +11,7 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import { usePersistentState } from './usePersistentState'
 import { type Theme } from '../components/TopBar'
-import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, type Skin } from '../lib/skins'
+import { DEFAULT_SKIN, isSkin, SKIN_FONT_HREF, SKIN_GROUND, type Skin } from '../lib/skins'
 import { STORAGE_KEYS } from '../constants'
 
 export type Appearance = {
@@ -39,6 +39,22 @@ export function useAppearance(): Appearance {
   useEffect(() => {
     document.documentElement.setAttribute('data-skin', skin)
   }, [skin])
+
+  // The window chrome of an installed app — status bar, title bar — and the
+  // UA's own widgets and scrollbars are painted outside the stylesheet, so they
+  // only follow the theme if we tell them: the ground colour of the chosen
+  // skin, and the scheme the document is written for.
+  useEffect(() => {
+    document.documentElement.style.colorScheme = theme
+
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.name = 'theme-color'
+      document.head.appendChild(meta)
+    }
+    meta.content = SKIN_GROUND[skin][theme]
+  }, [theme, skin])
 
   // Instrument and warm each need one webfont the base document doesn't load.
   // Add it the first time that skin is picked, so glass never pays for it, and

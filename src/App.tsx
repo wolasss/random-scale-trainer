@@ -48,10 +48,12 @@ import { MicReadout } from './components/MicReadout'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
+import { isMicSupported } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
+import { useNoteScoring } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -67,7 +69,12 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
-function App() {
+type AppProps = {
+  /** Injectable for tests; otherwise the browser's own reload. */
+  reload?: () => void
+}
+
+function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const { theme, setTheme, skin, setSkin } = useAppearance()
   const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
@@ -90,6 +97,9 @@ function App() {
   // other, so they go through refs that are refreshed on every render.
   const playbackRef = useRef<ReturnType<typeof usePlayback> | null>(null)
   const routineRef = useRef<ReturnType<typeof useRoutine> | null>(null)
+  // Scoring needs the microphone, which needs the engine playback runs on, so
+  // it cannot be declared above the beat handler that feeds it either.
+  const scoringRef = useRef<ReturnType<typeof useNoteScoring> | null>(null)
 
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
@@ -119,9 +129,20 @@ function App() {
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
     },
-    onBeat: beatPulse.handleBeat,
+    // Both of these are ref-only handlers, as onBeat demands: the ring is
+    // mutated in place and the score is queued for a microtask.
+    onBeat: (event) => {
+      beatPulse.handleBeat(event)
+      scoringRef.current?.handleBeat(event)
+    },
     audio: engine,
   })
+
+  // One value for "the mic is on", read by the hook, the readout and the switch
+  // alike: a browser with no microphone API cannot listen, whatever a setting
+  // stored by a browser that could says, and a readout the switch reports as
+  // off is one the user has no way to be rid of.
+  const micEnabled = settings.micEnabled && isMicSupported()
 
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
@@ -129,10 +150,20 @@ function App() {
   // was on screen when you played it, and stale the moment the next one lands.
   const mic = useMicPitch({
     engine,
-    enabled: settings.micEnabled,
+    enabled: micEnabled,
     running: playback.isPlaying,
     // Null through the count-in, which has no note on screen to answer.
     callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
+  })
+
+  // Judging what was heard against what was called. Only ever scores while the
+  // microphone is actually open, so the tally is empty by construction with the
+  // setting off — and the readout that would show it is not rendered anyway.
+  const scoring = useNoteScoring({
+    engine,
+    subscribe: mic.subscribe,
+    active: settings.micEnabled && mic.status === 'listening',
+    running: playback.isPlaying,
   })
 
   const routine = useRoutine({
@@ -146,6 +177,7 @@ function App() {
   useEffect(() => {
     playbackRef.current = playback
     routineRef.current = routine
+    scoringRef.current = scoring
   })
 
   /**
@@ -222,6 +254,8 @@ function App() {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
+    // The score is a property of the session, so it goes back with it.
+    scoring.reset()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -290,6 +324,7 @@ function App() {
         blockIndex={routine.blockIndex}
         blockElapsedMs={routine.blockElapsedMs}
         finished={routine.finished}
+        onSkip={routine.skipBlock}
         onClear={routine.clear}
       />
     ) : null
@@ -358,15 +393,27 @@ function App() {
   // storage once, on mount, so anything short of a reload would be overwritten
   // by its next commit. (A tick landing between the two would cost the seconds
   // in flight — the same seconds a refresh mid-session costs anyway.)
-  const importPracticeBackup = (incoming: PracticeHistory) => {
+  //
+  // Only once the merged log is really in the store, though. Reloading on a
+  // write that was dropped would come back to the log the restore was meant to
+  // repair, with the restored days gone and the reload reading as a success —
+  // so a refused write is reported back instead, and nothing is thrown away.
+  const importPracticeBackup = (incoming: PracticeHistory): boolean => {
     practiceHistory.commit()
-    writeHistory(mergeHistories(readHistory(), incoming))
-    window.location.reload()
+    const stored = writeHistory(mergeHistories(readHistory(), incoming))
+    if (!stored) {
+      return false
+    }
+
+    reload()
+
+    return true
   }
 
   const practiceLogCard = (
     <PracticeLogCard
       history={practiceHistory.history}
+      persisted={practiceHistory.persisted}
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
@@ -375,12 +422,13 @@ function App() {
 
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
-  const micReadout = settings.micEnabled ? (
+  const micReadout = micEnabled ? (
     <MicReadout
       status={mic.status}
       heard={mic.heard}
       spelling={settings.spelling}
       called={playback.snapshot.currentNote}
+      score={{ lastVerdict: scoring.lastVerdict, hits: scoring.tally.hits, scored: scoring.tally.scored }}
     />
   ) : null
 

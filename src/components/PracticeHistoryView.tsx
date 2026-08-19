@@ -20,7 +20,8 @@ type PracticeHistoryViewProps = {
   onClose: () => void
   /** The file's contents, asked for at the moment of the click — see App. */
   getBackup: () => string
-  onImport: (incoming: PracticeHistory) => void
+  /** Answers whether the merged log was actually stored — see App. */
+  onImport: (incoming: PracticeHistory) => boolean
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -50,6 +51,14 @@ const dayTitle = (minutes: number, sec: number) => {
 }
 
 const IMPORT_ERROR = "That file doesn't look like a practice-log backup — nothing was changed."
+
+/**
+ * A backup that read cleanly and then couldn't be saved. Worth its own line:
+ * the file was fine, so "that file doesn't look like a backup" would send
+ * somebody hunting for a second copy of something they already have.
+ */
+const RESTORE_BLOCKED_ERROR =
+  "Your browser is blocking saved data — the backup was read, but it couldn't be saved in this browser."
 
 /**
  * The whole log, not the fortnight the card has room for.
@@ -204,8 +213,10 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
       return
     }
 
-    setImportError(null)
-    onImport(parsed)
+    // A successful restore reloads, so the cleared error is really only for the
+    // case where it didn't — leaving the last failure on screen beside a log
+    // that has since been restored would be its own kind of lie.
+    setImportError(onImport(parsed) ? null : RESTORE_BLOCKED_ERROR)
   }
 
   // Through the body, not the card. It is opened from inside a .panel, and a

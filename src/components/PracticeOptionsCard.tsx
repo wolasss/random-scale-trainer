@@ -1,3 +1,4 @@
+import { isMicSupported } from '../lib/audio/mic'
 import type { Settings, SettingsToggleKey } from '../hooks/useSettings'
 import { SwitchRow } from './ui/SwitchRow'
 
@@ -7,6 +8,11 @@ type PracticeOptionsCardProps = {
 }
 
 export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardProps) {
+  // A browser with no microphone API is a dead end the user would otherwise
+  // only find on pressing play, so the reason takes the subtitle's place and
+  // the switch — which describes itself with it — explains why it is off.
+  const micSupported = isMicSupported()
+
   return (
     <section className="panel practice-options-card">
       <div className="panel-heading">
@@ -30,9 +36,14 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       <SwitchRow
         id="mic-listen"
         label="Listen for my playing"
-        subtitle="Hear what you play through the mic, live on the stage."
-        checked={settings.micEnabled}
+        subtitle={
+          micSupported
+            ? 'Hear what you play through the mic, live on the stage.'
+            : 'This browser has no microphone to listen with.'
+        }
+        checked={settings.micEnabled && micSupported}
         onChange={() => onToggle('micEnabled')}
+        disabled={!micSupported}
       />
       <SwitchRow
         id="show-fretboard"

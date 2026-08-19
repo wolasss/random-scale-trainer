@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { dayKey, readHistory, serializeBackup } from './lib/history'
 import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
 
 // The fake engine accepts every scheduled sound and reports the faked
@@ -59,6 +60,12 @@ const withCappedStorage = (): (() => void) => {
     },
   })
 }
+
+/** A well-formed backup, so only the store can be what turns a restore away. */
+const backupFile = () =>
+  new File([serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, new Date())], 'backup.json', {
+    type: 'application/json',
+  })
 
 // Default 72 BPM → 0.833s beats; count-in is 4 beats starting 50ms in.
 const COUNT_IN_MS = 4 * (60_000 / 72) + 100
@@ -168,6 +175,86 @@ describe('App integration', () => {
 
     expect(screen.getByTestId('routine-shelf')).toHaveTextContent('Persistent test')
     expect(screen.queryByTestId('routine-ephemeral-notice')).toBeNull()
+  })
+
+  it('says a restore could not be saved rather than reloading into a log without it', async () => {
+    const reload = vi.fn()
+    const restore = withBlockedStorage()
+    try {
+      render(<App reload={reload} />)
+
+      // Blocked storage reads as a first run, so the log card is behind the fold.
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      fireEvent.click(screen.getByTestId('practice-log-history'))
+
+      fireEvent.change(screen.getByTestId('history-file'), { target: { files: [backupFile()] } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      expect(screen.getByTestId('history-import-error')).toHaveTextContent('blocking saved data')
+      // Reloading would come back to the very log the restore was meant to
+      // repair, with the restored days gone and the reload reading as a success.
+      expect(reload).not.toHaveBeenCalled()
+    } finally {
+      restore()
+    }
+  })
+
+  it('reloads onto the merged log once the restore is really stored', async () => {
+    const reload = vi.fn()
+    render(<App reload={reload} />)
+
+    fireEvent.click(screen.getByTestId('practice-log-history'))
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [backupFile()] } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(readHistory().days['2026-02-01']).toEqual({ sec: 600, notes: 12 })
+  })
+
+  it('warns that practice is not being saved when the store refuses the log', async () => {
+    const restore = withBlockedStorage()
+    try {
+      render(<App reload={vi.fn()} />)
+
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      // Nothing has been written yet, so nothing to say yet either.
+      expect(screen.queryByTestId('practice-log-ephemeral-notice')).toBeNull()
+
+      fireEvent.click(screen.getByTestId('play-toggle'))
+      // Through the count-in first: the session timer's interval only registers
+      // on the render after the first real note.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 200)
+      })
+      // Past the ten-second beat, so the log has had a write refused.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(11_000)
+      })
+
+      expect(screen.getByTestId('practice-log-ephemeral-notice')).toHaveTextContent('blocking saved data')
+    } finally {
+      restore()
+    }
+  })
+
+  it('says nothing about the practice log when the store keeps it', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 200)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11_000)
+    })
+
+    expect(screen.queryByTestId('practice-log-ephemeral-notice')).toBeNull()
+    expect(readHistory().days[dayKey(new Date())]?.sec).toBeGreaterThan(0)
   })
 
   it('shows the ready hint and NEXT preview while idle, then beat dots while playing', async () => {

@@ -1,3 +1,69 @@
+## [1.12.3](https://github.com/wolasss/random-scale-trainer/compare/v1.12.2...v1.12.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** follow the chosen theme in the installed app's window chrome ([#115](https://github.com/wolasss/random-scale-trainer/issues/115)) ([a8e0938](https://github.com/wolasss/random-scale-trainer/commit/a8e09386c8510ea21570ae28de03c4ed26dd03eb))
+
+## [1.12.2](https://github.com/wolasss/random-scale-trainer/compare/v1.12.1...v1.12.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **options:** say why the mic switch is off when the browser can't listen ([#114](https://github.com/wolasss/random-scale-trainer/issues/114)) ([072d5f0](https://github.com/wolasss/random-scale-trainer/commit/072d5f088c82f1217363923a270e6a5c089bf578))
+
+## [1.12.1](https://github.com/wolasss/random-scale-trainer/compare/v1.12.0...v1.12.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** treat every installed display mode as standalone ([#110](https://github.com/wolasss/random-scale-trainer/issues/110)) ([d733baa](https://github.com/wolasss/random-scale-trainer/commit/d733baac70c8bf3e4cd86be184ada6aa0a959347))
+
+# [1.12.0](https://github.com/wolasss/random-scale-trainer/compare/v1.11.1...v1.12.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ts:** stop tsconfig.test.json from excluding every test file it exists to check ([#111](https://github.com/wolasss/random-scale-trainer/issues/111)) ([1050f1a](https://github.com/wolasss/random-scale-trainer/commit/1050f1a85fe7306b0024ba1ad3e0dbe7ec823b0a))
+
+
+### Features
+
+* **routines:** duplicate a routine into an editable copy ([#112](https://github.com/wolasss/random-scale-trainer/issues/112)) ([df3df45](https://github.com/wolasss/random-scale-trainer/commit/df3df45abccead26cd9c89406d12e6620d6c6c58))
+
+## [1.11.1](https://github.com/wolasss/random-scale-trainer/compare/v1.11.0...v1.11.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **wakelock:** release the lock a superseded request leaves behind ([#108](https://github.com/wolasss/random-scale-trainer/issues/108)) ([fb1460c](https://github.com/wolasss/random-scale-trainer/commit/fb1460cb0ecf9aee42b0b2ba8ce954207997cb0e))
+
+# [1.11.0](https://github.com/wolasss/random-scale-trainer/compare/v1.10.0...v1.11.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **history:** surface a failed save instead of silently losing the practice log ([#107](https://github.com/wolasss/random-scale-trainer/issues/107)) ([b75c621](https://github.com/wolasss/random-scale-trainer/commit/b75c621d990d5c80efbf290403447f857e923254))
+
+
+### Features
+
+* **practice:** score the heard notes against the called notes ([#106](https://github.com/wolasss/random-scale-trainer/issues/106)) ([5ad5fd2](https://github.com/wolasss/random-scale-trainer/commit/5ad5fd29e1c4615db0f1a88e776f695b8a6cb96f))
+
+# [1.10.0](https://github.com/wolasss/random-scale-trainer/compare/v1.9.1...v1.10.0) (2026-08-19)
+
+
+### Features
+
+* **routines:** let the hero routine strip skip to the next block ([#117](https://github.com/wolasss/random-scale-trainer/issues/117)) ([b1c4050](https://github.com/wolasss/random-scale-trainer/commit/b1c40508613e1808a245ead4427008c5b192ea87))
+
+## [1.9.1](https://github.com/wolasss/random-scale-trainer/compare/v1.9.0...v1.9.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sw:** answer an offline navigation with a readable page instead of an empty 504 ([#116](https://github.com/wolasss/random-scale-trainer/issues/116)) ([6c1a118](https://github.com/wolasss/random-scale-trainer/commit/6c1a118e239c0b71d13e058f28ef2fa2e46fbb83))
+
 # [1.9.0](https://github.com/wolasss/random-scale-trainer/compare/v1.8.1...v1.9.0) (2026-08-17)
 
 

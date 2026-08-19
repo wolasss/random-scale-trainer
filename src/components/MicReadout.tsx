@@ -2,6 +2,7 @@ import { faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { FLAT_DISPLAY, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
 import type { MicStatus } from '../hooks/useMicPitch'
+import type { NoteVerdict } from '../lib/scoring'
 
 type MicReadoutProps = {
   status: MicStatus
@@ -9,6 +10,8 @@ type MicReadoutProps = {
   spelling: SpellingPreference
   /** The note being called, so a hit can be named the way it was asked for. */
   called: { pc: number; display: string } | null
+  /** How the session is going, or null when nothing is being scored. */
+  score: { lastVerdict: NoteVerdict | null; hits: number; scored: number } | null
 }
 
 const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
@@ -37,13 +40,31 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * miss on their own, so the line still reports to a player who cannot tell the
  * green from the red. Nothing is judged during a count-in, when there is no
  * note on screen to be right or wrong about.
+ *
+ * Under it, when there is a score to report, the second line: whether the last
+ * note called was actually played and how long it took, and the session's
+ * running accuracy beside it. That line stays out until there is something to
+ * say — a mic that has been on for four seconds has nothing yet, and "0/0"
+ * over an untouched session reads as a failure rather than a beginning.
+ *
+ * The tally outlives the microphone. Stopping playback closes the mic, and a
+ * stopped session is exactly when someone wants to read how it went, so the
+ * count stays on the line the status message is on until the session is reset.
+ * The verdict does not follow it there: it answers the note that was on screen
+ * when it was played, and once the listening stops that question is closed.
  */
-export function MicReadout({ status, heard, spelling, called }: MicReadoutProps) {
+export function MicReadout({ status, heard, spelling, called, score }: MicReadoutProps) {
   if (status !== 'listening') {
     return (
       <div className="mic-readout" data-testid="mic-readout" data-status={status}>
         <span className="mic-readout-label">Mic</span>
         <span className="mic-readout-message">{STATUS_MESSAGES[status]}</span>
+        {score !== null && score.scored > 0 ? (
+          <div className="mic-readout-score">
+            <span className="mic-readout-label">Score</span>
+            <ScoreTally hits={score.hits} scored={score.scored} />
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -81,6 +102,45 @@ export function MicReadout({ status, heard, spelling, called }: MicReadoutProps)
           <span className="mic-readout-note">{name}</span>
         </span>
       )}
+
+      {score !== null && (score.lastVerdict !== null || score.scored > 0) ? (
+        <div className="mic-readout-score">
+          <span className="mic-readout-label">Score</span>
+
+          {score.lastVerdict !== null ? (
+            <span
+              className="mic-readout-verdict-row"
+              data-testid="score-verdict"
+              data-hit={score.lastVerdict.hit}
+              role="img"
+              aria-label={
+                score.lastVerdict.hit
+                  ? `Played it in ${formatResponse(score.lastVerdict.responseMs)} seconds`
+                  : 'Not played in time'
+              }
+            >
+              <FontAwesomeIcon icon={score.lastVerdict.hit ? faCheck : faXmark} aria-hidden="true" />
+              <span className="mic-readout-response">
+                {score.lastVerdict.hit ? `${formatResponse(score.lastVerdict.responseMs)} s` : 'missed'}
+              </span>
+            </span>
+          ) : null}
+
+          {score.scored > 0 ? <ScoreTally hits={score.hits} scored={score.scored} /> : null}
+        </div>
+      ) : null}
     </div>
   )
 }
+
+/** Read after the session as often as during it, hence its own component. */
+function ScoreTally({ hits, scored }: { hits: number; scored: number }) {
+  return (
+    <span className="mic-readout-tally" data-testid="score-tally">
+      {hits}/{scored} · {Math.round((hits / scored) * 100)}%
+    </span>
+  )
+}
+
+/** Seconds to two places: the useful range is a fraction of one. */
+const formatResponse = (responseMs: number) => (responseMs / 1000).toFixed(2)

@@ -1395,6 +1395,9 @@ input[type='range'] {
   display: flex;
   align-items: baseline;
   justify-content: center;
+  /* The score takes a line of its own below the heard note — see
+     .mic-readout-score, which claims the full row. */
+  flex-wrap: wrap;
   gap: 0.55rem;
   margin-top: 0.9rem;
   padding-top: 0.75rem;
@@ -1442,6 +1445,41 @@ input[type='range'] {
 .mic-readout-heard[data-match='false'] .mic-readout-verdict,
 .mic-readout-heard[data-match='false'] .mic-readout-note {
   color: var(--miss);
+}
+
+/* Second line: how the last note went, and how the session is going. Below
+   the heard note rather than beside it — one is what is happening now and the
+   other is the tally, and a single row of four readings is a paragraph. */
+.mic-readout-score {
+  flex-basis: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.mic-readout-verdict-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.mic-readout-verdict-row[data-hit='true'] {
+  color: var(--hit);
+}
+
+.mic-readout-verdict-row[data-hit='false'] {
+  color: var(--miss);
+}
+
+.mic-readout-response {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Read after the session rather than during it, so it yields the foreground. */
+.mic-readout-tally {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 .mic-readout-none {
@@ -1500,7 +1538,8 @@ input[type='range'] {
   font-variant-numeric: tabular-nums;
 }
 
-.routine-strip-clear {
+.routine-strip-clear,
+.routine-strip-skip {
   flex: none;
   width: 26px;
   height: 26px;
@@ -1515,7 +1554,8 @@ input[type='range'] {
   transition: color 140ms var(--ease-out), border-color 140ms var(--ease-out);
 }
 
-.routine-strip-clear:hover {
+.routine-strip-clear:hover,
+.routine-strip-skip:hover {
   color: var(--ink);
   border-color: var(--primary);
 }
@@ -1668,10 +1708,12 @@ input[type='range'] {
 }
 
 .routine-chip.selected .routine-chip-body,
+.routine-chip.selected .routine-chip-copy,
 .routine-chip.selected .routine-chip-remove {
   color: var(--primary);
 }
 
+.routine-chip-copy,
 .routine-chip-remove {
   display: inline-flex;
   align-items: center;
@@ -1684,6 +1726,13 @@ input[type='range'] {
   transition: opacity 140ms var(--ease-out);
 }
 
+/* Two icons on one chip: the copy sits tight against the remove so the pair
+   reads as one trailing group rather than as padding. */
+.routine-chip-copy {
+  padding: 0 0.2rem 0 0.4rem;
+}
+
+.routine-chip-copy:hover,
 .routine-chip-remove:hover {
   opacity: 1;
 }
@@ -1805,6 +1854,7 @@ input[type='range'] {
    negative margins spend the segment's own padding on the target instead of
    growing every block in the timeline. */
 @media (pointer: coarse) {
+  .routine-chip-copy,
   .routine-chip-remove {
     justify-content: center;
     min-width: 44px;

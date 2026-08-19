@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faForwardStep, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { formatClock, routineProgress, type Routine } from '../lib/routines'
 
 type RoutineStripProps = {
@@ -7,6 +7,7 @@ type RoutineStripProps = {
   blockIndex: number
   blockElapsedMs: number
   finished: boolean
+  onSkip: () => void
   onClear: () => void
 }
 
@@ -14,9 +15,12 @@ type RoutineStripProps = {
  * The routine card lives at the bottom of the page, so the hero carries this
  * strip: whatever is running stays readable without scrolling back down.
  */
-export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, onClear }: RoutineStripProps) {
+export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, onSkip, onClear }: RoutineStripProps) {
   const { fraction, remaining } = routineProgress(routine, blockIndex, blockElapsedMs, finished)
   const percent = Math.round(fraction * 100)
+
+  // A lone block and a finished routine both have nothing to skip to.
+  const canSkip = !finished && routine.blocks.length > 1
 
   const status = finished
     ? 'complete'
@@ -45,6 +49,19 @@ export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, on
       <span className="routine-strip-status" data-testid="routine-strip-status">
         {status}
       </span>
+
+      {canSkip ? (
+        <button
+          type="button"
+          className="routine-strip-skip"
+          data-testid="routine-strip-skip"
+          aria-label={`Skip to the next block of ${routine.name}`}
+          title={`Skip to the next block of ${routine.name}`}
+          onClick={onSkip}
+        >
+          <FontAwesomeIcon icon={faForwardStep} />
+        </button>
+      ) : null}
 
       <button
         type="button"
