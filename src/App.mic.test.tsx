@@ -133,6 +133,23 @@ describe('listening for the player', () => {
     expect(screen.queryByTestId('mic-readout')).toBeNull()
   })
 
+  /**
+   * A setting stored by a browser that could listen, carried to one that
+   * cannot: the switch is the only thing that may speak for it, so the readout
+   * the user has no way to dismiss must not be on the page at all.
+   */
+  it('stays off everywhere where the browser has no microphone API', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    render(<App />)
+
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByTestId('mic-readout')).toBeNull()
+
+    await start()
+
+    expect(screen.queryByTestId('mic-readout')).toBeNull()
+  })
+
   it('says the microphone is blocked when the browser refuses it', async () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     const getUserMedia = installGetUserMedia(async () => {
