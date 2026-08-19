@@ -1500,7 +1500,8 @@ input[type='range'] {
   font-variant-numeric: tabular-nums;
 }
 
-.routine-strip-clear {
+.routine-strip-clear,
+.routine-strip-skip {
   flex: none;
   width: 26px;
   height: 26px;
@@ -1515,7 +1516,8 @@ input[type='range'] {
   transition: color 140ms var(--ease-out), border-color 140ms var(--ease-out);
 }
 
-.routine-strip-clear:hover {
+.routine-strip-clear:hover,
+.routine-strip-skip:hover {
   color: var(--ink);
   border-color: var(--primary);
 }

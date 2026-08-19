@@ -290,6 +290,7 @@ function App() {
         blockIndex={routine.blockIndex}
         blockElapsedMs={routine.blockElapsedMs}
         finished={routine.finished}
+        onSkip={routine.skipBlock}
         onClear={routine.clear}
       />
     ) : null
