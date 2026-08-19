@@ -227,6 +227,32 @@ describe('Routines', () => {
     expect(screen.queryByTestId('routine-clear')).toBeNull()
   })
 
+  it('skips to the next block from the hero strip, and hides the button when there is nothing to skip', () => {
+    render(<App />)
+
+    selectRoutine('seed-neck-fluency-12')
+
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 2 of 5 · 3:00 left')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 5')
+
+    // Three more lands on the last block; one after that ends the workout.
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 5 of 5')
+
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('complete')
+    expect(screen.queryByTestId('routine-strip-skip')).toBeNull()
+
+    // A saved setup is one block: the strip keeps its clear, drops its skip.
+    fireEvent.click(screen.getByTestId('routine-strip-clear'))
+    selectRoutine('seed-chromatic-drill')
+    expect(screen.getByTestId('routine-strip-clear')).toBeInTheDocument()
+    expect(screen.queryByTestId('routine-strip-skip')).toBeNull()
+  })
+
   /**
    * The delete is final, so one tap can never be enough: the first only turns
    * the X into a question, and the storage behind it is untouched until the
