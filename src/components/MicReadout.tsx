@@ -2,7 +2,7 @@ import { faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { FLAT_DISPLAY, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
 import type { MicStatus } from '../hooks/useMicPitch'
-import type { NoteVerdict } from '../lib/scoring'
+import type { Bonus, BonusKind, NoteVerdict } from '../lib/scoring'
 
 type MicReadoutProps = {
   status: MicStatus
@@ -11,8 +11,22 @@ type MicReadoutProps = {
   /** The note being called, so a hit can be named the way it was asked for. */
   called: { pc: number; display: string } | null
   /** How the session is going, or null when nothing is being scored. */
-  score: { lastVerdict: NoteVerdict | null; hits: number; scored: number } | null
+  score: {
+    lastVerdict: NoteVerdict | null
+    hits: number
+    scored: number
+    points: number
+    streak: number
+    /** What the last note earned beyond the flat rate, named as it landed. */
+    bonuses: Bonus[]
+  } | null
 }
+
+/** What each bonus is called on the line. One key per kind, and no more. */
+const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak' }
+
+/** A run is only worth showing once it is one — a single note is not. */
+const STREAK_SHOWN_FROM = 2
 
 const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
   idle: 'Listening starts with playback.',
@@ -42,10 +56,16 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * note on screen to be right or wrong about.
  *
  * Under it, when there is a score to report, the second line: whether the last
- * note called was actually played and how long it took, and the session's
- * running accuracy beside it. That line stays out until there is something to
- * say — a mic that has been on for four seconds has nothing yet, and "0/0"
- * over an untouched session reads as a failure rather than a beginning.
+ * note called was actually played and how long it took, the points the session
+ * has banked with the run behind them, and the session's running accuracy
+ * beside it. That line stays out until there is something to say — a mic that
+ * has been on for four seconds has nothing yet, and "0/0" over an untouched
+ * session reads as a failure rather than a beginning.
+ *
+ * Points do not replace the accuracy: they are the number that goes up, and
+ * `hits/scored` is the one that says how it is actually going. They sit on the
+ * same line so a player reads both in one glance, and the bonus that just
+ * landed is named beside them for exactly as long as it is the last note's.
  *
  * The tally outlives the microphone. Stopping playback closes the mic, and a
  * stopped session is exactly when someone wants to read how it went, so the
@@ -62,6 +82,7 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
         {score !== null && score.scored > 0 ? (
           <div className="mic-readout-score">
             <span className="mic-readout-label">Score</span>
+            <ScorePoints points={score.points} streak={score.streak} />
             <ScoreTally hits={score.hits} scored={score.scored} />
           </div>
         ) : null}
@@ -126,10 +147,40 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
             </span>
           ) : null}
 
-          {score.scored > 0 ? <ScoreTally hits={score.hits} scored={score.scored} /> : null}
+          {score.scored > 0 ? (
+            <>
+              <ScorePoints points={score.points} streak={score.streak} />
+              {score.bonuses.length > 0 ? (
+                <span className="mic-readout-bonus" data-testid="score-bonus">
+                  {score.bonuses.map((bonus) => `+${bonus.points} ${BONUS_LABELS[bonus.kind]}`).join(' ')}
+                </span>
+              ) : null}
+              <ScoreTally hits={score.hits} scored={score.scored} />
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The number that goes up, and the run behind it. Both are one reading to a
+ * screen reader — "120 points, 4 in a row" — because "×4" on its own is a
+ * multiplication sign and a number, and says nothing about notes.
+ */
+function ScorePoints({ points, streak }: { points: number; streak: number }) {
+  const inARow = streak >= STREAK_SHOWN_FROM
+
+  return (
+    <span
+      className="mic-readout-points"
+      data-testid="score-points"
+      role="img"
+      aria-label={inARow ? `${points} points, ${streak} in a row` : `${points} points`}
+    >
+      {points} pts{inARow ? ` · ×${streak}` : ''}
+    </span>
   )
 }
 

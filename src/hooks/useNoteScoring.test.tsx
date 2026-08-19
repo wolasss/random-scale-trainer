@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BeatEvent } from '../lib/playback/machine'
+import { EMPTY_TALLY, POINTS_PER_HIT } from '../lib/scoring'
 import type { HeardPitch } from './useMicPitch'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
@@ -110,7 +111,14 @@ describe('useNoteScoring', () => {
 
     await settle()
 
-    expect(result.current.tally).toEqual({ scored: 1, hits: 0, responseTimesMs: [] })
+    expect(result.current.tally).toEqual({
+      scored: 1,
+      hits: 0,
+      responseTimesMs: [],
+      points: 0,
+      streak: 0,
+      bestStreak: 0,
+    })
     expect(result.current.lastVerdict).toEqual({ hit: false, responseMs: null })
   })
 
@@ -132,6 +140,93 @@ describe('useNoteScoring', () => {
     expect(result.current.tally.hits).toBe(1)
     expect(result.current.tally.scored).toBe(1)
     expect(result.current.tally.responseTimesMs).toHaveLength(1)
+    // The points arrive with the note that earned them, not a beat later.
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT)
+    expect(result.current.tally.streak).toBe(1)
+    expect(result.current.lastBonuses).toEqual([])
+  })
+
+  it('names the streak bonus on the note that earned it', async () => {
+    const { result, mic } = setup()
+
+    for (const [index, time] of [10, 20, 30].entries()) {
+      await act(async () => {
+        result.current.handleBeat(beat(time, 3))
+      })
+      await act(async () => {
+        mic.emit(3, time + 0.2)
+        mic.emit(3, time + 0.25)
+      })
+
+      // Two right notes are a coincidence; the third is a run.
+      expect(result.current.lastBonuses).toEqual(index === 2 ? [{ kind: 'streak', points: 5 }] : [])
+    }
+
+    expect(result.current.tally.streak).toBe(3)
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT * 3 + 5)
+  })
+
+  it('keeps a run going across a note dropped by a pause', async () => {
+    // Nobody was asked to play through a pause, so it cannot end a streak.
+    const { result, rerender, mic, initialProps } = setup()
+
+    for (const time of [10, 20]) {
+      await act(async () => {
+        result.current.handleBeat(beat(time, 3))
+      })
+      await act(async () => {
+        mic.emit(3, time + 0.2)
+        mic.emit(3, time + 0.25)
+      })
+    }
+
+    await act(async () => {
+      result.current.handleBeat(beat(30, 3))
+    })
+
+    rerender({ ...initialProps, running: false })
+    await settle()
+    rerender(initialProps)
+    await settle()
+
+    await act(async () => {
+      result.current.handleBeat(beat(40, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 40.2)
+      mic.emit(3, 40.25)
+    })
+
+    expect(result.current.tally.streak).toBe(3)
+    expect(result.current.lastBonuses).toEqual([{ kind: 'streak', points: 5 }])
+  })
+
+  it('ends the run, and its bonus, on a miss', async () => {
+    const { result, mic } = setup()
+
+    for (const time of [10, 20, 30]) {
+      await act(async () => {
+        result.current.handleBeat(beat(time, 3))
+      })
+      await act(async () => {
+        mic.emit(3, time + 0.2)
+        mic.emit(3, time + 0.25)
+      })
+    }
+
+    const earned = result.current.tally.points
+
+    await act(async () => {
+      result.current.handleBeat(beat(40, 3))
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(50, 3))
+    })
+
+    expect(result.current.tally.streak).toBe(0)
+    expect(result.current.tally.bestStreak).toBe(3)
+    expect(result.current.tally.points).toBe(earned)
+    expect(result.current.lastBonuses).toEqual([])
   })
 
   it('scores a miss when the next note is called over an unanswered one', async () => {
@@ -145,7 +240,14 @@ describe('useNoteScoring', () => {
     })
 
     expect(result.current.lastVerdict).toEqual({ hit: false, responseMs: null })
-    expect(result.current.tally).toEqual({ scored: 1, hits: 0, responseTimesMs: [] })
+    expect(result.current.tally).toEqual({
+      scored: 1,
+      hits: 0,
+      responseTimesMs: [],
+      points: 0,
+      streak: 0,
+      bestStreak: 0,
+    })
   })
 
   it('counts a hit once, however many frames follow it', async () => {
@@ -166,7 +268,7 @@ describe('useNoteScoring', () => {
       result.current.handleBeat(beat(20, 5))
     })
 
-    expect(result.current.tally).toMatchObject({ scored: 1, hits: 1 })
+    expect(result.current.tally).toMatchObject({ scored: 1, hits: 1, points: POINTS_PER_HIT, streak: 1 })
   })
 
   /** The anti-self-scoring rule, through the hook: the app's own voice is not playing. */
@@ -223,7 +325,7 @@ describe('useNoteScoring', () => {
     rerender({ ...initialProps, running: false })
     await settle()
 
-    expect(result.current.tally).toEqual({ scored: 0, hits: 0, responseTimesMs: [] })
+    expect(result.current.tally).toEqual(EMPTY_TALLY)
 
     // And nothing heard through the pause belongs to a note anymore.
     await act(async () => {
@@ -268,7 +370,7 @@ describe('useNoteScoring', () => {
     })
 
     expect(engine.getCueEndForBeat).not.toHaveBeenCalled()
-    expect(result.current.tally).toEqual({ scored: 0, hits: 0, responseTimesMs: [] })
+    expect(result.current.tally).toEqual(EMPTY_TALLY)
     expect(result.current.lastVerdict).toBeNull()
   })
 
@@ -301,8 +403,9 @@ describe('useNoteScoring', () => {
       result.current.reset()
     })
 
-    expect(result.current.tally).toEqual({ scored: 0, hits: 0, responseTimesMs: [] })
+    expect(result.current.tally).toEqual(EMPTY_TALLY)
     expect(result.current.lastVerdict).toBeNull()
+    expect(result.current.lastBonuses).toEqual([])
 
     // ...and the note that was open is gone with it.
     await act(async () => {
