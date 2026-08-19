@@ -1,3 +1,15 @@
+# [1.11.0](https://github.com/wolasss/random-scale-trainer/compare/v1.10.0...v1.11.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **history:** surface a failed save instead of silently losing the practice log ([#107](https://github.com/wolasss/random-scale-trainer/issues/107)) ([b75c621](https://github.com/wolasss/random-scale-trainer/commit/b75c621d990d5c80efbf290403447f857e923254))
+
+
+### Features
+
+* **practice:** score the heard notes against the called notes ([#106](https://github.com/wolasss/random-scale-trainer/issues/106)) ([5ad5fd2](https://github.com/wolasss/random-scale-trainer/commit/5ad5fd29e1c4615db0f1a88e776f695b8a6cb96f))
+
 # [1.10.0](https://github.com/wolasss/random-scale-trainer/compare/v1.9.1...v1.10.0) (2026-08-19)
 
 
