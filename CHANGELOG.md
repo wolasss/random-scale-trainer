@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/wolasss/random-scale-trainer/compare/v1.12.0...v1.12.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** treat every installed display mode as standalone ([#110](https://github.com/wolasss/random-scale-trainer/issues/110)) ([d733baa](https://github.com/wolasss/random-scale-trainer/commit/d733baac70c8bf3e4cd86be184ada6aa0a959347))
+
 # [1.12.0](https://github.com/wolasss/random-scale-trainer/compare/v1.11.1...v1.12.0) (2026-08-19)
 
 
