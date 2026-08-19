@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import type { BeatsPerNote } from '../hooks/useSettings'
@@ -38,6 +39,49 @@ const rampHelper = (bpm: number, target: number) => {
   return `${rounds} ${rounds === 1 ? 'round' : 'rounds'} from ${bpm}, then it holds.`
 }
 
+type TempoStepperProps = {
+  /** Base for the three control test ids: `${testId}-down`, `-value` and `-up`. */
+  testId: string
+  value: number
+  step: number
+  decrementLabel: string
+  incrementLabel: string
+  onNudge: (delta: number) => void
+  /** Extra controls that belong inside the row, like the tap-tempo button. */
+  children?: ReactNode
+}
+
+/** The minus/readout/plus row, shared by the tempo and the ramp target. */
+function TempoStepper({ testId, value, step, decrementLabel, incrementLabel, onNudge, children }: TempoStepperProps) {
+  return (
+    <div className="tempo-readout-row">
+      <button
+        type="button"
+        className="ghost-button stepper-button"
+        data-testid={`${testId}-down`}
+        aria-label={decrementLabel}
+        onClick={() => onNudge(-step)}
+      >
+        −
+      </button>
+      <div className="tempo-readout">
+        <output data-testid={`${testId}-value`}>{value}</output>
+        <span className="tempo-unit">BPM</span>
+      </div>
+      <button
+        type="button"
+        className="ghost-button stepper-button"
+        data-testid={`${testId}-up`}
+        aria-label={incrementLabel}
+        onClick={() => onNudge(step)}
+      >
+        +
+      </button>
+      {children}
+    </div>
+  )
+}
+
 export function TempoCard({
   bpm,
   beatsPerNote,
@@ -64,33 +108,18 @@ export function TempoCard({
       </div>
 
       <div className="control-block">
-        <div className="tempo-readout-row">
-          <button
-            type="button"
-            className="ghost-button stepper-button"
-            data-testid="bpm-down"
-            aria-label="Slower by 1 BPM"
-            onClick={() => onNudge(-1)}
-          >
-            −
-          </button>
-          <div className="tempo-readout">
-            <output data-testid="bpm-value">{bpm}</output>
-            <span className="tempo-unit">BPM</span>
-          </div>
-          <button
-            type="button"
-            className="ghost-button stepper-button"
-            data-testid="bpm-up"
-            aria-label="Faster by 1 BPM"
-            onClick={() => onNudge(1)}
-          >
-            +
-          </button>
+        <TempoStepper
+          testId="bpm"
+          value={bpm}
+          step={1}
+          decrementLabel="Slower by 1 BPM"
+          incrementLabel="Faster by 1 BPM"
+          onNudge={onNudge}
+        >
           <button type="button" className="ghost-button tap-tempo" data-testid="tap-tempo" onClick={onTap}>
             Tap tempo
           </button>
-        </div>
+        </TempoStepper>
 
         <input
           id="bpm-slider"
@@ -128,30 +157,14 @@ export function TempoCard({
             <div className="control-label-row">
               <span className="label">Climb to</span>
             </div>
-            <div className="tempo-readout-row">
-              <button
-                type="button"
-                className="ghost-button stepper-button"
-                data-testid="ramp-target-down"
-                aria-label={`Lower the target by ${RAMP_TARGET_STEP} BPM`}
-                onClick={() => onRampTargetNudge(-RAMP_TARGET_STEP)}
-              >
-                −
-              </button>
-              <div className="tempo-readout">
-                <output data-testid="ramp-target-value">{rampTarget}</output>
-                <span className="tempo-unit">BPM</span>
-              </div>
-              <button
-                type="button"
-                className="ghost-button stepper-button"
-                data-testid="ramp-target-up"
-                aria-label={`Raise the target by ${RAMP_TARGET_STEP} BPM`}
-                onClick={() => onRampTargetNudge(RAMP_TARGET_STEP)}
-              >
-                +
-              </button>
-            </div>
+            <TempoStepper
+              testId="ramp-target"
+              value={rampTarget}
+              step={RAMP_TARGET_STEP}
+              decrementLabel={`Lower the target by ${RAMP_TARGET_STEP} BPM`}
+              incrementLabel={`Raise the target by ${RAMP_TARGET_STEP} BPM`}
+              onNudge={onRampTargetNudge}
+            />
             <p className="control-subtitle" data-testid="ramp-helper">
               {rampHelper(bpm, rampTarget)}
             </p>
