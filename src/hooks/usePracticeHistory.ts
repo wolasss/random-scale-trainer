@@ -13,6 +13,9 @@ import { addPractice, dayKey, HISTORY_FLUSH_MS, readHistory, writeHistory, type 
 export function usePracticeHistory() {
   const [history, setHistory] = useState<PracticeHistory>(readHistory)
   const historyRef = useRef(history)
+  // Assumed good until a write says otherwise — nothing has been asked of the
+  // store yet, and starting on a warning nobody has earned would be noise.
+  const [persisted, setPersisted] = useState(true)
 
   const pendingMsRef = useRef(0)
   const pendingNotesRef = useRef(0)
@@ -34,7 +37,9 @@ export function usePracticeHistory() {
 
     const next = addPractice(historyRef.current, dayKey(new Date()), sec, notes)
     historyRef.current = next
-    writeHistory(next)
+    // In memory either way: a store that refuses the write is a reason to say
+    // so, not a reason to stop counting the session in front of the user.
+    setPersisted(writeHistory(next))
     setHistory(next)
   }, [])
 
@@ -87,5 +92,5 @@ export function usePracticeHistory() {
     }
   }, [commit])
 
-  return { history, trackElapsed, trackNotes, commit }
+  return { history, persisted, trackElapsed, trackNotes, commit }
 }

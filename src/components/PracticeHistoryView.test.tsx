@@ -21,7 +21,7 @@ const renderView = (overrides: Partial<Parameters<typeof PracticeHistoryView>[0]
     history,
     onClose: vi.fn(),
     getBackup: vi.fn(() => 'BACKUP-FILE-TEXT'),
-    onImport: vi.fn(),
+    onImport: vi.fn(() => true),
     today: TODAY,
     ...overrides,
   }
@@ -120,7 +120,7 @@ describe('PracticeHistoryView', () => {
           today={TODAY}
           onClose={vi.fn()}
           getBackup={vi.fn(() => '')}
-          onImport={vi.fn()}
+          onImport={vi.fn(() => true)}
         />
       </div>,
     )
@@ -192,7 +192,7 @@ describe('PracticeHistoryView', () => {
       history,
       onClose: vi.fn(),
       getBackup: vi.fn(() => ''),
-      onImport: vi.fn(),
+      onImport: vi.fn(() => true),
       today: TODAY,
     }
     const { rerender } = render(<PracticeHistoryView {...props} />)
@@ -278,6 +278,18 @@ describe('PracticeHistoryView', () => {
     await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
     expect(props.onImport).toHaveBeenCalledWith({ days: { '2026-02-01': { sec: 600, notes: 12 } } })
     expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
+  it('says so when the file read fine but the restore could not be saved', async () => {
+    const { props } = renderView({ onImport: vi.fn(() => false) })
+
+    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY)
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
+
+    // Not "that file doesn't look like a backup" — the file was fine, and
+    // sending someone hunting for another copy of it would be a wild goose chase.
+    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('blocking saved data')
+    expect(props.onImport).toHaveBeenCalledTimes(1)
   })
 
   it('says so and changes nothing when the file is not a backup', async () => {

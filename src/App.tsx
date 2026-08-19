@@ -68,7 +68,12 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
-function App() {
+type AppProps = {
+  /** Injectable for tests; otherwise the browser's own reload. */
+  reload?: () => void
+}
+
+function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const { theme, setTheme, skin, setSkin } = useAppearance()
   const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
@@ -381,15 +386,27 @@ function App() {
   // storage once, on mount, so anything short of a reload would be overwritten
   // by its next commit. (A tick landing between the two would cost the seconds
   // in flight — the same seconds a refresh mid-session costs anyway.)
-  const importPracticeBackup = (incoming: PracticeHistory) => {
+  //
+  // Only once the merged log is really in the store, though. Reloading on a
+  // write that was dropped would come back to the log the restore was meant to
+  // repair, with the restored days gone and the reload reading as a success —
+  // so a refused write is reported back instead, and nothing is thrown away.
+  const importPracticeBackup = (incoming: PracticeHistory): boolean => {
     practiceHistory.commit()
-    writeHistory(mergeHistories(readHistory(), incoming))
-    window.location.reload()
+    const stored = writeHistory(mergeHistories(readHistory(), incoming))
+    if (!stored) {
+      return false
+    }
+
+    reload()
+
+    return true
   }
 
   const practiceLogCard = (
     <PracticeLogCard
       history={practiceHistory.history}
+      persisted={practiceHistory.persisted}
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
