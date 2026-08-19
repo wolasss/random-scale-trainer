@@ -1,3 +1,10 @@
+## [1.12.3](https://github.com/wolasss/random-scale-trainer/compare/v1.12.2...v1.12.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** follow the chosen theme in the installed app's window chrome ([#115](https://github.com/wolasss/random-scale-trainer/issues/115)) ([a8e0938](https://github.com/wolasss/random-scale-trainer/commit/a8e09386c8510ea21570ae28de03c4ed26dd03eb))
+
 ## [1.12.2](https://github.com/wolasss/random-scale-trainer/compare/v1.12.1...v1.12.2) (2026-08-19)
 
 
