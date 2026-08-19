@@ -79,7 +79,8 @@ describe('index.html bootstrap', () => {
   // Under jsdom `import.meta.url` is an http URL, so the project root — which
   // vitest also uses as its own — is the way back to the shipped file.
   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
-  const source = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1]
+  const source =
+    new DOMParser().parseFromString(html, 'text/html').querySelector('script')?.textContent ?? undefined
 
   const run = () => {
     // A colour no skin uses, so every assertion below is about a write the
