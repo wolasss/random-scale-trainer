@@ -1,3 +1,15 @@
+# [1.12.0](https://github.com/wolasss/random-scale-trainer/compare/v1.11.1...v1.12.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ts:** stop tsconfig.test.json from excluding every test file it exists to check ([#111](https://github.com/wolasss/random-scale-trainer/issues/111)) ([1050f1a](https://github.com/wolasss/random-scale-trainer/commit/1050f1a85fe7306b0024ba1ad3e0dbe7ec823b0a))
+
+
+### Features
+
+* **routines:** duplicate a routine into an editable copy ([#112](https://github.com/wolasss/random-scale-trainer/issues/112)) ([df3df45](https://github.com/wolasss/random-scale-trainer/commit/df3df45abccead26cd9c89406d12e6620d6c6c58))
+
 ## [1.11.1](https://github.com/wolasss/random-scale-trainer/compare/v1.11.0...v1.11.1) (2026-08-19)
 
 
