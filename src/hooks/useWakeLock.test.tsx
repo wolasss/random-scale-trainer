@@ -42,6 +42,38 @@ const installWakeLock = () => {
   return { request, sentinels }
 }
 
+/** Same, but every request stays in flight until the test resolves it by hand. */
+const installDeferredWakeLock = () => {
+  const sentinels: ReturnType<typeof createFakeSentinel>[] = []
+  const outstanding: ((sentinel: ReturnType<typeof createFakeSentinel>) => void)[] = []
+  const request = vi.fn(
+    () =>
+      new Promise<ReturnType<typeof createFakeSentinel>>((resolve) => {
+        outstanding.push(resolve)
+      }),
+  )
+
+  Object.defineProperty(navigator, 'wakeLock', {
+    configurable: true,
+    value: { request },
+  })
+
+  /** Hands a fresh sentinel to the oldest request still waiting. */
+  const resolveNext = async () => {
+    const resolve = outstanding.shift()
+    if (resolve === undefined) {
+      throw new Error('no request is in flight')
+    }
+    const sentinel = createFakeSentinel()
+    sentinels.push(sentinel)
+    await act(async () => {
+      resolve(sentinel)
+    })
+  }
+
+  return { request, sentinels, resolveNext }
+}
+
 const removeWakeLock = () => {
   Reflect.deleteProperty(navigator, 'wakeLock')
 }
@@ -117,6 +149,46 @@ describe('useWakeLock', () => {
     await act(async () => {})
 
     unmount()
+    expect(sentinels[0].release).toHaveBeenCalled()
+  })
+
+  it('releases the lock a superseded request resolves with', async () => {
+    const { request, sentinels, resolveNext } = installDeferredWakeLock()
+    renderHook(() => useWakeLock(true))
+
+    // Background and come back while the first request is still in flight.
+    setVisibility('hidden')
+    setVisibility('visible')
+    expect(request).toHaveBeenCalledTimes(2)
+
+    await resolveNext()
+    await resolveNext()
+
+    // The lock nobody is holding on to has to go back, or the screen stays lit.
+    expect(sentinels[0].release).toHaveBeenCalled()
+    expect(sentinels[1].release).not.toHaveBeenCalled()
+    expect(sentinels.filter((sentinel) => sentinel.release.mock.calls.length === 0)).toHaveLength(1)
+  })
+
+  it('releases a lock that arrives after playback stops', async () => {
+    const { sentinels, resolveNext } = installDeferredWakeLock()
+    const { rerender } = renderHook(({ active }) => useWakeLock(active), { initialProps: { active: true } })
+
+    await act(async () => {
+      rerender({ active: false })
+    })
+    await resolveNext()
+
+    expect(sentinels[0].release).toHaveBeenCalled()
+  })
+
+  it('releases a lock that arrives after unmount', async () => {
+    const { sentinels, resolveNext } = installDeferredWakeLock()
+    const { unmount } = renderHook(() => useWakeLock(true))
+
+    unmount()
+    await resolveNext()
+
     expect(sentinels[0].release).toHaveBeenCalled()
   })
 
