@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/wolasss/random-scale-trainer/compare/v1.11.0...v1.11.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **wakelock:** release the lock a superseded request leaves behind ([#108](https://github.com/wolasss/random-scale-trainer/issues/108)) ([fb1460c](https://github.com/wolasss/random-scale-trainer/commit/fb1460cb0ecf9aee42b0b2ba8ce954207997cb0e))
+
 # [1.11.0](https://github.com/wolasss/random-scale-trainer/compare/v1.10.0...v1.11.0) (2026-08-19)
 
 
