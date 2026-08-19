@@ -20,6 +20,20 @@ export const DEFAULT_SKIN: Skin = 'glass'
 export const isSkin = (value: string): value is Skin => (SKINS as readonly string[]).includes(value)
 
 /**
+ * The deepest ground each skin paints in each theme — a mirror of `--bg-deep`
+ * in `index.css`, kept here because the browser chrome (status bar, title bar,
+ * scrollbars) is painted outside the stylesheet and has to be told the colour.
+ * Change one of these and you must change the matching `--bg-deep`, and the
+ * copy of this table in `index.html`'s pre-paint bootstrap.
+ */
+export const SKIN_GROUND: Record<Skin, { dark: string; light: string }> = {
+  glass: { dark: '#06131a', light: '#f2f8ff' },
+  instrument: { dark: '#070809', light: '#d7dade' },
+  editorial: { dark: '#141310', light: '#efece2' },
+  warm: { dark: '#241a18', light: '#fff6ee' },
+}
+
+/**
  * Fonts the base document doesn't already load (Space Grotesk + Fraunces cover
  * glass and editorial). Instrument and warm each pull one extra family, added
  * lazily the first time that skin is chosen so the default never pays for them.
