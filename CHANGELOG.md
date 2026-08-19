@@ -1,3 +1,10 @@
+## [1.12.2](https://github.com/wolasss/random-scale-trainer/compare/v1.12.1...v1.12.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **options:** say why the mic switch is off when the browser can't listen ([#114](https://github.com/wolasss/random-scale-trainer/issues/114)) ([072d5f0](https://github.com/wolasss/random-scale-trainer/commit/072d5f088c82f1217363923a270e6a5c089bf578))
+
 ## [1.12.1](https://github.com/wolasss/random-scale-trainer/compare/v1.12.0...v1.12.1) (2026-08-19)
 
 
