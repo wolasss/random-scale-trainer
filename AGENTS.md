@@ -17,12 +17,14 @@ This runs, in order: `lint` → `typecheck:e2e` → `test` (Vitest) → `build` 
 The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is not part of `npm run check`; run it only when your change could affect real browser behavior.
 
 ## Layout
-- `src/App.tsx` — top-level app; composes the practice UI. Colocated tests: `App.integration.test.tsx`, `App.routines.test.tsx`, `App.practiceLog.test.tsx`, `App.stage.test.tsx`, `App.skin.test.tsx`.
+- `src/App.tsx` — top-level app; composes the practice UI. Colocated tests: `App.firstRun.test.tsx`, `App.install.test.tsx`, `App.integration.test.tsx`, `App.mic.test.tsx`, `App.practiceLog.test.tsx`, `App.routines.test.tsx`, `App.skin.test.tsx`, `App.stage.test.tsx`.
 - `src/components/` — presentational/UI components.
+- `src/components/ui/` — shared primitives (`SegmentedControl`, `SwitchRow`), each with a colocated test.
 - `src/hooks/` — React hooks (settings, keyboard shortcuts, session timer, wake lock, service worker, persistent state…), each with a colocated `*.test.tsx`.
-- `src/lib/audio/` — Web Audio engine (`engine.ts` + tests).
-- `src/lib/playback/` — playback state machine (`machine.ts` + tests).
-- `src/lib/skins.ts`, `src/constants.ts` — the visual skins and app constants.
+- `src/lib/audio/` — Web Audio engine, mic capture and pitch detection (`engine.ts`, `mic.ts`, `pitch.ts`), each with tests.
+- `src/lib/playback/` — playback state machine and note deck (`machine.ts`, `deck.ts`, plus the `program.ts`/`tempo.ts` split out of the machine), each with tests.
+- `src/lib/` — the rest of the domain logic: practice log (`history.ts`), note/scale generation (`notes.ts`), presets and routines math (`presets.ts`, `routines.ts`), scoring, storage and timing helpers (`scoring.ts`, `storage.ts`, `tapTempo.ts`, `time.ts`, `transport.ts`), each with a colocated `*.test.ts`; plus `skins.ts` and `src/constants.ts` — the visual skins and app constants.
+- `src/sw/` — service-worker source (`service-worker.js`) and its tests; built into `dist/sw.js` by the `callnote-service-worker` Vite plugin in `vite.config.ts` (never hand-edit `dist`).
 - `src/test/` — test setup/helpers.
 - `e2e/` — Selenium specs (separate `tsconfig`, typechecked via `typecheck:e2e`).
 - `brand/` — the brand guide and the generated logo/icon exports; `scripts/generate-brand-assets.py` and `scripts/rasterize-icons.mjs` produce them.
@@ -37,7 +39,7 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 
 ## Do NOT touch (unless that IS the task)
 - `.github/workflows/` (CI) and release config (`semantic-release`, version bumps) — releases are automated.
-- Precomputed audio assets and generated files under `src/assets`/`src/data` unless explicitly asked.
+- Precomputed audio assets and generated files under `src/assets` unless explicitly asked.
 - `master` directly — always work on a branch and open a PR.
 
 ## Preview servers
