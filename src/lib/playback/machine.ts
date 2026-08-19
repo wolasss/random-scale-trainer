@@ -1,14 +1,16 @@
 import {
   COUNT_IN_BEATS,
-  MAX_BPM,
   PLAYBACK_MESSAGES,
-  RAMP_BPM_STEP,
   RESYNC_THRESHOLD_S,
   SCHEDULE_AHEAD_S,
   SCHEDULER_TICK_MS,
 } from '../../constants'
 import type { NoteCall, SpellingPreference } from '../notes'
 import { createNoteDeck } from './deck'
+import { createSchedulingState, stepBeat, type BeatEvent } from './program'
+import { createTempoControl, rampCeiling } from './tempo'
+
+export type { BeatEvent } from './program'
 
 export type PlaybackStatus = 'idle' | 'playing' | 'paused'
 
@@ -42,23 +44,6 @@ export type PlaybackSnapshot = {
   notesCalled: number
   cyclesCompleted: number
   message: string
-}
-
-/** One scheduled beat, delivered to the UI when the audio clock reaches it. */
-export type BeatEvent = {
-  /** Absolute AudioContext time of the click. */
-  time: number
-  accent: boolean
-  isCountIn: boolean
-  countInValue?: number
-  /** Present when this beat starts a new note span. */
-  note?: NoteCall
-  /** The note after `note`, peeked at schedule time (drives the NEXT chip). */
-  nextNote: NoteCall | null
-  beatInSpan: number
-  positionInCycle: number | null
-  /** True when `note` starts a new cycle right after a fully completed one. */
-  completedCycle: boolean
 }
 
 /** The slice of AudioEngine the machine drives. */
@@ -160,32 +145,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   // Scheduling state — runs ahead of what the user sees by up to the look-ahead.
   let nextBeatTime = 0
-  let countInRemaining = 0
-  let beatInSpan = 0
-  let schedPosition = 0
-  let schedBagSize = 0
-  let anyNoteScheduled = false
+  let sched = createSchedulingState()
   let schedulingDone = false
-  // A cycle boundary is processed once (ramp, stop, count-in); after a
-  // between-cycle count-in the scheduler re-enters the same boundary to draw.
-  let boundaryProcessed = false
-
-  /** Every field the scheduler carries between beats, back to its pre-first-beat state. */
-  const resetSchedulingState = (countIn = 0) => {
-    countInRemaining = countIn
-    beatInSpan = 0
-    schedPosition = 0
-    schedBagSize = 0
-    anyNoteScheduled = false
-    boundaryProcessed = false
-  }
-
-  // The machine's authoritative tempo. The ramp bumps it immediately (before
-  // React round-trips onBpmChange); external slider/tap changes win when the
-  // observed settings value moves to anything other than the pending ramp value.
-  let currentBpm = 0
-  let lastSeenExternalBpm = 0
-  let awaitingWriteback: number | null = null
+  const tempo = createTempoControl()
 
   const emit = (partial: Partial<PlaybackSnapshot>) => {
     snapshot = { ...snapshot, ...partial }
@@ -223,52 +185,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     audio.stopScheduledSounds(keepSessionEndChime)
   }
 
-  /** The ceiling the ramp is working towards, never above the app's own limit. */
-  const rampCeiling = () => Math.min(MAX_BPM, getSettings().rampTargetBpm)
-
   const playingMessage = () => {
-    const { continuousMode, speedRampMode } = getSettings()
+    const { continuousMode, speedRampMode, rampTargetBpm } = getSettings()
     if (!continuousMode || !speedRampMode) {
       return PLAYBACK_MESSAGES.playing
     }
 
-    const target = rampCeiling()
-    return currentBpm >= target ? PLAYBACK_MESSAGES.rampHolding(currentBpm) : PLAYBACK_MESSAGES.rampClimbing(target)
-  }
-
-  const reconcileBpm = () => {
-    const external = getSettings().bpm
-    if (external === lastSeenExternalBpm) {
-      return
-    }
-
-    if (awaitingWriteback !== null && external === awaitingWriteback) {
-      awaitingWriteback = null // our ramp landed; currentBpm is already correct
-    } else {
-      currentBpm = external // a user change always wins
-      awaitingWriteback = null
-    }
-
-    lastSeenExternalBpm = external
-  }
-
-  /**
-   * Reaching the target stops the climb; it never stops playback. An unbounded
-   * ramp ends every session on the first tempo the player couldn't hold, which
-   * is the opposite of what practice should leave you with.
-   */
-  const applySpeedRamp = () => {
-    const { continuousMode, speedRampMode } = getSettings()
-    if (!continuousMode || !speedRampMode) {
-      return
-    }
-
-    const nextBpm = Math.min(rampCeiling(), currentBpm + RAMP_BPM_STEP)
-    if (nextBpm > currentBpm) {
-      currentBpm = nextBpm
-      awaitingWriteback = nextBpm
-      onBpmChange(nextBpm)
-    }
+    const target = rampCeiling(rampTargetBpm)
+    const bpm = tempo.bpm()
+    return bpm >= target ? PLAYBACK_MESSAGES.rampHolding(bpm) : PLAYBACK_MESSAGES.rampClimbing(target)
   }
 
   const finishStop = (message: string, countCycle = false, keepSessionEndChime = false) => {
@@ -288,107 +213,66 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     })
   }
 
-  /** Both draw paths hit the same wall: nothing left to deal. */
-  const stopDeckRanDry = () => {
-    schedulingDone = true
-    scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
-  }
-
   /** Schedules exactly one beat at nextBeatTime and advances the clock. */
   const scheduleBeat = () => {
     const settings = getSettings()
-
-    if (countInRemaining > 0) {
-      const value = countInRemaining
-      const accent = value === COUNT_IN_BEATS
-      audio.playClickAt(nextBeatTime, accent)
-      visualQueue.push({
+    // Read the deck before the decision so the program stays a pure step; the
+    // draw it asks for happens below, once the beat is settled.
+    const step = stepBeat(
+      sched,
+      { head: deck.peek(0), following: deck.peek(1) },
+      {
         time: nextBeatTime,
-        accent,
-        isCountIn: true,
-        countInValue: value,
-        nextNote: deck.peek(),
-        beatInSpan: 0,
-        positionInCycle: null,
-        completedCycle: false,
-      })
-      countInRemaining -= 1
-      nextBeatTime += 60 / currentBpm
+        beatsPerNote: settings.beatsPerNote,
+        countInEnabled: settings.countInEnabled,
+        continuousMode: settings.continuousMode,
+      },
+    )
+
+    if (step.kind === 'dry') {
+      schedulingDone = true
+      scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
       return
     }
 
-    if (beatInSpan === 0) {
-      const peeked = deck.peek()
-      if (!peeked) {
-        stopDeckRanDry()
-        return
-      }
-
-      // A cycle only counts as completed when the previous bag was fully dealt;
-      // a bag truncated by a pool edit must not trigger the ramp or the ending.
-      const completedCycle = peeked.cycleStart && anyNoteScheduled && schedPosition === schedBagSize
-      if (completedCycle && !boundaryProcessed) {
-        boundaryProcessed = true
-        applySpeedRamp()
-
-        if (!settings.continuousMode) {
-          if (settings.endSoundEnabled) {
-            audio.playSessionEndChime(nextBeatTime)
-          }
-          schedulingDone = true
-          scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.finished(schedBagSize), true)
-          return
-        }
-
-        if (settings.countInEnabled) {
-          // Count in again before the new cycle; the next scheduler passes
-          // deal the clicks, then re-enter this boundary to draw the note.
-          countInRemaining = COUNT_IN_BEATS
-          return
-        }
-      }
-
-      const note = deck.draw()
-      if (!note) {
-        stopDeckRanDry()
-        return
-      }
-
-      schedPosition = note.cycleStart ? 1 : schedPosition + 1
-      schedBagSize = note.bagSize
-      anyNoteScheduled = true
-      boundaryProcessed = false
-
-      audio.playClickAt(nextBeatTime, true)
-      if (settings.speakNotes) {
-        audio.playNoteAt(note.audioKey, nextBeatTime)
-      }
-
-      visualQueue.push({
-        time: nextBeatTime,
-        accent: true,
-        isCountIn: false,
-        note,
-        nextNote: deck.peek(),
-        beatInSpan: 0,
-        positionInCycle: schedPosition,
-        completedCycle,
+    sched = step.state
+    if (step.crossedBoundary) {
+      const ramped = tempo.applyRamp({
+        enabled: settings.continuousMode && settings.speedRampMode,
+        targetBpm: settings.rampTargetBpm,
       })
-    } else {
-      audio.playClickAt(nextBeatTime, false)
-      visualQueue.push({
-        time: nextBeatTime,
-        accent: false,
-        isCountIn: false,
-        nextNote: deck.peek(),
-        beatInSpan,
-        positionInCycle: schedPosition,
-        completedCycle: false,
-      })
+      if (ramped !== null) {
+        onBpmChange(ramped)
+      }
     }
 
-    beatInSpan = (beatInSpan + 1) % Math.max(1, settings.beatsPerNote)
-    nextBeatTime += 60 / currentBpm
+    if (step.kind === 'armCountIn') {
+      // No beat and no clock advance: the count-in clicks come on the next
+      // scheduler passes, which then re-enter this same boundary to draw.
+      return
+    }
+
+    if (step.kind === 'end') {
+      if (settings.endSoundEnabled) {
+        audio.playSessionEndChime(nextBeatTime)
+      }
+      schedulingDone = true
+      scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.finished(step.bagSize), true)
+      return
+    }
+
+    if (step.consumesNote) {
+      deck.draw()
+    }
+
+    const { event } = step
+    audio.playClickAt(event.time, event.accent)
+    if (event.note && settings.speakNotes) {
+      audio.playNoteAt(event.note.audioKey, event.time)
+    }
+
+    visualQueue.push(event)
+    nextBeatTime += tempo.beatDuration()
   }
 
   /**
@@ -428,7 +312,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
-    reconcileBpm()
+    tempo.reconcile(getSettings().bpm)
     if (!schedulingDone) {
       resyncIfBehind()
     }
@@ -543,10 +427,10 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       active = true
       // Resume without a count-in: a half-beat pickup, then the beat resumes
       // from wherever the span left off.
-      nextBeatTime = audio.getCurrentTime() + (60 / currentBpm) * 0.5
+      nextBeatTime = audio.getCurrentTime() + tempo.beatDuration() * 0.5
       emit({
         status: 'playing',
-        message: countInRemaining > 0 ? PLAYBACK_MESSAGES.countingIn : playingMessage(),
+        message: sched.countInRemaining > 0 ? PLAYBACK_MESSAGES.countingIn : playingMessage(),
       })
       startLoops()
       return
@@ -590,18 +474,16 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     const settings = getSettings()
-    currentBpm = settings.bpm
-    lastSeenExternalBpm = settings.bpm
-    awaitingWriteback = null
-    resetSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
+    tempo.reset(settings.bpm)
+    sched = createSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
     schedulingDone = false
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
     emit({
-      countIn: countInRemaining > 0 ? COUNT_IN_BEATS : null,
+      countIn: sched.countInRemaining > 0 ? COUNT_IN_BEATS : null,
       nextNote: deck.peek(),
-      message: countInRemaining > 0 ? PLAYBACK_MESSAGES.countingIn : playingMessage(),
+      message: sched.countInRemaining > 0 ? PLAYBACK_MESSAGES.countingIn : playingMessage(),
     })
     startLoops()
   }
@@ -613,7 +495,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     sessionStartQueued = false
-    resetSchedulingState()
+    sched = createSchedulingState()
     deck.reset()
 
     emit({
