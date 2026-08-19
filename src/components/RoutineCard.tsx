@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faForwardStep, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faClone, faForwardStep, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
 import {
   blockCycleSeconds,
   blockFill,
@@ -211,6 +211,8 @@ export function RoutineCard({ routine }: RoutineCardProps) {
     const isSelected = entry.id === selected?.id
     const isArmed = pendingRemove?.kind === 'chip' && pendingRemove.id === entry.id
     const removeLabel = confirmLabel(`Delete ${entry.name}`, isArmed)
+    // Nothing is lost by copying, so unlike the X this one fires on first tap.
+    const copyLabel = `Duplicate ${entry.name}`
     return (
       <div
         key={entry.id}
@@ -226,6 +228,15 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         >
           <span className="routine-chip-name">{entry.name}</span>
           <span className="routine-chip-meta">{routineMeta(entry)}</span>
+        </button>
+        <button
+          type="button"
+          className="routine-chip-copy"
+          aria-label={copyLabel}
+          title={copyLabel}
+          onClick={() => routine.duplicate(entry.id)}
+        >
+          <FontAwesomeIcon icon={faClone} />
         </button>
         <button
           type="button"

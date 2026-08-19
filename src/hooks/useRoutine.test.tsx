@@ -294,6 +294,90 @@ describe('the Custom preset is not a manual edit', () => {
   })
 })
 
+describe('duplicate', () => {
+  /** Like WORKOUT, but its first block owns a pool of its own — the one nested
+      value a block holds, and the one a shallow clone would leave shared. */
+  const CUSTOM_WORKOUT: Routine = {
+    ...WORKOUT,
+    blocks: [
+      block('First', { poolKey: 'custom', pool: [0, 4, 7], bpm: 60, dur: 120 }),
+      ...WORKOUT.blocks.slice(1),
+    ],
+  }
+
+  const renderShelf = () => {
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([CUSTOM_WORKOUT]))
+    return renderHook(() => useRoutineHarness(0, vi.fn()))
+  }
+
+  const stored = (): Routine[] => JSON.parse(window.localStorage.getItem(STORAGE_KEYS.routines) ?? '[]')
+
+  const copyOf = (routines: Routine[]) => routines.find((entry) => entry.id !== CUSTOM_WORKOUT.id)!
+
+  it('adds a persisted copy under its own id and loads it', () => {
+    const view = renderShelf()
+
+    act(() => {
+      view.result.current.routine.duplicate(CUSTOM_WORKOUT.id)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.routines).toHaveLength(2)
+
+    const copy = copyOf(routine.routines)
+    expect(copy.name).toBe('Three blocks copy')
+    expect(copy.id).not.toBe(CUSTOM_WORKOUT.id)
+    expect(copy.blocks).toEqual(CUSTOM_WORKOUT.blocks)
+
+    // The copy is what is loaded, from its first block.
+    expect(routine.selected!.id).toBe(copy.id)
+    expect(routine.blockIndex).toBe(0)
+    expect(view.result.current.settings).toMatchObject({ bpm: 60, pool: [0, 4, 7] })
+
+    expect(stored().map((entry) => entry.id)).toEqual([CUSTOM_WORKOUT.id, copy.id])
+  })
+
+  it('shares nothing with the original, down to a block pool', () => {
+    const view = renderShelf()
+
+    act(() => {
+      view.result.current.routine.duplicate(CUSTOM_WORKOUT.id)
+    })
+
+    const { routines } = view.result.current.routine
+    const original = routines.find((entry) => entry.id === CUSTOM_WORKOUT.id)!
+    const copy = copyOf(routines)
+
+    copy.blocks.forEach((copied, index) => {
+      expect(copied).not.toBe(original.blocks[index])
+    })
+    expect(copy.blocks[0].pool).toEqual([0, 4, 7])
+    expect(copy.blocks[0].pool).not.toBe(original.blocks[0].pool)
+  })
+
+  it('leaves the original alone when the copy is edited', () => {
+    const view = renderShelf()
+
+    act(() => {
+      view.result.current.routine.duplicate(CUSTOM_WORKOUT.id)
+    })
+    act(() => {
+      view.result.current.routine.removeBlock(0)
+    })
+
+    const { routines, selected } = view.result.current.routine
+    expect(selected!.blocks.map((entry) => entry.name)).toEqual(['Second', 'Third'])
+
+    const original = routines.find((entry) => entry.id === CUSTOM_WORKOUT.id)!
+    expect(original.blocks.map((entry) => entry.name)).toEqual(['First', 'Second', 'Third'])
+    expect(original.blocks[0].pool).toEqual([0, 4, 7])
+
+    const [storedOriginal, storedCopy] = stored()
+    expect(storedOriginal.blocks.map((entry) => entry.name)).toEqual(['First', 'Second', 'Third'])
+    expect(storedCopy.blocks.map((entry) => entry.name)).toEqual(['Second', 'Third'])
+  })
+})
+
 describe('removeBlock around the active block', () => {
   it('shifts the active index down when an earlier block goes, clock intact', () => {
     const view = renderOnBlock(1)
