@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/wolasss/random-scale-trainer/compare/v1.9.1...v1.10.0) (2026-08-19)
+
+
+### Features
+
+* **routines:** let the hero routine strip skip to the next block ([#117](https://github.com/wolasss/random-scale-trainer/issues/117)) ([b1c4050](https://github.com/wolasss/random-scale-trainer/commit/b1c40508613e1808a245ead4427008c5b192ea87))
+
 ## [1.9.1](https://github.com/wolasss/random-scale-trainer/compare/v1.9.0...v1.9.1) (2026-08-19)
 
 
