@@ -3,9 +3,12 @@ import type { BeatEvent } from '../lib/playback/machine'
 import {
   applyHit,
   applyMiss,
+  claimBonus,
   EMPTY_TALLY,
   judgeDetection,
   openWindow,
+  streakBonus,
+  type Bonus,
   type NoteVerdict,
   type NoteWindow,
   type Tally,
@@ -17,12 +20,17 @@ export type ScoringEngine = {
   getCueEndForBeat(beatTime: number): number | null
 }
 
+/** Stable identity, so a note that earned nothing publishes no change. */
+const NO_BONUSES: Bonus[] = []
+
 export type ScoreSnapshot = {
   lastVerdict: NoteVerdict | null
   tally: Tally
+  /** The bonuses that landed on the last note scored, in the order they did. */
+  lastBonuses: Bonus[]
 }
 
-const EMPTY_SNAPSHOT: ScoreSnapshot = { lastVerdict: null, tally: EMPTY_TALLY }
+const EMPTY_SNAPSHOT: ScoreSnapshot = { lastVerdict: null, tally: EMPTY_TALLY, lastBonuses: NO_BONUSES }
 
 /**
  * Everything scoring knows, in refs. React sees only `snapshot`, and only when
@@ -32,6 +40,7 @@ type ScoringStore = {
   open: NoteWindow | null
   tally: Tally
   lastVerdict: NoteVerdict | null
+  lastBonuses: Bonus[]
   snapshot: ScoreSnapshot
   pendingBeats: BeatEvent[]
   flushQueued: boolean
@@ -42,6 +51,7 @@ const createStore = (): ScoringStore => ({
   open: null,
   tally: EMPTY_TALLY,
   lastVerdict: null,
+  lastBonuses: NO_BONUSES,
   snapshot: EMPTY_SNAPSHOT,
   pendingBeats: [],
   flushQueued: false,
@@ -76,8 +86,13 @@ export type UseNoteScoringOptions = {
  *
  * A note that is still open when playback pauses or stops, or when the
  * microphone drops out under it, is dropped rather than missed — nobody was
- * asked to play through a pause. The tally itself survives a stop, so the
- * session's accuracy is still readable after the last note.
+ * asked to play through a pause, so a run of correct notes survives it too. The
+ * tally itself survives a stop, so the session's accuracy is still readable
+ * after the last note.
+ *
+ * Points ride along with the verdict, and so do the bonuses that earned them:
+ * the score is session-scoped, exactly as the accuracy is, and `reset` takes
+ * both back to nothing. Nothing here is written anywhere.
  */
 export function useNoteScoring({ engine, subscribe, active, running }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
@@ -94,11 +109,15 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
   // re-render per beat for a snapshot that says the same thing is waste.
   const publish = useCallback(() => {
     const store = getStore()
-    if (store.snapshot.lastVerdict === store.lastVerdict && store.snapshot.tally === store.tally) {
+    if (
+      store.snapshot.lastVerdict === store.lastVerdict &&
+      store.snapshot.tally === store.tally &&
+      store.snapshot.lastBonuses === store.lastBonuses
+    ) {
       return
     }
 
-    store.snapshot = { lastVerdict: store.lastVerdict, tally: store.tally }
+    store.snapshot = { lastVerdict: store.lastVerdict, tally: store.tally, lastBonuses: store.lastBonuses }
     for (const listener of store.listeners) {
       listener()
     }
@@ -120,6 +139,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
       if (store.open !== null && store.open.verdict === null) {
         store.tally = applyMiss(store.tally)
         store.lastVerdict = { hit: false, responseMs: null }
+        store.lastBonuses = NO_BONUSES
       }
 
       store.open = activeRef.current
@@ -179,9 +199,22 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
         }
 
         // Banked and published together, in one deferral, while the note this
-        // is an answer to is still the one on screen.
+        // is an answer to is still the one on screen. `applyHit` works out the
+        // streak bonus itself — it is the one that knows how long the run now
+        // is — and the window is marked as having been paid it, so nothing can
+        // report the same bonus on this note twice.
         store.lastVerdict = verdict
         store.tally = applyHit(store.tally, verdict.responseMs)
+
+        const earned = streakBonus(store.tally.streak)
+        const claimed = earned === null ? null : claimBonus(judged, earned.kind)
+        if (claimed !== null && earned !== null) {
+          store.open = claimed
+          store.lastBonuses = [earned]
+        } else {
+          store.lastBonuses = NO_BONUSES
+        }
+
         scheduleFlush()
       }),
     [subscribe, getStore, scheduleFlush],
@@ -207,6 +240,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     store.pendingBeats = []
     store.tally = EMPTY_TALLY
     store.lastVerdict = null
+    store.lastBonuses = NO_BONUSES
     publish()
   }, [getStore, publish])
 
@@ -227,5 +261,11 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     useCallback(() => getStore().snapshot, [getStore]),
   )
 
-  return { handleBeat, lastVerdict: snapshot.lastVerdict, tally: snapshot.tally, reset }
+  return {
+    handleBeat,
+    lastVerdict: snapshot.lastVerdict,
+    tally: snapshot.tally,
+    lastBonuses: snapshot.lastBonuses,
+    reset,
+  }
 }

@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyBonus,
   applyHit,
   applyMiss,
+  claimBonus,
   EMPTY_TALLY,
   judgeDetection,
   openWindow,
+  POINTS_PER_HIT,
   SCORE_DECAY_MARGIN_S,
+  streakBonus,
+  STREAK_BONUS_MAX,
   SUSTAIN_MAX_GAP_S,
   type NoteWindow,
   type ScoredDetection,
+  type Tally,
 } from './scoring'
 
 const BEAT_TIME = 10
@@ -143,17 +149,118 @@ describe('judgeDetection', () => {
 })
 
 describe('the tally', () => {
+  /** `n` hits in a row, all answered in the same time. */
+  const run = (n: number, tally: Tally = EMPTY_TALLY) =>
+    Array.from({ length: n }).reduce<Tally>((current) => applyHit(current, 420), tally)
+
   it('banks a hit with its response time', () => {
-    expect(applyHit(EMPTY_TALLY, 420)).toEqual({ scored: 1, hits: 1, responseTimesMs: [420] })
+    expect(applyHit(EMPTY_TALLY, 420)).toEqual({
+      scored: 1,
+      hits: 1,
+      responseTimesMs: [420],
+      points: POINTS_PER_HIT,
+      streak: 1,
+      bestStreak: 1,
+    })
   })
 
   it('banks a miss as a note scored and nothing else', () => {
-    expect(applyMiss(applyHit(EMPTY_TALLY, 420))).toEqual({ scored: 2, hits: 1, responseTimesMs: [420] })
+    expect(applyMiss(applyHit(EMPTY_TALLY, 420))).toEqual({
+      scored: 2,
+      hits: 1,
+      responseTimesMs: [420],
+      points: POINTS_PER_HIT,
+      streak: 0,
+      bestStreak: 1,
+    })
   })
 
   it('never mutates what it was given', () => {
     applyMiss(applyHit(EMPTY_TALLY, 420))
 
-    expect(EMPTY_TALLY).toEqual({ scored: 0, hits: 0, responseTimesMs: [] })
+    expect(EMPTY_TALLY).toEqual({
+      scored: 0,
+      hits: 0,
+      responseTimesMs: [],
+      points: 0,
+      streak: 0,
+      bestStreak: 0,
+    })
+  })
+
+  it('pays a flat rate for the first two notes of a run', () => {
+    // Two right notes are a coincidence. Nothing extra yet.
+    expect(run(1).points).toBe(POINTS_PER_HIT)
+    expect(run(2).points).toBe(POINTS_PER_HIT * 2)
+    expect(run(2).streak).toBe(2)
+  })
+
+  it('starts the streak bonus on the third consecutive note', () => {
+    expect(streakBonus(2)).toBeNull()
+    expect(streakBonus(3)).toEqual({ kind: 'streak', points: 5 })
+    expect(run(3).points).toBe(POINTS_PER_HIT * 3 + 5)
+  })
+
+  it('climbs the streak bonus to a cap and stays there', () => {
+    expect(streakBonus(7)?.points).toBe(STREAK_BONUS_MAX)
+    expect(streakBonus(40)?.points).toBe(STREAK_BONUS_MAX)
+
+    const long = run(20)
+
+    expect(long.points).toBe(run(19).points + POINTS_PER_HIT + STREAK_BONUS_MAX)
+  })
+
+  it('pays the streak it worked out itself, never one handed to it as well', () => {
+    // The third note earns +5. Handing the same bonus in with it must not buy a
+    // second one: `applyHit` is the only thing that pays the streak.
+    const banked = applyHit(run(2), 420, [{ kind: 'streak', points: 5 }])
+
+    expect(banked.points).toBe(POINTS_PER_HIT * 3 + 5)
+    expect(banked.scored).toBe(3)
+  })
+
+  it('breaks the streak on a miss without touching what it earned', () => {
+    const missed = applyMiss(run(4))
+
+    expect(missed.streak).toBe(0)
+    expect(missed.bestStreak).toBe(4)
+    expect(missed.points).toBe(run(4).points)
+
+    // And the next run starts from the bottom of the ladder again.
+    expect(applyHit(missed, 420).points).toBe(missed.points + POINTS_PER_HIT)
+  })
+
+  it('moves the points and nothing else for a bonus found after the hit', () => {
+    const banked = run(3)
+    const bonused = applyBonus(banked, { kind: 'streak', points: 5 })
+
+    expect(bonused.points).toBe(banked.points + 5)
+    expect(bonused).toMatchObject({
+      scored: banked.scored,
+      hits: banked.hits,
+      responseTimesMs: banked.responseTimesMs,
+      streak: banked.streak,
+      bestStreak: banked.bestStreak,
+    })
+  })
+})
+
+describe('claimBonus', () => {
+  it('pays a kind once per note and refuses the replay', () => {
+    const open = openWindow(3, BEAT_TIME, CUE_END)
+    const claimed = claimBonus(open, 'streak')
+
+    expect(claimed?.awarded.has('streak')).toBe(true)
+    expect(claimBonus(claimed as NoteWindow, 'streak')).toBeNull()
+    // The window it was given is left alone, as everything here leaves it.
+    expect(open.awarded.size).toBe(0)
+  })
+
+  it('carries what a note has been paid across the frames that follow', () => {
+    const claimed = claimBonus(openWindow(3, BEAT_TIME, CUE_END), 'streak') as NoteWindow
+    const judged = feed(claimed, [heard(3, 10.7), heard(3, 10.75)])
+
+    expectHit(judged, 700)
+    expect(judged.awarded.has('streak')).toBe(true)
   })
 })

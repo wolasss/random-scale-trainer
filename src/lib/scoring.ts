@@ -22,6 +22,17 @@
  *
  * Pitch classes are the currency throughout, which makes enharmonics free: a
  * call of D♭ and a detection named C♯ are both 1.
+ *
+ * On top of the verdict sits the score. A hit is worth `POINTS_PER_HIT`, and a
+ * bonus is worth whatever the bonus says it is worth. Bonuses arrive at two
+ * different moments, which is why there are two ways to bank one: some are
+ * known when the hit is confirmed, and some are only discovered afterwards,
+ * while the same note is still sounding. `applyHit` takes the first kind;
+ * `applyBonus` takes the second and moves the points and nothing else, so a
+ * late bonus can never re-count the note it belongs to. Guarding against the
+ * same bonus landing twice is the *window's* job — `awarded` — because a
+ * microphone frame that says the same thing as the one before it is normal, and
+ * the tally has no way to tell that replay from a second earning.
  */
 
 /** How long the room is given to go quiet after the app stops sounding. */
@@ -34,6 +45,19 @@ export const SCORE_DECAY_MARGIN_S = 0.15
  */
 export const SUSTAIN_MAX_GAP_S = 0.15
 
+/** What one correct note is worth before any bonus is added to it. */
+export const POINTS_PER_HIT = 10
+
+/**
+ * The streak bonus: nothing for the first two notes in a row, then a step per
+ * note from the third, up to a ceiling. Two right notes are a coincidence; the
+ * third is a run, and the ceiling is there so a long session cannot turn every
+ * later note into a jackpot that dwarfs the ones that earned it.
+ */
+export const STREAK_BONUS_FROM = 3
+export const STREAK_BONUS_STEP = 5
+export const STREAK_BONUS_MAX = 25
+
 /**
  * What happened on one called note. A hit always knows how long it took; a
  * miss has nothing to time, which is why the two are one union rather than a
@@ -41,14 +65,49 @@ export const SUSTAIN_MAX_GAP_S = 0.15
  */
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
-/** The session's running score. `scored` counts notes judged, hit or miss. */
+/** The bonuses a note can earn. More kinds join `streak` as they are written. */
+export type BonusKind = 'streak'
+
+/** One bonus that landed: what it was for, and what it was worth. */
+export type Bonus = { kind: BonusKind; points: number }
+
+/**
+ * The streak bonus earned by landing the `streak`-th consecutive note, or null
+ * when the run is still too short to be one.
+ */
+export function streakBonus(streak: number): Bonus | null {
+  if (streak < STREAK_BONUS_FROM) {
+    return null
+  }
+
+  return {
+    kind: 'streak',
+    points: Math.min((streak - STREAK_BONUS_FROM + 1) * STREAK_BONUS_STEP, STREAK_BONUS_MAX),
+  }
+}
+
+/**
+ * The session's running score. `scored` counts notes judged, hit or miss;
+ * `streak` is the run of correct notes still going, and `bestStreak` the
+ * longest one the session has managed, which a miss cannot take away.
+ */
 export type Tally = {
   scored: number
   hits: number
   responseTimesMs: number[]
+  points: number
+  streak: number
+  bestStreak: number
 }
 
-export const EMPTY_TALLY: Tally = { scored: 0, hits: 0, responseTimesMs: [] }
+export const EMPTY_TALLY: Tally = {
+  scored: 0,
+  hits: 0,
+  responseTimesMs: [],
+  points: 0,
+  streak: 0,
+  bestStreak: 0,
+}
 
 /** One detection, reduced to the two fields judging cares about. */
 export type ScoredDetection = {
@@ -58,7 +117,9 @@ export type ScoredDetection = {
 
 /**
  * A called note's open question. `candidateAt` is the audio time of a first
- * matching detection still waiting for the second that would confirm it.
+ * matching detection still waiting for the second that would confirm it, and
+ * `awarded` remembers which bonuses this note has already paid out, so a bonus
+ * is earned once per note however many frames go on saying so.
  */
 export type NoteWindow = {
   pc: number
@@ -66,6 +127,7 @@ export type NoteWindow = {
   opensAt: number
   candidateAt: number | null
   verdict: NoteVerdict | null
+  awarded: Set<BonusKind>
 }
 
 /**
@@ -81,7 +143,21 @@ export function openWindow(pc: number, beatTime: number, cueEnd: number | null):
     opensAt: (cueEnd ?? beatTime) + SCORE_DECAY_MARGIN_S,
     candidateAt: null,
     verdict: null,
+    awarded: new Set(),
   }
+}
+
+/**
+ * Claims a bonus for this note, or refuses. Returns a window that has the kind
+ * marked as paid, or null when it was paid already — so the caller banks points
+ * exactly when it gets a window back, and a replayed frame earns nothing.
+ */
+export function claimBonus(noteWindow: NoteWindow, kind: BonusKind): NoteWindow | null {
+  if (noteWindow.awarded.has(kind)) {
+    return null
+  }
+
+  return { ...noteWindow, awarded: new Set([...noteWindow.awarded, kind]) }
 }
 
 /**
@@ -114,10 +190,41 @@ export function judgeDetection(noteWindow: NoteWindow, { pitchClass, audioTime }
   return { ...noteWindow, verdict: { hit: true, responseMs: (candidateAt - noteWindow.beatTime) * 1000 } }
 }
 
-export const applyHit = (tally: Tally, responseMs: number): Tally => ({
-  scored: tally.scored + 1,
-  hits: tally.hits + 1,
-  responseTimesMs: [...tally.responseTimesMs, responseMs],
+/**
+ * Banks a correct note: the count, the response time, the streak it continues,
+ * and the points — `POINTS_PER_HIT`, the streak bonus the new run has earned,
+ * and anything else already known to have landed on this note.
+ *
+ * The streak bonus is this function's alone, because it is the one that knows
+ * how long the run now is; a streak handed in among `bonuses` is dropped rather
+ * than paid on top of the one worked out here. Every other kind is added as
+ * given.
+ */
+export const applyHit = (tally: Tally, responseMs: number, bonuses: Bonus[] = []): Tally => {
+  const streak = tally.streak + 1
+  const extra = bonuses.reduce((total, bonus) => (bonus.kind === 'streak' ? total : total + bonus.points), 0)
+
+  return {
+    scored: tally.scored + 1,
+    hits: tally.hits + 1,
+    responseTimesMs: [...tally.responseTimesMs, responseMs],
+    points: tally.points + POINTS_PER_HIT + (streakBonus(streak)?.points ?? 0) + extra,
+    streak,
+    bestStreak: Math.max(tally.bestStreak, streak),
+  }
+}
+
+/**
+ * Banks a bonus discovered *after* its note was banked — points and nothing
+ * else. It must never touch `scored`, `hits`, `responseTimesMs`, `streak` or
+ * `bestStreak`: the note it belongs to has already been counted, and counting
+ * it again would inflate the accuracy the readout reports. Whether the bonus is
+ * allowed to land at all is `claimBonus`'s question, not this one's.
+ */
+export const applyBonus = (tally: Tally, bonus: Bonus): Tally => ({
+  ...tally,
+  points: tally.points + bonus.points,
 })
 
-export const applyMiss = (tally: Tally): Tally => ({ ...tally, scored: tally.scored + 1 })
+/** A miss ends the run. `bestStreak` stands — it was earned. */
+export const applyMiss = (tally: Tally): Tally => ({ ...tally, scored: tally.scored + 1, streak: 0 })

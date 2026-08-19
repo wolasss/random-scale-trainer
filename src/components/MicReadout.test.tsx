@@ -139,11 +139,13 @@ describe('MicReadout', () => {
 
   describe('the score line', () => {
     const props = { status: 'listening', heard: null, spelling: 'sharp', called: null } as const
+    /** A session with a tally but nothing earned, for the accuracy assertions. */
+    const NO_POINTS = { points: 0, streak: 0, bonuses: [] }
 
     it('stays out until there is something to report', () => {
       // A session that has not scored a note yet is a session that is starting,
       // not one that is going badly.
-      render(<MicReadout {...props} score={{ lastVerdict: null, hits: 0, scored: 0 }} />)
+      render(<MicReadout {...props} score={{ lastVerdict: null, hits: 0, scored: 0, ...NO_POINTS }} />)
 
       expect(screen.queryByTestId('score-verdict')).toBeNull()
       expect(screen.queryByTestId('score-tally')).toBeNull()
@@ -160,7 +162,7 @@ describe('MicReadout', () => {
      * stopped is the one someone actually wants the number from.
      */
     it('keeps the session count up once the microphone has closed', () => {
-      render(<MicReadout {...props} status="idle" score={{ lastVerdict: null, hits: 2, scored: 3 }} />)
+      render(<MicReadout {...props} status="idle" score={{ lastVerdict: null, hits: 2, scored: 3, ...NO_POINTS }} />)
 
       expect(screen.getByTestId('score-tally')).toHaveTextContent('2/3')
       expect(screen.getByTestId('mic-readout')).toHaveTextContent('Listening starts with playback.')
@@ -170,7 +172,7 @@ describe('MicReadout', () => {
       // It answers the note that was on screen when it was played, and a
       // stopped session has no such note to answer.
       render(
-        <MicReadout {...props} status="idle" score={{ lastVerdict: { hit: false, responseMs: null }, hits: 2, scored: 3 }} />,
+        <MicReadout {...props} status="idle" score={{ lastVerdict: { hit: false, responseMs: null }, hits: 2, scored: 3, ...NO_POINTS }} />,
       )
 
       expect(screen.queryByTestId('score-verdict')).toBeNull()
@@ -178,14 +180,14 @@ describe('MicReadout', () => {
     })
 
     it('stays out while the microphone has nothing to report either way', () => {
-      render(<MicReadout {...props} status="denied" score={{ lastVerdict: null, hits: 0, scored: 0 }} />)
+      render(<MicReadout {...props} status="denied" score={{ lastVerdict: null, hits: 0, scored: 0, ...NO_POINTS }} />)
 
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })
 
     it('reports a hit and how long it took', () => {
       render(
-        <MicReadout {...props} score={{ lastVerdict: { hit: true, responseMs: 320 }, hits: 1, scored: 1 }} />,
+        <MicReadout {...props} score={{ lastVerdict: { hit: true, responseMs: 320 }, hits: 1, scored: 1, ...NO_POINTS }} />,
       )
 
       expect(screen.getByTestId('score-verdict')).toHaveTextContent('0.32 s')
@@ -195,7 +197,7 @@ describe('MicReadout', () => {
 
     it('reports a note that never came', () => {
       render(
-        <MicReadout {...props} score={{ lastVerdict: { hit: false, responseMs: null }, hits: 0, scored: 1 }} />,
+        <MicReadout {...props} score={{ lastVerdict: { hit: false, responseMs: null }, hits: 0, scored: 1, ...NO_POINTS }} />,
       )
 
       expect(screen.getByTestId('score-verdict')).toHaveTextContent('missed')
@@ -204,10 +206,74 @@ describe('MicReadout', () => {
     })
 
     it('counts the session as hits out of notes scored', () => {
-      render(<MicReadout {...props} score={{ lastVerdict: null, hits: 2, scored: 3 }} />)
+      render(<MicReadout {...props} score={{ lastVerdict: null, hits: 2, scored: 3, ...NO_POINTS }} />)
 
       expect(screen.getByTestId('score-tally')).toHaveTextContent('2/3')
       expect(screen.getByTestId('score-tally')).toHaveTextContent('67%')
+    })
+
+    it('shows the points beside the accuracy rather than instead of it', () => {
+      render(
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 3, scored: 3, points: 40, streak: 3, bonuses: [] }} />,
+      )
+
+      expect(screen.getByTestId('score-points')).toHaveTextContent('40 pts')
+      expect(screen.getByTestId('score-tally')).toHaveTextContent('3/3')
+    })
+
+    it('shows the run once there is one, and its reading says what it counts', () => {
+      render(
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 4, scored: 4, points: 55, streak: 4, bonuses: [] }} />,
+      )
+
+      expect(screen.getByTestId('score-points')).toHaveTextContent('×4')
+      expect(screen.getByTestId('score-points')).toHaveAccessibleName('55 points, 4 in a row')
+    })
+
+    it('keeps the run out until one note has become two', () => {
+      render(
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 1, scored: 1, points: 10, streak: 1, bonuses: [] }} />,
+      )
+
+      expect(screen.getByTestId('score-points')).not.toHaveTextContent('×')
+      expect(screen.getByTestId('score-points')).toHaveAccessibleName('10 points')
+    })
+
+    it('names the bonus the last note earned', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{
+            lastVerdict: { hit: true, responseMs: 320 },
+            hits: 3,
+            scored: 3,
+            points: 45,
+            streak: 3,
+            bonuses: [{ kind: 'streak', points: 5 }],
+          }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-bonus')).toHaveTextContent('+5 streak')
+    })
+
+    it('keeps the points out while there is nothing scored to add them to', () => {
+      render(<MicReadout {...props} score={{ lastVerdict: null, hits: 0, scored: 0, ...NO_POINTS }} />)
+
+      expect(screen.queryByTestId('score-points')).toBeNull()
+      expect(screen.queryByTestId('score-bonus')).toBeNull()
+    })
+
+    it('keeps the points up once the microphone has closed', () => {
+      render(
+        <MicReadout
+          {...props}
+          status="idle"
+          score={{ lastVerdict: null, hits: 2, scored: 3, points: 25, streak: 2, bonuses: [] }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-points')).toHaveAccessibleName('25 points, 2 in a row')
     })
   })
 })

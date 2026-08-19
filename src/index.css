@@ -1455,6 +1455,8 @@ input[type='range'] {
   display: flex;
   align-items: baseline;
   justify-content: center;
+  /* Four readings wrap onto a second row on a phone rather than squeezing. */
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -1474,6 +1476,19 @@ input[type='range'] {
 
 .mic-readout-response {
   font-variant-numeric: tabular-nums;
+}
+
+/* The number that goes up: the one reading on this line worth a glance. */
+.mic-readout-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Only there while it is the last note's, so it may be the loud one. */
+.mic-readout-bonus {
+  font-variant-numeric: tabular-nums;
+  color: var(--hit);
 }
 
 /* Read after the session rather than during it, so it yields the foreground. */
