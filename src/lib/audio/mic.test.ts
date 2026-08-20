@@ -3,6 +3,7 @@ import {
   createMicCapture,
   isMicSupported,
   MIC_FRAME_SIZE,
+  primeMicPermission,
   releaseMicStream,
   requestMicStream,
 } from './mic'
@@ -66,6 +67,44 @@ describe('requestMicStream', () => {
     })
 
     await expect(requestMicStream(getUserMedia)).rejects.toThrow('Permission denied')
+  })
+})
+
+describe('primeMicPermission', () => {
+  const supportMic = () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    })
+  }
+
+  it('hands the microphone straight back, so no indicator is left lit', async () => {
+    supportMic()
+    const { stream, tracks } = createFakeStream()
+    const getUserMedia = vi.fn(async () => stream)
+
+    await expect(primeMicPermission(getUserMedia)).resolves.toBe(true)
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    for (const track of tracks) {
+      expect(track.stop).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('reports a refusal rather than throwing — asking again for real is what reports it', async () => {
+    supportMic()
+    const getUserMedia = vi.fn(async () => {
+      throw new DOMException('Permission denied', 'NotAllowedError')
+    })
+
+    await expect(primeMicPermission(getUserMedia)).resolves.toBe(false)
+  })
+
+  it('asks for nothing at all where the browser has no microphone API', async () => {
+    const getUserMedia = vi.fn(async () => createFakeStream().stream)
+
+    await expect(primeMicPermission(getUserMedia)).resolves.toBe(false)
+    expect(getUserMedia).not.toHaveBeenCalled()
   })
 })
 

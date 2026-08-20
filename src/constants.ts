@@ -111,6 +111,10 @@ export const STORAGE_KEYS = {
   // log stands. The cleaned-up shape only reaches storage on the next practice
   // write, not on mount.
   practiceLog: 'rnt.history.v1',
+  // The name you go by on a shared challenge's board, so joining a second one
+  // costs no typing. Only ever read when `?challenge=` is in the URL — without
+  // it the scoreboard does not exist and this key is never touched.
+  challengeNickname: 'fretboard-challenge-nickname',
   // Literally 'dismissed', or unset. Anything else reads as not yet dismissed
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.

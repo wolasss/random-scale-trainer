@@ -34,4 +34,13 @@ export default defineConfig([
       },
     },
   },
+  {
+    // The scoreboard service. Plain JS like the worker above, and for the same
+    // reason — it runs outside the app bundle, here under bare node.
+    files: ['src/server/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])
