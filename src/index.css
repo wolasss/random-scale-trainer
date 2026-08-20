@@ -1506,6 +1506,144 @@ input[type='range'] {
   color: var(--accent);
 }
 
+/* --- Shared challenge: the scoreboard and the nickname prompt ------------- */
+
+/* Same weight and the same divider as the mic readout above it, and for the
+   same reason: this is a glance between phrases, not the thing being read from
+   across the room. Only ever on the page with '?challenge=' in the URL. */
+.scoreboard {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--control-border);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.scoreboard-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+/* Ten names on one row on a desktop, wrapping to as many as it takes on a
+   phone. A vertical list would cost the note the room it is called in. */
+.scoreboard-list {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scoreboard-entry {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.scoreboard-rank {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+}
+
+.scoreboard-nickname {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scoreboard-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Your own row is marked where it stands rather than moved to the top — a board
+   that reorders itself to keep you in sight is not a board. */
+.scoreboard-entry[data-you='true'] .scoreboard-nickname,
+.scoreboard-entry[data-you='true'] .scoreboard-points {
+  color: var(--accent);
+}
+
+.scoreboard-empty {
+  opacity: 0.7;
+}
+
+/* The prompt reuses the practice sheet's scrim and layer; it is a question
+   rather than a drawer, so it sits in the middle instead of on the bottom. */
+.nickname-layer {
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.nickname-prompt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(26rem, 100%);
+  padding: 1.3rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--bg-mid);
+  box-shadow: var(--shadow);
+}
+
+.nickname-prompt-title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.nickname-prompt-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.nickname-prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.nickname-prompt-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.nickname-prompt-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.nickname-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
 /* --- Routine ------------------------------------------------------------- */
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
@@ -2669,8 +2807,35 @@ button.practice-history-cell {
     'foot';
 }
 
+/* The scoreboard opens its own row the same way, and the two of them together
+   open both — which is why the pair needs a rule of its own rather than a
+   second one that would simply overwrite the first. An unnamed child would be
+   dropped into an implicit row and clipped by .stage-shell's overflow. */
+.stage:has(.scoreboard) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'note'
+    'board'
+    'foot';
+}
+
+.stage:has(.mic-readout):has(.scoreboard) {
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    'note'
+    'mic'
+    'board'
+    'foot';
+}
+
 .stage > .mic-readout {
   grid-area: mic;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.stage > .scoreboard {
+  grid-area: board;
   margin-top: 0;
   border-top: 0;
 }
@@ -2803,11 +2968,26 @@ button.practice-history-cell {
     column-gap: 1rem;
   }
 
-  /* Same row, opened the same way — the neck keeps the column beside it. */
+  /* Same rows, opened the same way — the neck keeps the column beside it. */
   :root[data-stage] .stage:has(.mic-readout) {
     grid-template-areas:
       'note side'
       'mic side'
+      'foot side';
+  }
+
+  :root[data-stage] .stage:has(.scoreboard) {
+    grid-template-areas:
+      'note side'
+      'board side'
+      'foot side';
+  }
+
+  :root[data-stage] .stage:has(.mic-readout):has(.scoreboard) {
+    grid-template-areas:
+      'note side'
+      'mic side'
+      'board side'
       'foot side';
   }
 

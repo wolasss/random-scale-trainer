@@ -64,6 +64,15 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
+- Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
+  scoreboard appears under the note. Your session points go up whenever you pause or stop, and the
+  board keeps your best — so re-submitting a score already on it changes nothing. It refreshes
+  itself every 20 seconds while the page is on screen, so other people's rounds appear without a
+  reload, and goes quiet while the tab is hidden. The nickname is
+  remembered in localStorage, and the microphone is asked for on arrival, since the points come
+  from what it hears. Without `?challenge=` in the URL none of this exists: no board, no prompt,
+  no request, and no microphone. The prompt can be dismissed, which leaves the board readable
+  without putting you on it
 - Installable PWA: a service worker precaches the app shell and every note clip, so it launches
   and runs with no network. Chromium gets an Install button in the header, iOS a one-time
   Add-to-Home-Screen hint, and a cached new build offers a reload chip instead of reloading
@@ -102,7 +111,43 @@ docker build -t callnote .
 docker run --rm -p 8080:80 callnote                            # http://localhost:8080
 
 docker run --rm -p 8080:80 wolasss/random-scale-trainer:latest # the published image
+
+# ...and with the shared-challenge board kept across restarts
+docker run --rm -p 8080:80 -v callnote-data:/var/lib/callnote callnote
 ```
+
+### The scoreboard service
+
+Shared challenges are the one thing here that is not a static file, so the image also carries a
+small stdlib-only Node service (`src/server/`). nginx starts it from
+`/docker-entrypoint.d/50-scoreboard.sh` and proxies `/api/` to it on loopback, so the run contract
+is unchanged — still `docker run -p 8080:80`, still one container. In dev and `vite preview` the
+same request handler is mounted as a Vite middleware instead (`vite.config.ts`), which is what
+lets the e2e suite exercise a challenge without a second process.
+
+The API is two calls, both under `/api/scoreboard/<challenge>`:
+
+```bash
+curl localhost:8080/api/scoreboard/demo
+# {"challenge":"demo","scores":[{"nickname":"ada","points":300}]}
+
+curl -X POST -H 'Content-Type: application/json' \
+     -d '{"nickname":"ada","points":300}' localhost:8080/api/scoreboard/demo
+```
+
+A POST upserts the nickname's **best**, so a resubmitted tally is a no-op. `SCOREBOARD_DATA`
+(default `/var/lib/callnote/scoreboard.json`) is where the board is kept — mount it with `-v` or a
+restart starts everyone from zero. The service listens on loopback port 8787, which is fixed rather
+than configurable: nginx proxies to it by number, and only a matching pair works.
+
+The write endpoint is **unauthenticated by design**: a nickname is not an identity, and anyone who
+knows a challenge name can post to it. The only defences are the caps in `src/server/scoreboard.js`
+— 4 KB bodies, 1,000,000 points, 500 nicknames per challenge, 200 challenges — which bound the
+damage rather than prevent it. Don't put anything you care about on a public board.
+
+Serving the microphone at all needs `Permissions-Policy: microphone=(self)`, which `nginx.conf`
+now sends on every response (it was `microphone=()`, which forbade `getUserMedia` outright). It is
+`(self)` and never `*` — this origin only, nothing it embeds.
 
 Every release pushes `wolasss/random-scale-trainer` to Docker Hub for linux/amd64 and
 linux/arm64, tagged with the semantic-release version and `latest`

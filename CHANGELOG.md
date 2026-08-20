@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/wolasss/random-scale-trainer/compare/v1.15.0...v1.16.0) (2026-08-20)
+
+
+### Features
+
+* **challenge:** shared challenges with a top-ten scoreboard ([#128](https://github.com/wolasss/random-scale-trainer/issues/128)) ([7cd2d1e](https://github.com/wolasss/random-scale-trainer/commit/7cd2d1ecb89b7b934519e9e63af914a1147932de))
+
 # [1.15.0](https://github.com/wolasss/random-scale-trainer/compare/v1.14.0...v1.15.0) (2026-08-20)
 
 

@@ -277,6 +277,21 @@ describe('fetch', () => {
     expect(worker.fetch).not.toHaveBeenCalled()
   })
 
+  /**
+   * The scoreboard. A board served out of a cache is a board that stopped
+   * moving, and a background revalidate would show yesterday's first.
+   */
+  it('leaves the scoreboard API to the network, cached neither way', () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+
+    const captured = worker.dispatch('fetch', { method: 'GET', url: `${ORIGIN}/api/scoreboard/demo` })
+
+    expect(captured.responded).toBeUndefined()
+    expect(captured.waited).toBeUndefined()
+    expect(worker.fetch).not.toHaveBeenCalled()
+    expect(currentCache(worker).put).not.toHaveBeenCalled()
+  })
+
   it('leaves cross-origin requests other than the webfont alone', () => {
     const worker = makeWorker()
 

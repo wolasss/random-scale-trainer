@@ -50,6 +50,34 @@ export const releaseMicStream = (stream: MediaStream): void => {
 }
 
 /**
+ * Asks for the microphone and hands it straight back, purely to get the
+ * browser's permission prompt out of the way.
+ *
+ * A shared challenge is scored on what you play, so the permission is going to
+ * be needed either way — and asking for it at the moment the first note is
+ * called means the prompt lands on top of the thing you are meant to be
+ * reading. Asking on arrival costs one dialog and buys a session that starts
+ * cleanly. The stream is released immediately: `useMicPitch` opens its own when
+ * playback starts, and a recording indicator lit through the setup would be a
+ * lie about what the app is doing.
+ *
+ * Never throws. A refusal is an answer — `useMicPitch` will report it as such
+ * when it asks again for real.
+ */
+export const primeMicPermission = async (getUserMedia?: GetUserMedia): Promise<boolean> => {
+  if (!isMicSupported()) {
+    return false
+  }
+
+  try {
+    releaseMicStream(await requestMicStream(getUserMedia))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Wires a stream into an analyser on the app's own AudioContext, so the frames
  * it hands out are timestamped on the same clock the beats are scheduled with.
  * Deliberately not connected to the destination: that is a feedback loop.

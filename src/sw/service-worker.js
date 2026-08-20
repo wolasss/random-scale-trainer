@@ -173,6 +173,14 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // The scoreboard is the one thing this app serves that can go stale: a board
+  // read out of a cache is a board that stopped moving, and revalidating it in
+  // the background would show yesterday's first. Left entirely to the network,
+  // which also means it simply fails offline — as a shared board should.
+  if (isSameOrigin && url.pathname.startsWith('/api/')) {
+    return
+  }
+
   // Every navigation is the same shell — there are no server-side routes, and
   // start_url carries a query string the cache must not key on.
   if (request.mode === 'navigate') {
