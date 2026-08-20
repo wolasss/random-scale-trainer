@@ -464,6 +464,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         points: scoring.tally.points,
         streak: scoring.tally.streak,
         bonuses: scoring.lastBonuses,
+        multiplier: scoring.multiplier,
       }}
     />
   ) : null

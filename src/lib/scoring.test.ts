@@ -3,13 +3,19 @@ import {
   applyBonus,
   applyHit,
   applyMiss,
+  BEAT_SPAN_MULTIPLIERS,
   claimBonus,
+  difficultyMultiplier,
   EMPTY_TALLY,
+  FRETBOARD_HIDDEN_MULTIPLIER,
+  hitAward,
   judgeDetection,
+  MIXED_SPELLING_MULTIPLIER,
   octavesBonus,
   OCTAVES_BONUS_POINTS,
   openWindow,
   POINTS_PER_HIT,
+  scaleBonus,
   SCORE_DECAY_MARGIN_S,
   streakBonus,
   STREAK_BONUS_MAX,
@@ -17,12 +23,16 @@ import {
   TEMPO_BONUS_POINTS,
   TEMPO_CLICK_SHADOW_S,
   TEMPO_LATE_MAX_FRACTION,
+  TEMPO_MULTIPLIER_MAX,
   TEMPO_TOLERANCE_FRACTION,
   tempoBonus,
+  type DifficultyInputs,
   type NoteWindow,
   type ScoredDetection,
   type Tally,
 } from './scoring'
+import { BEAT_SPAN_OPTIONS, DEFAULT_BPM, MAX_BPM, MIN_BPM } from '../constants'
+import type { SpellingPreference } from './notes'
 
 const BEAT_TIME = 10
 const CUE_END = 10.4
@@ -53,6 +63,119 @@ describe('openWindow', () => {
     // A speech cue the engine never got a length for, or a test engine with no
     // cues at all. The margin still applies; nothing goes NaN.
     expect(openWindow(3, BEAT_TIME, null).opensAt).toBeCloseTo(BEAT_TIME + SCORE_DECAY_MARGIN_S)
+  })
+
+  it('freezes the price the note was called at, and defaults it to the flat rate', () => {
+    expect(openWindow(3, BEAT_TIME, CUE_END, 1.38).multiplier).toBe(1.38)
+    expect(openWindow(3, BEAT_TIME, CUE_END).multiplier).toBe(1)
+  })
+})
+
+describe('difficultyMultiplier', () => {
+  /** The neutral setup: nothing about it is priced above the flat rate. */
+  const FLAT: DifficultyInputs = { spelling: 'sharp', showFretboard: true, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+
+  it('prices the neutral setup at exactly one', () => {
+    expect(difficultyMultiplier(FLAT)).toBe(1)
+  })
+
+  it('pays more for sharps and flats mixed than for either alone', () => {
+    const spellings: SpellingPreference[] = ['sharp', 'flat']
+    for (const spelling of spellings) {
+      expect(difficultyMultiplier({ ...FLAT, spelling })).toBe(1)
+    }
+
+    expect(difficultyMultiplier({ ...FLAT, spelling: 'mixed' })).toBeCloseTo(MIXED_SPELLING_MULTIPLIER, 10)
+  })
+
+  it('pays more with the fretboard map put away than with it on screen', () => {
+    expect(difficultyMultiplier({ ...FLAT, showFretboard: true })).toBe(1)
+    expect(difficultyMultiplier({ ...FLAT, showFretboard: false })).toBeCloseTo(FRETBOARD_HIDDEN_MULTIPLIER, 10)
+  })
+
+  it('prices every span the app offers, fewer beats higher, with four neutral', () => {
+    const priced = BEAT_SPAN_OPTIONS.map((beatsPerNote) => difficultyMultiplier({ ...FLAT, beatsPerNote }))
+
+    // Every option has a price of its own — a new one has to be given one
+    // before BEAT_SPAN_MULTIPLIERS compiles.
+    expect(Object.keys(BEAT_SPAN_MULTIPLIERS).map(Number)).toEqual([...BEAT_SPAN_OPTIONS])
+    expect(difficultyMultiplier({ ...FLAT, beatsPerNote: 4 })).toBe(1)
+    for (const [index, value] of priced.entries()) {
+      if (index > 0) {
+        expect(value).toBeLessThan(priced[index - 1])
+      }
+    }
+  })
+
+  it('leaves a span it has never heard of at the flat rate', () => {
+    expect(difficultyMultiplier({ ...FLAT, beatsPerNote: 3 })).toBe(1)
+  })
+
+  it('pays nothing extra at or below the default tempo, and climbs above it', () => {
+    expect(difficultyMultiplier({ ...FLAT, bpm: MIN_BPM })).toBe(1)
+    expect(difficultyMultiplier({ ...FLAT, bpm: DEFAULT_BPM })).toBe(1)
+    expect(difficultyMultiplier({ ...FLAT, bpm: DEFAULT_BPM + 1 })).toBeGreaterThan(1)
+  })
+
+  it('caps the tempo factor short of doubling, and the cap binds at the top', () => {
+    expect(difficultyMultiplier({ ...FLAT, bpm: MAX_BPM })).toBeCloseTo(TEMPO_MULTIPLIER_MAX, 10)
+    expect(TEMPO_MULTIPLIER_MAX).toBeLessThan(2)
+  })
+
+  it('multiplies the four together rather than picking one', () => {
+    const hardest: DifficultyInputs = { spelling: 'mixed', showFretboard: false, bpm: MAX_BPM, beatsPerNote: 1 }
+
+    expect(difficultyMultiplier(hardest)).toBeCloseTo(
+      MIXED_SPELLING_MULTIPLIER *
+        FRETBOARD_HIDDEN_MULTIPLIER *
+        BEAT_SPAN_MULTIPLIERS[1] *
+        TEMPO_MULTIPLIER_MAX,
+      10,
+    )
+  })
+
+  /**
+   * The reason the tempo factor is sublinear at all. Notes per minute is
+   * already `bpm / beatsPerNote`, so a linear factor would compound into a
+   * roughly quadratic advantage and a slow player could never catch up by
+   * practising longer. Computed through `hitAward`, because rounded whole
+   * points are what a player is actually paid.
+   */
+  it('leaves twice the tempo worth well under two and a half times the points', () => {
+    const setup = (bpm: number): DifficultyInputs => ({ ...FLAT, bpm })
+    const perMinute = (bpm: number) => (bpm / 4) * hitAward(difficultyMultiplier(setup(bpm)))
+
+    // 72 BPM at 4 beats per note: 18 notes a minute at 10 points each.
+    expect(perMinute(72)).toBe(180)
+    // 144 BPM: 36 notes a minute, and a ×1.2071 note is worth 12 whole points.
+    expect(hitAward(difficultyMultiplier(setup(144)))).toBe(12)
+    expect(perMinute(144)).toBe(432)
+
+    expect(perMinute(144) / perMinute(72)).toBe(2.4)
+    expect(perMinute(144) / perMinute(72)).toBeLessThan(2.5)
+  })
+})
+
+describe('what a note is paid', () => {
+  it('rounds a hit to whole points', () => {
+    expect(hitAward(1)).toBe(POINTS_PER_HIT)
+    expect(hitAward(1.2071)).toBe(12)
+    expect(Number.isInteger(hitAward(1.38))).toBe(true)
+  })
+
+  it('rounds a bonus to whole points and changes nothing else about it', () => {
+    const scaled = scaleBonus({ kind: 'streak', points: 5 }, 1.38)
+
+    expect(scaled).toEqual({ kind: 'streak', points: 7 })
+    expect(Number.isInteger(scaleBonus({ kind: 'octaves', points: OCTAVES_BONUS_POINTS }, 1.2071).points)).toBe(true)
+  })
+
+  it('leaves both alone at the flat rate', () => {
+    expect(hitAward(1)).toBe(POINTS_PER_HIT)
+    expect(scaleBonus({ kind: 'tempo', points: TEMPO_BONUS_POINTS }, 1)).toEqual({
+      kind: 'tempo',
+      points: TEMPO_BONUS_POINTS,
+    })
   })
 })
 
@@ -289,9 +412,16 @@ describe('the tempo bonus', () => {
 })
 
 describe('the tally', () => {
-  /** `n` hits in a row, all answered in the same time. */
+  /**
+   * `n` hits in a row, all answered in the same time. The streak bonus is
+   * handed in the way the hook hands it in — built from the run the next hit
+   * will make, and scaled before it gets here.
+   */
   const run = (n: number, tally: Tally = EMPTY_TALLY) =>
-    Array.from({ length: n }).reduce<Tally>((current) => applyHit(current, 420), tally)
+    Array.from({ length: n }).reduce<Tally>((current) => {
+      const streak = streakBonus(current.streak + 1)
+      return applyHit(current, 420, streak === null ? [] : [streak])
+    }, tally)
 
   it('banks a hit with its response time', () => {
     expect(applyHit(EMPTY_TALLY, 420)).toEqual({
@@ -350,13 +480,20 @@ describe('the tally', () => {
     expect(long.points).toBe(run(19).points + POINTS_PER_HIT + STREAK_BONUS_MAX)
   })
 
-  it('pays the streak it worked out itself, never one handed to it as well', () => {
-    // The third note earns +5. Handing the same bonus in with it must not buy a
-    // second one: `applyHit` is the only thing that pays the streak.
-    const banked = applyHit(run(2), 420, [{ kind: 'streak', points: 5 }])
+  it('adds the award and every bonus handed to it, exactly as given', () => {
+    // Nothing is worked out here and nothing is dropped: the caller knows what
+    // the note was priced at, so it builds the bonuses and this adds them. That
+    // is what makes what the readout prints the delta that actually landed.
+    const before = run(2)
+    const banked = applyHit(before, 420, [{ kind: 'streak', points: 7 }, { kind: 'tempo', points: 13 }], 12)
 
-    expect(banked.points).toBe(POINTS_PER_HIT * 3 + 5)
+    expect(banked.points).toBe(before.points + 12 + 7 + 13)
     expect(banked.scored).toBe(3)
+    expect(banked.streak).toBe(3)
+  })
+
+  it('pays the flat rate when nobody names a price', () => {
+    expect(applyHit(EMPTY_TALLY, 420).points).toBe(POINTS_PER_HIT)
   })
 
   it('breaks the streak on a miss without touching what it earned', () => {

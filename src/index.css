@@ -1485,6 +1485,13 @@ input[type='range'] {
   color: var(--ink);
 }
 
+/* Only there when the settings are actually pricing a note above the flat rate. */
+.mic-readout-multiplier {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  opacity: 0.8;
+}
+
 /* Only there while it is the last note's, so it may be the loud one. */
 .mic-readout-bonus {
   font-variant-numeric: tabular-nums;
