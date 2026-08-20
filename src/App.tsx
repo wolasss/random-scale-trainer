@@ -131,7 +131,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
     onSessionStart: sessionTimer.start,
     onSessionPause: () => {
-      sessionTimer.pause()
+      const pausedAtMs = sessionTimer.pause()
+      // A practice milestone crossed by this very elapsed update is credited
+      // here, before the read below, rather than left to the effect that
+      // would otherwise only catch it on the next render.
+      scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()

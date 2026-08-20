@@ -174,20 +174,25 @@ export type UseNoteScoringOptions = {
  * anywhere.
  *
  * The practice milestones ride the same session but not the same beats: they
- * are earned by `sessionElapsedMs` crossing 10, 20 or 30 minutes, in a second
- * effect that never touches the microphone subscription. They are gated on
- * `active` rather than `running`, because `sessionTimer.pause()` pushes its
- * final elapsed on the very render that turns `running` off — a routine that
- * finishes exactly at a milestone would lose it if the gate were `running`.
- * Paid flat, through `applyBonus`, never through `scaleBonus`: a milestone
- * belongs to no note, so no note's multiplier prices it. `milestoneSeenMs`
- * remembers the elapsed total already accounted for and `milestonesPaid`
- * remembers which kinds have been banked, so a re-run of that effect or a
- * repeated 200 ms tick recomputes the same crossing and pays nothing twice. A
- * session clock put back to zero — `App.tsx`'s `clearTimer` — would otherwise
- * strand those guards partway to a threshold they will never see again, which
- * is what `rebase` is for: it offsets the total the milestone effect reads
- * without touching what has already been seen or paid.
+ * are earned by `sessionElapsedMs` crossing 10, 20 or 30 minutes, credited by
+ * `creditElapsedMs`, a function that never touches the microphone
+ * subscription and is both run from its own effect and exposed for a caller
+ * that cannot wait for the next render — `App.tsx`'s `onSessionPause` reads
+ * `tally.points` synchronously to submit a shared score, and calls it with
+ * the pausing elapsed first so that read sees a crossing landing on the very
+ * update that stops playback. They are gated on `active` rather than
+ * `running`, because `sessionTimer.pause()` pushes its final elapsed on the
+ * very render that turns `running` off — a routine that finishes exactly at a
+ * milestone would lose it if the gate were `running`. Paid flat, through
+ * `applyBonus`, never through `scaleBonus`: a milestone belongs to no note,
+ * so no note's multiplier prices it. `milestoneSeenMs` remembers the elapsed
+ * total already accounted for and `milestonesPaid` remembers which kinds have
+ * been banked, so calling `creditElapsedMs` twice with the same total, from
+ * the effect or from `onSessionPause`, recomputes the same crossing and pays
+ * nothing twice. A session clock put back to zero — `App.tsx`'s `clearTimer`
+ * — would otherwise strand those guards partway to a threshold they will
+ * never see again, which is what `rebase` is for: it offsets the total
+ * `creditElapsedMs` reads without touching what has already been seen or paid.
  */
 export function useNoteScoring({ engine, subscribe, active, running, sessionElapsedMs }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
@@ -390,35 +395,45 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
   // The clock's own bonus, entirely apart from the beat/microphone machinery
   // above: nothing here is a subscription input, so a tick can never tear
   // down and rebuild the mic listener. `milestoneSeenMs` is updated whether
-  // or not it is paid, so a re-run of this effect recomputes the same
-  // crossing and finds nothing new — `milestonesPaid` is the second guard on
-  // top of that, so nothing here is ever banked twice.
-  useEffect(() => {
-    const store = getStore()
-    const total = sessionElapsedMs + store.milestoneOffsetMs
-    const crossed = practiceMilestonesCrossed(store.milestoneSeenMs, total)
-    store.milestoneSeenMs = total
+  // or not it is paid, so a re-run finds nothing new to credit —
+  // `milestonesPaid` is the second guard on top of that, so nothing here is
+  // ever banked twice. Also exposed as `creditElapsedMs` below: `onSessionPause`
+  // reads `tally.points` synchronously, outside React's render cycle, so a
+  // crossing that lands on the very elapsed update that stops playback needs
+  // crediting before that read rather than on the next render.
+  const creditElapsedMs = useCallback(
+    (elapsedMs: number) => {
+      const store = getStore()
+      const total = elapsedMs + store.milestoneOffsetMs
+      const crossed = practiceMilestonesCrossed(store.milestoneSeenMs, total)
+      store.milestoneSeenMs = total
 
-    if (!active || crossed.length === 0) {
-      return
-    }
-
-    let changed = false
-    for (const bonus of crossed) {
-      if (store.milestonesPaid.has(bonus.kind)) {
-        continue
+      if (!active || crossed.length === 0) {
+        return
       }
 
-      store.milestonesPaid.add(bonus.kind)
-      store.tally = applyBonus(store.tally, bonus)
-      store.lastBonuses = [...store.lastBonuses, bonus]
-      changed = true
-    }
+      let changed = false
+      for (const bonus of crossed) {
+        if (store.milestonesPaid.has(bonus.kind)) {
+          continue
+        }
 
-    if (changed) {
-      publish()
-    }
-  }, [sessionElapsedMs, active, getStore, publish])
+        store.milestonesPaid.add(bonus.kind)
+        store.tally = applyBonus(store.tally, bonus)
+        store.lastBonuses = [...store.lastBonuses, bonus]
+        changed = true
+      }
+
+      if (changed) {
+        publish()
+      }
+    },
+    [active, getStore, publish],
+  )
+
+  useEffect(() => {
+    creditElapsedMs(sessionElapsedMs)
+  }, [sessionElapsedMs, creditElapsedMs])
 
   // A pause, a stop, or a microphone that goes away mid-note leaves a question
   // nobody was given the chance to answer. Dropping it scores nothing, and
@@ -492,5 +507,6 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
     multiplier: snapshot.multiplier,
     reset,
     rebase,
+    creditElapsedMs,
   }
 }

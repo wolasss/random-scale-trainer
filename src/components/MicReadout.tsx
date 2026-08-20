@@ -92,6 +92,9 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * count stays on the line the status message is on until the session is reset.
  * The verdict does not follow it there: it answers the note that was on screen
  * when it was played, and once the listening stops that question is closed.
+ * The bonus beside the count does follow it there — a practice milestone is as
+ * likely to land on the very update that stops the mic as on any other, and a
+ * bonus already counted in the total it sits beside should not vanish from it.
  *
  * Every number on the score line is named: "N pts", "N in a row", and
  * "hits/scored · N%". None of it is a bare number beside a glyph — a player
@@ -115,6 +118,11 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
           <div className="mic-readout-score">
             <span className="mic-readout-label">Score</span>
             <ScorePoints points={score.points} streak={score.streak} />
+            {score.bonuses.length > 0 ? (
+              <span className="mic-readout-bonus" data-testid="score-bonus">
+                {score.bonuses.map((bonus) => `+${bonus.points} ${BONUS_LABELS[bonus.kind]}`).join(' ')}
+              </span>
+            ) : null}
             <ScoreTally hits={score.hits} scored={score.scored} />
           </div>
         ) : null}
