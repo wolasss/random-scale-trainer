@@ -157,15 +157,15 @@ describe('useNoteScoring', () => {
   it('names the streak bonus on the note that earned it', async () => {
     const { result, mic } = setup()
 
-    // A beat a second, played 0.2 s late every time: a run of right notes and
-    // not one of them in time with a click.
+    // A beat a second, struck halfway between two every time: a run of right
+    // notes and not one of them in time with a click.
     for (const [index, time] of [10, 11, 12].entries()) {
       await act(async () => {
         result.current.handleBeat(beat(time, 3))
       })
       await act(async () => {
-        mic.emit(3, time + 0.2)
-        mic.emit(3, time + 0.25)
+        mic.emit(3, time + 0.5)
+        mic.emit(3, time + 0.55)
       })
 
       // Two right notes are a coincidence; the third is a run.
@@ -492,10 +492,29 @@ describe('useNoteScoring', () => {
       expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
     })
 
+    it('names it on a note the click itself hid', async () => {
+      // The microphone is deaf under the app's own click, so a string struck on
+      // one is not heard until the click has finished ringing. A one-second
+      // grid, where that shadow is what the lateness is measured against.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(11))
+      })
+      await act(async () => {
+        mic.emit(3, 11.23)
+        mic.emit(3, 11.28)
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+    })
+
     it('measures one beat between the clicks and not two', async () => {
       // Both beats are on the grid, so the interval is the 0.5 s between them.
       // A grid of note beats alone would call it 1 s and pay for this strike,
-      // which is 0.1 s adrift of a click and not in time with anything.
+      // which is 0.1 s ahead of a click and not in time with anything.
       const { result, mic } = setup()
 
       await act(async () => {
@@ -503,8 +522,8 @@ describe('useNoteScoring', () => {
         result.current.handleBeat(beat(10.5))
       })
       await act(async () => {
-        mic.emit(3, 10.6)
-        mic.emit(3, 10.65)
+        mic.emit(3, 10.4)
+        mic.emit(3, 10.45)
       })
 
       expect(result.current.lastVerdict?.hit).toBe(true)
@@ -540,6 +559,29 @@ describe('useNoteScoring', () => {
         streak: 1,
         points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
       })
+    })
+
+    it('pays nothing for the click that calls the next note', async () => {
+      // The same shape as the test above, with the arriving beat calling a note
+      // instead of falling under this one. That beat announces the next note;
+      // an answer to the one before it was not played in time with it, and at
+      // one beat per note every beat is one of these.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+      await act(async () => {
+        result.current.handleBeat(beat(11, 5))
+      })
+
+      expect(result.current.lastBonuses).toEqual([])
+      expect(result.current.tally).toMatchObject({ scored: 1, hits: 1, points: POINTS_PER_HIT })
     })
 
     it('keeps count-in clicks off the grid', async () => {

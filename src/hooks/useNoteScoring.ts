@@ -170,24 +170,26 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
 
       store.beatTimes = [...store.beatTimes, event.time].slice(-BEAT_RING_SIZE)
 
-      // A click landing under a note already banked can still be the one the
-      // player was aiming at, when they struck it a shade early. It is the
-      // beat's arrival that pays for that, not a later microphone frame that
-      // may never come — through `applyBonus`, since the note is counted
-      // already. Before the close below, while it is still this note's window.
-      const open = store.open
-      if (open !== null && open.verdict?.hit === true && open.candidateAt !== null) {
-        const earned = tempoBonus(open.candidateAt, store.beatTimes)
-        const claimed = earned === null ? null : claimBonus(open, earned.kind)
-        if (earned !== null && claimed !== null) {
-          store.open = claimed
-          store.tally = applyBonus(store.tally, earned)
-          store.lastBonuses = [...store.lastBonuses, earned]
-        }
-      }
-
       const called = event.note
       if (called === undefined) {
+        // A click landing under a note already banked can still be the one the
+        // player was aiming at, when they struck it a shade early. It is the
+        // beat's arrival that pays for that, not a later microphone frame that
+        // may never come — through `applyBonus`, since the note is counted
+        // already. Only an in-span click, which is why this sits under the
+        // branch: the beat that calls the next note belongs to that note, and
+        // an answer to the one before it was not played in time with it.
+        const open = store.open
+        if (open !== null && open.verdict?.hit === true && open.candidateAt !== null) {
+          const earned = tempoBonus(open.candidateAt, store.beatTimes)
+          const claimed = earned === null ? null : claimBonus(open, earned.kind)
+          if (earned !== null && claimed !== null) {
+            store.open = claimed
+            store.tally = applyBonus(store.tally, earned)
+            store.lastBonuses = [...store.lastBonuses, earned]
+          }
+        }
+
         continue
       }
 

@@ -15,6 +15,8 @@ import {
   STREAK_BONUS_MAX,
   SUSTAIN_MAX_GAP_S,
   TEMPO_BONUS_POINTS,
+  TEMPO_CLICK_SHADOW_S,
+  TEMPO_LATE_MAX_FRACTION,
   TEMPO_TOLERANCE_FRACTION,
   tempoBonus,
   type NoteWindow,
@@ -236,13 +238,34 @@ describe('the tempo bonus', () => {
     expect(tempoBonus(10.25, GRID)).toBeNull()
   })
 
-  it('pays inside the tolerance and not outside it', () => {
+  it('pays inside the tolerance ahead of a click and not outside it', () => {
     // Asserted either side of the edge rather than on it: the exact boundary is
     // a float subtraction, and what matters is which side of it pays.
-    expect(tempoBonus(10.5 + TOLERANCE * 0.99, GRID)).toEqual(PAID)
-    expect(tempoBonus(10.5 + TOLERANCE * 1.01, GRID)).toBeNull()
     expect(tempoBonus(10.5 - TOLERANCE * 0.99, GRID)).toEqual(PAID)
     expect(tempoBonus(10.5 - TOLERANCE * 1.01, GRID)).toBeNull()
+  })
+
+  it('pays for the strike the click itself hid', () => {
+    // A 1 s grid, where the shadow is shorter than the ceiling and so is what
+    // binds. The microphone is deaf under the app's own click, so a string
+    // struck on one is not heard until the click has finished ringing — far
+    // outside the tolerance, and the whole bonus if it were not allowed for.
+    const slow = [9, 10, 11]
+
+    expect(tempoBonus(11 + TEMPO_CLICK_SHADOW_S, slow)).toEqual(PAID)
+    expect(tempoBonus(11 + TEMPO_CLICK_SHADOW_S + TOLERANCE, slow)).toEqual(PAID)
+    // Earliness gets no such allowance: nothing was deaf to a strike that
+    // sounded before the click did.
+    expect(tempoBonus(11 - TEMPO_CLICK_SHADOW_S, slow)).toBeNull()
+  })
+
+  it('never forgives lateness past the ceiling', () => {
+    // Past it the nearer click is the next one, and a strike that is in time
+    // with neither would be paid for both.
+    const ceiling = 0.5 * TEMPO_LATE_MAX_FRACTION
+
+    expect(tempoBonus(10.5 + ceiling * 0.99, GRID)).toEqual(PAID)
+    expect(tempoBonus(10.5 + ceiling * 1.01, GRID)).toBeNull()
   })
 
   it('pays nothing when there is no interval to measure', () => {
@@ -259,9 +282,9 @@ describe('the tempo bonus', () => {
     // never a BPM handed down from the UI.
     const ramped = [9, 10, 10.4]
 
-    expect(tempoBonus(10.4 + 0.4 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toEqual(PAID)
+    expect(tempoBonus(10.4 - 0.4 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toEqual(PAID)
     // Inside a tolerance drawn from the old, slower interval; outside this one.
-    expect(tempoBonus(10.4 + 0.5 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toBeNull()
+    expect(tempoBonus(10.4 - 1.0 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toBeNull()
   })
 })
 

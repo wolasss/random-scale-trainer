@@ -54,7 +54,11 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   hears pitch and nothing else, so finding the note twice in unison earns nothing. The in-time bonus
   is measured against the clicks that actually sounded, so the speed ramp cannot throw it off — and
   at one beat per note every beat starts a note, leaving no click under the note to play along with,
-  so it is mostly there to be earned from two beats per note up. Points sit beside the running
+  so it is mostly there to be earned from two beats per note up. The mic is deaf while the click
+  itself sounds, so a string struck on one is not heard until it stops ringing and lateness is
+  allowed for that; above roughly 100 BPM the click covers too much of the beat to tell being in
+  time from being late, and the bonus stops paying rather than paying everyone. Points sit beside
+  the running
   `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
   nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
