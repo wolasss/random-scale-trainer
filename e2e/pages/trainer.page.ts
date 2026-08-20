@@ -33,6 +33,7 @@ export const STORAGE_KEYS = {
   spelling: 'fretboard-spelling',
   sessionGoal: 'fretboard-session-goal',
   setupRevealed: 'fretboard-setup-revealed',
+  micListen: 'fretboard-mic-listen',
 }
 
 const POLL_MS = 100
@@ -78,6 +79,8 @@ const SELECTORS = {
   nicknamePrompt: By.css('[data-testid="nickname-prompt"]'),
   nicknameInput: By.css('[data-testid="nickname-input"]'),
   nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
+  micReadout: By.css('[data-testid="mic-readout"]'),
+  scoreTally: By.css('[data-testid="score-tally"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -333,6 +336,11 @@ export class TrainerPage {
 
   async hasTransportReadout(): Promise<boolean> {
     return (await this.driver.findElements(SELECTORS.transportReadout)).length > 0
+  }
+
+  /** The mic readout only mounts once mic listening is turned on in settings. */
+  async hasMicReadout(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.micReadout)).length > 0
   }
 
   async getCycleTime(): Promise<string> {
@@ -597,6 +605,16 @@ export class TrainerPage {
       `current note did not become ${expected}`,
       POLL_MS,
     )
+  }
+
+  /**
+   * Resolves once the score row has something to show — the first note has
+   * been scored. A default tempo takes seconds per note, hence the generous
+   * timeout; the fake microphone rarely lands a hit, so this also passes on
+   * the first miss, which is all the layout guard needs.
+   */
+  async waitForScoreRow(timeoutMs = 25_000): Promise<void> {
+    await this.driver.wait(until.elementLocated(SELECTORS.scoreTally), timeoutMs, 'score row never appeared')
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {

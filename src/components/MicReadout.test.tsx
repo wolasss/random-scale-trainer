@@ -185,14 +185,13 @@ describe('MicReadout', () => {
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })
 
-    it('reports a hit and how long it took', () => {
+    it('reports a hit', () => {
       render(
         <MicReadout {...props} score={{ lastVerdict: { hit: true, responseMs: 320 }, hits: 1, scored: 1, ...NO_POINTS }} />,
       )
 
-      expect(screen.getByTestId('score-verdict')).toHaveTextContent('0.32 s')
       expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it in 0.32 seconds')
+      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it')
     })
 
     it('reports a note that never came', () => {
@@ -226,7 +225,8 @@ describe('MicReadout', () => {
         <MicReadout {...props} score={{ lastVerdict: null, hits: 4, scored: 4, points: 55, streak: 4, bonuses: [] }} />,
       )
 
-      expect(screen.getByTestId('score-points')).toHaveTextContent('×4')
+      expect(screen.getByTestId('score-points')).toHaveTextContent('4 in a row')
+      expect(screen.getByTestId('score-points')).not.toHaveTextContent('×')
       expect(screen.getByTestId('score-points')).toHaveAccessibleName('55 points, 4 in a row')
     })
 
