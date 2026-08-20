@@ -17,7 +17,11 @@ type MicReadoutProps = {
     scored: number
     points: number
     streak: number
-    /** What the last note earned beyond the flat rate, named as it landed. */
+    /**
+     * What the last note earned beyond the flat rate, named as it landed —
+     * or a practice milestone the session clock just earned, which belongs
+     * to no note but is shown here beside whatever note was scored last.
+     */
     bonuses: Bonus[]
     /** What the settings are pricing a note at right now. 1 is the flat rate. */
     multiplier: number
@@ -25,7 +29,14 @@ type MicReadoutProps = {
 }
 
 /** What each bonus is called on the line. One key per kind, and no more. */
-const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak', octaves: 'two octaves', tempo: 'in time' }
+const BONUS_LABELS: Record<BonusKind, string> = {
+  streak: 'streak',
+  octaves: 'two octaves',
+  tempo: 'in time',
+  practice10: '10 min',
+  practice20: '20 min',
+  practice30: '30 min',
+}
 
 /** A run is only worth showing once it is one — a single note is not. */
 const STREAK_SHOWN_FROM = 2
@@ -68,7 +79,11 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * `hits/scored` is the one that says how it is actually going. They sit on the
  * same line so a player reads both in one glance, and the bonus that just
  * landed is named beside them for exactly as long as it is the last note's.
- * "two octaves" is named as exactly that and never as two places on the neck:
+ * A practice milestone is the same reading with no note behind it — earned by
+ * the session clock crossing 10, 20 or 30 minutes rather than by anything
+ * played — but shown and cleared exactly like any other bonus: beside
+ * whatever note was scored last, gone with the next one. "two octaves" is
+ * named as exactly that and never as two places on the neck:
  * the microphone hears pitch, and the same note in unison two strings apart is
  * one pitch that earns nothing.
  *

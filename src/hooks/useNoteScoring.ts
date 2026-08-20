@@ -11,10 +11,12 @@ import {
   judgeDetection,
   octavesBonus,
   openWindow,
+  practiceMilestonesCrossed,
   scaleBonus,
   streakBonus,
   tempoBonus,
   type Bonus,
+  type BonusKind,
   type NoteVerdict,
   type NoteWindow,
   type Tally,
@@ -39,7 +41,12 @@ const BEAT_RING_SIZE = 4
 export type ScoreSnapshot = {
   lastVerdict: NoteVerdict | null
   tally: Tally
-  /** The bonuses that landed on the last note scored, in the order they did. */
+  /**
+   * The bonuses that landed on the last note scored, in the order they did —
+   * or, for a practice milestone, the bonus the session clock just earned. A
+   * milestone belongs to no note of its own, so it rides here too, shown
+   * beside whatever note was scored last until the next one clears it.
+   */
   lastBonuses: Bonus[]
   /** What the last note called was priced at, which is the reading on the line. */
   multiplier: number
@@ -67,6 +74,12 @@ type ScoringStore = {
   pendingBeats: BeatEvent[]
   /** The last few clicks that sounded, oldest first: the beat grid. */
   beatTimes: number[]
+  /** The session-elapsed total, plus `rebase`'s offset, already priced. */
+  milestoneSeenMs: number
+  /** What `rebase` has added to `sessionElapsedMs` to keep the total continuous. */
+  milestoneOffsetMs: number
+  /** Which milestones this session has already banked — paid once, ever. */
+  milestonesPaid: Set<BonusKind>
   flushQueued: boolean
   listeners: Set<() => void>
 }
@@ -80,6 +93,9 @@ const createStore = (): ScoringStore => ({
   snapshot: EMPTY_SNAPSHOT,
   pendingBeats: [],
   beatTimes: [],
+  milestoneSeenMs: 0,
+  milestoneOffsetMs: 0,
+  milestonesPaid: new Set(),
   flushQueued: false,
   listeners: new Set(),
 })
@@ -92,6 +108,12 @@ export type UseNoteScoringOptions = {
   active: boolean
   /** Playback is running. A pause or a stop closes the open note unjudged. */
   running: boolean
+  /**
+   * The session clock, raw — the caller does not need to adjust it around a
+   * clear. `rebase` below folds a cleared amount back in so the milestones it
+   * drives stay continuous across the reset.
+   */
+  sessionElapsedMs: number
 }
 
 /**
@@ -150,8 +172,24 @@ export type UseNoteScoringOptions = {
  * tally moves, so each entry in `lastBonuses` is the delta that landed in
  * `points` and the readout can print it as it stands. Nothing here is written
  * anywhere.
+ *
+ * The practice milestones ride the same session but not the same beats: they
+ * are earned by `sessionElapsedMs` crossing 10, 20 or 30 minutes, in a second
+ * effect that never touches the microphone subscription. They are gated on
+ * `active` rather than `running`, because `sessionTimer.pause()` pushes its
+ * final elapsed on the very render that turns `running` off — a routine that
+ * finishes exactly at a milestone would lose it if the gate were `running`.
+ * Paid flat, through `applyBonus`, never through `scaleBonus`: a milestone
+ * belongs to no note, so no note's multiplier prices it. `milestoneSeenMs`
+ * remembers the elapsed total already accounted for and `milestonesPaid`
+ * remembers which kinds have been banked, so a re-run of that effect or a
+ * repeated 200 ms tick recomputes the same crossing and pays nothing twice. A
+ * session clock put back to zero — `App.tsx`'s `clearTimer` — would otherwise
+ * strand those guards partway to a threshold they will never see again, which
+ * is what `rebase` is for: it offsets the total the milestone effect reads
+ * without touching what has already been seen or paid.
  */
-export function useNoteScoring({ engine, subscribe, active, running }: UseNoteScoringOptions) {
+export function useNoteScoring({ engine, subscribe, active, running, sessionElapsedMs }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
   const getStore = useCallback(() => (storeRef.current ??= createStore()), [])
 
@@ -349,6 +387,39 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     [subscribe, getStore, scheduleFlush],
   )
 
+  // The clock's own bonus, entirely apart from the beat/microphone machinery
+  // above: nothing here is a subscription input, so a tick can never tear
+  // down and rebuild the mic listener. `milestoneSeenMs` is updated whether
+  // or not it is paid, so a re-run of this effect recomputes the same
+  // crossing and finds nothing new — `milestonesPaid` is the second guard on
+  // top of that, so nothing here is ever banked twice.
+  useEffect(() => {
+    const store = getStore()
+    const total = sessionElapsedMs + store.milestoneOffsetMs
+    const crossed = practiceMilestonesCrossed(store.milestoneSeenMs, total)
+    store.milestoneSeenMs = total
+
+    if (!active || crossed.length === 0) {
+      return
+    }
+
+    let changed = false
+    for (const bonus of crossed) {
+      if (store.milestonesPaid.has(bonus.kind)) {
+        continue
+      }
+
+      store.milestonesPaid.add(bonus.kind)
+      store.tally = applyBonus(store.tally, bonus)
+      store.lastBonuses = [...store.lastBonuses, bonus]
+      changed = true
+    }
+
+    if (changed) {
+      publish()
+    }
+  }, [sessionElapsedMs, active, getStore, publish])
+
   // A pause, a stop, or a microphone that goes away mid-note leaves a question
   // nobody was given the chance to answer. Dropping it scores nothing, and
   // nothing published changes — the tally and the last verdict stand.
@@ -375,8 +446,26 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     store.lastVerdict = null
     store.lastBonuses = NO_BONUSES
     store.multiplier = 1
+    store.milestoneSeenMs = 0
+    store.milestoneOffsetMs = 0
+    store.milestonesPaid = new Set()
     publish()
   }, [getStore, publish])
+
+  /**
+   * Offsets the milestone clock by `removedMs` without touching what has
+   * already been seen or paid. `sessionElapsedMs` is owned by the caller —
+   * see `App.tsx`'s `clearTimer`, which puts the session clock back to zero
+   * while playback keeps running — and without this the milestone guards
+   * would be stranded partway to a threshold `sessionElapsedMs` can never
+   * reach again, so a later milestone would arrive late or never.
+   */
+  const rebase = useCallback(
+    (removedMs: number) => {
+      getStore().milestoneOffsetMs += removedMs
+    },
+    [getStore],
+  )
 
   const subscribeToStore = useCallback(
     (listener: () => void) => {
@@ -402,5 +491,6 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     lastBonuses: snapshot.lastBonuses,
     multiplier: snapshot.multiplier,
     reset,
+    rebase,
   }
 }
