@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/wolasss/random-scale-trainer/compare/v1.16.0...v1.16.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **scoring:** label the readings on the score line ([#130](https://github.com/wolasss/random-scale-trainer/issues/130)) ([800650a](https://github.com/wolasss/random-scale-trainer/commit/800650a312a7bd8ebe0aa56f94584738df1b1172))
+
 # [1.16.0](https://github.com/wolasss/random-scale-trainer/compare/v1.15.0...v1.16.0) (2026-08-20)
 
 
