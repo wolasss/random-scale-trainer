@@ -2,43 +2,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
+import { installMatchMedia } from './test/matchMedia'
+import { FAKE_CLOCKS } from './test/fakeTimers'
 
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
-
-/**
- * The installed-on-a-stand reading is gated on two media queries, so it can only
- * be exercised by answering them. jsdom's own matchMedia always says false —
- * which is exactly why the desktop layout is safe from all of this.
- */
-const installMatchMedia = (matching: Record<string, boolean>) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: matching[query] ?? false,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }),
-  })
-}
 
 const PHONE_PORTRAIT = {
   [STANDALONE_QUERY]: true,
@@ -50,9 +19,7 @@ const PHONE_LANDSCAPE = { ...PHONE_PORTRAIT, [LANDSCAPE_QUERY]: true }
 
 describe('the stand reading', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS)
   })
 
   afterEach(() => {

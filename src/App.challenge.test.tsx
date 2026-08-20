@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
 import { STORAGE_KEYS } from './constants'
+import { installMatchMedia } from './test/matchMedia'
+import { FAKE_CLOCKS } from './test/fakeTimers'
 
 vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
@@ -60,20 +62,6 @@ const installGetUserMedia = () => {
   Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } })
 
   return getUserMedia
-}
-
-/** jsdom's own matchMedia always says false, which is the desktop reading. */
-const installMatchMedia = (matching: Record<string, boolean>) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: matching[query] ?? false,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }),
-  })
 }
 
 const PHONE_PORTRAIT = {
@@ -220,9 +208,7 @@ describe('arriving on a challenge', () => {
 
 describe('banking a session', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS)
     visit('?challenge=demo')
     window.localStorage.setItem(STORAGE_KEYS.challengeNickname, 'ada')
   })

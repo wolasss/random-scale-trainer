@@ -3,23 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { STORAGE_KEYS } from './constants'
 
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 const { reload } = vi.hoisted(() => ({ reload: vi.fn() }))
