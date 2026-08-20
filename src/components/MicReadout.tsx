@@ -192,7 +192,9 @@ const formatMultiplier = (multiplier: number) => String(Math.round(multiplier * 
 /**
  * What the settings are pricing a note at. Out of the line entirely at the flat
  * rate — the common case, and a row this narrow does not spend width on a
- * factor of one — and read out in words, since "×1.38" beside a points total is
+ * factor of one — but shown for a discount as readily as for a premium: a long
+ * note span pays below ×1, and a player owed less has more reason to be told
+ * than one owed more. Read out in words, since "×1.38" beside a points total is
  * exactly the bare number this line refuses to print anywhere else.
  */
 function ScoreMultiplier({ multiplier }: { multiplier: number }) {

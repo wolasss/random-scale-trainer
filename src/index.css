@@ -1485,7 +1485,7 @@ input[type='range'] {
   color: var(--ink);
 }
 
-/* Only there when the settings are actually pricing a note above the flat rate. */
+/* Only there when the settings price a note off the flat rate, either way. */
 .mic-readout-multiplier {
   font-variant-numeric: tabular-nums;
   color: var(--ink);

@@ -307,6 +307,18 @@ describe('MicReadout', () => {
       expect(screen.getByTestId('score-multiplier')).toHaveTextContent('×1.21')
     })
 
+    it('says so when the settings price a note below the flat rate', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{ lastVerdict: null, hits: 3, scored: 3, points: 26, streak: 3, bonuses: [], multiplier: 0.85 }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-multiplier')).toHaveTextContent('×0.85')
+      expect(screen.getByTestId('score-multiplier')).toHaveAccessibleName('0.85 times points')
+    })
+
     it('stays out entirely at the flat rate, so the common row does not grow', () => {
       render(
         <MicReadout

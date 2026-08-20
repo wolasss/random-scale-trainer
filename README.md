@@ -59,8 +59,10 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   allowed for that; above roughly 100 BPM the click covers too much of the beat to tell being in
   time from being late, and the bonus stops paying rather than paying everyone. Every note — and
   every bonus earned on it — is priced by the settings in force when it was *called*: mixed sharps
-  and flats, the fretboard map put away, fewer beats per note and a faster tempo all pay more, and
-  the multiplier shows on the score line whenever it is above ×1. The price is frozen on the note as
+  and flats, the fretboard map put away, fewer beats per note and a faster tempo all pay more, while
+  the two most generous note spans pay less than the flat rate. The multiplier shows on the score
+  line whenever it is anything other than ×1, so a discount is as plain as a premium and the line
+  only stays quiet when a note is worth exactly what a note is worth. The price is frozen on the note as
   it is called, so nudging a setting mid-note moves the next one instead, and a bonus found late is
   paid at what its own note was worth. The tempo part is deliberately sublinear and capped: you
   already play more notes per minute at a faster tempo, so paying linearly on top of that would make
