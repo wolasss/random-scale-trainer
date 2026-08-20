@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
   endSoundEnabled: true,
+  showFretboard: true,
 }
 
 /**

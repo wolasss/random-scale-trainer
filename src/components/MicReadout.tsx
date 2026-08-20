@@ -19,6 +19,8 @@ type MicReadoutProps = {
     streak: number
     /** What the last note earned beyond the flat rate, named as it landed. */
     bonuses: Bonus[]
+    /** What the settings are pricing a note at right now. 1 is the flat rate. */
+    multiplier: number
   } | null
 }
 
@@ -80,9 +82,13 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * "hits/scored · N%". None of it is a bare number beside a glyph — a player
  * who has not been told what a figure means reads it as part of the total
  * next to it. The one glyph on the line is the verdict's tick or cross; "×"
- * is reserved for the difficulty multiplier still to come, so a streak — a
- * count of notes, not a factor on points — is spelled out as "N in a row"
- * rather than "×N".
+ * belongs to the difficulty multiplier and to nothing else, which is why a
+ * streak — a count of notes, not a factor on points — is spelled out as "N in
+ * a row" rather than "×N".
+ *
+ * The multiplier itself is only shown when it is doing something. At ×1 the
+ * reading would say nothing and the row is narrow enough already, so it is left
+ * out entirely rather than printed as a number that changes no total.
  */
 export function MicReadout({ status, heard, spelling, called, score }: MicReadoutProps) {
   if (status !== 'listening') {
@@ -144,6 +150,7 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
           {score.scored > 0 ? (
             <>
               <ScorePoints points={score.points} streak={score.streak} />
+              <ScoreMultiplier multiplier={score.multiplier} />
               {score.bonuses.length > 0 ? (
                 <span className="mic-readout-bonus" data-testid="score-bonus">
                   {score.bonuses.map((bonus) => `+${bonus.points} ${BONUS_LABELS[bonus.kind]}`).join(' ')}
@@ -175,6 +182,35 @@ function ScorePoints({ points, streak }: { points: number; streak: number }) {
       aria-label={inARow ? `${points} points, ${streak} in a row` : `${points} points`}
     >
       {points} pts{inARow ? ` · ${streak} in a row` : ''}
+    </span>
+  )
+}
+
+/** Two decimals at most: ×1.38, never ×1.3799999999999999. */
+const formatMultiplier = (multiplier: number) => String(Math.round(multiplier * 100) / 100)
+
+/**
+ * What the settings are pricing a note at. Out of the line entirely at the flat
+ * rate — the common case, and a row this narrow does not spend width on a
+ * factor of one — but shown for a discount as readily as for a premium: a long
+ * note span pays below ×1, and a player owed less has more reason to be told
+ * than one owed more. Read out in words, since "×1.38" beside a points total is
+ * exactly the bare number this line refuses to print anywhere else.
+ */
+function ScoreMultiplier({ multiplier }: { multiplier: number }) {
+  const reading = formatMultiplier(multiplier)
+  if (reading === '1') {
+    return null
+  }
+
+  return (
+    <span
+      className="mic-readout-multiplier"
+      data-testid="score-multiplier"
+      role="img"
+      aria-label={`${reading} times points`}
+    >
+      ×{reading}
     </span>
   )
 }

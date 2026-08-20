@@ -36,7 +36,36 @@
  * same bonus landing twice is the *window's* job — `awarded` — because a
  * microphone frame that says the same thing as the one before it is normal, and
  * the tally has no way to tell that replay from a second earning.
+ *
+ * What a note is worth is decided before it is played, by how hard the settings
+ * made it: `difficultyMultiplier` prices mixed sharps-and-flats above one
+ * spelling, the fretboard map hidden above shown, a shorter note span above a
+ * longer one, and a tempo above the default above one at or below it. The four
+ * inputs are the ones in force when the note was *called*, which is why they
+ * ride the beat event rather than being read here — see program.ts.
+ *
+ * Both halves of the arithmetic stay outside `applyHit`/`applyBonus`:
+ * `hitAward` and `scaleBonus` round to whole points where a `Bonus` is built,
+ * and the two `apply*` functions add what they are handed verbatim. That is the
+ * only way the `+5 streak` the readout prints can be the five points that
+ * actually landed rather than a pre-scale figure.
+ *
+ * The balance, in shipped whole points. Notes per minute is already
+ * `bpm / beatsPerNote`, so a *linear* tempo factor would compound into a
+ * roughly quadratic advantage and slow practice could never catch up. So the
+ * factor is sublinear — `1 + TEMPO_MULTIPLIER_GAIN * (√(bpm / DEFAULT_BPM) - 1)`
+ * — flat at or below `DEFAULT_BPM` and capped by `TEMPO_MULTIPLIER_MAX`, short
+ * of doubling. Take two setups that differ only in tempo, both at 4 beats per
+ * note: 72 BPM is 18 notes/min at `hitAward(1) = 10`, so 180 points/min; 144
+ * BPM is 36 notes/min at a factor of 1.2071, so `hitAward(1.2071) = 12` and 432
+ * points/min. Doubling the tempo buys **2.4×** the points per minute (2.414×
+ * before rounding) rather than 4× — under the 2.5× ceiling, which is to say
+ * about two and a half minutes of slow practice matches a minute of fast. The
+ * cap binds at `MAX_BPM`, where the raw factor would be 1.413.
  */
+
+import { DEFAULT_BPM, type BeatsPerNote } from '../constants'
+import type { SpellingPreference } from './notes'
 
 /** How long the room is given to go quiet after the app stops sounding. */
 export const SCORE_DECAY_MARGIN_S = 0.15
@@ -50,6 +79,73 @@ export const SUSTAIN_MAX_GAP_S = 0.15
 
 /** What one correct note is worth before any bonus is added to it. */
 export const POINTS_PER_HIT = 10
+
+/**
+ * Sharps and flats mixed: the same fret is asked for by either name, so the
+ * player has to know both rather than one. Named apart from the fretboard and
+ * span factors so a change to one is never a change to another.
+ */
+export const MIXED_SPELLING_MULTIPLIER = 1.15
+export const SINGLE_SPELLING_MULTIPLIER = 1
+
+/** The map put away: the neck has to be in your head instead of on the screen. */
+export const FRETBOARD_HIDDEN_MULTIPLIER = 1.2
+export const FRETBOARD_SHOWN_MULTIPLIER = 1
+
+/**
+ * How long you get to find the note, priced. Typed over `BEAT_SPAN_OPTIONS`, so
+ * a new span has to be given a price here before it compiles; `4` — the default
+ * — is the neutral one, and every longer span is worth less than a whole note.
+ */
+export const BEAT_SPAN_MULTIPLIERS: Record<BeatsPerNote, number> = { 1: 1.4, 2: 1.2, 4: 1, 8: 0.85, 12: 0.75 }
+
+/**
+ * The tempo factor. Sublinear in the tempo and capped short of doubling, for
+ * the reason set out at the top of this file: notes per minute already scales
+ * with the tempo, so anything linear here would pay a fast player quadratically
+ * and put catching up out of reach.
+ */
+export const TEMPO_MULTIPLIER_GAIN = 0.5
+export const TEMPO_MULTIPLIER_MAX = 1.4
+
+/** The settings a note was *called* under, which is what prices it. */
+export type DifficultyInputs = {
+  spelling: SpellingPreference
+  showFretboard: boolean
+  bpm: number
+  beatsPerNote: number
+}
+
+/** A span with no price of its own is neutral rather than free. */
+const beatSpanMultiplier = (beatsPerNote: number) => BEAT_SPAN_MULTIPLIERS[beatsPerNote as BeatsPerNote] ?? 1
+
+/** Nothing is owed for practising at or below the default tempo. */
+const tempoMultiplier = (bpm: number) =>
+  bpm <= DEFAULT_BPM
+    ? 1
+    : Math.min(TEMPO_MULTIPLIER_MAX, 1 + TEMPO_MULTIPLIER_GAIN * (Math.sqrt(bpm / DEFAULT_BPM) - 1))
+
+/** What every point earned on a note called under these settings is worth. */
+export const difficultyMultiplier = ({ spelling, showFretboard, bpm, beatsPerNote }: DifficultyInputs) =>
+  (spelling === 'mixed' ? MIXED_SPELLING_MULTIPLIER : SINGLE_SPELLING_MULTIPLIER) *
+  (showFretboard ? FRETBOARD_SHOWN_MULTIPLIER : FRETBOARD_HIDDEN_MULTIPLIER) *
+  beatSpanMultiplier(beatsPerNote) *
+  tempoMultiplier(bpm)
+
+/**
+ * A hit at this price, in whole points. Rounding happens here rather than on
+ * the total, so what a note paid is a number the player could have counted.
+ */
+export const hitAward = (multiplier: number) => Math.round(POINTS_PER_HIT * multiplier)
+
+/**
+ * The same for a bonus. A `Bonus` always carries the points it was actually
+ * awarded, so whatever the readout prints beside it is what the tally moved by.
+ */
+export const scaleBonus = (bonus: Bonus, multiplier: number): Bonus => ({
+  ...bonus,
+  points: Math.round(bonus.points * multiplier),
+})
 
 /**
  * The streak bonus: nothing for the first two notes in a row, then a step per
@@ -198,11 +294,17 @@ export type ScoredDetection = {
  * They are tracked independently of the verdict, and go on being tracked after
  * it settles — a second octave is normally played after the note has already
  * been got right.
+ *
+ * `multiplier` is the price this note was called at, frozen when the window
+ * opened. A settings change while the note is still sounding moves the next
+ * note's price and not this one's, so a bonus discovered late is paid at what
+ * the note it belongs to was worth.
  */
 export type NoteWindow = {
   pc: number
   beatTime: number
   opensAt: number
+  multiplier: number
   candidateAt: number | null
   verdict: NoteVerdict | null
   awarded: Set<BonusKind>
@@ -215,12 +317,16 @@ export type NoteWindow = {
  * over that beat; a null one — a speech cue the engine could not measure, or a
  * test engine with no cues at all — falls back to the beat, so the margin alone
  * carries the suppression rather than the arithmetic going anywhere strange.
+ *
+ * `multiplier` is the price the note is being called at, frozen here: a
+ * settings change while it is still sounding prices the next note, not this one.
  */
-export function openWindow(pc: number, beatTime: number, cueEnd: number | null): NoteWindow {
+export function openWindow(pc: number, beatTime: number, cueEnd: number | null, multiplier = 1): NoteWindow {
   return {
     pc,
     beatTime,
     opensAt: (cueEnd ?? beatTime) + SCORE_DECAY_MARGIN_S,
+    multiplier,
     candidateAt: null,
     verdict: null,
     awarded: new Set(),
@@ -345,23 +451,29 @@ export function tempoBonus(struckAt: number, beatTimes: number[]): Bonus | null 
 
 /**
  * Banks a correct note: the count, the response time, the streak it continues,
- * and the points — `POINTS_PER_HIT`, the streak bonus the new run has earned,
- * and anything else already known to have landed on this note.
+ * and the points — `award`, which is `POINTS_PER_HIT` at the flat price and
+ * `hitAward(multiplier)` at any other, plus every bonus it is handed.
  *
- * The streak bonus is this function's alone, because it is the one that knows
- * how long the run now is; a streak handed in among `bonuses` is dropped rather
- * than paid on top of the one worked out here. Every other kind is added as
- * given.
+ * Everything is added verbatim, the streak included. Working the streak bonus
+ * out here would mean paying a figure nobody handed in and nobody can print, so
+ * `streakBonus` keeps the *rule* and the caller — which knows what the note was
+ * priced at — builds the bonus, scales it, and passes it in. That is what makes
+ * every entry in the readout's list the delta that actually landed in `points`.
  */
-export const applyHit = (tally: Tally, responseMs: number, bonuses: Bonus[] = []): Tally => {
+export const applyHit = (
+  tally: Tally,
+  responseMs: number,
+  bonuses: Bonus[] = [],
+  award: number = POINTS_PER_HIT,
+): Tally => {
   const streak = tally.streak + 1
-  const extra = bonuses.reduce((total, bonus) => (bonus.kind === 'streak' ? total : total + bonus.points), 0)
+  const extra = bonuses.reduce((total, bonus) => total + bonus.points, 0)
 
   return {
     scored: tally.scored + 1,
     hits: tally.hits + 1,
     responseTimesMs: [...tally.responseTimesMs, responseMs],
-    points: tally.points + POINTS_PER_HIT + (streakBonus(streak)?.points ?? 0) + extra,
+    points: tally.points + award + extra,
     streak,
     bestStreak: Math.max(tally.bestStreak, streak),
   }

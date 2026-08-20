@@ -16,6 +16,9 @@ const INPUTS: BeatProgramInputs = {
   beatsPerNote: 1,
   countInEnabled: false,
   continuousMode: true,
+  bpm: 90,
+  spelling: 'mixed',
+  showFretboard: false,
 }
 
 const view = (head: NoteCall | null, following: NoteCall | null = null): DeckView => ({ head, following })
@@ -47,6 +50,30 @@ describe('note and filler beats', () => {
     expect(step.event.note?.pc).toBe(0)
     expect(step.event.nextNote?.pc).toBe(1)
     expect(step.state).toMatchObject({ positionInCycle: 1, bagSize: 2, anyNoteScheduled: true })
+  })
+
+  it('carries the settings the note is being called under', () => {
+    // Scoring prices a note at these, and the event is the only place they can
+    // come from: it surfaces up to a look-ahead after they were read.
+    const step = stepBeat(createSchedulingState(), view(note(0, true, 2)), { ...INPUTS, beatsPerNote: 8, bpm: 132 })
+
+    if (step.kind !== 'beat') throw new Error('expected a beat')
+    expect(step.event.difficulty).toEqual({ spelling: 'mixed', showFretboard: false, bpm: 132, beatsPerNote: 8 })
+  })
+
+  it('prices nothing on a count-in click or a beat inside a span', () => {
+    // Neither calls a note, and a beat that called nothing has no price.
+    const counting = stepBeat(createSchedulingState(COUNT_IN_BEATS), view(note(0, true, 2)), INPUTS)
+    if (counting.kind !== 'beat') throw new Error('expected a beat')
+    expect(counting.event.difficulty).toBeUndefined()
+
+    const inputs = { ...INPUTS, beatsPerNote: 2 }
+    const first = stepBeat(createSchedulingState(), view(note(0, true, 2)), inputs)
+    if (first.kind !== 'beat') throw new Error('expected a beat')
+
+    const filler = stepBeat(first.state, view(note(1, false, 2)), inputs)
+    if (filler.kind !== 'beat') throw new Error('expected a beat')
+    expect(filler.event.difficulty).toBeUndefined()
   })
 
   it('fills the rest of the span without consuming a note', () => {

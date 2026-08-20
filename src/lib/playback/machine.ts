@@ -25,6 +25,8 @@ export type PlaybackSettings = {
   rampTargetBpm: number
   speakNotes: boolean
   endSoundEnabled: boolean
+  /** The neck on screen. Scoring prices a note called without it higher. */
+  showFretboard: boolean
 }
 
 export type PlaybackSnapshot = {
@@ -218,6 +220,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     const settings = getSettings()
     // Read the deck before the decision so the program stays a pure step; the
     // draw it asks for happens below, once the beat is settled.
+    //
+    // The tempo is read here, before `applyRamp` below: this beat's time was
+    // fixed by the previous beat's duration, so the ramp's new tempo prices the
+    // *next* beat and not this one. Everything else scoring is told about a
+    // note is read at the same moment, because that is when the note is called
+    // — the event surfaces up to SCHEDULE_AHEAD_S later, and pricing it at what
+    // the settings say then would price it at a tempo it was never called at.
     const step = stepBeat(
       sched,
       { head: deck.peek(0), following: deck.peek(1) },
@@ -226,6 +235,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
         beatsPerNote: settings.beatsPerNote,
         countInEnabled: settings.countInEnabled,
         continuousMode: settings.continuousMode,
+        bpm: tempo.bpm(),
+        spelling: getSpelling(),
+        showFretboard: settings.showFretboard,
       },
     )
 

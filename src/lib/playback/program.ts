@@ -1,5 +1,6 @@
 import { COUNT_IN_BEATS } from '../../constants'
-import type { NoteCall } from '../notes'
+import type { NoteCall, SpellingPreference } from '../notes'
+import type { DifficultyInputs } from '../scoring'
 
 /** One scheduled beat, delivered to the UI when the audio clock reaches it. */
 export type BeatEvent = {
@@ -10,6 +11,12 @@ export type BeatEvent = {
   countInValue?: number
   /** Present when this beat starts a new note span. */
   note?: NoteCall
+  /**
+   * The settings this note is being *called* under, carried so scoring prices
+   * it at them. Only ever set beside `note`: a count-in click and an in-span
+   * click call nothing, so there is nothing for them to price.
+   */
+  difficulty?: DifficultyInputs
   /** The note after `note`, peeked at schedule time (drives the NEXT chip). */
   nextNote: NoteCall | null
   beatInSpan: number
@@ -57,6 +64,10 @@ export type BeatProgramInputs = {
   beatsPerNote: number
   countInEnabled: boolean
   continuousMode: boolean
+  /** The tempo this beat is being scheduled at, not the one it surfaces at. */
+  bpm: number
+  spelling: SpellingPreference
+  showFretboard: boolean
 }
 
 /** What the shell should do with the beat the program just decided. */
@@ -164,6 +175,12 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
       accent: true,
       isCountIn: false,
       note: head,
+      difficulty: {
+        spelling: inputs.spelling,
+        showFretboard: inputs.showFretboard,
+        bpm: inputs.bpm,
+        beatsPerNote: inputs.beatsPerNote,
+      },
       nextNote: view.following,
       beatInSpan: 0,
       positionInCycle,
