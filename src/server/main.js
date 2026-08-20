@@ -8,14 +8,18 @@
  * `docker run -p 8080:80` and nothing else. In dev and preview the same handler
  * is mounted as a Vite middleware instead — see vite.config.ts.
  *
- *   SCOREBOARD_PORT  what to listen on (default 8787)
  *   SCOREBOARD_DATA  where to keep the board between restarts; unset means
  *                    memory only, and a restart loses it
  */
 import { createServer } from 'node:http'
 import { createStore, handleRequest, readSnapshot, writeSnapshot } from './scoreboard.js'
 
-const PORT = Number(process.env.SCOREBOARD_PORT ?? 8787)
+/**
+ * Deliberately a constant and not an environment variable: nginx.conf proxies
+ * /api/ to this exact port on loopback, and the two have no way to agree at run
+ * time. A knob that moved one without the other would only ever produce 502s.
+ */
+const PORT = 8787
 const DATA_PATH = process.env.SCOREBOARD_DATA ?? ''
 
 /**
@@ -26,10 +30,17 @@ const MAX_BODY_BYTES = 4096
 
 const store = DATA_PATH === '' ? createStore() : readSnapshot(DATA_PATH)
 
-/** The body, capped — or null if the caller went over and the socket was cut. */
+/**
+ * The body, capped — or null if the caller went over and the socket was cut.
+ *
+ * The chunks are kept as bytes and decoded once at the end: a nickname is text
+ * somebody typed, and a multi-byte character that happens to straddle two data
+ * events decodes to a pair of replacement characters if each chunk is turned
+ * into a string on its own.
+ */
 const readBody = (request, response) =>
   new Promise((resolve) => {
-    let body = ''
+    const chunks = []
     let bytes = 0
 
     request.on('data', (chunk) => {
@@ -42,9 +53,9 @@ const readBody = (request, response) =>
         return
       }
 
-      body += chunk
+      chunks.push(chunk)
     })
-    request.on('end', () => resolve(body))
+    request.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     request.on('error', () => resolve(null))
   })
 

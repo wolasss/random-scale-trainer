@@ -119,12 +119,14 @@ const scoreboardApiPlugin = (): Plugin => {
       return
     }
 
-    let body = ''
+    // Bytes, decoded once at the end: a multi-byte character split across two
+    // data events survives that and does not survive per-chunk decoding.
+    const chunks: Buffer[] = []
     let bytes = 0
     request.on('data', (chunk: Buffer) => {
       bytes += chunk.length
       if (bytes <= MAX_BODY_BYTES) {
-        body += chunk
+        chunks.push(chunk)
       }
     })
 
@@ -132,7 +134,11 @@ const scoreboardApiPlugin = (): Plugin => {
       const answer =
         bytes > MAX_BODY_BYTES
           ? { status: 413, json: { error: 'body too large' } }
-          : handleRequest(store, { method: request.method ?? 'GET', pathname, body })
+          : handleRequest(store, {
+              method: request.method ?? 'GET',
+              pathname,
+              body: Buffer.concat(chunks).toString('utf8'),
+            })
 
       response.writeHead(answer.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
       response.end(JSON.stringify(answer.json))

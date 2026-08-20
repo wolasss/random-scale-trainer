@@ -18,6 +18,7 @@ const read = (name: string) => readFileSync(fileURLToPath(new URL(`../../${name}
 const NGINX = read('nginx.conf')
 const DOCKERFILE = read('Dockerfile')
 const ENTRYPOINT = read('docker/50-scoreboard.sh')
+const MAIN = read('src/server/main.js')
 
 describe('nginx.conf', () => {
   /**
@@ -54,6 +55,21 @@ describe('nginx.conf', () => {
     // A location with add_header of its own inherits none of the rest.
     expect(location).toContain('X-Content-Type-Options')
     expect(location).toContain('Content-Security-Policy')
+  })
+
+  /**
+   * The proxy names a port and the service binds one, and nothing at run time
+   * reconciles them — so they are pinned on both sides and checked here. A
+   * service that could be moved by the environment would only ever move out
+   * from under this proxy, and every scoreboard request would be a 502.
+   */
+  it('proxies to the very port the service listens on', () => {
+    const port = MAIN.match(/^const PORT = (\d+)$/m)?.[1]
+
+    expect(port).toBeDefined()
+    expect(NGINX).toContain(`proxy_pass http://127.0.0.1:${port}`)
+    expect(ENTRYPOINT).not.toContain('SCOREBOARD_PORT')
+    expect(MAIN).not.toContain('SCOREBOARD_PORT')
   })
 
   it('keeps the page able to reach its own origin', () => {

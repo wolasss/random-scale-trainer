@@ -11,10 +11,11 @@
 set -e
 
 SCOREBOARD_DATA="${SCOREBOARD_DATA:-/var/lib/callnote/scoreboard.json}"
-SCOREBOARD_PORT="${SCOREBOARD_PORT:-8787}"
-export SCOREBOARD_DATA SCOREBOARD_PORT
+export SCOREBOARD_DATA
 
 mkdir -p "$(dirname "$SCOREBOARD_DATA")"
 
-echo "$0: starting the scoreboard on 127.0.0.1:${SCOREBOARD_PORT} (data: ${SCOREBOARD_DATA})"
+# The port is fixed in main.js because nginx.conf proxies to it by number; there
+# is nothing to configure here that would not break that pairing.
+echo "$0: starting the scoreboard (data: ${SCOREBOARD_DATA})"
 node /opt/callnote/server/main.js &

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useChallenge } from './useChallenge'
+import { SCOREBOARD_REFRESH_MS, useChallenge } from './useChallenge'
 import { STORAGE_KEYS } from '../constants'
 
 const board = (...scores: Array<[string, number]>) => ({
@@ -18,6 +18,7 @@ const bodyOf = (fetchImpl: ReturnType<typeof jsonFetch>, call: number) =>
 afterEach(() => {
   window.localStorage.clear()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('off a challenge', () => {
@@ -220,6 +221,38 @@ describe('submitting', () => {
     expect(result.current.scores).toEqual([{ nickname: 'bo', points: 100 }])
   })
 
+  /**
+   * Three requests can easily be in flight at once — the load, and a pause on
+   * either side of it — and the network is under no obligation to answer them
+   * in order.
+   */
+  it('shows the newest board, whatever order the answers come back in', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.challengeNickname, 'ada')
+    const landings: Array<(response: Response) => void> = []
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          landings.push(resolve)
+        }),
+    )
+
+    const { result } = renderHook(() => useChallenge({ search: '?challenge=demo', fetchImpl }))
+    act(() => result.current.submit(300))
+    act(() => result.current.submit(500))
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+
+    const lands = async (index: number, payload: unknown) =>
+      act(async () => landings[index]({ ok: true, json: async () => payload } as unknown as Response))
+
+    await lands(2, board(['ada', 500]))
+    // The two older ones arrive last, carrying the board as it was before.
+    await lands(1, board(['ada', 300]))
+    await lands(0, board())
+
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 500 }])
+    expect(result.current.status).toBe('ready')
+  })
+
   it('drops a response that arrives after the app is gone', async () => {
     let land: (response: Response) => void = () => undefined
     const fetchImpl = vi.fn(
@@ -234,5 +267,57 @@ describe('submitting', () => {
 
     // Resolving into an unmounted tree would be a React warning at best.
     await act(async () => land({ ok: true, json: async () => board(['ada', 1]) } as unknown as Response))
+  })
+})
+
+describe('keeping up with the room', () => {
+  const settled = () => act(async () => undefined)
+
+  it('reloads the board while the page is open, without anybody asking', async () => {
+    vi.useFakeTimers()
+    const fetchImpl = vi
+      .fn<() => Promise<Response>>()
+      .mockResolvedValueOnce({ ok: true, json: async () => board(['ada', 300]) } as unknown as Response)
+      .mockResolvedValue({ ok: true, json: async () => board(['bo', 900], ['ada', 300]) } as unknown as Response)
+
+    const { result } = renderHook(() => useChallenge({ search: '?challenge=demo', fetchImpl }))
+    await settled()
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 300 }])
+
+    // Somebody else has been playing in the meantime.
+    await act(async () => void (await vi.advanceTimersByTimeAsync(SCOREBOARD_REFRESH_MS)))
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(result.current.scores).toEqual([
+      { nickname: 'bo', points: 900 },
+      { nickname: 'ada', points: 300 },
+    ])
+  })
+
+  /** A phone in a pocket is not watching a board; it catches up when it is. */
+  it('asks for nothing while the page is out of sight', async () => {
+    vi.useFakeTimers()
+    const fetchImpl = jsonFetch(board(['ada', 300]))
+    renderHook(() => useChallenge({ search: '?challenge=demo', fetchImpl }))
+    await settled()
+
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    await act(async () => void (await vi.advanceTimersByTimeAsync(SCOREBOARD_REFRESH_MS * 3)))
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    hidden.mockReturnValue(false)
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('does none of this off a challenge', async () => {
+    vi.useFakeTimers()
+    const fetchImpl = jsonFetch(board(['ada', 300]))
+    renderHook(() => useChallenge({ search: '', fetchImpl }))
+
+    await act(async () => void (await vi.advanceTimersByTimeAsync(SCOREBOARD_REFRESH_MS * 3)))
+
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })

@@ -66,7 +66,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
   scoreboard appears under the note. Your session points go up whenever you pause or stop, and the
-  board keeps your best — so re-submitting a score already on it changes nothing. The nickname is
+  board keeps your best — so re-submitting a score already on it changes nothing. It refreshes
+  itself every 20 seconds while the page is on screen, so other people's rounds appear without a
+  reload, and goes quiet while the tab is hidden. The nickname is
   remembered in localStorage, and the microphone is asked for on arrival, since the points come
   from what it hears. Without `?challenge=` in the URL none of this exists: no board, no prompt,
   no request, and no microphone. The prompt can be dismissed, which leaves the board readable
@@ -135,7 +137,8 @@ curl -X POST -H 'Content-Type: application/json' \
 
 A POST upserts the nickname's **best**, so a resubmitted tally is a no-op. `SCOREBOARD_DATA`
 (default `/var/lib/callnote/scoreboard.json`) is where the board is kept — mount it with `-v` or a
-restart starts everyone from zero — and `SCOREBOARD_PORT` (default `8787`) is what it listens on.
+restart starts everyone from zero. The service listens on loopback port 8787, which is fixed rather
+than configurable: nginx proxies to it by number, and only a matching pair works.
 
 The write endpoint is **unauthenticated by design**: a nickname is not an identity, and anyone who
 knows a challenge name can post to it. The only defences are the caps in `src/server/scoreboard.js`

@@ -33,6 +33,13 @@ export type UseChallengeOptions = {
 const INACTIVE_SCORES: ScoreEntry[] = []
 
 /**
+ * How often an open board asks what everybody else has been doing. Long enough
+ * that a room full of players is a trickle of small GETs, short enough that a
+ * board you are watching is never far behind the room it belongs to.
+ */
+export const SCOREBOARD_REFRESH_MS = 20_000
+
+/**
  * Everything the shared challenge needs, gated on one query parameter.
  *
  * The name is resolved once, on mount, and never again: a challenge is what you
@@ -71,8 +78,15 @@ export function useChallenge({ search, fetchImpl }: UseChallengeOptions = {}): C
     fetchRef.current = fetchImpl
   })
 
+  // Every request is stamped with the number it was issued as, and only the
+  // newest one is ever shown. Requests overlap in ordinary use — a poll under a
+  // submit, two pauses in quick succession — and responses come back in
+  // whatever order the network hands them over, so arrival order would let an
+  // older top ten land on top of a newer one.
+  const issuedRef = useRef(0)
+
   /** Null once the component is gone, so a slow response lands nowhere. */
-  const applyRef = useRef<((next: ScoreEntry[] | null) => void) | null>(null)
+  const applyRef = useRef<((next: ScoreEntry[] | null, issue: number) => void) | null>(null)
 
   useEffect(() => {
     if (!active) {
@@ -80,8 +94,8 @@ export function useChallenge({ search, fetchImpl }: UseChallengeOptions = {}): C
     }
 
     const controller = new AbortController()
-    applyRef.current = (next) => {
-      if (controller.signal.aborted) {
+    applyRef.current = (next, issue) => {
+      if (controller.signal.aborted || issue !== issuedRef.current) {
         return
       }
 
@@ -96,13 +110,34 @@ export function useChallenge({ search, fetchImpl }: UseChallengeOptions = {}): C
       setStatus('ready')
     }
 
-    void fetchTopScores(name, { signal: controller.signal, fetchImpl: fetchRef.current }).then((next) =>
-      applyRef.current?.(next),
-    )
+    const load = () => {
+      const issue = ++issuedRef.current
+      void fetchTopScores(name, { signal: controller.signal, fetchImpl: fetchRef.current }).then((next) =>
+        applyRef.current?.(next, issue),
+      )
+    }
+
+    load()
+
+    // A shared board that loaded once is a photograph: everyone else's rounds
+    // land while this page sits open, and a player who dismissed the prompt to
+    // watch would otherwise see nothing move until they reloaded. Only while
+    // the page is actually on screen — a pocketed phone asks for nothing, and
+    // catches up the moment it comes back.
+    const refresh = () => {
+      if (!document.hidden) {
+        load()
+      }
+    }
+
+    const timer = window.setInterval(refresh, SCOREBOARD_REFRESH_MS)
+    document.addEventListener('visibilitychange', refresh)
 
     return () => {
       applyRef.current = null
       controller.abort()
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refresh)
     }
   }, [active, name])
 
@@ -129,6 +164,7 @@ export function useChallenge({ search, fetchImpl }: UseChallengeOptions = {}): C
 
       const previous = lastSubmittedRef.current
       lastSubmittedRef.current = points
+      const issue = ++issuedRef.current
       void submitScore(name, nickname, points, { fetchImpl: fetchRef.current }).then((next) => {
         // A submit that never landed is not one to skip next time — unless a
         // higher tally has gone up since, which supersedes this one anyway.
@@ -136,7 +172,7 @@ export function useChallenge({ search, fetchImpl }: UseChallengeOptions = {}): C
           lastSubmittedRef.current = previous
         }
 
-        applyRef.current?.(next)
+        applyRef.current?.(next, issue)
       })
     },
     [active, name, nickname],
