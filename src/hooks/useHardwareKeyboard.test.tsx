@@ -1,21 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TOUCH_INPUT_QUERY, useHardwareKeyboard } from './useHardwareKeyboard'
+import { installMatchMedia } from '../test/matchMedia'
 
 /** jsdom's own matchMedia never matches anything, so each test says whether the
  * browser reports a touchscreen among its inputs. */
-const installMatchMedia = (touchInput: boolean) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: query === TOUCH_INPUT_QUERY && touchInput,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }),
-  })
-}
+const installTouchInput = (touchInput: boolean) => installMatchMedia({ [TOUCH_INPUT_QUERY]: touchInput })
 
 const pressKey = (init: KeyboardEventInit) => {
   act(() => {
@@ -30,7 +20,7 @@ describe('useHardwareKeyboard', () => {
   })
 
   it('trusts a browser with no touch input at all', () => {
-    installMatchMedia(false)
+    installTouchInput(false)
 
     const { result } = renderHook(() => useHardwareKeyboard())
 
@@ -46,7 +36,7 @@ describe('useHardwareKeyboard', () => {
   it('waits for proof once a touchscreen is in the mix', () => {
     // A tablet with a mouse or a hover-capable stylus lands here: it can be
     // driven without ever having a keyboard attached.
-    installMatchMedia(true)
+    installTouchInput(true)
 
     const { result } = renderHook(() => useHardwareKeyboard())
 
@@ -54,7 +44,7 @@ describe('useHardwareKeyboard', () => {
   })
 
   it('takes a pressed key as that proof', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     const { result } = renderHook(() => useHardwareKeyboard())
     pressKey({ code: 'KeyA', key: 'a' })
@@ -63,7 +53,7 @@ describe('useHardwareKeyboard', () => {
   })
 
   it('is not fooled by an on-screen keyboard', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     const { result } = renderHook(() => useHardwareKeyboard())
     // Android reports the software keyboard with no code and no named key.
@@ -74,7 +64,7 @@ describe('useHardwareKeyboard', () => {
   })
 
   it('drops its listener once the answer can no longer change', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     const { result, unmount } = renderHook(() => useHardwareKeyboard())
     pressKey({ code: 'Space', key: ' ' })

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { detectPitch } from './lib/audio/pitch'
+import { FAKE_CLOCKS } from './test/fakeTimers'
 
 // Only the detector is faked; the frequency-to-pitch-class arithmetic under it
 // is the real one, so a test that names a note has to name it the way the app
@@ -105,9 +106,7 @@ const calledPitchClass = () => {
 
 describe('listening for the player', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS)
     hush()
     // Past the first run, so the setup cards (and the switch) are on the page.
     window.localStorage.setItem('fretboard-setup-revealed', 'true')
