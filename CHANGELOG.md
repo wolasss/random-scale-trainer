@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/wolasss/random-scale-trainer/compare/v1.16.1...v1.17.0) (2026-08-20)
+
+
+### Features
+
+* **scoring:** price each note by how hard the settings make it ([#132](https://github.com/wolasss/random-scale-trainer/issues/132)) ([1faf118](https://github.com/wolasss/random-scale-trainer/commit/1faf118adcfa793ef712448ee4f1886adf81b30e))
+
 ## [1.16.1](https://github.com/wolasss/random-scale-trainer/compare/v1.16.0...v1.16.1) (2026-08-20)
 
 
