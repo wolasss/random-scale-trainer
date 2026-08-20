@@ -293,7 +293,6 @@ describe('listening for the player', () => {
     // The verdict is about the note still being called, not the one before it.
     expect(screen.getByTestId('current-note')).toHaveTextContent(called!)
     expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-    expect(screen.getByTestId('score-verdict')).toHaveTextContent(/0\.\d\d s/)
     expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
   })

@@ -56,11 +56,11 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * note on screen to be right or wrong about.
  *
  * Under it, when there is a score to report, the second line: whether the last
- * note called was actually played and how long it took, the points the session
- * has banked with the run behind them, and the session's running accuracy
- * beside it. That line stays out until there is something to say — a mic that
- * has been on for four seconds has nothing yet, and "0/0" over an untouched
- * session reads as a failure rather than a beginning.
+ * note called was actually played, the points the session has banked with the
+ * run behind them, and the session's running accuracy beside it. That line
+ * stays out until there is something to say — a mic that has been on for four
+ * seconds has nothing yet, and "0/0" over an untouched session reads as a
+ * failure rather than a beginning.
  *
  * Points do not replace the accuracy: they are the number that goes up, and
  * `hits/scored` is the one that says how it is actually going. They sit on the
@@ -76,13 +76,13 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * The verdict does not follow it there: it answers the note that was on screen
  * when it was played, and once the listening stops that question is closed.
  *
- * Every number on the score line is named: "took 1.91 s" (or "missed"), "N
- * pts", "N in a row", and "hits/scored · N%". None of it is a bare number
- * beside a glyph — a player who has not been told what a figure means reads
- * it as part of the total next to it. The one glyph on the line is the
- * verdict's tick or cross; "×" is reserved for the difficulty multiplier
- * still to come, so a streak — a count of notes, not a factor on points —
- * is spelled out as "N in a row" rather than "×N".
+ * Every number on the score line is named: "N pts", "N in a row", and
+ * "hits/scored · N%". None of it is a bare number beside a glyph — a player
+ * who has not been told what a figure means reads it as part of the total
+ * next to it. The one glyph on the line is the verdict's tick or cross; "×"
+ * is reserved for the difficulty multiplier still to come, so a streak — a
+ * count of notes, not a factor on points — is spelled out as "N in a row"
+ * rather than "×N".
  */
 export function MicReadout({ status, heard, spelling, called, score }: MicReadoutProps) {
   if (status !== 'listening') {
@@ -180,9 +180,8 @@ function ScorePoints({ points, streak }: { points: number; streak: number }) {
 }
 
 /**
- * The last note's response reading, named so it cannot be mistaken for part
- * of the score total beside it. A miss has no time to name, so it stays a
- * single word rather than "took — s".
+ * Whether the last note called was actually played, named so it cannot be
+ * mistaken for part of the score total beside it.
  */
 function ScoreResponse({ verdict }: { verdict: NoteVerdict }) {
   return (
@@ -191,12 +190,10 @@ function ScoreResponse({ verdict }: { verdict: NoteVerdict }) {
       data-testid="score-verdict"
       data-hit={verdict.hit}
       role="img"
-      aria-label={verdict.hit ? `Played it in ${formatResponse(verdict.responseMs)} seconds` : 'Not played in time'}
+      aria-label={verdict.hit ? 'Played it' : 'Not played in time'}
     >
       <FontAwesomeIcon icon={verdict.hit ? faCheck : faXmark} aria-hidden="true" />
-      <span className="mic-readout-response">
-        {verdict.hit ? `took ${formatResponse(verdict.responseMs)} s` : 'missed'}
-      </span>
+      {verdict.hit ? null : <span className="mic-readout-response">missed</span>}
     </span>
   )
 }
@@ -209,6 +206,3 @@ function ScoreTally({ hits, scored }: { hits: number; scored: number }) {
     </span>
   )
 }
-
-/** Seconds to two places: the useful range is a fraction of one. */
-const formatResponse = (responseMs: number) => (responseMs / 1000).toFixed(2)

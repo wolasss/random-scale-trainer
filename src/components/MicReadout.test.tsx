@@ -185,14 +185,13 @@ describe('MicReadout', () => {
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })
 
-    it('reports a hit and how long it took', () => {
+    it('reports a hit', () => {
       render(
         <MicReadout {...props} score={{ lastVerdict: { hit: true, responseMs: 320 }, hits: 1, scored: 1, ...NO_POINTS }} />,
       )
 
-      expect(screen.getByTestId('score-verdict')).toHaveTextContent('took 0.32 s')
       expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it in 0.32 seconds')
+      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it')
     })
 
     it('reports a note that never came', () => {
