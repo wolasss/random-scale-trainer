@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BeatEvent } from '../lib/playback/machine'
-import { EMPTY_TALLY, OCTAVES_BONUS_POINTS, POINTS_PER_HIT } from '../lib/scoring'
+import { EMPTY_TALLY, OCTAVES_BONUS_POINTS, POINTS_PER_HIT, TEMPO_BONUS_POINTS } from '../lib/scoring'
 import type { HeardPitch } from './useMicPitch'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
@@ -29,7 +29,7 @@ const createFakeEngine = (cueEnd: number | null = null) => ({
   getCueEndForBeat: vi.fn(() => cueEnd),
 })
 
-/** A beat that calls a note. `pc` omitted is a count-in or a mid-span beat. */
+/** A beat that calls a note. `pc` omitted is a mid-span beat. */
 const beat = (time: number, pc?: number): BeatEvent => ({
   time,
   accent: pc !== undefined,
@@ -42,6 +42,14 @@ const beat = (time: number, pc?: number): BeatEvent => ({
   beatInSpan: 0,
   positionInCycle: 0,
   completedCycle: false,
+})
+
+/** A count-in click: on the grid, but calling nothing and preceding it. */
+const countIn = (time: number, value: number): BeatEvent => ({
+  ...beat(time),
+  accent: true,
+  isCountIn: true,
+  countInValue: value,
 })
 
 type Overrides = Partial<Omit<UseNoteScoringOptions, 'engine'>> & {
@@ -149,13 +157,15 @@ describe('useNoteScoring', () => {
   it('names the streak bonus on the note that earned it', async () => {
     const { result, mic } = setup()
 
-    for (const [index, time] of [10, 20, 30].entries()) {
+    // A beat a second, struck halfway between two every time: a run of right
+    // notes and not one of them in time with a click.
+    for (const [index, time] of [10, 11, 12].entries()) {
       await act(async () => {
         result.current.handleBeat(beat(time, 3))
       })
       await act(async () => {
-        mic.emit(3, time + 0.2)
-        mic.emit(3, time + 0.25)
+        mic.emit(3, time + 0.5)
+        mic.emit(3, time + 0.55)
       })
 
       // Two right notes are a coincidence; the third is a run.
@@ -269,9 +279,10 @@ describe('useNoteScoring', () => {
       mic.emit(3, 10.6, 4)
     })
 
-    // ...and closing a window that was already hit adds nothing either.
+    // ...and closing a window that was already hit adds nothing either. A
+    // beat a second, and the strike 0.2 s off one, so nothing here is in time.
     await act(async () => {
-      result.current.handleBeat(beat(20, 5))
+      result.current.handleBeat(beat(11, 5))
     })
 
     expect(result.current.tally).toMatchObject({
@@ -441,7 +452,7 @@ describe('useNoteScoring', () => {
     expect(result.current.lastVerdict).toBeNull()
   })
 
-  it('ignores the beats that call no note', async () => {
+  it('opens and closes nothing on the beats that call no note', async () => {
     const { result } = setup()
 
     await act(async () => {
@@ -450,9 +461,152 @@ describe('useNoteScoring', () => {
       result.current.handleBeat(beat(12))
     })
 
-    // Three beats, one call: the count-in and the rest of the span score nothing.
+    // Three beats, one call: the rest of the span feeds the grid the tempo
+    // bonus is measured against, and scores nothing on its own.
     expect(result.current.tally.scored).toBe(0)
     expect(result.current.lastVerdict).toBeNull()
+  })
+
+  /**
+   * Two beats per note throughout: a note beat and the in-span click under it,
+   * which is the grid the tempo bonus is measured against. At one beat per note
+   * every beat starts a note, so there is no click under one to play along
+   * with — the bonus is mostly reachable from two beats per note up.
+   */
+  describe('the tempo bonus', () => {
+    const TEMPO_BONUS = { kind: 'tempo', points: TEMPO_BONUS_POINTS }
+
+    it('names it on a note struck on a click', async () => {
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.52)
+        mic.emit(3, 10.57)
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+    })
+
+    it('names it on a note the click itself hid', async () => {
+      // The microphone is deaf under the app's own click, so a string struck on
+      // one is not heard until the click has finished ringing. A one-second
+      // grid, where that shadow is what the lateness is measured against.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(11))
+      })
+      await act(async () => {
+        mic.emit(3, 11.23)
+        mic.emit(3, 11.28)
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+    })
+
+    it('measures one beat between the clicks and not two', async () => {
+      // Both beats are on the grid, so the interval is the 0.5 s between them.
+      // A grid of note beats alone would call it 1 s and pay for this strike,
+      // which is 0.1 s ahead of a click and not in time with anything.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.4)
+        mic.emit(3, 10.45)
+      })
+
+      expect(result.current.lastVerdict?.hit).toBe(true)
+      expect(result.current.lastBonuses).toEqual([])
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT)
+    })
+
+    it('pays a strike that anticipated a click when that click arrives', async () => {
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+
+      // Nothing to be in time with yet: the click was still to come.
+      expect(result.current.lastBonuses).toEqual([])
+
+      // The beat itself pays, with no further frame from the microphone — a
+      // player who struck a shade early is not heard again for it.
+      await act(async () => {
+        result.current.handleBeat(beat(11))
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally).toMatchObject({
+        scored: 1,
+        hits: 1,
+        streak: 1,
+        points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
+      })
+    })
+
+    it('pays nothing for the click that calls the next note', async () => {
+      // The same shape as the test above, with the arriving beat calling a note
+      // instead of falling under this one. That beat announces the next note;
+      // an answer to the one before it was not played in time with it, and at
+      // one beat per note every beat is one of these.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+      await act(async () => {
+        result.current.handleBeat(beat(11, 5))
+      })
+
+      expect(result.current.lastBonuses).toEqual([])
+      expect(result.current.tally).toMatchObject({ scored: 1, hits: 1, points: POINTS_PER_HIT })
+    })
+
+    it('keeps count-in clicks off the grid', async () => {
+      // A count-in between two cycles interrupts the grid. Kept, the beats
+      // either side of it would read as one 2.5 s interval, and a tolerance
+      // drawn from that would pay for a strike a fifth of a second late.
+      const { result, mic } = setup({ engine: createFakeEngine(11.85) })
+
+      await act(async () => {
+        result.current.handleBeat(beat(9, 3))
+        result.current.handleBeat(beat(9.5))
+        for (const [index, time] of [10, 10.5, 11, 11.5].entries()) {
+          result.current.handleBeat(countIn(time, 4 - index))
+        }
+        result.current.handleBeat(beat(12, 3))
+      })
+      await act(async () => {
+        mic.emit(3, 12.2)
+        mic.emit(3, 12.25)
+      })
+
+      expect(result.current.lastVerdict?.hit).toBe(true)
+      expect(result.current.lastBonuses).toEqual([])
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT)
+    })
   })
 
   it('goes back to nothing on reset', async () => {

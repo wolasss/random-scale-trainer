@@ -46,9 +46,21 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
-  changes nothing else. Finding the called note in two octaves before the next one is called earns a
-  bonus — the mic hears pitch and nothing else, so two unison positions are one octave and earn
-  nothing
+  changes nothing else
+- Scoring, with the mic on: every note you actually play banks points, and three bonuses make them
+  climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
+  the called note in two octaves before the next one is called, and a small one for striking the
+  string in time with a click. Two octaves means two pitches and not two places on the neck: the mic
+  hears pitch and nothing else, so finding the note twice in unison earns nothing. The in-time bonus
+  is measured against the clicks that actually sounded, so the speed ramp cannot throw it off — and
+  at one beat per note every beat starts a note, leaving no click under the note to play along with,
+  so it is mostly there to be earned from two beats per note up. The mic is deaf while the click
+  itself sounds, so a string struck on one is not heard until it stops ringing and lateness is
+  allowed for that; above roughly 100 BPM the click covers too much of the beat to tell being in
+  time from being late, and the bonus stops paying rather than paying everyone. Points sit beside
+  the running
+  `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
+  nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats

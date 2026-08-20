@@ -80,6 +80,55 @@ export const STREAK_BONUS_MAX = 25
 export const OCTAVES_BONUS_POINTS = 15
 
 /**
+ * The tempo bonus: the string was struck on a click rather than somewhere
+ * between two.
+ *
+ * The tolerance is a fraction of the beat interval, and that interval is
+ * measured from two adjacent beats that actually sounded — never from a BPM
+ * setting handed down from the UI. Scoring is arithmetic on the audio clock and
+ * nothing else, and the speed ramp moves the BPM underneath a session anyway;
+ * two ticks that happened are the only honest statement of how far apart ticks
+ * are right now. With fewer than two of them to measure, nothing is awarded:
+ * guessing an interval would be guessing the answer.
+ *
+ * What it can be earned on depends on the note-change rate. At
+ * `beatsPerNote = 1` every beat starts a note, so the only tick to be in time
+ * with is the call itself — and a window does not open until the app has
+ * finished speaking that call, so there is almost nothing left to play in time
+ * with. From two beats per note up there are in-span ticks under the note, and
+ * those are the ones this bonus is really for. That is the shape of the
+ * feature, not a gap in it.
+ */
+export const TEMPO_BONUS_POINTS = 10
+export const TEMPO_TOLERANCE_FRACTION = 0.15
+
+/**
+ * Why lateness is forgiven more than earliness.
+ *
+ * The click is a sound the app makes, so the microphone is deaf under it: every
+ * frame inside a cue is discarded before scoring ever sees it. A string struck
+ * *on* a click is therefore not heard on that click — the first frame that can
+ * carry it arrives once the click has stopped ringing, and a strike a shade
+ * early has its sustain broken across the same gap and is re-timed to the far
+ * side of it too. That delay is about a fifth of a second: the click's own
+ * length, the tail the room keeps, and the one microphone poll it takes to
+ * notice. Left uncompensated it is longer than the whole tolerance at every
+ * tempo anyone practises at, and the bonus would only ever pay players who
+ * rush.
+ *
+ * So the window runs from a tolerance ahead of the click to that shadow behind
+ * it. It is never stretched past `TEMPO_LATE_MAX_FRACTION` of the interval,
+ * because beyond that the nearer click is the next one and a strike halfway
+ * between two would be paid for being in time with neither. Above roughly 100
+ * BPM the shadow is longer than that share of the beat, and a strike on the
+ * click genuinely cannot be told from one played late; there the bonus goes
+ * unpaid rather than being handed to everybody. That is the limit of listening
+ * through a metronome, not a number to keep widening.
+ */
+export const TEMPO_CLICK_SHADOW_S = 0.23
+export const TEMPO_LATE_MAX_FRACTION = 0.4
+
+/**
  * What happened on one called note. A hit always knows how long it took; a
  * miss has nothing to time, which is why the two are one union rather than a
  * flag beside a nullable number.
@@ -87,7 +136,7 @@ export const OCTAVES_BONUS_POINTS = 15
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
 /** The bonuses a note can earn. More kinds join these as they are written. */
-export type BonusKind = 'streak' | 'octaves'
+export type BonusKind = 'streak' | 'octaves' | 'tempo'
 
 /** One bonus that landed: what it was for, and what it was worth. */
 export type Bonus = { kind: BonusKind; points: number }
@@ -258,6 +307,41 @@ export function judgeDetection(
  */
 export const octavesBonus = (noteWindow: NoteWindow): Bonus | null =>
   noteWindow.octaves.size >= 2 ? { kind: 'octaves', points: OCTAVES_BONUS_POINTS } : null
+
+/**
+ * The tempo bonus, for a string struck close enough to a click. `struckAt` is
+ * the moment of the strike — the first frame of a sustain, not the one that
+ * confirmed it — and `beatTimes` the last few beats that sounded, oldest first.
+ *
+ * The interval comes from the two most recent entries because they are
+ * *adjacent* beats: a ring that kept only the beats which call a note would put
+ * a whole note span between neighbours and report an interval several times too
+ * long, which would pay for playing badly out of time. Fewer than two entries,
+ * or two that do not run forwards, is not an interval, and no bonus is invented
+ * from it. Every entry is asked, not just the last: the click a player was
+ * aiming at is as often the one just gone as the one just arrived.
+ *
+ * The window around a click is not symmetrical — see `TEMPO_CLICK_SHADOW_S`.
+ * Ahead of it there is the tolerance and nothing more; behind it there is the
+ * stretch of time the click's own sound keeps the strike from being heard at
+ * all, up to the ceiling that stops the window reaching the next click.
+ */
+export function tempoBonus(struckAt: number, beatTimes: number[]): Bonus | null {
+  if (beatTimes.length < 2) {
+    return null
+  }
+
+  const interval = beatTimes[beatTimes.length - 1] - beatTimes[beatTimes.length - 2]
+  if (!(interval > 0)) {
+    return null
+  }
+
+  const early = interval * TEMPO_TOLERANCE_FRACTION
+  const late = Math.min(early + TEMPO_CLICK_SHADOW_S, interval * TEMPO_LATE_MAX_FRACTION)
+  const inTime = beatTimes.some((time) => time - struckAt <= early && struckAt - time <= late)
+
+  return inTime ? { kind: 'tempo', points: TEMPO_BONUS_POINTS } : null
+}
 
 /**
  * Banks a correct note: the count, the response time, the streak it continues,
