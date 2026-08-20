@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { BeatEvent } from '../lib/playback/machine'
 import {
+  applyBonus,
   applyHit,
   applyMiss,
   claimBonus,
   EMPTY_TALLY,
   judgeDetection,
+  octavesBonus,
   openWindow,
   streakBonus,
   type Bonus,
@@ -83,6 +85,12 @@ export type UseNoteScoringOptions = {
  * closes, so the accuracy readout is about the note on screen instead of the
  * one before it. Closing a window can therefore only ever score a miss: a hit
  * was already banked when it happened.
+ *
+ * The window goes on listening after it has answered, because a bonus can still
+ * be earned on a note already got right — a second octave is played after the
+ * first, not instead of it. Banking the note is therefore tied to the moment
+ * the verdict *changes* from unanswered to hit, and not to the window refusing
+ * to move: every frame after that one can only ever add points.
  *
  * A note that is still open when playback pauses or stops, or when the
  * microphone drops out under it, is dropped rather than missed — nobody was
@@ -187,14 +195,32 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
           return
         }
 
-        const judged = judgeDetection(store.open, heard)
-        if (judged === store.open) {
+        const previous = store.open
+        const judged = judgeDetection(previous, heard)
+        if (judged === previous) {
           return
         }
 
         store.open = judged
         const verdict = judged.verdict
         if (verdict === null || !verdict.hit) {
+          return
+        }
+
+        if (previous.verdict !== null) {
+          // The note was banked when it was answered; this is a later frame of
+          // the same note. Only a bonus can come of it, and only through
+          // `applyBonus` — anything else here would count the note twice.
+          const earned = octavesBonus(judged)
+          const claimed = earned === null ? null : claimBonus(judged, earned.kind)
+          if (claimed === null || earned === null) {
+            return
+          }
+
+          store.open = claimed
+          store.tally = applyBonus(store.tally, earned)
+          store.lastBonuses = [...store.lastBonuses, earned]
+          scheduleFlush()
           return
         }
 

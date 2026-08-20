@@ -23,7 +23,7 @@ type MicReadoutProps = {
 }
 
 /** What each bonus is called on the line. One key per kind, and no more. */
-const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak' }
+const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak', octaves: 'two octaves' }
 
 /** A run is only worth showing once it is one — a single note is not. */
 const STREAK_SHOWN_FROM = 2
@@ -66,6 +66,9 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * `hits/scored` is the one that says how it is actually going. They sit on the
  * same line so a player reads both in one glance, and the bonus that just
  * landed is named beside them for exactly as long as it is the last note's.
+ * "two octaves" is named as exactly that and never as two places on the neck:
+ * the microphone hears pitch, and the same note in unison two strings apart is
+ * one pitch that earns nothing.
  *
  * The tally outlives the microphone. Stopping playback closes the mic, and a
  * stopped session is exactly when someone wants to read how it went, so the

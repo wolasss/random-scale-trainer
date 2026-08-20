@@ -6,6 +6,8 @@ import {
   claimBonus,
   EMPTY_TALLY,
   judgeDetection,
+  octavesBonus,
+  OCTAVES_BONUS_POINTS,
   openWindow,
   POINTS_PER_HIT,
   SCORE_DECAY_MARGIN_S,
@@ -24,7 +26,12 @@ const CUE_END = 10.4
 const feed = (noteWindow: NoteWindow, detections: ScoredDetection[]) =>
   detections.reduce(judgeDetection, noteWindow)
 
-const heard = (pitchClass: number, audioTime: number): ScoredDetection => ({ pitchClass, audioTime })
+/** One frame. The octave only matters to the tests that name one. */
+const heard = (pitchClass: number, audioTime: number, octave = 3): ScoredDetection => ({
+  pitchClass,
+  octave,
+  audioTime,
+})
 
 /** Audio times are floats, so the response time is asserted to the millisecond. */
 const expectHit = (noteWindow: NoteWindow, responseMs: number) => {
@@ -134,10 +141,15 @@ describe('judgeDetection', () => {
     expectHit(judged, 700)
   })
 
-  it('leaves a settled verdict alone', () => {
+  it('leaves a settled verdict alone while it goes on listening', () => {
+    // The window stays open for the octaves still to be played on this note,
+    // but the answer it already gave is never revised — not by a wrong note,
+    // and not by more of the right one.
     const hit = feed(openWindow(3, BEAT_TIME, CUE_END), [heard(3, 10.7), heard(3, 10.75)])
+    const after = feed(hit, [heard(8, 10.9), heard(3, 11.2), heard(3, 11.25)])
 
-    expect(judgeDetection(hit, heard(8, 10.9))).toBe(hit)
+    expect(after.verdict).toBe(hit.verdict)
+    expectHit(after, 700)
   })
 
   it('returns the very same window when a frame told it nothing', () => {
@@ -145,6 +157,60 @@ describe('judgeDetection', () => {
     const open = openWindow(3, BEAT_TIME, CUE_END)
 
     expect(judgeDetection(open, heard(8, 10.7))).toBe(open)
+  })
+})
+
+describe('the octaves bonus', () => {
+  /** The called note got right at octave 3, exactly as any other test gets it. */
+  const hitAtOctaveThree = () => feed(openWindow(3, BEAT_TIME, CUE_END), [heard(3, 10.7, 3), heard(3, 10.75, 3)])
+
+  it('pays for the called note held at a second octave', () => {
+    const played = feed(hitAtOctaveThree(), [heard(3, 11, 4), heard(3, 11.05, 4)])
+
+    expect(played.octaves).toEqual(new Set([3, 4]))
+    expect(octavesBonus(played)).toEqual({ kind: 'octaves', points: OCTAVES_BONUS_POINTS })
+  })
+
+  it('pays it once, however long the second octave rings on', () => {
+    const claimed = claimBonus(feed(hitAtOctaveThree(), [heard(3, 11, 4), heard(3, 11.05, 4)]), 'octaves')
+    const ringingOn = feed(claimed as NoteWindow, [heard(3, 11.1, 4), heard(3, 11.15, 4)])
+
+    expect(octavesBonus(ringingOn)).not.toBeNull()
+    expect(claimBonus(ringingOn, 'octaves')).toBeNull()
+  })
+
+  it('pays nothing for the same octave played again', () => {
+    // Two unison positions on the neck are one pitch, and a pitch is the whole
+    // of what a microphone can testify to.
+    const played = feed(hitAtOctaveThree(), [heard(3, 11, 3), heard(3, 11.05, 3)])
+
+    expect(played.octaves).toEqual(new Set([3]))
+    expect(octavesBonus(played)).toBeNull()
+  })
+
+  it('pays nothing for a single stray frame at another octave', () => {
+    // Which is exactly the subharmonic the detector's octave rule makes
+    // unlikely rather than impossible.
+    const played = feed(hitAtOctaveThree(), [heard(3, 11, 2), heard(3, 11.05, 3), heard(3, 11.1, 4)])
+
+    expect(octavesBonus(played)).toBeNull()
+  })
+
+  it('needs the second octave sustained, not merely heard twice', () => {
+    const played = feed(hitAtOctaveThree(), [heard(3, 11, 4), heard(3, 11 + SUSTAIN_MAX_GAP_S + 0.01, 4)])
+
+    expect(octavesBonus(played)).toBeNull()
+  })
+
+  it('changes nothing about the hit it rides on', () => {
+    const hit = hitAtOctaveThree()
+    const played = feed(hit, [heard(3, 11, 4), heard(3, 11.05, 4)])
+
+    expect(octavesBonus(played)).not.toBeNull()
+    // The answer, when it was given, and what it was worth are all untouched.
+    expectHit(played, 700)
+    expect(played.candidateAt).toBe(hit.candidateAt)
+    expect(played.awarded).toEqual(hit.awarded)
   })
 })
 

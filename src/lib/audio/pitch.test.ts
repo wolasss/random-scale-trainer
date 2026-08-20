@@ -87,11 +87,25 @@ describe('detectPitch', () => {
 
 describe('frequencyToPitch', () => {
   it('is exact at concert A', () => {
-    expect(frequencyToPitch(440)).toEqual({ pitchClass: 9, cents: 0 })
+    expect(frequencyToPitch(440)).toEqual({ pitchClass: 9, cents: 0, octave: 4 })
   })
 
   it('names middle C', () => {
     expect(frequencyToPitch(261.63).pitchClass).toBe(0)
+  })
+
+  it('separates the same note in two octaves', () => {
+    // Low E and the E an octave above it: one pitch class, two octaves, which
+    // is the whole of what the octaves bonus grades on.
+    expect(frequencyToPitch(82.41)).toMatchObject({ pitchClass: 4, octave: 2 })
+    expect(frequencyToPitch(164.81)).toMatchObject({ pitchClass: 4, octave: 3 })
+  })
+
+  it('turns the octave over at C, not at A', () => {
+    // The MIDI convention: B3 and the C above it are a semitone and an octave
+    // apart, so a B and the C over it must never read as the same octave.
+    expect(frequencyToPitch(246.94)).toMatchObject({ pitchClass: 11, octave: 3 })
+    expect(frequencyToPitch(261.63)).toMatchObject({ pitchClass: 0, octave: 4 })
   })
 
   it('reports how flat a detuned string is', () => {

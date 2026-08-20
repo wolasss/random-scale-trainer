@@ -257,6 +257,24 @@ describe('MicReadout', () => {
       expect(screen.getByTestId('score-bonus')).toHaveTextContent('+5 streak')
     })
 
+    it('names the octaves bonus as two octaves, not two places on the neck', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{
+            lastVerdict: { hit: true, responseMs: 320 },
+            hits: 2,
+            scored: 2,
+            points: 35,
+            streak: 2,
+            bonuses: [{ kind: 'octaves', points: 15 }],
+          }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-bonus')).toHaveTextContent('+15 two octaves')
+    })
+
     it('keeps the points out while there is nothing scored to add them to', () => {
       render(<MicReadout {...props} score={{ lastVerdict: null, hits: 0, scored: 0, ...NO_POINTS }} />)
 

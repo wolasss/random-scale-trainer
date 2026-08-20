@@ -45,7 +45,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
-  changes nothing else
+  changes nothing else. Finding the called note in two octaves before the next one is called earns a
+  bonus — the mic hears pitch and nothing else, so two unison positions are one octave and earn
+  nothing
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
