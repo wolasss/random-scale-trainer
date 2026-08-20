@@ -12,9 +12,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
   with a NEXT preview and a "note N of M" cycle position
-- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the
-  six major keys, the A/E/D minor pentatonics and A minor blues) — plus Custom, which is what the
-  selector reads back once the chips no longer match a preset
+- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the eight
+  major keys — C, G, D, A, E, F, B♭ and E♭ — the A/E/D minor pentatonics and A minor blues) — plus Custom,
+  which is what the selector reads back once the chips no longer match a preset
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -32,9 +32,10 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   reported as "adjusted, next block resets it" rather than silently overridden
 - Practice log: 14 days of daily bars, current and best streak (a day counts at one minute of
   practice), and rolling 7-day minutes/notes totals. A History button on the card opens the whole log
-  — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
-  JSON backup export/import, where an import merges with what is already there (keeping the longer of
-  any two days) rather than replacing it
+  — a month-by-month heatmap with each day shaded by minutes and tappable to read its minutes and notes
+  out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
+  export/import, where an import merges with what is already there (keeping the longer of any two days)
+  rather than replacing it
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
@@ -59,7 +60,7 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - The screen is kept awake while playing, and playback stops itself after a minute in the
   background rather than clicking on in a pocket
 - Light/dark theme, and every setting persisted to localStorage
-- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, R reset
+- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, T tap tempo, R reset
 
 ## Run locally
 
