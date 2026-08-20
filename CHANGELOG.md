@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/wolasss/random-scale-trainer/compare/v1.13.0...v1.14.0) (2026-08-20)
+
+
+### Features
+
+* **scoring:** bonus for playing the called note in two octaves ([#124](https://github.com/wolasss/random-scale-trainer/issues/124)) ([a10f00d](https://github.com/wolasss/random-scale-trainer/commit/a10f00d7457cd6c387479e85075b4beeb3ae7c86))
+
 # [1.13.0](https://github.com/wolasss/random-scale-trainer/compare/v1.12.3...v1.13.0) (2026-08-19)
 
 
