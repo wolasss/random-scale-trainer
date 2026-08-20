@@ -23,7 +23,7 @@ type MicReadoutProps = {
 }
 
 /** What each bonus is called on the line. One key per kind, and no more. */
-const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak', octaves: 'two octaves' }
+const BONUS_LABELS: Record<BonusKind, string> = { streak: 'streak', octaves: 'two octaves', tempo: 'in time' }
 
 /** A run is only worth showing once it is one — a single note is not. */
 const STREAK_SHOWN_FROM = 2

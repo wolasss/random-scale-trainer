@@ -14,6 +14,9 @@ import {
   streakBonus,
   STREAK_BONUS_MAX,
   SUSTAIN_MAX_GAP_S,
+  TEMPO_BONUS_POINTS,
+  TEMPO_TOLERANCE_FRACTION,
+  tempoBonus,
   type NoteWindow,
   type ScoredDetection,
   type Tally,
@@ -211,6 +214,54 @@ describe('the octaves bonus', () => {
     expectHit(played, 700)
     expect(played.candidateAt).toBe(hit.candidateAt)
     expect(played.awarded).toEqual(hit.awarded)
+  })
+})
+
+describe('the tempo bonus', () => {
+  /** A half-second grid: 120 BPM, which is the middle of the app's range. */
+  const GRID = [9.5, 10, 10.5]
+  const TOLERANCE = 0.5 * TEMPO_TOLERANCE_FRACTION
+  const PAID = { kind: 'tempo', points: TEMPO_BONUS_POINTS }
+
+  it('pays for a string struck on a click', () => {
+    expect(tempoBonus(10.5, GRID)).toEqual(PAID)
+  })
+
+  it('pays for a click already gone by, not just the latest one', () => {
+    // The player was aiming at the beat before last and the ring has moved on.
+    expect(tempoBonus(10.01, GRID)).toEqual(PAID)
+  })
+
+  it('pays nothing for a strike between two clicks', () => {
+    expect(tempoBonus(10.25, GRID)).toBeNull()
+  })
+
+  it('pays inside the tolerance and not outside it', () => {
+    // Asserted either side of the edge rather than on it: the exact boundary is
+    // a float subtraction, and what matters is which side of it pays.
+    expect(tempoBonus(10.5 + TOLERANCE * 0.99, GRID)).toEqual(PAID)
+    expect(tempoBonus(10.5 + TOLERANCE * 1.01, GRID)).toBeNull()
+    expect(tempoBonus(10.5 - TOLERANCE * 0.99, GRID)).toEqual(PAID)
+    expect(tempoBonus(10.5 - TOLERANCE * 1.01, GRID)).toBeNull()
+  })
+
+  it('pays nothing when there is no interval to measure', () => {
+    // One beat, or none, is not a tempo — and a guessed interval would be a
+    // guessed answer.
+    expect(tempoBonus(10, [])).toBeNull()
+    expect(tempoBonus(10, [10])).toBeNull()
+    expect(tempoBonus(10, [10, 10])).toBeNull()
+  })
+
+  it('measures the interval from the two most recent beats', () => {
+    // The tempo just changed — the speed ramp does this every completed round —
+    // and it is the beats that have actually sounded that say what it is now,
+    // never a BPM handed down from the UI.
+    const ramped = [9, 10, 10.4]
+
+    expect(tempoBonus(10.4 + 0.4 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toEqual(PAID)
+    // Inside a tolerance drawn from the old, slower interval; outside this one.
+    expect(tempoBonus(10.4 + 0.5 * TEMPO_TOLERANCE_FRACTION * 0.99, ramped)).toBeNull()
   })
 })
 

@@ -80,6 +80,29 @@ export const STREAK_BONUS_MAX = 25
 export const OCTAVES_BONUS_POINTS = 15
 
 /**
+ * The tempo bonus: the string was struck on a click rather than somewhere
+ * between two.
+ *
+ * The tolerance is a fraction of the beat interval, and that interval is
+ * measured from two adjacent beats that actually sounded — never from a BPM
+ * setting handed down from the UI. Scoring is arithmetic on the audio clock and
+ * nothing else, and the speed ramp moves the BPM underneath a session anyway;
+ * two ticks that happened are the only honest statement of how far apart ticks
+ * are right now. With fewer than two of them to measure, nothing is awarded:
+ * guessing an interval would be guessing the answer.
+ *
+ * What it can be earned on depends on the note-change rate. At
+ * `beatsPerNote = 1` every beat starts a note, so the only tick to be in time
+ * with is the call itself — and a window does not open until the app has
+ * finished speaking that call, so there is almost nothing left to play in time
+ * with. From two beats per note up there are in-span ticks under the note, and
+ * those are the ones this bonus is really for. That is the shape of the
+ * feature, not a gap in it.
+ */
+export const TEMPO_BONUS_POINTS = 10
+export const TEMPO_TOLERANCE_FRACTION = 0.15
+
+/**
  * What happened on one called note. A hit always knows how long it took; a
  * miss has nothing to time, which is why the two are one union rather than a
  * flag beside a nullable number.
@@ -87,7 +110,7 @@ export const OCTAVES_BONUS_POINTS = 15
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
 /** The bonuses a note can earn. More kinds join these as they are written. */
-export type BonusKind = 'streak' | 'octaves'
+export type BonusKind = 'streak' | 'octaves' | 'tempo'
 
 /** One bonus that landed: what it was for, and what it was worth. */
 export type Bonus = { kind: BonusKind; points: number }
@@ -258,6 +281,35 @@ export function judgeDetection(
  */
 export const octavesBonus = (noteWindow: NoteWindow): Bonus | null =>
   noteWindow.octaves.size >= 2 ? { kind: 'octaves', points: OCTAVES_BONUS_POINTS } : null
+
+/**
+ * The tempo bonus, for a string struck close enough to a click. `struckAt` is
+ * the moment of the strike — the first frame of a sustain, not the one that
+ * confirmed it — and `beatTimes` the last few beats that sounded, oldest first.
+ *
+ * The interval comes from the two most recent entries because they are
+ * *adjacent* beats: a ring that kept only the beats which call a note would put
+ * a whole note span between neighbours and report an interval several times too
+ * long, which would pay for playing badly out of time. Fewer than two entries,
+ * or two that do not run forwards, is not an interval, and no bonus is invented
+ * from it. Which beat is nearest is asked of every entry, not just the last:
+ * the click a player was aiming at is as often the one just gone as the one
+ * just arrived.
+ */
+export function tempoBonus(struckAt: number, beatTimes: number[]): Bonus | null {
+  if (beatTimes.length < 2) {
+    return null
+  }
+
+  const interval = beatTimes[beatTimes.length - 1] - beatTimes[beatTimes.length - 2]
+  if (!(interval > 0)) {
+    return null
+  }
+
+  const offBy = Math.min(...beatTimes.map((time) => Math.abs(struckAt - time)))
+
+  return offBy <= interval * TEMPO_TOLERANCE_FRACTION ? { kind: 'tempo', points: TEMPO_BONUS_POINTS } : null
+}
 
 /**
  * Banks a correct note: the count, the response time, the streak it continues,
