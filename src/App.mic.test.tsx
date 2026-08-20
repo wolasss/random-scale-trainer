@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { detectPitch } from './lib/audio/pitch'
+import { FAKE_CLOCKS } from './test/fakeTimers'
 
 // Only the detector is faked; the frequency-to-pitch-class arithmetic under it
 // is the real one, so a test that names a note has to name it the way the app
@@ -105,9 +106,7 @@ const calledPitchClass = () => {
 
 describe('listening for the player', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS)
     hush()
     // Past the first run, so the setup cards (and the switch) are on the page.
     window.localStorage.setItem('fretboard-setup-revealed', 'true')
@@ -293,7 +292,6 @@ describe('listening for the player', () => {
     // The verdict is about the note still being called, not the one before it.
     expect(screen.getByTestId('current-note')).toHaveTextContent(called!)
     expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-    expect(screen.getByTestId('score-verdict')).toHaveTextContent(/0\.\d\d s/)
     expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
   })

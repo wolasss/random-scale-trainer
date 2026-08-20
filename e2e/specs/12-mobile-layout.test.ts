@@ -1,6 +1,6 @@
 import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { OVERFLOW_ROOTS, type Overflow } from '../pages/trainer.page.ts'
+import { OVERFLOW_ROOTS, STORAGE_KEYS, type Overflow } from '../pages/trainer.page.ts'
 import { useTrainerSession } from '../session.ts'
 
 /**
@@ -48,7 +48,10 @@ describe('mobile layout', () => {
     })
 
     describe(`a ${width}px installed app`, () => {
-      const page = useTrainerSession({ mobileWidth: width, standalone: true })
+      // The mic readout — and the score row it can grow — only mounts once mic
+      // listening is on, and a real hit needs a real microphone. fakeMedia
+      // answers getUserMedia with a synthetic device so listening can start.
+      const page = useTrainerSession({ mobileWidth: width, standalone: true, fakeMedia: true })
 
       beforeEach(async () => {
         await page().openFresh()
@@ -65,6 +68,16 @@ describe('mobile layout', () => {
 
         await page().openSetupSheet()
         assertNoOverflow('the practice sheet', width, await page().measureOverflow(OVERFLOW_ROOTS.sheet))
+      })
+
+      it(`fits the stage with a scored mic readout on a ${width}px installed app`, async () => {
+        await page().seedStorageAndReload(STORAGE_KEYS.micListen, 'true')
+        assert.ok(await page().hasMicReadout(), 'expected the mic readout to be on the stage')
+
+        await page().clickPlayPause()
+        await page().waitForScoreRow()
+
+        assertNoOverflow('the stage with a score', width, await page().measureOverflow(OVERFLOW_ROOTS.page))
       })
     })
   }

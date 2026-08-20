@@ -3,24 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { STORAGE_KEYS } from './constants'
 import { dayKey, shiftDays, type PracticeHistory } from './lib/history'
+import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 // Default 72 BPM → 0.833s beats; count-in is 4 beats starting 50ms in.
@@ -47,18 +33,7 @@ const practiceFor = async (ms: number) => {
 
 describe('practice log', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: [
-        'setTimeout',
-        'clearTimeout',
-        'setInterval',
-        'clearInterval',
-        'Date',
-        'performance',
-        'requestAnimationFrame',
-        'cancelAnimationFrame',
-      ],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS_AND_FRAMES)
     // Mid-day local time, so advancing the clock mid-test never crosses midnight.
     vi.setSystemTime(new Date('2026-06-15T12:00:00'))
   })

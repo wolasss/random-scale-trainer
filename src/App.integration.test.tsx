@@ -3,26 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { dayKey, readHistory, serializeBackup } from './lib/history'
 import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
+import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
-// The fake engine accepts every scheduled sound and reports the faked
-// performance clock, so beats become due as the fake timers advance.
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 const NOTE_PATTERN = /^[A-G][♯♭]?$/
@@ -72,18 +56,7 @@ const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 
 describe('App integration', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: [
-        'setTimeout',
-        'clearTimeout',
-        'setInterval',
-        'clearInterval',
-        'Date',
-        'performance',
-        'requestAnimationFrame',
-        'cancelAnimationFrame',
-      ],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS_AND_FRAMES)
   })
 
   afterEach(() => {

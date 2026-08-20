@@ -1,35 +1,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { soundLog } from './test/fakeAudioEngine'
+import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
-/** Every sound the machine schedules, with the audio-clock time it lands at. */
-type ScheduledSound = { kind: 'click' | 'note'; key: string; time: number }
-const scheduled: ScheduledSound[] = []
-let stopScheduledCalls = 0
-
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt(time: number) {
-      scheduled.push({ kind: 'click', key: 'click', time })
-    }
-    playNoteAt(key: string, time: number) {
-      scheduled.push({ kind: 'note', key, time })
-    }
-    playSessionEndChime() {}
-    stopScheduledSounds() {
-      stopScheduledCalls += 1
-    }
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 const chip = (id: string) => screen.getByTestId(`routine-chip-${id}`)
@@ -58,20 +34,8 @@ const startPractice = async (bpmValue: number) => {
 
 describe('Routines', () => {
   beforeEach(() => {
-    scheduled.length = 0
-    stopScheduledCalls = 0
-    vi.useFakeTimers({
-      toFake: [
-        'setTimeout',
-        'clearTimeout',
-        'setInterval',
-        'clearInterval',
-        'Date',
-        'performance',
-        'requestAnimationFrame',
-        'cancelAnimationFrame',
-      ],
-    })
+    soundLog.record()
+    vi.useFakeTimers(FAKE_CLOCKS_AND_FRAMES)
   })
 
   afterEach(() => {
@@ -597,7 +561,7 @@ describe('Routines', () => {
     // The block clock starts on the first real note and runs for the block's
     // 6s, so one coarse jump gets to within half a second of the switch without
     // paying for a render in between. The guard makes an overshoot loud.
-    const firstNoteMs = scheduled.find((sound) => sound.kind === 'note')!.time * 1_000
+    const firstNoteMs = soundLog.sounds.find((sound) => sound.kind === 'note')!.time * 1_000
     await act(async () => {
       vi.advanceTimersByTime(firstNoteMs + 6_000 - 500 - performance.now())
     })
@@ -623,7 +587,7 @@ describe('Routines', () => {
       vi.advanceTimersByTime(2_000)
     })
 
-    const notes = scheduled.filter((sound) => sound.kind === 'note')
+    const notes = soundLog.sounds.filter((sound) => sound.kind === 'note')
     const afterBoundary = notes.filter((sound) => sound.time > boundaryAt!)
     expect(afterBoundary.length).toBeGreaterThan(0)
     expect(afterBoundary.filter((sound) => NATURAL_KEYS.has(sound.key))).toEqual([])
@@ -631,8 +595,8 @@ describe('Routines', () => {
     // Queued audio is deliberately left to drain rather than cancelled: killing
     // it mid-flight would break the click's pulse at every boundary, which is
     // the one thing the look-ahead scheduler exists to prevent.
-    expect(stopScheduledCalls).toBe(0)
-    const clicks = scheduled
+    expect(soundLog.stopScheduledCalls).toBe(0)
+    const clicks = soundLog.sounds
       .filter((sound) => sound.kind === 'click' && sound.time > boundaryAt! - 1 && sound.time < boundaryAt! + 1)
       .map((sound) => sound.time)
     const gaps = clicks.slice(1).map((time, index) => time - clicks[index])

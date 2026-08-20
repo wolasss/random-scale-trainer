@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
   endSoundEnabled: true,
+  showFretboard: true,
 }
 
 type HarnessOptions = {
@@ -332,6 +333,65 @@ describe('look-ahead scheduling', () => {
     expect(times[1] - times[0]).toBeCloseTo(1, 6) // 60 BPM
     const lastDelta = times[times.length - 1] - times[times.length - 2]
     expect(lastDelta).toBeCloseTo(0.5, 6) // 120 BPM
+  })
+
+  /**
+   * A beat surfaces up to a look-ahead after it was scheduled, and the settings
+   * can move in between — a tempo nudge, or the speed ramp's own step. What
+   * scoring is told about a note has to be what the note was *called* under, or
+   * it prices the note at a tempo the player never heard.
+   */
+  it('prices a beat at the settings it was scheduled under, not the ones it surfaces under', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 1 }, spelling: 'sharp' })
+    await harness.machine.start()
+
+    // Beats fall at 0.05, 1.05 and 2.05 at 60 BPM. At 0.9 the 1.05 beat is
+    // already scheduled — it went in once the clock passed 0.80 — and
+    // nextBeatTime has already advanced to 2.05 at the old beat duration.
+    harness.advanceTo(0.9)
+    expect(harness.beats.map((beat) => beat.time)).toEqual([0.05])
+
+    harness.settings.bpm = 120
+    harness.settings.beatsPerNote = 2
+    harness.state.spelling = 'flat'
+
+    harness.advanceTo(1.1)
+    const surfaced = harness.beats.find((beat) => Math.abs(beat.time - 1.05) < 1e-6)
+    expect(surfaced?.difficulty).toEqual({ spelling: 'sharp', showFretboard: true, bpm: 60, beatsPerNote: 1 })
+
+    // The beat after it is scheduled after the change, so it is priced at it.
+    harness.advanceTo(2.1)
+    const priced = harness.beats.filter((beat) => beat.difficulty !== undefined).at(-1)
+    expect(priced?.difficulty).toEqual({ spelling: 'flat', showFretboard: true, bpm: 120, beatsPerNote: 2 })
+  })
+
+  it('prices a note at the tempo it was called at, not the ramp step under it', async () => {
+    // The ramp bumps the tempo on the boundary beat itself. That beat's time
+    // was fixed by the previous beat's duration, so the new tempo belongs to
+    // the beat after it.
+    const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true, rampTargetBpm: 120 } })
+    await harness.machine.start()
+
+    harness.advanceTo(3.2)
+
+    expect(harness.bpmChanges).toEqual([62])
+    const priced = harness.beats.filter((beat) => beat.difficulty !== undefined).map((beat) => beat.difficulty?.bpm)
+    // The boundary note — the third — is still called at 60; only the one after
+    // it is called at the tempo the ramp moved to.
+    expect(priced).toEqual([60, 60, 60, 62])
+  })
+
+  it('leaves a beat that calls no note unpriced', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 2, countInEnabled: true } })
+    await harness.machine.start()
+
+    harness.advanceTo(8.1)
+
+    for (const beat of harness.beats) {
+      expect(beat.difficulty === undefined).toBe(beat.note === undefined)
+    }
+    expect(harness.beats.some((beat) => beat.isCountIn)).toBe(true)
+    expect(harness.beats.some((beat) => !beat.isCountIn && beat.note === undefined)).toBe(true)
   })
 })
 

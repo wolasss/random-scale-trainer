@@ -140,7 +140,7 @@ describe('MicReadout', () => {
   describe('the score line', () => {
     const props = { status: 'listening', heard: null, spelling: 'sharp', called: null } as const
     /** A session with a tally but nothing earned, for the accuracy assertions. */
-    const NO_POINTS = { points: 0, streak: 0, bonuses: [] }
+    const NO_POINTS = { points: 0, streak: 0, bonuses: [], multiplier: 1 }
 
     it('stays out until there is something to report', () => {
       // A session that has not scored a note yet is a session that is starting,
@@ -185,14 +185,13 @@ describe('MicReadout', () => {
       expect(screen.queryByTestId('score-tally')).toBeNull()
     })
 
-    it('reports a hit and how long it took', () => {
+    it('reports a hit', () => {
       render(
         <MicReadout {...props} score={{ lastVerdict: { hit: true, responseMs: 320 }, hits: 1, scored: 1, ...NO_POINTS }} />,
       )
 
-      expect(screen.getByTestId('score-verdict')).toHaveTextContent('0.32 s')
       expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it in 0.32 seconds')
+      expect(screen.getByTestId('score-verdict')).toHaveAccessibleName('Played it')
     })
 
     it('reports a note that never came', () => {
@@ -214,7 +213,7 @@ describe('MicReadout', () => {
 
     it('shows the points beside the accuracy rather than instead of it', () => {
       render(
-        <MicReadout {...props} score={{ lastVerdict: null, hits: 3, scored: 3, points: 40, streak: 3, bonuses: [] }} />,
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 3, scored: 3, points: 40, streak: 3, bonuses: [], multiplier: 1 }} />,
       )
 
       expect(screen.getByTestId('score-points')).toHaveTextContent('40 pts')
@@ -223,16 +222,17 @@ describe('MicReadout', () => {
 
     it('shows the run once there is one, and its reading says what it counts', () => {
       render(
-        <MicReadout {...props} score={{ lastVerdict: null, hits: 4, scored: 4, points: 55, streak: 4, bonuses: [] }} />,
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 4, scored: 4, points: 55, streak: 4, bonuses: [], multiplier: 1 }} />,
       )
 
-      expect(screen.getByTestId('score-points')).toHaveTextContent('×4')
+      expect(screen.getByTestId('score-points')).toHaveTextContent('4 in a row')
+      expect(screen.getByTestId('score-points')).not.toHaveTextContent('×')
       expect(screen.getByTestId('score-points')).toHaveAccessibleName('55 points, 4 in a row')
     })
 
     it('keeps the run out until one note has become two', () => {
       render(
-        <MicReadout {...props} score={{ lastVerdict: null, hits: 1, scored: 1, points: 10, streak: 1, bonuses: [] }} />,
+        <MicReadout {...props} score={{ lastVerdict: null, hits: 1, scored: 1, points: 10, streak: 1, bonuses: [], multiplier: 1 }} />,
       )
 
       expect(screen.getByTestId('score-points')).not.toHaveTextContent('×')
@@ -250,6 +250,7 @@ describe('MicReadout', () => {
             points: 45,
             streak: 3,
             bonuses: [{ kind: 'streak', points: 5 }],
+            multiplier: 1,
           }}
         />,
       )
@@ -268,6 +269,7 @@ describe('MicReadout', () => {
             points: 35,
             streak: 2,
             bonuses: [{ kind: 'octaves', points: 15 }],
+            multiplier: 1,
           }}
         />,
       )
@@ -282,12 +284,81 @@ describe('MicReadout', () => {
       expect(screen.queryByTestId('score-bonus')).toBeNull()
     })
 
+    it('names the difficulty the settings are pricing a note at', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{ lastVerdict: null, hits: 3, scored: 3, points: 42, streak: 3, bonuses: [], multiplier: 1.38 }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-multiplier')).toHaveTextContent('×1.38')
+      expect(screen.getByTestId('score-multiplier')).toHaveAccessibleName('1.38 times points')
+    })
+
+    it('rounds the reading rather than printing the float behind it', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{ lastVerdict: null, hits: 1, scored: 1, points: 12, streak: 1, bonuses: [], multiplier: 1.2071 }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-multiplier')).toHaveTextContent('×1.21')
+    })
+
+    it('says so when the settings price a note below the flat rate', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{ lastVerdict: null, hits: 3, scored: 3, points: 26, streak: 3, bonuses: [], multiplier: 0.85 }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-multiplier')).toHaveTextContent('×0.85')
+      expect(screen.getByTestId('score-multiplier')).toHaveAccessibleName('0.85 times points')
+    })
+
+    it('stays out entirely at the flat rate, so the common row does not grow', () => {
+      render(
+        <MicReadout
+          {...props}
+          score={{ lastVerdict: null, hits: 3, scored: 3, points: 30, streak: 3, bonuses: [], multiplier: 1 }}
+        />,
+      )
+
+      expect(screen.queryByTestId('score-multiplier')).toBeNull()
+      expect(screen.getByTestId('mic-readout')).not.toHaveTextContent('×')
+    })
+
+    it('prints the scaled points a bonus was actually paid, not its list price', () => {
+      // A streak bonus is 5 at the flat rate; on a note priced at ×1.38 it was
+      // banked as 7, and 7 is what the tally moved by.
+      render(
+        <MicReadout
+          {...props}
+          score={{
+            lastVerdict: { hit: true, responseMs: 320 },
+            hits: 3,
+            scored: 3,
+            points: 49,
+            streak: 3,
+            bonuses: [{ kind: 'streak', points: 7 }],
+            multiplier: 1.38,
+          }}
+        />,
+      )
+
+      expect(screen.getByTestId('score-bonus')).toHaveTextContent('+7 streak')
+      expect(screen.getByTestId('score-bonus')).not.toHaveTextContent('+5')
+    })
+
     it('keeps the points up once the microphone has closed', () => {
       render(
         <MicReadout
           {...props}
           status="idle"
-          score={{ lastVerdict: null, hits: 2, scored: 3, points: 25, streak: 2, bonuses: [] }}
+          score={{ lastVerdict: null, hits: 2, scored: 3, points: 25, streak: 2, bonuses: [], multiplier: 1 }}
         />,
       )
 

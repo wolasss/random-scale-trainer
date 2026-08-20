@@ -1,7 +1,17 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BeatEvent } from '../lib/playback/machine'
-import { EMPTY_TALLY, OCTAVES_BONUS_POINTS, POINTS_PER_HIT, TEMPO_BONUS_POINTS } from '../lib/scoring'
+import {
+  difficultyMultiplier,
+  EMPTY_TALLY,
+  hitAward,
+  OCTAVES_BONUS_POINTS,
+  POINTS_PER_HIT,
+  scaleBonus,
+  TEMPO_BONUS_POINTS,
+  type DifficultyInputs,
+} from '../lib/scoring'
+import { DEFAULT_BPM } from '../constants'
 import type { HeardPitch } from './useMicPitch'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
@@ -29,8 +39,21 @@ const createFakeEngine = (cueEnd: number | null = null) => ({
   getCueEndForBeat: vi.fn(() => cueEnd),
 })
 
-/** A beat that calls a note. `pc` omitted is a mid-span beat. */
-const beat = (time: number, pc?: number): BeatEvent => ({
+/**
+ * Mixed sharps and flats with the fretboard map put away, at the default
+ * tempo: ×1.38, which is what a note called under it is priced at.
+ */
+const HARD: DifficultyInputs = { spelling: 'mixed', showFretboard: false, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+const HARD_MULTIPLIER = difficultyMultiplier(HARD)
+
+/** The same session with the map back on screen and one spelling: the flat rate. */
+const EASY: DifficultyInputs = { spelling: 'sharp', showFretboard: true, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+
+/**
+ * A beat that calls a note. `pc` omitted is a mid-span beat, which carries no
+ * price because it calls nothing.
+ */
+const beat = (time: number, pc?: number, difficulty?: DifficultyInputs): BeatEvent => ({
   time,
   accent: pc !== undefined,
   isCountIn: false,
@@ -38,6 +61,7 @@ const beat = (time: number, pc?: number): BeatEvent => ({
     pc === undefined
       ? undefined
       : { pc, display: 'X', audioKey: 'X', cycleStart: false, bagSize: 12 },
+  difficulty: pc === undefined ? undefined : difficulty,
   nextNote: null,
   beatInSpan: 0,
   positionInCycle: 0,
@@ -609,11 +633,155 @@ describe('useNoteScoring', () => {
     })
   })
 
+  /**
+   * What a note is worth is decided by the settings it was *called* under, and
+   * those ride in on the beat rather than being read when the points land.
+   */
+  describe('the difficulty multiplier', () => {
+    it('prices a note at the settings the beat that called it carried', async () => {
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3, HARD))
+      })
+      await act(async () => {
+        mic.emit(3, 10.2)
+        mic.emit(3, 10.25)
+      })
+
+      expect(HARD_MULTIPLIER).toBeCloseTo(1.38, 10)
+      expect(result.current.multiplier).toBeCloseTo(1.38, 10)
+      expect(result.current.tally.points).toBe(hitAward(HARD_MULTIPLIER))
+      expect(result.current.tally.points).toBe(14)
+    })
+
+    it('pays the flat rate for a beat that carries no settings at all', async () => {
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+      })
+      await act(async () => {
+        mic.emit(3, 10.2)
+        mic.emit(3, 10.25)
+      })
+
+      expect(result.current.multiplier).toBe(1)
+      expect(result.current.tally.points).toBe(POINTS_PER_HIT)
+    })
+
+    it('re-prices on the next note called, and only then', async () => {
+      const { result, mic } = setup()
+
+      for (const [time, difficulty] of [
+        [10, HARD],
+        [20, EASY],
+      ] as const) {
+        await act(async () => {
+          result.current.handleBeat(beat(time, 3, difficulty))
+        })
+        await act(async () => {
+          mic.emit(3, time + 0.2)
+          mic.emit(3, time + 0.25)
+        })
+      }
+
+      expect(result.current.multiplier).toBe(1)
+      // The first note keeps the 14 it was paid. The second is priced flat —
+      // and so is the in-time bonus it earned on the way, on the wide grid two
+      // note beats make.
+      expect(result.current.lastBonuses).toEqual([{ kind: 'tempo', points: TEMPO_BONUS_POINTS }])
+      expect(result.current.tally.points).toBe(hitAward(HARD_MULTIPLIER) + POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+    })
+
+    it('pays a late bonus at the price its note was called at', async () => {
+      // The next note has already been called under easier settings — its beat
+      // is queued — while the note on screen is still sounding and still
+      // earning. The window froze its own price, so this cannot be re-priced.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3, HARD))
+      })
+      await act(async () => {
+        mic.emit(3, 10.2)
+        mic.emit(3, 10.25)
+      })
+
+      const banked = result.current.tally.points
+
+      await act(async () => {
+        result.current.handleBeat(beat(11, 5, EASY))
+        // Same turn, before the queued beat is drained: the octave lands on the
+        // note that is still open.
+        mic.emit(3, 10.5, 4)
+        mic.emit(3, 10.55, 4)
+      })
+
+      const paid = scaleBonus({ kind: 'octaves', points: OCTAVES_BONUS_POINTS }, HARD_MULTIPLIER)
+
+      expect(paid.points).toBe(21)
+      expect(result.current.lastBonuses).toEqual([paid])
+      expect(result.current.tally.points).toBe(banked + paid.points)
+    })
+
+    it('reports every bonus at exactly the points it added to the tally', async () => {
+      // The claim the readout rests on: `+7 streak` beside the total means the
+      // total went up by seven, whatever the note was priced at.
+      const { result, mic } = setup()
+
+      for (const time of [10, 11, 12]) {
+        const before = result.current.tally.points
+
+        await act(async () => {
+          result.current.handleBeat(beat(time, 3, HARD))
+          result.current.handleBeat(beat(time + 0.5))
+        })
+        await act(async () => {
+          mic.emit(3, time + 0.52)
+          mic.emit(3, time + 0.57)
+        })
+
+        const bonuses = result.current.lastBonuses
+        const earned = bonuses.reduce((total, bonus) => total + bonus.points, 0)
+
+        expect(result.current.tally.points - before).toBe(hitAward(HARD_MULTIPLIER) + earned)
+      }
+
+      // Struck on a click every time, and a run by the third: both scaled.
+      expect(result.current.lastBonuses).toEqual([
+        { kind: 'streak', points: 7 },
+        { kind: 'tempo', points: 14 },
+      ])
+    })
+
+    it('does not resubscribe to the microphone when the tempo changes', async () => {
+      // Nothing about the price is a subscription input, so a tempo nudge
+      // cannot tear down and rebuild the microphone listener mid-session.
+      const mic = createFakeMic()
+      const subscribe = vi.fn(mic.subscribe)
+      const { result, rerender, initialProps } = setup({ subscribe })
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3, { ...HARD, bpm: 90 }))
+      })
+
+      rerender({ ...initialProps })
+      await settle()
+
+      await act(async () => {
+        result.current.handleBeat(beat(20, 5, { ...HARD, bpm: 160 }))
+      })
+
+      expect(subscribe).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('goes back to nothing on reset', async () => {
     const { result, mic } = setup()
 
     await act(async () => {
-      result.current.handleBeat(beat(10, 3))
+      result.current.handleBeat(beat(10, 3, HARD))
     })
     await act(async () => {
       mic.emit(3, 10.2)
@@ -627,6 +795,7 @@ describe('useNoteScoring', () => {
     expect(result.current.tally).toEqual(EMPTY_TALLY)
     expect(result.current.lastVerdict).toBeNull()
     expect(result.current.lastBonuses).toEqual([])
+    expect(result.current.multiplier).toBe(1)
 
     // ...and the note that was open is gone with it.
     await act(async () => {

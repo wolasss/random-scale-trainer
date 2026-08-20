@@ -5,10 +5,13 @@ import {
   applyHit,
   applyMiss,
   claimBonus,
+  difficultyMultiplier,
   EMPTY_TALLY,
+  hitAward,
   judgeDetection,
   octavesBonus,
   openWindow,
+  scaleBonus,
   streakBonus,
   tempoBonus,
   type Bonus,
@@ -38,9 +41,16 @@ export type ScoreSnapshot = {
   tally: Tally
   /** The bonuses that landed on the last note scored, in the order they did. */
   lastBonuses: Bonus[]
+  /** What the last note called was priced at, which is the reading on the line. */
+  multiplier: number
 }
 
-const EMPTY_SNAPSHOT: ScoreSnapshot = { lastVerdict: null, tally: EMPTY_TALLY, lastBonuses: NO_BONUSES }
+const EMPTY_SNAPSHOT: ScoreSnapshot = {
+  lastVerdict: null,
+  tally: EMPTY_TALLY,
+  lastBonuses: NO_BONUSES,
+  multiplier: 1,
+}
 
 /**
  * Everything scoring knows, in refs. React sees only `snapshot`, and only when
@@ -51,6 +61,8 @@ type ScoringStore = {
   tally: Tally
   lastVerdict: NoteVerdict | null
   lastBonuses: Bonus[]
+  /** The price in force, kept past the window that froze it so it stays readable. */
+  multiplier: number
   snapshot: ScoreSnapshot
   pendingBeats: BeatEvent[]
   /** The last few clicks that sounded, oldest first: the beat grid. */
@@ -64,6 +76,7 @@ const createStore = (): ScoringStore => ({
   tally: EMPTY_TALLY,
   lastVerdict: null,
   lastBonuses: NO_BONUSES,
+  multiplier: 1,
   snapshot: EMPTY_SNAPSHOT,
   pendingBeats: [],
   beatTimes: [],
@@ -122,9 +135,21 @@ export type UseNoteScoringOptions = {
  * finished speaking it; from two beats per note up there are in-span clicks
  * under the note, which is where the bonus really lives.
  *
+ * What a note is worth rides in on the beat that called it, not out of the
+ * settings. `onBeat` fires at visual time, and the beat behind it was scheduled
+ * up to a look-ahead earlier — so reading the settings here would price a note
+ * at a tempo or a span it was never called at, which is exactly what a ramp
+ * step or a tempo nudge inside that window produces. The machine carries the
+ * four inputs instead, `difficultyMultiplier` turns them into a price, and
+ * `openWindow` freezes it on the note. Nothing is subscribed to for it, so the
+ * microphone subscription cannot re-run because somebody moved the tempo.
+ *
  * Points ride along with the verdict, and so do the bonuses that earned them:
  * the score is session-scoped, exactly as the accuracy is, and `reset` takes
- * both back to nothing. Nothing here is written anywhere.
+ * both back to nothing. Every bonus is scaled where it is built, before the
+ * tally moves, so each entry in `lastBonuses` is the delta that landed in
+ * `points` and the readout can print it as it stands. Nothing here is written
+ * anywhere.
  */
 export function useNoteScoring({ engine, subscribe, active, running }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
@@ -144,12 +169,18 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     if (
       store.snapshot.lastVerdict === store.lastVerdict &&
       store.snapshot.tally === store.tally &&
-      store.snapshot.lastBonuses === store.lastBonuses
+      store.snapshot.lastBonuses === store.lastBonuses &&
+      store.snapshot.multiplier === store.multiplier
     ) {
       return
     }
 
-    store.snapshot = { lastVerdict: store.lastVerdict, tally: store.tally, lastBonuses: store.lastBonuses }
+    store.snapshot = {
+      lastVerdict: store.lastVerdict,
+      tally: store.tally,
+      lastBonuses: store.lastBonuses,
+      multiplier: store.multiplier,
+    }
     for (const listener of store.listeners) {
       listener()
     }
@@ -184,9 +215,11 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
           const earned = tempoBonus(open.candidateAt, store.beatTimes)
           const claimed = earned === null ? null : claimBonus(open, earned.kind)
           if (earned !== null && claimed !== null) {
+            // Priced at what its own note was called at, which the window froze.
+            const paid = scaleBonus(earned, open.multiplier)
             store.open = claimed
-            store.tally = applyBonus(store.tally, earned)
-            store.lastBonuses = [...store.lastBonuses, earned]
+            store.tally = applyBonus(store.tally, paid)
+            store.lastBonuses = [...store.lastBonuses, paid]
           }
         }
 
@@ -202,8 +235,14 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
         store.lastBonuses = NO_BONUSES
       }
 
+      // The settings this note was *called* under rode the event here, because
+      // the beat was scheduled up to a look-ahead before it surfaced. A beat
+      // carrying none of them — an older event shape, or a test one — is priced
+      // flat rather than guessed at.
+      const multiplier = event.difficulty === undefined ? 1 : difficultyMultiplier(event.difficulty)
+      store.multiplier = multiplier
       store.open = activeRef.current
-        ? openWindow(called.pc, event.time, engineRef.current.getCueEndForBeat(event.time))
+        ? openWindow(called.pc, event.time, engineRef.current.getCueEndForBeat(event.time), multiplier)
         : null
     }
 
@@ -265,9 +304,12 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
             return
           }
 
+          // At the price its note was called at: the window froze it, so a
+          // settings change under the same note cannot re-price it.
+          const paid = scaleBonus(earned, judged.multiplier)
           store.open = claimed
-          store.tally = applyBonus(store.tally, earned)
-          store.lastBonuses = [...store.lastBonuses, earned]
+          store.tally = applyBonus(store.tally, paid)
+          store.lastBonuses = [...store.lastBonuses, paid]
           scheduleFlush()
           return
         }
@@ -276,24 +318,29 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
         // is an answer to is still the one on screen. The strike is timed from
         // `candidateAt` — the frame the string was actually struck on, not the
         // one that confirmed it — and the tempo bonus goes in with the hit,
-        // since the click it was played against has already sounded. `applyHit`
-        // works out the streak bonus itself, being the one that knows how long
-        // the run now is, and every kind paid here is marked on the window, so
-        // nothing can report the same bonus on this note twice.
+        // since the click it was played against has already sounded. Every kind
+        // paid here is marked on the window, so nothing can report the same
+        // bonus on this note twice.
+        //
+        // The bonuses are built, claimed and scaled *before* the tally moves,
+        // and then handed to `applyHit` whole. That order is the guarantee the
+        // readout rests on: what goes into `lastBonuses` is exactly the delta
+        // that went into `points`, so a scaled streak cannot print as `+5` when
+        // more than five points landed.
         store.lastVerdict = verdict
         const tempo = previous.candidateAt === null ? null : tempoBonus(previous.candidateAt, store.beatTimes)
-        store.tally = applyHit(store.tally, verdict.responseMs, tempo === null ? [] : [tempo])
 
         let paid = judged
         const landed: Bonus[] = []
-        for (const earned of [streakBonus(store.tally.streak), tempo]) {
+        for (const earned of [streakBonus(store.tally.streak + 1), tempo]) {
           const claimed = earned === null ? null : claimBonus(paid, earned.kind)
           if (earned !== null && claimed !== null) {
             paid = claimed
-            landed.push(earned)
+            landed.push(scaleBonus(earned, previous.multiplier))
           }
         }
 
+        store.tally = applyHit(store.tally, verdict.responseMs, landed, hitAward(previous.multiplier))
         store.open = paid
         store.lastBonuses = landed.length > 0 ? landed : NO_BONUSES
 
@@ -327,6 +374,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     store.tally = EMPTY_TALLY
     store.lastVerdict = null
     store.lastBonuses = NO_BONUSES
+    store.multiplier = 1
     publish()
   }, [getStore, publish])
 
@@ -352,6 +400,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
     lastVerdict: snapshot.lastVerdict,
     tally: snapshot.tally,
     lastBonuses: snapshot.lastBonuses,
+    multiplier: snapshot.multiplier,
     reset,
   }
 }
