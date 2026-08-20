@@ -12,9 +12,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
   with a NEXT preview and a "note N of M" cycle position
-- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the
-  six major keys, the A/E/D minor pentatonics and A minor blues) — plus Custom, which is what the
-  selector reads back once the chips no longer match a preset
+- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the eight
+  major keys — C, G, D, A, E, F, B♭ and E♭ — the A/E/D minor pentatonics and A minor blues) — plus Custom,
+  which is what the selector reads back once the chips no longer match a preset
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -32,9 +32,10 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   reported as "adjusted, next block resets it" rather than silently overridden
 - Practice log: 14 days of daily bars, current and best streak (a day counts at one minute of
   practice), and rolling 7-day minutes/notes totals. A History button on the card opens the whole log
-  — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
-  JSON backup export/import, where an import merges with what is already there (keeping the longer of
-  any two days) rather than replacing it
+  — a month-by-month heatmap with each day shaded by minutes and tappable to read its minutes and notes
+  out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
+  export/import, where an import merges with what is already there (keeping the longer of any two days)
+  rather than replacing it
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
@@ -46,6 +47,20 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
   changes nothing else
+- Scoring, with the mic on: every note you actually play banks points, and three bonuses make them
+  climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
+  the called note in two octaves before the next one is called, and a small one for striking the
+  string in time with a click. Two octaves means two pitches and not two places on the neck: the mic
+  hears pitch and nothing else, so finding the note twice in unison earns nothing. The in-time bonus
+  is measured against the clicks that actually sounded, so the speed ramp cannot throw it off — and
+  at one beat per note every beat starts a note, leaving no click under the note to play along with,
+  so it is mostly there to be earned from two beats per note up. The mic is deaf while the click
+  itself sounds, so a string struck on one is not heard until it stops ringing and lateness is
+  allowed for that; above roughly 100 BPM the click covers too much of the beat to tell being in
+  time from being late, and the bonus stops paying rather than paying everyone. Points sit beside
+  the running
+  `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
+  nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
@@ -59,7 +74,7 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - The screen is kept awake while playing, and playback stops itself after a minute in the
   background rather than clicking on in a pocket
 - Light/dark theme, and every setting persisted to localStorage
-- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, R reset
+- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, T tap tempo, R reset
 
 ## Run locally
 

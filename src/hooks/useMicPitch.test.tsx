@@ -121,6 +121,9 @@ describe('useMicPitch', () => {
 
     expect(events).toHaveLength(1)
     expect(events[0].pitchClass).toBe(9)
+    // A real 220 Hz sine through the real detector is A3, so the octave a
+    // subscriber gets is the detector's own rather than a default.
+    expect(events[0].octave).toBe(3)
     expect(events[0].audioTime).toBe(40.5)
     expect(events[0].clarity).toBeGreaterThan(0.9)
     expect(result.current.heard?.pitchClass).toBe(9)

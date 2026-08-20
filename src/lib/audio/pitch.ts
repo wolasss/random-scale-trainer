@@ -166,13 +166,20 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
  * A frequency as a pitch class plus how far off it is, in cents. Pitch classes
  * use the same convention as src/lib/notes.ts — 0 is C — which is what lets a
  * heard note be compared with a called one.
+ *
+ * The octave follows the MIDI convention, so A4 = 440 Hz is octave 4 and the
+ * octave turns over at C. It is the octave of the *pitch that was heard*, and
+ * `OCTAVE_TIE_FRACTION` above is the reason it can be wrong: the tie rule makes
+ * a subharmonic unlikely, not impossible. Anything grading on the octave has to
+ * be able to survive a wrong one.
  */
-export function frequencyToPitch(frequency: number): { pitchClass: number; cents: number } {
+export function frequencyToPitch(frequency: number): { pitchClass: number; cents: number; octave: number } {
   const midi = 69 + 12 * Math.log2(frequency / 440)
   const nearest = Math.round(midi)
 
   return {
     pitchClass: ((nearest % 12) + 12) % 12,
     cents: (midi - nearest) * 100,
+    octave: Math.floor(nearest / 12) - 1,
   }
 }

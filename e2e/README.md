@@ -38,6 +38,7 @@ APP_BASE_URL=http://host.docker.internal:4173 npm run test:e2e   # terminal 2
 ## Layout
 
 - `pages/trainer.page.ts` — the **only** place selectors, app strings, and wait conditions live. When refactoring the UI, update this file (and the `data-testid` attributes in `src/components/`); specs should not need to change.
+- `session.ts` — `useTrainerSession(options?)`, the shared browser lifecycle every spec uses: it registers the `before`/`after` that open and quit one session for the enclosing suite, takes the same `DriverOptions` as `buildDriver`, and returns an accessor for the `TrainerPage`.
 - `specs/01–11` — initial defaults, playback/pause/resume, tempo controls + persistence, switches + persistence, theme + persistence, keyboard shortcuts, session completion + reset, note pool + presets, NEXT preview, enharmonic spelling, session goal/stats.
 - `specs/12` — the mobile layout guard; see below.
 
