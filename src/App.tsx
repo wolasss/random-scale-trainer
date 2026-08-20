@@ -45,10 +45,12 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout } from './components/MicReadout'
+import { NicknamePrompt } from './components/NicknamePrompt'
+import { ScoreboardStrip } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
-import { isMicSupported } from './lib/audio/mic'
+import { isMicSupported, primeMicPermission } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
 import { usePlayback } from './hooks/usePlayback'
@@ -66,6 +68,7 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
@@ -105,6 +108,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // moment playback does.
   const practiceHistory = usePracticeHistory()
 
+  // Off entirely unless '?challenge=' brought the user here — see useChallenge.
+  // Declared above playback because the transport's pause is what banks a score.
+  const challenge = useChallenge()
+
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
     onTick: (elapsedMs) => {
@@ -128,6 +135,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
+      // ...and the same moment puts the tally on the shared board, if there is
+      // one. A no-op off a challenge, and a no-op again for a score already up.
+      challenge.submit(scoringRef.current?.tally.points ?? 0)
     },
     // Both of these are ref-only handlers, as onBeat demands: the ring is
     // mutated in place and the score is queued for a microtask.
@@ -142,7 +152,26 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // alike: a browser with no microphone API cannot listen, whatever a setting
   // stored by a browser that could says, and a readout the switch reports as
   // off is one the user has no way to be rid of.
-  const micEnabled = settings.micEnabled && isMicSupported()
+  //
+  // A shared challenge turns it on regardless of the setting: the board is a
+  // board of points, and points come from what the microphone hears. The switch
+  // in setup still shows the stored preference, which is what it is for — it is
+  // the challenge, not the setting, that is listening.
+  const micEnabled = (settings.micEnabled || challenge.active) && isMicSupported()
+
+  // ...and the browser's permission dialog is asked for on arrival rather than
+  // at the first note, so it lands on a setup screen instead of on top of the
+  // thing you are meant to be reading. Once per visit, and without waiting for
+  // a nickname: the permission is needed whether or not anybody joins.
+  const micPrimedRef = useRef(false)
+  useEffect(() => {
+    if (!challenge.active || micPrimedRef.current) {
+      return
+    }
+
+    micPrimedRef.current = true
+    void primeMicPermission()
+  }, [challenge.active])
 
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
@@ -162,7 +191,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const scoring = useNoteScoring({
     engine,
     subscribe: mic.subscribe,
-    active: settings.micEnabled && mic.status === 'listening',
+    active: micEnabled && mic.status === 'listening',
     running: playback.isPlaying,
   })
 
@@ -439,6 +468,27 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   ) : null
 
+  // Both of these are null off a challenge, which is the whole of "without
+  // ?challenge= in the URL this feature does not exist".
+  const nicknamePrompt =
+    challenge.needsNickname && challenge.name !== null ? (
+      <NicknamePrompt
+        challenge={challenge.name}
+        onJoin={challenge.join}
+        onDismiss={challenge.dismissPrompt}
+      />
+    ) : null
+
+  const scoreboard =
+    challenge.active && challenge.name !== null ? (
+      <ScoreboardStrip
+        challenge={challenge.name}
+        nickname={challenge.nickname}
+        scores={challenge.scores}
+        status={challenge.status}
+      />
+    ) : null
+
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
   ) : null
@@ -464,6 +514,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           {display.landscape && fretboardCard !== null ? <div className="stage-side">{fretboardCard}</div> : null}
 
           {micReadout}
+
+          {scoreboard}
 
           <StageTransport
             isPlaying={playback.isPlaying}
@@ -492,6 +544,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
               page stops scrolling — the installed app loses nothing. */}
           <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
         </PracticeSheet>
+
+        {nicknamePrompt}
 
         {updateChip}
       </div>
@@ -543,6 +597,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
           />
+
+          {scoreboard}
         </section>
 
         {/* Setup below, in the order the concepts build on each other: the
@@ -581,6 +637,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       </main>
 
       <Footer skin={skin} onSkinChange={setSkin} />
+
+      {nicknamePrompt}
 
       {updateChip}
     </div>

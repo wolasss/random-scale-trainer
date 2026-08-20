@@ -16,6 +16,12 @@ export type DriverOptions = {
    * swaps to the stage layout and hides setup behind the sheet.
    */
   standalone?: boolean
+  /**
+   * Answer getUserMedia with a synthetic device and no permission dialog. A
+   * shared challenge asks for the microphone the moment it loads, and a
+   * headless browser has neither a microphone nor anybody to click "Allow".
+   */
+  fakeMedia?: boolean
 }
 
 /** Tall enough that the stage layout is never squeezed vertically. */
@@ -52,6 +58,13 @@ export const buildDriver = async (options: DriverOptions = {}): Promise<WebDrive
       '--mute-audio',
       '--disable-dev-shm-usage',
     )
+
+    if (options.fakeMedia === true) {
+      chromeOptions.addArguments(
+        '--use-fake-device-for-media-capture',
+        '--use-fake-ui-for-media-stream',
+      )
+    }
 
     if (options.standalone === true) {
       chromeOptions.addArguments(`--app=${config.appBaseUrl}`)

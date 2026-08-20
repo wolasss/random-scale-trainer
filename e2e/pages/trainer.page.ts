@@ -74,6 +74,10 @@ const SELECTORS = {
   setupReveal: By.css('[data-testid="setup-reveal"]'),
   routineCard: By.css('[data-testid="routine-card"]'),
   transportReadout: By.css('[data-testid="transport-readout"]'),
+  scoreboard: By.css('[data-testid="scoreboard"]'),
+  nicknamePrompt: By.css('[data-testid="nickname-prompt"]'),
+  nicknameInput: By.css('[data-testid="nickname-input"]'),
+  nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -171,6 +175,45 @@ export class TrainerPage {
       STORAGE_KEYS.setupRevealed,
     )
     await this.refresh()
+  }
+
+  /**
+   * Open a shared challenge with a clean localStorage, so the nickname prompt
+   * is always the one a first-time visitor gets. `?challenge=` is the whole
+   * feature switch — the app is untouched without it.
+   */
+  async openChallenge(challenge: string): Promise<void> {
+    await this.open()
+    await this.driver.executeScript('window.localStorage.clear()')
+    await this.driver.get(`${config.appBaseUrl}/?challenge=${encodeURIComponent(challenge)}`)
+    await this.driver.wait(until.elementLocated(SELECTORS.playToggle), 10_000)
+    await this.disableAnimations()
+  }
+
+  async joinChallenge(nickname: string): Promise<void> {
+    await this.driver.wait(until.elementLocated(SELECTORS.nicknameInput), 10_000)
+    await this.driver.findElement(SELECTORS.nicknameInput).sendKeys(nickname)
+    await this.driver.findElement(SELECTORS.nicknameSubmit).click()
+  }
+
+  async hasNicknamePrompt(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.nicknamePrompt)).length > 0
+  }
+
+  async hasScoreboard(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.scoreboard)).length > 0
+  }
+
+  /** Every row on the board, as "<nickname> <points>" pairs, top first. */
+  async getScoreboardEntries(): Promise<Array<{ nickname: string; points: number }>> {
+    const rows = await this.driver.findElements(By.css('.scoreboard-entry'))
+
+    return Promise.all(
+      rows.map(async (row) => ({
+        nickname: await row.findElement(By.css('.scoreboard-nickname')).getText(),
+        points: Number(await row.findElement(By.css('.scoreboard-points')).getText()),
+      })),
+    )
   }
 
   /** Open the app exactly as a first-time visitor gets it: setup folded away. */
