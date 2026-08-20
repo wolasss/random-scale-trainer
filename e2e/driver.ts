@@ -63,6 +63,12 @@ export const buildDriver = async (options: DriverOptions = {}): Promise<WebDrive
       chromeOptions.addArguments(
         '--use-fake-device-for-media-capture',
         '--use-fake-ui-for-media-stream',
+        // getUserMedia is gated on a secure context. In CI, config.appBaseUrl
+        // is a plain-HTTP, non-localhost origin (host.docker.internal, so the
+        // browser inside Selenium can reach the app on the runner host), which
+        // Chrome does not treat as trustworthy on its own — this flag is the
+        // supported way to vouch for it.
+        `--unsafely-treat-insecure-origin-as-secure=${config.appBaseUrl}`,
       )
     }
 
