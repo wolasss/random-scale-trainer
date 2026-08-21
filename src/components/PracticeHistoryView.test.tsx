@@ -250,6 +250,34 @@ describe('PracticeHistoryView', () => {
     expect(document.activeElement).toBe(last)
   })
 
+  it('hands focus back to whatever opened it, and lets the page scroll again', () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    const previousOverflow = document.body.style.overflow
+
+    try {
+      opener.focus()
+      const props = {
+        open: true,
+        history,
+        onClose: vi.fn(),
+        getBackup: vi.fn(() => ''),
+        onImport: vi.fn(() => true),
+        today: TODAY,
+      }
+      const { rerender } = render(<PracticeHistoryView {...props} />)
+
+      expect(document.activeElement).toBe(screen.getByTestId('practice-history-close'))
+
+      rerender(<PracticeHistoryView {...props} open={false} />)
+
+      expect(document.activeElement).toBe(opener)
+      expect(document.body.style.overflow).toBe(previousOverflow)
+    } finally {
+      opener.remove()
+    }
+  })
+
   it('downloads whatever the backup handler gives it, under a dated name', async () => {
     const download = captureDownload()
 

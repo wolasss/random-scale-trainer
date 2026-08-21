@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faXmark } from '@fortawesome/free-solid-svg-icons'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import {
   bestStreak,
   buildMonths,
@@ -24,21 +25,6 @@ type PracticeHistoryViewProps = {
   onImport: (incoming: PracticeHistory) => boolean
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date
-}
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]',
-].join(', ')
-
-function focusableWithin(root: HTMLElement) {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => element.tabIndex >= 0 && !element.hasAttribute('hidden'),
-  )
 }
 
 /** Same wording as the strip on the card, so one day reads the same in both. */
@@ -77,88 +63,23 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const onCloseRef = useRef(onClose)
   const [importError, setImportError] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
-  useEffect(() => {
-    onCloseRef.current = onClose
-  })
+  // On the stand this opens on top of the practice sheet, which runs a trap of
+  // its own on the window — hence capture. Focus starts on the close button
+  // rather than the first square: the way out is the answer to "how do I get
+  // back?", and the calendar is a long way to Tab through to reach it.
+  useFocusTrap(sheetRef, open, onClose, { capture: true, initialFocus: closeRef })
 
   useEffect(() => {
     if (!open) {
       return undefined
     }
 
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    closeRef.current?.focus()
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        // On the stand this opens on top of the practice sheet, which listens
-        // for Escape on the window. Without stopping here, one press would
-        // close both — and the sheet is not what the user asked to leave.
-        event.stopPropagation()
-        onCloseRef.current()
-        return
-      }
-
-      if (event.key !== 'Tab') {
-        return
-      }
-
-      const sheet = sheetRef.current
-      if (sheet === null) {
-        return
-      }
-
-      // Two nested tab traps would otherwise pull in opposite directions.
-      event.stopPropagation()
-
-      const focusable = focusableWithin(sheet)
-      if (focusable.length === 0) {
-        event.preventDefault()
-        return
-      }
-
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      const active = document.activeElement
-      const inside = active instanceof HTMLElement && sheet.contains(active)
-
-      let next: HTMLElement | null = null
-      if (!inside) {
-        next = event.shiftKey ? last : first
-      } else if (event.shiftKey && active === first) {
-        next = last
-      } else if (!event.shiftKey && active === last) {
-        next = first
-      }
-
-      if (next !== null) {
-        event.preventDefault()
-        next.focus()
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    // Capture, so this runs before the practice sheet's window handler rather
-    // than after it has already acted on the same press.
-    document.addEventListener('keydown', onKeyDown, true)
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-      document.removeEventListener('keydown', onKeyDown, true)
-      // Closing ends the question that was being asked, so the next opening
-      // starts on today again rather than on whatever was last tapped.
-      setSelectedKey(null)
-
-      if (opener !== null && opener.isConnected) {
-        opener.focus()
-      }
-    }
+    // Closing ends the question that was being asked, so the next opening
+    // starts on today again rather than on whatever was last tapped.
+    return () => setSelectedKey(null)
   }, [open])
 
   if (!open) {
