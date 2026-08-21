@@ -1,4 +1,11 @@
-export type SpellingPreference = 'flat' | 'sharp' | 'mixed'
+/**
+ * How a called note may be spelled. A list rather than a bare union because the
+ * shared board's server has to hold the same three — it is plain JS and cannot
+ * import this file, so session-scoring.test.ts checks its copy against this one.
+ */
+export const SPELLING_OPTIONS = ['flat', 'sharp', 'mixed'] as const
+
+export type SpellingPreference = (typeof SPELLING_OPTIONS)[number]
 
 /** A single announced note: pitch class plus the spelling chosen for this call. */
 export type NoteCall = {

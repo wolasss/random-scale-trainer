@@ -11,7 +11,9 @@
  * Nothing here posts a total. The client reports *events* — a note hit, a note
  * missed, a bonus earned — into a session the server opened, and the server
  * decides what they are worth. The number on the board is one this browser
- * never computed.
+ * never computed, worked out from the same arithmetic the readout uses so the
+ * two agree: what a hit reports is the note and what it was called under, and
+ * the pricing is the server's.
  *
  * The reading calls answer `null` rather than throwing, as they always have: a
  * board is a nicety beside a practice session, and a server that is down reads
@@ -21,6 +23,7 @@
  * worth saying and one useless one.
  */
 import type { BeatsPerNote } from '../constants'
+import type { DifficultyInputs, PracticeMilestoneKind } from './scoring'
 
 export type ScoreEntry = {
   nickname: string
@@ -59,17 +62,26 @@ export type ScoreboardFailure =
 
 export type ScoreboardResult<T> = { outcome: 'ok'; value: T } | { outcome: ScoreboardFailure }
 
-/** The settings a session is fixed at. Recorded by the server; priced at nothing. */
+/** The settings a session is fixed at. Recorded by the server, and priced at nothing. */
 export type SessionConfig = {
   bpm: number
   beatsPerNote: BeatsPerNote
 }
 
-/** One thing the client observed. `at` is milliseconds since the session began. */
+/**
+ * One thing the client observed. `at` is milliseconds since the session began.
+ *
+ * `difficulty` rides on a hit and on nothing else: it is what the server prices
+ * the note by, and it is the note's own — the settings in force when it was
+ * *called*, not when the batch was sent, which is the difference between a
+ * board that agrees with the readout under a speed ramp and one that does not.
+ */
 export type ScoreEvent = {
   seq: number
-  kind: 'hit' | 'miss' | 'bonus'
+  kind: 'hit' | 'miss' | 'bonus' | 'milestone'
   bonus?: 'octaves' | 'tempo'
+  milestone?: PracticeMilestoneKind
+  difficulty?: DifficultyInputs
   at: number
 }
 
@@ -153,7 +165,7 @@ const failureFrom = (status: number, error: unknown): ScoreboardFailure => {
     return 'expired'
   }
 
-  if (error === 'invalid_event' || error === 'too_fast' || error === 'too_many') {
+  if (error === 'invalid_event' || error === 'too_fast' || error === 'too_soon' || error === 'too_many') {
     return 'rejected'
   }
 

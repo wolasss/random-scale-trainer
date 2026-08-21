@@ -11,6 +11,7 @@ import {
   hitAward,
   judgeDetection,
   MIXED_SPELLING_MULTIPLIER,
+  POOL_MULTIPLIERS,
   octavesBonus,
   OCTAVES_BONUS_POINTS,
   openWindow,
@@ -34,7 +35,7 @@ import {
   type Tally,
 } from './scoring'
 import { BEAT_SPAN_OPTIONS, DEFAULT_BPM, MAX_BPM, MIN_BPM } from '../constants'
-import type { SpellingPreference } from './notes'
+import { isNaturalPitchClass, PITCH_CLASSES, type SpellingPreference } from './notes'
 
 const BEAT_TIME = 10
 const CUE_END = 10.4
@@ -74,8 +75,19 @@ describe('openWindow', () => {
 })
 
 describe('difficultyMultiplier', () => {
-  /** The neutral setup: nothing about it is priced above the flat rate. */
-  const FLAT: DifficultyInputs = { spelling: 'sharp', showFretboard: true, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+  /**
+   * The neutral setup: nothing about it is priced above the flat rate. The pool
+   * is the whole octave, which is both what the app starts on and the hardest
+   * it gets — every other factor discounts from there, and this one only ever
+   * discounts.
+   */
+  const FLAT: DifficultyInputs = {
+    spelling: 'sharp',
+    showFretboard: true,
+    bpm: DEFAULT_BPM,
+    beatsPerNote: 4,
+    pool: [...PITCH_CLASSES],
+  }
 
   it('prices the neutral setup at exactly one', () => {
     expect(difficultyMultiplier(FLAT)).toBe(1)
@@ -119,13 +131,66 @@ describe('difficultyMultiplier', () => {
     expect(difficultyMultiplier({ ...FLAT, bpm: DEFAULT_BPM + 1 })).toBeGreaterThan(1)
   })
 
+  /**
+   * The pool is the one factor whose neutral setting is also its hardest: the
+   * app starts on the whole octave, and every narrower pool is a discount.
+   */
+  it('pays less the less of the octave is in play', () => {
+    expect(difficultyMultiplier({ ...FLAT, pool: [...PITCH_CLASSES] })).toBe(1)
+
+    const naturals = PITCH_CLASSES.filter((pc) => isNaturalPitchClass(pc))
+    const accidentals = PITCH_CLASSES.filter((pc) => !isNaturalPitchClass(pc))
+
+    // Naturals only, or the five accidentals only, are both worth less than the
+    // whole octave — and the smaller of the two is worth less than the other.
+    expect(difficultyMultiplier({ ...FLAT, pool: naturals })).toBe(POOL_MULTIPLIERS[7])
+    expect(difficultyMultiplier({ ...FLAT, pool: accidentals })).toBe(POOL_MULTIPLIERS[5])
+    expect(POOL_MULTIPLIERS[5]).toBeLessThan(POOL_MULTIPLIERS[7])
+    expect(POOL_MULTIPLIERS[7]).toBeLessThan(POOL_MULTIPLIERS[12])
+
+    // A pool of one note is a call whose answer is known before it is made.
+    expect(difficultyMultiplier({ ...FLAT, pool: [5] })).toBe(POOL_MULTIPLIERS[1])
+  })
+
+  it('prices a pool by how many notes are in it, not how they are written down', () => {
+    // The same note twice is still one note, and order is nothing.
+    expect(difficultyMultiplier({ ...FLAT, pool: [3, 3, 7] })).toBe(difficultyMultiplier({ ...FLAT, pool: [7, 3] }))
+  })
+
+  /**
+   * Mixed spelling asks for the same fret by two names — but only five pitch
+   * classes have two names. On a pool without one of them the preference is a
+   * setting that changes nothing, and a setting that changes nothing is not
+   * worth points.
+   */
+  it('pays for mixed spelling only when the pool holds a note with two names', () => {
+    const naturals = PITCH_CLASSES.filter((pc) => isNaturalPitchClass(pc))
+
+    expect(difficultyMultiplier({ ...FLAT, spelling: 'mixed', pool: naturals })).toBe(
+      difficultyMultiplier({ ...FLAT, spelling: 'sharp', pool: naturals }),
+    )
+    expect(difficultyMultiplier({ ...FLAT, spelling: 'mixed', pool: [...naturals, 1] })).toBeCloseTo(
+      MIXED_SPELLING_MULTIPLIER * POOL_MULTIPLIERS[8],
+      10,
+    )
+  })
+
+  /** What the user is being pointed at: the whole octave, both spellings. */
+  it('tops out at the whole octave with sharps and flats mixed', () => {
+    const everything = { ...FLAT, spelling: 'mixed' as const, pool: [...PITCH_CLASSES] }
+
+    for (const pool of [PITCH_CLASSES.filter((pc) => isNaturalPitchClass(pc)), PITCH_CLASSES.filter((pc) => !isNaturalPitchClass(pc)), [0, 1, 2]]) {
+      expect(difficultyMultiplier({ ...everything, pool })).toBeLessThan(difficultyMultiplier(everything))
+    }
+  })
+
   it('caps the tempo factor short of doubling, and the cap binds at the top', () => {
     expect(difficultyMultiplier({ ...FLAT, bpm: MAX_BPM })).toBeCloseTo(TEMPO_MULTIPLIER_MAX, 10)
     expect(TEMPO_MULTIPLIER_MAX).toBeLessThan(2)
   })
 
-  it('multiplies the four together rather than picking one', () => {
-    const hardest: DifficultyInputs = { spelling: 'mixed', showFretboard: false, bpm: MAX_BPM, beatsPerNote: 1 }
+  it('multiplies them all together rather than picking one', () => {
+    const hardest: DifficultyInputs = { ...FLAT, spelling: 'mixed', showFretboard: false, bpm: MAX_BPM, beatsPerNote: 1 }
 
     expect(difficultyMultiplier(hardest)).toBeCloseTo(
       MIXED_SPELLING_MULTIPLIER *
