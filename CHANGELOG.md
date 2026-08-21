@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/wolasss/random-scale-trainer/compare/v1.20.0...v1.21.0) (2026-08-21)
+
+
+### Features
+
+* **challenge:** own a nickname with a token and score sessions on the server ([#135](https://github.com/wolasss/random-scale-trainer/issues/135)) ([8aa2dd2](https://github.com/wolasss/random-scale-trainer/commit/8aa2dd2e0b37f0d9b05471201f56ca996037731e))
+
 # [1.20.0](https://github.com/wolasss/random-scale-trainer/compare/v1.19.0...v1.20.0) (2026-08-21)
 
 
