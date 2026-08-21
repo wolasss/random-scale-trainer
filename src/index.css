@@ -690,6 +690,25 @@ h2 {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  /* The float goes, the "+1" stays. Left to the global rule the animation would
+     collapse to nothing and, filling forwards, hold its final opacity of 0 — no
+     feedback at all. Park it mid-float instead, at one fixed spot: the drift is
+     there to separate bubbles the float has already spread out in time, and
+     without the float it would only make the "+1" jump about. */
+  .hit-bubble {
+    animation: none;
+    transform: translateY(-1.3rem);
+  }
+
+  /* Which leaves them stacked on that one spot, so read only the newest. Nodes
+     are appended in order and taken out in the same order, so the last child is
+     the newest until the layer empties. */
+  .hit-bubble:not(:last-child) {
+    display: none;
+  }
+}
+
 .beat-dots {
   display: flex;
   justify-content: center;
