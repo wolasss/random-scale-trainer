@@ -901,6 +901,62 @@ input[type='range'] {
   color: initial;
 }
 
+/* The row under the chips: save what they say, or delete the preset they are. */
+.preset-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.preset-actions .control-subtitle {
+  margin: 0;
+}
+
+.preset-save-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--control-border);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.preset-name-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--ink);
+}
+
+.preset-save-confirm {
+  padding: 0.55rem 1.1rem;
+}
+
+.preset-save-error {
+  margin: 0 0 0.9rem;
+  color: var(--miss);
+  font-size: 0.9rem;
+}
+
+/* A caveat, not an error: dashed like the empty states rather than alarmed, so
+   it reads as a note about the browser and not a failed save. */
+.preset-ephemeral-notice {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 /* All twelve on one line at full width: the chromatic run reads as the octave
    it is, and no note sits in a second row as if it were an afterthought. */
 .note-chip-grid {

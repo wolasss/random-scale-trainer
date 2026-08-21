@@ -84,6 +84,12 @@ export const STORAGE_KEYS = {
   // unless every segment is a distinct integer within the octave, so a gappy
   // '1,,3' can't coerce its way into a pool holding C.
   notePool: 'fretboard-note-pool',
+  // A JSON array of the note pools saved from the chips, `{ name, pcs }` each.
+  // Salvaged entry by entry like `routines`: an entry whose name is blank or
+  // already taken, or whose pcs aren't distinct pitch classes within the
+  // octave, is dropped and the rest of the list stands. Only a value that isn't
+  // parseable JSON, or isn't an array, loses the lot and reads as no presets.
+  savedPresets: 'fretboard-saved-presets',
   sessionGoal: 'fretboard-session-goal',
   // Which way the transport's goal readout counts: literally 'remaining' or
   // 'elapsed'. Anything else is rejected and the readout counts up.
