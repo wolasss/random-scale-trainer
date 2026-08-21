@@ -122,8 +122,16 @@ export const STORAGE_KEYS = {
   practiceLog: 'rnt.history.v1',
   // The name you go by on a shared challenge's board, so joining a second one
   // costs no typing. Only ever read when `?challenge=` is in the URL — without
-  // it the scoreboard does not exist and this key is never touched.
+  // it the scoreboard does not exist and this key is never touched. It is a
+  // prefill and nothing more: what makes a nickname yours is the token below.
   challengeNickname: 'fretboard-challenge-nickname',
+  // The ownership tokens this browser holds, as JSON: challenge name → `{
+  // nickname, token }`. The server hands one out when a nickname is claimed and
+  // keeps only its digest, so this is the *only* copy — clearing it loses that
+  // nickname for good, because a server that would re-issue a token to whoever
+  // asked would not be protecting anything. Sent on mutation requests only,
+  // never on the board's GET, and never in a URL.
+  challengeTokens: 'fretboard-challenge-tokens',
   // Literally 'dismissed', or unset. Anything else reads as not yet dismissed
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.

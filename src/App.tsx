@@ -115,7 +115,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
   // Off entirely unless '?challenge=' brought the user here — see useChallenge.
   // Declared above playback because the transport's pause is what banks a score.
-  const challenge = useChallenge()
+  const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -138,15 +138,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     onSessionPause: () => {
       const pausedAtMs = sessionTimer.pause()
       // A practice milestone crossed by this very elapsed update is credited
-      // here, before the read below, rather than left to the effect that
-      // would otherwise only catch it on the next render.
+      // with the pause itself, rather than left to the effect that would
+      // otherwise only catch it on the next render.
       scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
-      // ...and the same moment puts the tally on the shared board, if there is
-      // one. A no-op off a challenge, and a no-op again for a score already up.
-      challenge.submit(scoringRef.current?.tally.points ?? 0)
+      // ...and the same moment sends what has been played up to the shared
+      // board, if there is one. A no-op off a challenge, and a no-op again with
+      // nothing queued. A pause is not the end of a session — resuming is the
+      // same practice run — so the scoring session stays open across it.
+      challenge.flushEvents()
     },
     // Both of these are ref-only handlers, as onBeat demands: the ring is
     // mutated in place and the score is queued for a microtask.
@@ -202,6 +204,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     subscribe: mic.subscribe,
     active: micEnabled && mic.status === 'listening',
     running: playback.isPlaying,
+    // Off a challenge this queues nothing: the shared board decides what a note
+    // is worth, from the events themselves, and there is no board here to tell.
+    onScored: challenge.recordEvent,
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
@@ -293,8 +298,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
-    // The score is a property of the session, so it goes back with it.
+    // The score is a property of the session, so it goes back with it — on the
+    // shared board too, or a fresh local tally would go on feeding the server
+    // session the old one opened.
     scoring.reset()
+    challenge.endSession()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -494,6 +502,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     challenge.needsNickname && challenge.name !== null ? (
       <NicknamePrompt
         challenge={challenge.name}
+        prefill={challenge.prefill}
+        pending={challenge.joining}
+        error={challenge.joinError}
         onJoin={challenge.join}
         onDismiss={challenge.dismissPrompt}
       />
@@ -506,6 +517,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         nickname={challenge.nickname}
         scores={challenge.scores}
         status={challenge.status}
+        notice={challenge.notice}
       />
     ) : null
 

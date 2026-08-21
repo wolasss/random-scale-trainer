@@ -4,6 +4,7 @@ import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { clientIdentity } from './src/server/http.js'
 import { API_PREFIX, createStore, handleRequest } from './src/server/scoreboard.js'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
@@ -95,7 +96,7 @@ const serviceWorkerPlugin = (): Plugin => ({
   },
 })
 
-/** A submit is two short strings and a number; see src/server/main.js. */
+/** A claim is a short string and a batch is twenty small objects; see http.js. */
 const MAX_BODY_BYTES = 4096
 
 /**
@@ -138,6 +139,9 @@ const scoreboardApiPlugin = (): Plugin => {
               method: request.method ?? 'GET',
               pathname,
               body: Buffer.concat(chunks).toString('utf8'),
+              // A nickname's ownership token rides here and nowhere else.
+              headers: { authorization: request.headers.authorization },
+              client: clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for']),
             })
 
       response.writeHead(answer.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })

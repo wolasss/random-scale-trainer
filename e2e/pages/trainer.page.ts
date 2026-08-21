@@ -77,8 +77,10 @@ const SELECTORS = {
   transportReadout: By.css('[data-testid="transport-readout"]'),
   scoreboard: By.css('[data-testid="scoreboard"]'),
   nicknamePrompt: By.css('[data-testid="nickname-prompt"]'),
+  nicknameError: By.css('[data-testid="nickname-error"]'),
   nicknameInput: By.css('[data-testid="nickname-input"]'),
   nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
+  nicknameDismiss: By.css('[data-testid="nickname-dismiss"]'),
   micReadout: By.css('[data-testid="mic-readout"]'),
   scoreTally: By.css('[data-testid="score-tally"]'),
 }
@@ -193,14 +195,76 @@ export class TrainerPage {
     await this.disableAnimations()
   }
 
+  /**
+   * Types a name and reserves it. Waits for the round trip to land, either way:
+   * a claim is a request now, so the prompt is still up for a moment after the
+   * click and reading anything before it settles would be reading the old state.
+   */
   async joinChallenge(nickname: string): Promise<void> {
     await this.driver.wait(until.elementLocated(SELECTORS.nicknameInput), 10_000)
+    await this.driver.findElement(SELECTORS.nicknameInput).clear()
     await this.driver.findElement(SELECTORS.nicknameInput).sendKeys(nickname)
     await this.driver.findElement(SELECTORS.nicknameSubmit).click()
+    await this.driver.wait(
+      async () => (await this.hasNicknamePrompt()) === false || (await this.getNicknameError()) !== '',
+      10_000,
+    )
   }
 
   async hasNicknamePrompt(): Promise<boolean> {
     return (await this.driver.findElements(SELECTORS.nicknamePrompt)).length > 0
+  }
+
+  /** Leaves the prompt without joining: the board stays, read-only. */
+  async dismissNicknamePrompt(): Promise<void> {
+    await this.driver.findElement(SELECTORS.nicknameDismiss).click()
+  }
+
+  /** Why the last claim was refused, or '' if it was not. */
+  async getNicknameError(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.nicknameError)
+
+    return found.length === 0 ? '' : found[0].getText()
+  }
+
+  /**
+   * Forgets everything this browser knows and comes back to the same challenge.
+   * That is a *different person* as far as the board is concerned — the
+   * ownership token was the only copy, and losing it loses the nickname.
+   */
+  async forgetAndReopenChallenge(challenge: string): Promise<void> {
+    await this.driver.executeScript('window.localStorage.clear()')
+    await this.driver.get(`${config.appBaseUrl}/?challenge=${encodeURIComponent(challenge)}`)
+    await this.driver.wait(until.elementLocated(SELECTORS.playToggle), 10_000)
+    await this.disableAnimations()
+  }
+
+  /**
+   * One request against the scoreboard API, made from the page itself — the
+   * same origin, the same cookies, everything a real attacker in this browser
+   * would have. Answers `{ status, body }` so a spec can assert on both.
+   */
+  async callApi(
+    path: string,
+    { method = 'GET', body, token }: { method?: string; body?: unknown; token?: string } = {},
+  ): Promise<{ status: number; body: string }> {
+    return this.driver.executeAsyncScript(
+      `const [path, method, body, token, done] = arguments;
+       fetch(path, {
+         method,
+         headers: {
+           ...(body === null ? {} : { 'Content-Type': 'application/json' }),
+           ...(token === null ? {} : { Authorization: 'Bearer ' + token }),
+         },
+         body: body === null ? undefined : body,
+       })
+         .then((response) => response.text().then((text) => done({ status: response.status, body: text })))
+         .catch((error) => done({ status: 0, body: String(error) }));`,
+      path,
+      method,
+      body === undefined ? null : JSON.stringify(body),
+      token ?? null,
+    )
   }
 
   async hasScoreboard(): Promise<boolean> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_NICKNAME_LENGTH, normalizeNickname, readChallengeName } from './challenge'
+import { MAX_NICKNAME_LENGTH, nicknameKey, normalizeNickname, readChallengeName } from './challenge'
 
 describe('readChallengeName', () => {
   it('is null when nothing asked for a challenge — which is the whole feature flag', () => {
@@ -50,5 +50,25 @@ describe('normalizeNickname', () => {
     expect(normalizeNickname('')).toBeNull()
     expect(normalizeNickname('   ')).toBeNull()
     expect(normalizeNickname('\u200b\u0000')).toBeNull()
+  })
+})
+
+describe('nicknameKey', () => {
+  /**
+   * The key a nickname is *owned* under. `Alice` and `alice` have to be one
+   * owner, or the difference between your row and somebody impersonating you is
+   * a capital letter. Kept in step with src/server/scoreboard.js, which is
+   * where it actually decides anything; both sides are tested on these cases.
+   */
+  it('folds every variant of one name onto one key', () => {
+    for (const raw of ['Alice', 'alice ', ' ALICE', 'aLiCe', '  Alice\u200b']) {
+      expect(nicknameKey(raw)).toBe('alice')
+    }
+  })
+
+  it('is null for what is not a nickname at all', () => {
+    for (const raw of ['', '   ', '\u200b']) {
+      expect(nicknameKey(raw)).toBeNull()
+    }
   })
 })

@@ -1655,6 +1655,14 @@ input[type='range'] {
   opacity: 0.7;
 }
 
+/* Why this browser has stopped scoring — an expired session, a nickname it does
+   not own, a rate limit. It sits beside the board rather than over it: the top
+   ten is still worth reading when your own row has stopped moving. */
+.scoreboard-notice {
+  opacity: 0.75;
+  font-style: italic;
+}
+
 /* The prompt reuses the practice sheet's scrim and layer; it is a question
    rather than a drawer, so it sits in the middle instead of on the bottom. */
 .nickname-layer {
@@ -1686,6 +1694,15 @@ input[type='range'] {
   color: var(--ink-soft);
   font-size: 0.88rem;
   line-height: 1.45;
+}
+
+/* An inline answer to a claim that was refused, in the accent rather than a red
+   of its own: "that name is taken" is a thing to try again after, not a fault. */
+.nickname-prompt-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .nickname-prompt-form {

@@ -77,14 +77,18 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
-  scoreboard appears under the note. Your session points go up whenever you pause or stop, and the
-  board keeps your best — so re-submitting a score already on it changes nothing. It refreshes
-  itself every 20 seconds while the page is on screen, so other people's rounds appear without a
-  reload, and goes quiet while the tab is hidden. The nickname is
-  remembered in localStorage, and the microphone is asked for on arrival, since the points come
-  from what it hears. Without `?challenge=` in the URL none of this exists: no board, no prompt,
-  no request, and no microphone. The prompt can be dismissed, which leaves the board readable
-  without putting you on it
+  scoreboard appears under the note. **The nickname is reserved for your browser** — claiming it
+  hands back an ownership token, and nobody without that token can put a score under it, raise it
+  or take it down. `Alice` and `alice` are the same name, and a name already taken is refused. Your
+  play goes up whenever you pause or stop, as a stream of *events* rather than a total: the server
+  does the arithmetic, keeps your best, and refreshes every 20 seconds while the page is on screen,
+  so other people's rounds appear without a reload. It goes quiet while the tab is hidden. The
+  microphone is asked for on arrival, since the points come from what it hears. Without
+  `?challenge=` in the URL none of this exists: no board, no prompt, no request, and no microphone.
+  The prompt can be dismissed, which leaves the board readable without putting you on it — and so
+  does holding the link without a token, which is read-only access by design. Clearing this
+  browser's storage loses the token, and with it that nickname: the server keeps only a digest, and
+  anything that would hand you a new one would hand it to anybody
 - Installable PWA: a service worker precaches the app shell and every note clip, so it launches
   and runs with no network. Chromium gets an Install button in the header, iOS a one-time
   Add-to-Home-Screen hint, and a cached new build offers a reload chip instead of reloading
@@ -137,25 +141,52 @@ is unchanged — still `docker run -p 8080:80`, still one container. In dev and 
 same request handler is mounted as a Vite middleware instead (`vite.config.ts`), which is what
 lets the e2e suite exercise a challenge without a second process.
 
-The API is two calls, both under `/api/scoreboard/<challenge>`:
+Everything lives under `/api/scoreboard/<challenge>`. Reading is open to anybody holding the URL;
+writing takes the ownership token issued when the nickname was claimed:
 
 ```bash
+# Read the board. No credential, and no credential in the answer either.
 curl localhost:8080/api/scoreboard/demo
 # {"challenge":"demo","scores":[{"nickname":"ada","points":300}]}
 
+# Reserve a nickname. Said once — the server keeps only its sha256.
 curl -X POST -H 'Content-Type: application/json' \
-     -d '{"nickname":"ada","points":300}' localhost:8080/api/scoreboard/demo
+     -d '{"nickname":"ada"}' localhost:8080/api/scoreboard/demo/nickname
+# {"challenge":"demo","nickname":"ada","token":"…"}   (409 nickname_taken if it is spoken for)
+
+# Open a scoring session, fixed at these settings from this moment.
+curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
+     -d '{"nickname":"ada","config":{"bpm":72,"beatsPerNote":4}}' \
+     localhost:8080/api/scoreboard/demo/session
+# {"challenge":"demo","sessionId":"…","config":{…},"expiresAt":…}
+
+# Report what happened. The server adds it up; the answer is *its* total.
+curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
+     -d '{"events":[{"seq":0,"kind":"hit","at":0},{"seq":1,"kind":"hit","at":250}]}' \
+     localhost:8080/api/scoreboard/demo/session/$SESSION/events
+# {"challenge":"demo","points":20,"scores":[…]}       …then POST …/finish to close it.
 ```
 
-A POST upserts the nickname's **best**, so a resubmitted tally is a no-op. `SCOREBOARD_DATA`
-(default `/var/lib/callnote/scoreboard.json`) is where the board is kept — mount it with `-v` or a
-restart starts everyone from zero. The service listens on loopback port 8787, which is fixed rather
-than configurable: nginx proxies to it by number, and only a matching pair works.
+The board keeps each nickname's **best**, so a session that ends lower changes nothing.
+`SCOREBOARD_DATA` (default `/var/lib/callnote/scoreboard.json`) is where it is kept — mount it with
+`-v` or a restart starts everyone from zero. Tokens survive that restart as digests; sessions do
+not. The service listens on loopback port 8787, which is fixed rather than configurable: nginx
+proxies to it by number, and only a matching pair works.
 
-The write endpoint is **unauthenticated by design**: a nickname is not an identity, and anyone who
-knows a challenge name can post to it. The only defences are the caps in `src/server/scoreboard.js`
-— 4 KB bodies, 1,000,000 points, 500 nicknames per challenge, 200 challenges — which bound the
-damage rather than prevent it. Don't put anything you care about on a public board.
+**Posting a total is gone**: `POST /api/scoreboard/<challenge>` with `{"nickname":…,"points":…}`
+answers `410`. A score can only be reached through a session, and `session-scoring.js` bounds how
+fast one can grow — an event may not claim a moment the server has not lived through, and two
+judged notes may not be closer together than 250 ms, which is one beat per note at the app's top
+tempo. The declared config is recorded and reported; it prices nothing and times nothing, so a
+routine that moves the tempo mid-session is never read as cheating and a hard setup nobody
+practised under buys no points.
+
+Around that sit the limits in `src/server/scoreboard.js` — 4 KB bodies, 1,000,000 points, 500
+nicknames per challenge, 200 challenges, 10 claims a minute per client and 20 an hour per
+challenge, 30 new challenges an hour overall, and a sweep for abandoned sessions and claims nobody
+ever scored under. None of this proves somebody physically played a guitar; what it does is stop a
+scripted client putting an arbitrary number on a board, and stop a stranger touching a row that is
+not theirs. Don't put anything you care about on a public board.
 
 Serving the microphone at all needs `Permissions-Policy: microphone=(self)`, which `nginx.conf`
 now sends on every response (it was `microphone=()`, which forbade `getUserMedia` outright). It is

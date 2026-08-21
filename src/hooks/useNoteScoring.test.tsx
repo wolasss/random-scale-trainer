@@ -983,3 +983,106 @@ describe('useNoteScoring', () => {
     expect(result.current.tally.scored).toBe(0)
   })
 })
+
+/**
+ * What the shared board is built from. The local tally prices every note by how
+ * hard the settings made it; these events say only *what happened*, and the
+ * server does its own arithmetic on them — which is the whole reason a browser
+ * can no longer put a number of its choosing on a board.
+ */
+describe('reporting what landed', () => {
+  it('reports a hit as it is banked, and nothing for the streak', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    for (const time of [10, 11, 12]) {
+      await act(async () => {
+        result.current.handleBeat(beat(time, 3))
+      })
+      await act(async () => {
+        mic.emit(3, time + 0.5)
+        mic.emit(3, time + 0.55)
+      })
+    }
+
+    // Three hits and no streak event: whoever is counting can count a run.
+    // Stamped with the call each one answered, not the frame that confirmed it.
+    expect(onScored.mock.calls.map(([event]) => event)).toEqual([
+      { kind: 'hit', at: 10 },
+      { kind: 'hit', at: 11 },
+      { kind: 'hit', at: 12 },
+    ])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT * 3 + 5)
+  })
+
+  it('reports a miss when a window closes unanswered', async () => {
+    const onScored = vi.fn()
+    const { result } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(11, 5))
+    })
+
+    expect(onScored).toHaveBeenCalledTimes(1)
+    // The note that went unanswered, not the beat that closed it.
+    expect(onScored).toHaveBeenCalledWith({ kind: 'miss', at: 10 })
+  })
+
+  it('reports the octaves bonus after the hit it was earned on', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2, 3)
+      mic.emit(3, 10.25, 3)
+      // The same note an octave up, held, on a note already got right.
+      mic.emit(3, 10.4, 4)
+      mic.emit(3, 10.45, 4)
+    })
+
+    expect(onScored.mock.calls.map(([event]) => event)).toEqual([
+      { kind: 'hit', at: 10 },
+      { kind: 'bonus', bonus: 'octaves', at: 10 },
+    ])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT + OCTAVES_BONUS_POINTS)
+  })
+
+  it('reports the tempo bonus once, whichever moment it lands at', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    // The call, then an in-span click to be in time with.
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+      result.current.handleBeat(beat(10.5))
+    })
+    await act(async () => {
+      mic.emit(3, 10.52)
+      mic.emit(3, 10.57)
+    })
+
+    const bonuses = onScored.mock.calls.map(([event]) => event).filter((event) => event.kind === 'bonus')
+    expect(bonuses).toEqual([{ kind: 'bonus', bonus: 'tempo', at: 10 }])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+  })
+
+  it('reports nothing at all while the microphone is off', async () => {
+    const onScored = vi.fn()
+    const { result } = setup({ onScored, active: false })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(11, 5))
+    })
+
+    expect(onScored).not.toHaveBeenCalled()
+  })
+})

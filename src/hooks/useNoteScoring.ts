@@ -100,6 +100,19 @@ const createStore = (): ScoringStore => ({
   listeners: new Set(),
 })
 
+/**
+ * One thing that landed, in the shape the shared board reports it in.
+ *
+ * `at` is the audio time — in seconds, on the same clock as a beat — of the note
+ * this is about, which is the moment the *app* called it and not the moment a
+ * callback happened to run. Response times vary by a couple of hundred
+ * milliseconds either way, and at the fastest tempo the app offers two notes are
+ * only 250 ms apart, so stamping these when they are observed would report
+ * ordinary playing as two notes closer together than the app can possibly call
+ * them. The call is the one timestamp with no jitter in it at all.
+ */
+export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+
 export type UseNoteScoringOptions = {
   engine: ScoringEngine
   /** `useMicPitch`'s subscribe — every clarity-gated detection, on the clock. */
@@ -108,6 +121,17 @@ export type UseNoteScoringOptions = {
   active: boolean
   /** Playback is running. A pause or a stop closes the open note unjudged. */
   running: boolean
+  /**
+   * Fired for each thing the tally banks, in the order it banked them: a hit
+   * with the non-streak bonuses that landed on it, a bonus discovered later on
+   * the same note, and a miss when a window closes unanswered. The streak is
+   * left out because whoever is counting can count a run themselves — the
+   * shared board does, from these very events, which is the point of them.
+   *
+   * Ref-only, like `onBeat`: it is called from inside the microtask flush, and
+   * anything it does must not re-enter React from there.
+   */
+  onScored?: (event: ScoredEvent) => void
   /**
    * The session clock, raw — the caller does not need to adjust it around a
    * clear. `rebase` below folds a cleared amount back in so the milestones it
@@ -177,10 +201,10 @@ export type UseNoteScoringOptions = {
  * are earned by `sessionElapsedMs` crossing 10, 20 or 30 minutes, credited by
  * `creditElapsedMs`, a function that never touches the microphone
  * subscription and is both run from its own effect and exposed for a caller
- * that cannot wait for the next render — `App.tsx`'s `onSessionPause` reads
- * `tally.points` synchronously to submit a shared score, and calls it with
- * the pausing elapsed first so that read sees a crossing landing on the very
- * update that stops playback. They are gated on `active` rather than
+ * that cannot wait for the next render — `App.tsx`'s `onSessionPause` calls
+ * it with the elapsed that pause just pushed, so a crossing landing on the
+ * very update that stops playback is banked with the pause itself rather
+ * than a render later. They are gated on `active` rather than
  * `running`, because `sessionTimer.pause()` pushes its final elapsed on the
  * very render that turns `running` off — a routine that finishes exactly at a
  * milestone would lose it if the gate were `running`. Paid flat, through
@@ -194,15 +218,24 @@ export type UseNoteScoringOptions = {
  * never see again, which is what `rebase` is for: it offsets the total
  * `creditElapsedMs` reads without touching what has already been seen or paid.
  */
-export function useNoteScoring({ engine, subscribe, active, running, sessionElapsedMs }: UseNoteScoringOptions) {
+export function useNoteScoring({
+  engine,
+  subscribe,
+  active,
+  running,
+  onScored,
+  sessionElapsedMs,
+}: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
   const getStore = useCallback(() => (storeRef.current ??= createStore()), [])
 
   const engineRef = useRef(engine)
   const activeRef = useRef(active)
+  const scoredRef = useRef(onScored)
   useEffect(() => {
     engineRef.current = engine
     activeRef.current = active
+    scoredRef.current = onScored
   })
 
   // Nothing published moved unless one of these two identities did, and a
@@ -263,6 +296,7 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
             store.open = claimed
             store.tally = applyBonus(store.tally, paid)
             store.lastBonuses = [...store.lastBonuses, paid]
+            scoredRef.current?.({ kind: 'bonus', bonus: 'tempo', at: open.beatTime })
           }
         }
 
@@ -276,6 +310,9 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
         store.tally = applyMiss(store.tally)
         store.lastVerdict = { hit: false, responseMs: null }
         store.lastBonuses = NO_BONUSES
+        // The note that went unanswered, not the beat that closed it: a miss
+        // belongs to its own call, exactly as a hit does.
+        scoredRef.current?.({ kind: 'miss', at: store.open.beatTime })
       }
 
       // The settings this note was *called* under rode the event here, because
@@ -353,6 +390,7 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
           store.open = claimed
           store.tally = applyBonus(store.tally, paid)
           store.lastBonuses = [...store.lastBonuses, paid]
+          scoredRef.current?.({ kind: 'bonus', bonus: 'octaves', at: judged.beatTime })
           scheduleFlush()
           return
         }
@@ -387,6 +425,20 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
         store.open = paid
         store.lastBonuses = landed.length > 0 ? landed : NO_BONUSES
 
+        // The hit first, then the bonuses that landed with it — the order the
+        // tally moved in, which is the order whoever is re-deriving it needs.
+        // All of them stamped with the note's own call, so a run of notes is
+        // reported at the spacing the app actually called them at. Only the two
+        // kinds a note is worth more for go up: the streak is re-derived from
+        // the hits themselves, and a practice milestone is the clock's rather
+        // than any note's, so neither is a note's to report.
+        scoredRef.current?.({ kind: 'hit', at: previous.beatTime })
+        for (const bonus of landed) {
+          if (bonus.kind === 'octaves' || bonus.kind === 'tempo') {
+            scoredRef.current?.({ kind: 'bonus', bonus: bonus.kind, at: previous.beatTime })
+          }
+        }
+
         scheduleFlush()
       }),
     [subscribe, getStore, scheduleFlush],
@@ -398,9 +450,9 @@ export function useNoteScoring({ engine, subscribe, active, running, sessionElap
   // or not it is paid, so a re-run finds nothing new to credit —
   // `milestonesPaid` is the second guard on top of that, so nothing here is
   // ever banked twice. Also exposed as `creditElapsedMs` below: `onSessionPause`
-  // reads `tally.points` synchronously, outside React's render cycle, so a
-  // crossing that lands on the very elapsed update that stops playback needs
-  // crediting before that read rather than on the next render.
+  // runs outside React's render cycle, and a crossing that lands on the very
+  // elapsed update that stops playback is banked with that pause rather than
+  // left for the next render.
   const creditElapsedMs = useCallback(
     (elapsedMs: number) => {
       const store = getStore()

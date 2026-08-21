@@ -49,12 +49,50 @@ const board = (...scores: Array<[string, number]>) => ({
   scores: scores.map(([nickname, points]) => ({ nickname, points })),
 })
 
-/** The app's own fetch, stubbed. Every call answers with the same board. */
+const TOKEN = 'a'.repeat(64)
+
+/**
+ * The app's own fetch, stubbed, answering each endpoint the way the real
+ * service would: the board on a GET, a token on a claim, a session id, and a
+ * running total the *server* worked out on a batch of events.
+ */
 const installFetch = (payload: unknown = board()) => {
-  const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => payload }) as unknown as Response)
+  let total = 0
+  const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+    const path = String(url)
+    const reply = (body: unknown, status = 200) =>
+      ({ ok: status < 400, status, json: async () => body }) as unknown as Response
+
+    if (init?.method !== 'POST') {
+      return reply(payload)
+    }
+
+    if (path.endsWith('/nickname')) {
+      return reply({ nickname: JSON.parse(String(init.body)).nickname, token: TOKEN }, 201)
+    }
+
+    if (path.endsWith('/session')) {
+      return reply({ sessionId: 'session-1', expiresAt: 0 }, 201)
+    }
+
+    total += JSON.parse(String(init.body ?? '{}')).events?.length ?? 0
+    return reply({ points: total, ...board(['ada', total]) })
+  })
   vi.stubGlobal('fetch', fetchImpl)
 
   return fetchImpl
+}
+
+/**
+ * A browser that already owns 'ada' on 'demo'. Membership is the *token*, not
+ * the remembered name — seeding the name alone is a browser that still has to
+ * claim, which is what the prompt test below is about.
+ */
+const owning = (challenge = 'demo', nickname = 'ada') => {
+  window.localStorage.setItem(
+    STORAGE_KEYS.challengeTokens,
+    JSON.stringify({ [challenge]: { nickname, token: TOKEN } }),
+  )
 }
 
 const installGetUserMedia = () => {
@@ -165,26 +203,70 @@ describe('arriving on a challenge', () => {
     expect(entries[0]).toHaveTextContent('300')
   })
 
-  it('joins under the name that was typed and remembers it', async () => {
+  it('reserves the name that was typed before joining under it', async () => {
     const fetchImpl = installFetch(board(['ada', 300]))
     installGetUserMedia()
 
     await renderApp()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: 'ada' } })
-    fireEvent.click(screen.getByTestId('nickname-submit'))
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nickname-submit'))
+    })
 
     expect(screen.queryByTestId('nickname-prompt')).toBeNull()
+    // The token is the membership; the bare name is only the next prefill.
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({
+      demo: { nickname: 'ada', token: TOKEN },
+    })
     expect(window.localStorage.getItem(STORAGE_KEYS.challengeNickname)).toBe('ada')
 
     await waitFor(() => expect(document.querySelector('.scoreboard-entry[data-you="true"]')).not.toBeNull())
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/scoreboard/demo/nickname')
+    expect(init.method).toBe('POST')
   })
 
-  it('skips the prompt for a browser that has been on a challenge before', async () => {
+  it('says so, and does not join, when the name is already somebody else’s', async () => {
+    installGetUserMedia()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) =>
+        init?.method === 'POST'
+          ? ({ ok: false, status: 409, json: async () => ({ error: 'nickname_taken' }) } as unknown as Response)
+          : ({ ok: true, status: 200, json: async () => board(['ada', 300]) } as unknown as Response),
+      ),
+    )
+
+    await renderApp()
+
+    fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: 'ada' } })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nickname-submit'))
+    })
+
+    expect(screen.getByTestId('nickname-error')).toHaveTextContent('already has that name')
+    expect(screen.getByTestId('nickname-prompt')).toBeInTheDocument()
+    expect(window.localStorage.getItem(STORAGE_KEYS.challengeTokens)).toBeNull()
+  })
+
+  /** Having been on *a* board is not a credential for *this* one. */
+  it('still asks a browser that has a remembered name but owns nothing here', async () => {
     installFetch()
     installGetUserMedia()
     window.localStorage.setItem(STORAGE_KEYS.challengeNickname, 'ada')
+
+    await renderApp()
+
+    expect(screen.getByTestId('nickname-prompt')).toBeInTheDocument()
+    // ...prefilled, so re-claiming it is a tap rather than typing.
+    expect(screen.getByTestId('nickname-input')).toHaveValue('ada')
+  })
+
+  it('skips the prompt for a browser that already owns a name on this challenge', async () => {
+    installFetch()
+    installGetUserMedia()
+    owning()
 
     await renderApp()
 
@@ -210,14 +292,19 @@ describe('banking a session', () => {
   beforeEach(() => {
     vi.useFakeTimers(FAKE_CLOCKS)
     visit('?challenge=demo')
-    window.localStorage.setItem(STORAGE_KEYS.challengeNickname, 'ada')
+    owning()
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it('puts the tally on the board when practice is paused', async () => {
+  /**
+   * The board is a board of what the *server* worked out. A pause posts what
+   * happened — a session, then a batch of events — and never a total, which is
+   * what stops a browser putting whatever number it likes on it.
+   */
+  it('posts what was played when practice is paused, and no total', async () => {
     const fetchImpl = installFetch(board(['ada', 0]))
     installGetUserMedia()
 
@@ -235,13 +322,23 @@ describe('banking a session', () => {
       fireEvent.click(screen.getByTestId('play-toggle'))
     })
 
-    // One load and one submit. The tally is whatever the session earned; what
-    // matters here is that a pause is what sends it.
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    const [url, init] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
-    expect(url).toBe('/api/scoreboard/demo')
-    expect(init.method).toBe('POST')
-    expect(JSON.parse(String(init.body))).toMatchObject({ nickname: 'ada' })
+    const posts = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>).filter(
+      ([, init]) => init?.method === 'POST',
+    )
+    expect(posts.map(([url]) => url)).toEqual([
+      '/api/scoreboard/demo/session',
+      '/api/scoreboard/demo/session/session-1/events',
+    ])
+
+    const [, session] = posts[0]
+    expect(JSON.parse(String(session.body))).toMatchObject({ nickname: 'ada', config: expect.any(Object) })
+    const [, batch] = posts[1]
+    const { events } = JSON.parse(String(batch.body))
+    expect(events.length).toBeGreaterThan(0)
+    expect(events[0]).toMatchObject({ seq: 0, kind: 'miss' })
+    // The ownership token rides the header, never the body or the URL.
+    expect((batch.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`)
+    expect(String(batch.body)).not.toContain('points')
   })
 })
 
@@ -251,7 +348,7 @@ describe('on the stand', () => {
     installGetUserMedia()
     installMatchMedia(PHONE_PORTRAIT)
     visit('?challenge=demo')
-    window.localStorage.setItem(STORAGE_KEYS.challengeNickname, 'ada')
+    owning()
 
     await renderApp()
 

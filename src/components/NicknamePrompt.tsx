@@ -5,8 +5,21 @@ import { MAX_NICKNAME_LENGTH, normalizeNickname } from '../lib/challenge'
 type NicknamePromptProps = {
   /** The challenge being joined, named so the modal explains where it came from. */
   challenge: string
+  /** The name this browser used last. A prefill, never a claim on its own. */
+  prefill?: string
+  /** A claim is a round trip, and the button has to say so while it runs. */
+  pending?: boolean
+  /** Why the last attempt did not join, if it did not. */
+  error?: 'taken' | 'rate-limited' | 'error' | null
   onJoin: (nickname: string) => void
   onDismiss: () => void
+}
+
+/** One line per way a claim can fail, and no jargon in any of them. */
+const ERRORS: Record<'taken' | 'rate-limited' | 'error', string> = {
+  taken: 'Somebody already has that name on this board. Try another.',
+  'rate-limited': 'Too many tries just now — wait a moment and go again.',
+  error: 'The board could not be reached. Try again in a moment.',
 }
 
 /**
@@ -21,9 +34,16 @@ type NicknamePromptProps = {
  * The modal furniture is the practice sheet's, minus the bottom-anchoring: this
  * is a question rather than a drawer, so it sits in the middle of the screen.
  */
-export function NicknamePrompt({ challenge, onJoin, onDismiss }: NicknamePromptProps) {
+export function NicknamePrompt({
+  challenge,
+  prefill = '',
+  pending = false,
+  error = null,
+  onJoin,
+  onDismiss,
+}: NicknamePromptProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(prefill)
 
   useFocusTrap(dialogRef, true, onDismiss)
 
@@ -33,7 +53,7 @@ export function NicknamePrompt({ challenge, onJoin, onDismiss }: NicknamePromptP
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
-    if (nickname !== null) {
+    if (nickname !== null && !pending) {
       onJoin(nickname)
     }
   }
@@ -53,8 +73,8 @@ export function NicknamePrompt({ challenge, onJoin, onDismiss }: NicknamePromptP
           Join “{challenge}”
         </h2>
         <p className="nickname-prompt-copy">
-          Pick a name for the shared scoreboard. Your points go up whenever you pause or stop, and only your
-          best session counts.
+          Pick a name for the shared scoreboard. It is reserved for this browser, so nobody else can play
+          under it — and only your best session counts.
         </p>
 
         <form className="nickname-prompt-form" onSubmit={onSubmit}>
@@ -70,7 +90,14 @@ export function NicknamePrompt({ challenge, onJoin, onDismiss }: NicknamePromptP
             maxLength={MAX_NICKNAME_LENGTH}
             autoComplete="nickname"
             onChange={(event) => setDraft(event.target.value)}
+            disabled={pending}
           />
+
+          {error === null ? null : (
+            <p className="nickname-prompt-error" data-testid="nickname-error" role="alert">
+              {ERRORS[error]}
+            </p>
+          )}
 
           <div className="nickname-prompt-actions">
             <button type="button" className="ghost-button" onClick={onDismiss} data-testid="nickname-dismiss">
@@ -80,9 +107,9 @@ export function NicknamePrompt({ challenge, onJoin, onDismiss }: NicknamePromptP
               type="submit"
               className="primary-button"
               data-testid="nickname-submit"
-              disabled={nickname === null}
+              disabled={nickname === null || pending}
             >
-              Join challenge
+              {pending ? 'Reserving…' : 'Join challenge'}
             </button>
           </div>
         </form>
