@@ -1,5 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { addPractice, dayKey, HISTORY_FLUSH_MS, readHistory, writeHistory, type PracticeHistory } from '../lib/history'
+
+/**
+ * Reads a monotonic counter against its last value and returns how far it rose.
+ * A drop (the source was reset) just re-baselines and counts as no rise, so a
+ * reset never subtracts from a day.
+ */
+function takeRise(lastRef: RefObject<number>, value: number): number {
+  const delta = value - lastRef.current
+  lastRef.current = value
+  return delta > 0 ? delta : 0
+}
 
 /**
  * Records practice against the calendar.
@@ -44,18 +55,17 @@ export function usePracticeHistory() {
   }, [])
 
   /**
-   * Takes the timer's cumulative elapsed time and banks the difference. A drop
-   * (the timer was reset) just re-baselines — it never subtracts from a day.
+   * Takes the timer's cumulative elapsed time and banks the difference, writing
+   * through once enough has piled up to be worth a flush.
    */
   const trackElapsed = useCallback(
     (elapsedMs: number) => {
-      const delta = elapsedMs - lastElapsedMsRef.current
-      lastElapsedMsRef.current = elapsedMs
-      if (delta <= 0) {
+      const rise = takeRise(lastElapsedMsRef, elapsedMs)
+      if (rise <= 0) {
         return
       }
 
-      pendingMsRef.current += delta
+      pendingMsRef.current += rise
       if (pendingMsRef.current >= HISTORY_FLUSH_MS) {
         commit()
       }
@@ -63,13 +73,9 @@ export function usePracticeHistory() {
     [commit],
   )
 
-  /** Same shape for the running note count, which also rewinds on reset. */
+  /** The running note count, banked the same way but never worth a flush. */
   const trackNotes = useCallback((notesCalled: number) => {
-    const delta = notesCalled - lastNotesRef.current
-    lastNotesRef.current = notesCalled
-    if (delta > 0) {
-      pendingNotesRef.current += delta
-    }
+    pendingNotesRef.current += takeRise(lastNotesRef, notesCalled)
   }, [])
 
   // A tab closed mid-session still gets its seconds; pagehide is the only
