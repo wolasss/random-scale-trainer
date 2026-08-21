@@ -84,6 +84,9 @@ const createStore = (): ScoringStore => ({
   listeners: new Set(),
 })
 
+/** One thing that landed, in the shape the shared board reports it in. */
+export type ScoredEvent = { kind: 'hit' | 'miss' } | { kind: 'bonus'; bonus: 'octaves' | 'tempo' }
+
 export type UseNoteScoringOptions = {
   engine: ScoringEngine
   /** `useMicPitch`'s subscribe — every clarity-gated detection, on the clock. */
@@ -92,6 +95,17 @@ export type UseNoteScoringOptions = {
   active: boolean
   /** Playback is running. A pause or a stop closes the open note unjudged. */
   running: boolean
+  /**
+   * Fired for each thing the tally banks, in the order it banked them: a hit
+   * with the non-streak bonuses that landed on it, a bonus discovered later on
+   * the same note, and a miss when a window closes unanswered. The streak is
+   * left out because whoever is counting can count a run themselves — the
+   * shared board does, from these very events, which is the point of them.
+   *
+   * Ref-only, like `onBeat`: it is called from inside the microtask flush, and
+   * anything it does must not re-enter React from there.
+   */
+  onScored?: (event: ScoredEvent) => void
 }
 
 /**
@@ -151,15 +165,17 @@ export type UseNoteScoringOptions = {
  * `points` and the readout can print it as it stands. Nothing here is written
  * anywhere.
  */
-export function useNoteScoring({ engine, subscribe, active, running }: UseNoteScoringOptions) {
+export function useNoteScoring({ engine, subscribe, active, running, onScored }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
   const getStore = useCallback(() => (storeRef.current ??= createStore()), [])
 
   const engineRef = useRef(engine)
   const activeRef = useRef(active)
+  const scoredRef = useRef(onScored)
   useEffect(() => {
     engineRef.current = engine
     activeRef.current = active
+    scoredRef.current = onScored
   })
 
   // Nothing published moved unless one of these two identities did, and a
@@ -220,6 +236,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
             store.open = claimed
             store.tally = applyBonus(store.tally, paid)
             store.lastBonuses = [...store.lastBonuses, paid]
+            scoredRef.current?.({ kind: 'bonus', bonus: 'tempo' })
           }
         }
 
@@ -233,6 +250,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
         store.tally = applyMiss(store.tally)
         store.lastVerdict = { hit: false, responseMs: null }
         store.lastBonuses = NO_BONUSES
+        scoredRef.current?.({ kind: 'miss' })
       }
 
       // The settings this note was *called* under rode the event here, because
@@ -310,6 +328,7 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
           store.open = claimed
           store.tally = applyBonus(store.tally, paid)
           store.lastBonuses = [...store.lastBonuses, paid]
+          scoredRef.current?.({ kind: 'bonus', bonus: 'octaves' })
           scheduleFlush()
           return
         }
@@ -343,6 +362,15 @@ export function useNoteScoring({ engine, subscribe, active, running }: UseNoteSc
         store.tally = applyHit(store.tally, verdict.responseMs, landed, hitAward(previous.multiplier))
         store.open = paid
         store.lastBonuses = landed.length > 0 ? landed : NO_BONUSES
+
+        // The hit first, then the bonuses that landed with it — the order the
+        // tally moved in, which is the order whoever is re-deriving it needs.
+        scoredRef.current?.({ kind: 'hit' })
+        for (const bonus of landed) {
+          if (bonus.kind !== 'streak') {
+            scoredRef.current?.({ kind: 'bonus', bonus: bonus.kind })
+          }
+        }
 
         scheduleFlush()
       }),

@@ -24,11 +24,16 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 - `src/lib/audio/` — Web Audio engine, mic capture and pitch detection (`engine.ts`, `mic.ts`, `pitch.ts`), each with tests.
 - `src/lib/playback/` — playback state machine and note deck (`machine.ts`, `deck.ts`, plus the `program.ts`/`tempo.ts` split out of the machine), each with tests.
 - `src/lib/` — the rest of the domain logic: practice log (`history.ts`), note/scale generation (`notes.ts`), presets and routines math (`presets.ts`, `routines.ts`), scoring, storage and timing helpers (`scoring.ts`, `storage.ts`, `tapTempo.ts`, `time.ts`, `transport.ts`), each with a colocated `*.test.ts`; plus `skins.ts` and `src/constants.ts` — the visual skins and app constants.
-- `src/server/` — the shared-challenge scoreboard: `scoreboard.js` (the routing and the store, as
-  pure functions), `main.js` (the `node:http` edge) and a hand-written `scoreboard.d.ts`. Plain JS
-  like the service worker, and for the same reason — it runs outside the app bundle, under bare
-  `node` in the container. Its tests are colocated TypeScript, including `deploy.test.ts`, which
-  reads `nginx.conf` and the `Dockerfile`.
+- `src/server/` — the shared-challenge scoreboard: `scoreboard.js` (routing, the store, nickname
+  ownership, quotas and rate limits, all as pure functions of a store), `session-scoring.js` (the
+  point rules and the event-validation rules, pure), `http.js` (the `node:http` edge — body cap,
+  client identity) and `main.js` (the process), each with a hand-written `.d.ts`. Plain JS like the
+  service worker, and for the same reason — it runs outside the app bundle, under bare `node` in the
+  container. **A nickname is owned**: claiming one issues a token the server keeps only a digest of,
+  and every mutation carries it as `Authorization: Bearer`. The client never sends a total; it
+  streams events and the server adds them up. Tests are colocated TypeScript, including
+  `api.integration.test.ts` (a real socket) and `deploy.test.ts`, which reads `nginx.conf` and the
+  `Dockerfile`.
 - `src/sw/` — service-worker source (`service-worker.js`) and its tests; built into `dist/sw.js` by the `callnote-service-worker` Vite plugin in `vite.config.ts` (never hand-edit `dist`).
 - `src/test/` — test setup/helpers.
 - `e2e/` — Selenium specs (separate `tsconfig`, typechecked via `typecheck:e2e`).

@@ -2,10 +2,14 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NicknamePrompt } from './NicknamePrompt'
 
-const renderPrompt = () => {
+type Extras = Partial<Pick<Parameters<typeof NicknamePrompt>[0], 'prefill' | 'pending' | 'error'>>
+
+const renderPrompt = (extras: Extras = {}) => {
   const onJoin = vi.fn()
   const onDismiss = vi.fn()
-  const rendered = render(<NicknamePrompt challenge="demo" onJoin={onJoin} onDismiss={onDismiss} />)
+  const rendered = render(
+    <NicknamePrompt challenge="demo" onJoin={onJoin} onDismiss={onDismiss} {...extras} />,
+  )
 
   return { ...rendered, onJoin, onDismiss }
 }
@@ -99,5 +103,47 @@ describe('NicknamePrompt', () => {
     renderPrompt()
 
     expect(screen.getByTestId('nickname-input')).toHaveAttribute('maxlength', '20')
+  })
+})
+
+describe('reserving the name', () => {
+  it('opens on the name this browser used last, so re-claiming it is one tap', () => {
+    renderPrompt({ prefill: 'ada' })
+
+    expect(screen.getByTestId('nickname-input')).toHaveValue('ada')
+    expect(screen.getByTestId('nickname-submit')).toBeEnabled()
+  })
+
+  /** A claim is a round trip, and a button that looks idle invites a second one. */
+  it('says it is working while the claim is in flight, and takes no second try', () => {
+    const { onJoin } = renderPrompt({ prefill: 'ada', pending: true })
+
+    expect(screen.getByTestId('nickname-submit')).toHaveTextContent('Reserving…')
+    expect(screen.getByTestId('nickname-submit')).toBeDisabled()
+    expect(screen.getByTestId('nickname-input')).toBeDisabled()
+
+    fireEvent.submit(screen.getByTestId('nickname-input').closest('form')!)
+    expect(onJoin).not.toHaveBeenCalled()
+  })
+
+  it('says why a claim was refused, in each of the three ways it can be', () => {
+    for (const [error, text] of [
+      ['taken', 'already has that name'],
+      ['rate-limited', 'Too many tries'],
+      ['error', 'could not be reached'],
+    ] as const) {
+      const { unmount } = renderPrompt({ error })
+
+      const message = screen.getByTestId('nickname-error')
+      expect(message).toHaveTextContent(text)
+      expect(message).toHaveAttribute('role', 'alert')
+      unmount()
+    }
+  })
+
+  it('says nothing at all when there is nothing wrong', () => {
+    renderPrompt()
+
+    expect(screen.queryByTestId('nickname-error')).toBeNull()
   })
 })

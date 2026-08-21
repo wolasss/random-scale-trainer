@@ -7,6 +7,8 @@ type ScoreboardStripProps = {
   nickname: string | null
   scores: ScoreEntry[]
   status: ChallengeStatus
+  /** Why this browser has stopped being able to score, if it has. */
+  notice?: string | null
 }
 
 /** What stands in for the board while there is nothing to show. */
@@ -27,11 +29,22 @@ const EMPTY_MESSAGES: Record<ChallengeStatus, string> = {
  *
  * A board that could not be loaded says so on one line and leaves it there.
  * There is nothing to retry by hand, and a failed fetch is not worth a button.
+ *
+ * `notice` is the other half of that: an expired session, a nickname this
+ * browser does not own, a rate limit. All three leave the board readable and
+ * say why nothing of yours is landing on it, which is more use than a row that
+ * silently stops moving.
  */
-export function ScoreboardStrip({ challenge, nickname, scores, status }: ScoreboardStripProps) {
+export function ScoreboardStrip({ challenge, nickname, scores, status, notice = null }: ScoreboardStripProps) {
   return (
     <section className="scoreboard" data-testid="scoreboard" aria-label={`Scoreboard for ${challenge}`}>
       <span className="scoreboard-label">{challenge}</span>
+
+      {notice === null ? null : (
+        <span className="scoreboard-notice" data-testid="scoreboard-notice" role="status">
+          {notice}
+        </span>
+      )}
 
       {scores.length === 0 ? (
         <span className="scoreboard-empty" data-testid="scoreboard-empty">

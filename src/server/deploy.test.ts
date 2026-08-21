@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -75,6 +75,20 @@ describe('nginx.conf', () => {
   it('keeps the page able to reach its own origin', () => {
     expect(NGINX).toContain("connect-src 'self'")
   })
+
+  /**
+   * The scoreboard's rate limits key on the address nginx forwards, and
+   * $proxy_add_x_forwarded_for *appends* to whatever the caller sent. Under
+   * that setting a caller can prepend a hop of their own invention and take a
+   * fresh bucket per request, which is the whole limit gone. Setting the header
+   * outright leaves exactly one hop in it: the one nginx observed.
+   */
+  it('forwards the address it observed rather than the one it was handed', () => {
+    const location = NGINX.match(/location \/api\/ \{[\s\S]*?\n {2}\}/)?.[0]
+
+    expect(location).toContain('proxy_set_header X-Forwarded-For $remote_addr;')
+    expect(NGINX).not.toContain('$proxy_add_x_forwarded_for')
+  })
 })
 
 describe('Dockerfile', () => {
@@ -88,6 +102,20 @@ describe('Dockerfile', () => {
     expect(ENTRYPOINT).toContain('/opt/callnote/server/main.js')
     // Blocking here would stop nginx from ever starting.
     expect(ENTRYPOINT).toMatch(/node .*main\.js &/)
+  })
+
+  /**
+   * main.js imports these two at boot. The COPY above ships the whole directory,
+   * so this is really a check that they still live in it — a module moved
+   * anywhere else is a container that exits before nginx has finished starting.
+   */
+  it('ships every module the service imports', () => {
+    for (const module of ['http.js', 'scoreboard.js', 'session-scoring.js']) {
+      expect(existsSync(fileURLToPath(new URL(`./${module}`, import.meta.url)))).toBe(true)
+    }
+
+    expect(MAIN).toContain("from './http.js'")
+    expect(MAIN).toContain("from './scoreboard.js'")
   })
 
   /** The published image's run contract: `docker run -p 8080:80`, unchanged. */
