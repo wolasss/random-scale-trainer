@@ -6,7 +6,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createScoreboardServer, MAX_BODY_BYTES } from './http.js'
 import { API_PREFIX, CLAIM_LIMIT, createStore, readSnapshot } from './scoreboard.js'
-import { FASTEST_NOTE_INTERVAL_MS, POINTS_PER_HIT } from './session-scoring.js'
+import {
+  difficultyMultiplier,
+  FASTEST_NOTE_INTERVAL_MS,
+  POINTS_PER_HIT,
+  TEMPO_BONUS_POINTS,
+} from './session-scoring.js'
 
 /**
  * The scoreboard over a real socket.
@@ -159,6 +164,78 @@ describe('scoring over the wire', () => {
     // Four hits plus the streak bonuses the third and fourth earn.
     expect(posted.body.points).toBe(POINTS_PER_HIT * 4 + 5 + 10)
     expect(posted.body.scores).toEqual([{ nickname: 'ada', points: posted.body.points }])
+  })
+
+  /**
+   * The difficulty rides over the wire on the hit, is priced by the server, and
+   * reaches the board — which is the whole path the readout has to agree with.
+   */
+  it('prices a hit by the settings its note was called under', async () => {
+    const owner = await claim('priced', 'ada')
+    const token = String(owner.body.token)
+    const difficulty = {
+      spelling: 'mixed',
+      showFretboard: false,
+      bpm: 96,
+      beatsPerNote: 4,
+      pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    } as const
+    const multiplier = difficultyMultiplier(difficulty)
+
+    const opened = await request(`${API_PREFIX}priced/session`, {
+      method: 'POST',
+      token,
+      body: { nickname: 'ada', config: { bpm: 96, beatsPerNote: 4 } },
+    })
+
+    const posted = await request(`${API_PREFIX}priced/session/${String(opened.body.sessionId)}/events`, {
+      method: 'POST',
+      token,
+      body: {
+        events: [
+          { seq: 0, kind: 'hit', at: 0, difficulty },
+          { seq: 1, kind: 'bonus', bonus: 'tempo', at: 0 },
+          // Priced flat, in the same session: what a note is worth is the
+          // note's own business and not the session's.
+          { seq: 2, kind: 'hit', at: FASTEST_NOTE_INTERVAL_MS },
+        ],
+      },
+    })
+
+    const priced = Math.round(POINTS_PER_HIT * multiplier) + Math.round(TEMPO_BONUS_POINTS * multiplier)
+    expect(posted.status).toBe(200)
+    expect(posted.body.points).toBe(priced + POINTS_PER_HIT)
+    expect(posted.body.scores).toEqual([{ nickname: 'ada', points: priced + POINTS_PER_HIT }])
+  })
+
+  /** Settings the app cannot produce are a bad event, and a bad event is a bad batch. */
+  it('refuses a hit declaring a difficulty the app cannot produce', async () => {
+    const owner = await claim('bogus', 'ada')
+    const token = String(owner.body.token)
+    const opened = await request(`${API_PREFIX}bogus/session`, {
+      method: 'POST',
+      token,
+      body: { nickname: 'ada', config: { bpm: 72, beatsPerNote: 4 } },
+    })
+
+    const posted = await request(`${API_PREFIX}bogus/session/${String(opened.body.sessionId)}/events`, {
+      method: 'POST',
+      token,
+      body: {
+        events: [
+          {
+            seq: 0,
+            kind: 'hit',
+            at: 0,
+            difficulty: { spelling: 'mixed', showFretboard: false, bpm: 9000, beatsPerNote: 4, pool: [0, 1] },
+          },
+        ],
+      },
+    })
+
+    expect(posted.status).toBe(400)
+    expect(posted.body.error).toBe('invalid_event')
+    expect((await request(`${API_PREFIX}bogus`)).body.scores).toEqual([])
   })
 
   it('refuses a replayed batch and leaves the board where it was', async () => {

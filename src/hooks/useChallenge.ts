@@ -12,6 +12,7 @@ import {
   type ScoreEvent,
   type SessionConfig,
 } from '../lib/scoreboard'
+import type { DifficultyInputs, PracticeMilestoneKind } from '../lib/scoring'
 import { readRaw, writeRaw } from '../lib/storage'
 import { STORAGE_KEYS } from '../constants'
 
@@ -26,7 +27,18 @@ export type JoinError = 'taken' | 'rate-limited' | 'error'
  * audio time in seconds of the note it is about — the app's own call, which is
  * the only timestamp with no response jitter in it.
  */
-export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+export type ScoredEvent =
+  /**
+   * A hit carries what its note was called under, which is what the server
+   * prices it by. Optional, and null is the same as absent: a hit that declares
+   * nothing is priced flat at both ends, which is what a beat carrying no
+   * settings produces.
+   */
+  | { kind: 'hit'; at: number; difficulty?: DifficultyInputs | null }
+  | { kind: 'miss'; at: number }
+  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+  /** The clock's own, which the server checks its own clock against. */
+  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
 
 export type Challenge = {
   /** The whole feature, in one boolean. False means none of it exists. */
@@ -145,10 +157,10 @@ const forgetToken = (challenge: string) => {
  *
  * Points are never computed here. `recordEvent` queues what the scoring hook
  * observed, `flushEvents` posts it in batches under the token, and the total
- * that comes back is the server's arithmetic. The local readout still shows the
- * player's own priced tally, which is a different number on purpose: the board
- * pays every note the same, so nobody can buy a place on it by declaring a hard
- * setup they never practised under.
+ * that comes back is the server's arithmetic. It is the *same* arithmetic as
+ * the readout's, run on the same inputs — a hit is queued with the settings its
+ * note was called under, and src/server/session-scoring.js prices it by them —
+ * so the board and the number under the play button are one figure and not two.
  */
 export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions = {}): Challenge {
   const [name] = useState(() =>
@@ -406,10 +418,16 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
       // far apart as the app called them.
       const fresh = sessionRef.current === null
       const session = (sessionRef.current ??= { id: null, startedAt: event.at, seq: 0 })
+      // Only what the kind actually carries: a hit's price, a bonus's kind, a
+      // milestone's, and nothing at all on a miss. The server rejects a field
+      // on a kind that has no use for one, and it is right to — an event
+      // nobody can price is one nobody should have sent.
       queueRef.current.push({
         seq: session.seq++,
         kind: event.kind,
         ...(event.kind === 'bonus' ? { bonus: event.bonus } : {}),
+        ...(event.kind === 'milestone' ? { milestone: event.milestone } : {}),
+        ...(event.kind === 'hit' && event.difficulty != null ? { difficulty: event.difficulty } : {}),
         at: Math.max(0, Math.round((event.at - session.startedAt) * 1000)),
       })
 

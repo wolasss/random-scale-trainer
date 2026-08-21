@@ -62,7 +62,12 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   time from being late, and the bonus stops paying rather than paying everyone. Every note — and
   every bonus earned on it — is priced by the settings in force when it was *called*: mixed sharps
   and flats, the fretboard map put away, fewer beats per note and a faster tempo all pay more, while
-  the two most generous note spans pay less than the flat rate. The multiplier shows on the score
+  the two most generous note spans pay less than the flat rate. So does the note pool, which is the
+  biggest factor of the lot: all twelve is what the app starts on and what the price is measured
+  from, and every narrower pool is worth less — naturals only, accidentals only, or any handful of
+  chips. Mixed spelling is tied to the same choice, since only the five accidentals have two names:
+  ask for naturals only and mixed is a setting that changes nothing, so it pays nothing. All twelve
+  with sharps and flats mixed is the top of both. The multiplier shows on the score
   line whenever it is anything other than ×1, so a discount is as plain as a premium and the line
   only stays quiet when a note is worth exactly what a note is worth. The price is frozen on the note as
   it is called, so nudging a setting mid-note moves the next one instead, and a bonus found late is
@@ -160,11 +165,16 @@ curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKE
      localhost:8080/api/scoreboard/demo/session
 # {"challenge":"demo","sessionId":"…","config":{…},"expiresAt":…}
 
-# Report what happened. The server adds it up; the answer is *its* total.
+# Report what happened. The server adds it up; the answer is *its* total. A hit
+# carries what its note was called under; one that carries none is priced flat.
 curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
-     -d '{"events":[{"seq":0,"kind":"hit","at":0},{"seq":1,"kind":"hit","at":250}]}' \
+     -d '{"events":[
+           {"seq":0,"kind":"hit","at":0,
+            "difficulty":{"spelling":"mixed","showFretboard":false,"bpm":96,"beatsPerNote":4,
+                          "pool":[0,1,2,3,4,5,6,7,8,9,10,11]}},
+           {"seq":1,"kind":"hit","at":250}]}' \
      localhost:8080/api/scoreboard/demo/session/$SESSION/events
-# {"challenge":"demo","points":20,"scores":[…]}       …then POST …/finish to close it.
+# {"challenge":"demo","points":25,"scores":[…]}       …then POST …/finish to close it.
 ```
 
 The board keeps each nickname's **best**, so a session that ends lower changes nothing.
@@ -177,9 +187,29 @@ proxies to it by number, and only a matching pair works.
 answers `410`. A score can only be reached through a session, and `session-scoring.js` bounds how
 fast one can grow — an event may not claim a moment the server has not lived through, and two
 judged notes may not be closer together than 250 ms, which is one beat per note at the app's top
-tempo. The declared config is recorded and reported; it prices nothing and times nothing, so a
-routine that moves the tempo mid-session is never read as cheating and a hard setup nobody
-practised under buys no points.
+tempo. The declared config is recorded and reported; it times nothing, so a routine that moves the
+tempo mid-session is never read as cheating.
+
+What a note is *worth* rides on the `hit` that reports it — `"difficulty":{"spelling":…,
+"showFretboard":…,"bpm":…,"beatsPerNote":…,"pool":[…]}` — and the server prices it by the same
+arithmetic `src/lib/scoring.ts` uses, so the board and the readout under the play button are one
+number and not two. It is the note's own difficulty, frozen when the note was *called*, which is
+why it cannot be a property of the session: a speed ramp reprices the next note and not the one
+still sounding. The inputs are rejected rather than clamped if they are not settings the app
+offers, which bounds one note at ×2.7048; nothing declared moves the wall clock or the spacing
+floor, so a lie still has to be played out in real time.
+
+Practice milestones come up the same wire as `{"kind":"milestone","milestone":"practice10"}` and
+are paid flat — no note's price applies to a bonus no note earned — once each, and only when the
+server's own clock agrees the session has run that long. The two clocks cannot be the same one
+(the app's is practice time; the session's starts at the first note called), so the check carries
+`MILESTONE_LEAD_MS` of slack: it is there to refuse a thirty-minute bonus from a session a minute
+old, not to arbitrate the last few seconds of an honest one. A claim that is too early answers
+`too_soon`.
+
+`session-scoring.test.ts` runs both pricing functions over every setup the app can produce and
+asserts they agree, and `src/App.parity.test.tsx` plays a session through the real app against the
+real service — including one that sits past ten minutes — and asserts the two totals match.
 
 Around that sit the limits in `src/server/scoreboard.js` — 4 KB bodies, 1,000,000 points, 500
 nicknames per challenge, 200 challenges, 10 claims a minute per client and 20 an hour per

@@ -19,6 +19,7 @@ const INPUTS: BeatProgramInputs = {
   bpm: 90,
   spelling: 'mixed',
   showFretboard: false,
+  pool: [0, 1, 2],
 }
 
 const view = (head: NoteCall | null, following: NoteCall | null = null): DeckView => ({ head, following })
@@ -58,7 +59,15 @@ describe('note and filler beats', () => {
     const step = stepBeat(createSchedulingState(), view(note(0, true, 2)), { ...INPUTS, beatsPerNote: 8, bpm: 132 })
 
     if (step.kind !== 'beat') throw new Error('expected a beat')
-    expect(step.event.difficulty).toEqual({ spelling: 'mixed', showFretboard: false, bpm: 132, beatsPerNote: 8 })
+    expect(step.event.difficulty).toEqual({
+      spelling: 'mixed',
+      showFretboard: false,
+      bpm: 132,
+      beatsPerNote: 8,
+      // The pool is one of the settings a note is priced by: how much of the
+      // octave it could have been drawn from.
+      pool: [0, 1, 2],
+    })
   })
 
   it('prices nothing on a count-in click or a beat inside a span', () => {

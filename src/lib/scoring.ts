@@ -44,9 +44,21 @@
  * What a note is worth is decided before it is played, by how hard the settings
  * made it: `difficultyMultiplier` prices mixed sharps-and-flats above one
  * spelling, the fretboard map hidden above shown, a shorter note span above a
- * longer one, and a tempo above the default above one at or below it. The four
- * inputs are the ones in force when the note was *called*, which is why they
- * ride the beat event rather than being read here — see program.ts.
+ * longer one, a tempo above the default above one at or below it, and the whole
+ * octave in play above any part of it. The inputs are the ones in force when the
+ * note was *called*, which is why they ride the beat event rather than being
+ * read here — see program.ts.
+ *
+ * The pool factor is the one whose neutral setting is also its hardest, and
+ * that is deliberate: the app starts on all twelve, which is the thing worth
+ * practising, so every narrower pool is a discount rather than the full set
+ * being a bonus. Naturals only and accidentals only are both a part of the
+ * octave and both priced as one; the five accidentals are the smaller pool of
+ * the two and priced lower for it. Mixed spelling is tied to the same setting,
+ * because only those five have two names: on a pool without one of them the
+ * preference asks for nothing it would not have asked for anyway, and is worth
+ * nothing. All twelve with sharps and flats mixed is therefore the top of both
+ * factors at once, which is exactly the practice the app is for.
  *
  * Both halves of the arithmetic stay outside `applyHit`/`applyBonus`:
  * `hitAward` and `scaleBonus` round to whole points where a `Bonus` is built,
@@ -66,10 +78,17 @@
  * before rounding) rather than 4× — under the 2.5× ceiling, which is to say
  * about two and a half minutes of slow practice matches a minute of fast. The
  * cap binds at `MAX_BPM`, where the raw factor would be 1.413.
+ *
+ * The pool factor follows the same shape of reasoning. What a call is worth is
+ * how much it could have been, so the steps track `log2(n)` rather than `n` — a
+ * call from two notes is not half as hard as one from four — normalised to 1 at
+ * twelve and floored at half for a pool of one, where the answer is known
+ * before the call is made. The result is written out as `POOL_MULTIPLIERS`
+ * rather than computed; the note beside it says why.
  */
 
 import { DEFAULT_BPM, type BeatsPerNote } from '../constants'
-import type { SpellingPreference } from './notes'
+import { isNaturalPitchClass, type SpellingPreference } from './notes'
 
 /** How long the room is given to go quiet after the app stops sounding. */
 export const SCORE_DECAY_MARGIN_S = 0.15
@@ -88,9 +107,45 @@ export const POINTS_PER_HIT = 10
  * Sharps and flats mixed: the same fret is asked for by either name, so the
  * player has to know both rather than one. Named apart from the fretboard and
  * span factors so a change to one is never a change to another.
+ *
+ * Only the five pitch classes with two names are asked for two ways, so this is
+ * owed on a pool that holds one of them and not otherwise: C is C under every
+ * preference, and a pool of naturals set to `mixed` is a setting that changes
+ * nothing about what is being asked.
  */
 export const MIXED_SPELLING_MULTIPLIER = 1.15
 export const SINGLE_SPELLING_MULTIPLIER = 1
+
+/**
+ * How much of the octave is in play, priced by pool size — the biggest single
+ * thing that decides how hard a call is, and the only factor whose neutral
+ * setting is also its hardest. All twelve is what the app starts on and what a
+ * fluent player is aiming at, so it is the 1 that everything else discounts
+ * from; a pool of one note is a call whose answer is known before it is made.
+ *
+ * The steps follow the *information* in a call rather than the count — a call
+ * from two notes is not half as hard as one from four — so the curve is
+ * `0.5 + 0.5 * log2(n) / log2(12)`, written out as a table rather than worked
+ * out at run time. That is deliberate: the shared board reprices these same
+ * notes in another process, `Math.log2` is not required to give the same last
+ * bit everywhere, and a whole point of difference on a board nobody can explain
+ * is a worse outcome than twelve numbers written down. It also reads: a size
+ * without a price here is a size somebody has to think about.
+ */
+export const POOL_MULTIPLIERS: Record<number, number> = {
+  1: 0.5,
+  2: 0.64,
+  3: 0.72,
+  4: 0.78,
+  5: 0.82,
+  6: 0.86,
+  7: 0.89,
+  8: 0.92,
+  9: 0.94,
+  10: 0.96,
+  11: 0.98,
+  12: 1,
+}
 
 /** The map put away: the neck has to be in your head instead of on the screen. */
 export const FRETBOARD_HIDDEN_MULTIPLIER = 1.2
@@ -118,6 +173,8 @@ export type DifficultyInputs = {
   showFretboard: boolean
   bpm: number
   beatsPerNote: number
+  /** The pitch classes it could have been drawn from. */
+  pool: readonly number[]
 }
 
 /** A span with no price of its own is neutral rather than free. */
@@ -129,12 +186,26 @@ const tempoMultiplier = (bpm: number) =>
     ? 1
     : Math.min(TEMPO_MULTIPLIER_MAX, 1 + TEMPO_MULTIPLIER_GAIN * (Math.sqrt(bpm / DEFAULT_BPM) - 1))
 
-/** What every point earned on a note called under these settings is worth. */
-export const difficultyMultiplier = ({ spelling, showFretboard, bpm, beatsPerNote }: DifficultyInputs) =>
-  (spelling === 'mixed' ? MIXED_SPELLING_MULTIPLIER : SINGLE_SPELLING_MULTIPLIER) *
+/** Distinct pitch classes, so a pool listing one twice is still one note. */
+const poolSize = (pool: readonly number[]) => new Set(pool).size
+
+/** A pool size with no price of its own is neutral rather than free. */
+const poolMultiplier = (pool: readonly number[]) => POOL_MULTIPLIERS[poolSize(pool)] ?? 1
+
+/** Whether a spelling preference has anything to be a preference about here. */
+const holdsAccidental = (pool: readonly number[]) => pool.some((pc) => !isNaturalPitchClass(pc))
+
+/**
+ * What every point earned on a note called under these settings is worth. The
+ * factors are multiplied in this order here and in src/server/session-scoring.js
+ * both, so the two land on the same double rather than merely the same value.
+ */
+export const difficultyMultiplier = ({ spelling, showFretboard, bpm, beatsPerNote, pool }: DifficultyInputs) =>
+  (spelling === 'mixed' && holdsAccidental(pool) ? MIXED_SPELLING_MULTIPLIER : SINGLE_SPELLING_MULTIPLIER) *
   (showFretboard ? FRETBOARD_SHOWN_MULTIPLIER : FRETBOARD_HIDDEN_MULTIPLIER) *
   beatSpanMultiplier(beatsPerNote) *
-  tempoMultiplier(bpm)
+  tempoMultiplier(bpm) *
+  poolMultiplier(pool)
 
 /**
  * A hit at this price, in whole points. Rounding happens here rather than on
@@ -235,8 +306,11 @@ export const TEMPO_LATE_MAX_FRACTION = 0.4
  */
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
+/** The bonuses the clock earns, which belong to no note. */
+export type PracticeMilestoneKind = 'practice10' | 'practice20' | 'practice30'
+
 /** The bonuses a note can earn. More kinds join these as they are written. */
-export type BonusKind = 'streak' | 'octaves' | 'tempo' | 'practice10' | 'practice20' | 'practice30'
+export type BonusKind = 'streak' | 'octaves' | 'tempo' | PracticeMilestoneKind
 
 /** One bonus that landed: what it was for, and what it was worth. */
 export type Bonus = { kind: BonusKind; points: number }
@@ -263,11 +337,15 @@ export function streakBonus(streak: number): Bonus | null {
  * verbatim rather than passed through `scaleBonus`. Pitched at roughly a good
  * minute of drilling apiece and never the bulk of a session's score.
  */
-export const PRACTICE_MILESTONES: readonly { kind: BonusKind; atMs: number; points: number }[] = [
+export const PRACTICE_MILESTONES: readonly { kind: PracticeMilestoneKind; atMs: number; points: number }[] = [
   { kind: 'practice10', atMs: 10 * 60_000, points: 50 },
   { kind: 'practice20', atMs: 20 * 60_000, points: 100 },
   { kind: 'practice30', atMs: 30 * 60_000, points: 150 },
 ]
+
+/** Whether a bonus is one of the clock's rather than one a note earned. */
+export const isPracticeMilestone = (kind: BonusKind): kind is PracticeMilestoneKind =>
+  PRACTICE_MILESTONES.some((milestone) => milestone.kind === kind)
 
 /**
  * Which milestones does crossing from `fromMs` to `toMs` earn: every
@@ -334,12 +412,18 @@ export type ScoredDetection = {
  * opened. A settings change while the note is still sounding moves the next
  * note's price and not this one's, so a bonus discovered late is paid at what
  * the note it belongs to was worth.
+ *
+ * `difficulty` is what that price was worked out from, kept alongside it
+ * because the shared board reprices the note from these same four fields — see
+ * src/server/session-scoring.js. Null on a note priced flat, which is a note
+ * called by a beat that carried no settings at all.
  */
 export type NoteWindow = {
   pc: number
   beatTime: number
   opensAt: number
   multiplier: number
+  difficulty: DifficultyInputs | null
   candidateAt: number | null
   verdict: NoteVerdict | null
   awarded: Set<BonusKind>
@@ -353,15 +437,26 @@ export type NoteWindow = {
  * test engine with no cues at all — falls back to the beat, so the margin alone
  * carries the suppression rather than the arithmetic going anywhere strange.
  *
- * `multiplier` is the price the note is being called at, frozen here: a
- * settings change while it is still sounding prices the next note, not this one.
+ * `price` is what the note is being called at, frozen here: a settings change
+ * while it is still sounding prices the next note, not this one. Pass the
+ * settings and the window works the multiplier out and keeps both, so what the
+ * note paid and what the board reprices it from can never drift apart; pass a
+ * bare number for a note priced flat.
  */
-export function openWindow(pc: number, beatTime: number, cueEnd: number | null, multiplier = 1): NoteWindow {
+export function openWindow(
+  pc: number,
+  beatTime: number,
+  cueEnd: number | null,
+  price: number | DifficultyInputs = 1,
+): NoteWindow {
+  const flat = typeof price === 'number'
+
   return {
     pc,
     beatTime,
     opensAt: (cueEnd ?? beatTime) + SCORE_DECAY_MARGIN_S,
-    multiplier,
+    multiplier: flat ? price : difficultyMultiplier(price),
+    difficulty: flat ? null : price,
     candidateAt: null,
     verdict: null,
     awarded: new Set(),
