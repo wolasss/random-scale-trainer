@@ -68,8 +68,8 @@ The mark reads its colors from the active skin. The table below is **not** those
 the literal `THEMES` table in `scripts/generate-brand-assets.py`, which is separately hand-tuned and
 drives every SVG in this folder plus `public/favicon.svg` (the PWA's PNGs are rasterized from the
 glass SVGs by `scripts/rasterize-icons.mjs`). The in-app lockup takes its colours from
-`src/index.css` instead, and the two are allowed to differ — see §5. The `Light` column is an export
-row only; the app's light theme is handled by tokens.
+`src/index.css` instead, and the two may differ by a shade without breaking rule 1 in §4 — see §5.
+The `Light` column is an export row only; the app's light theme is handled by tokens.
 
 | Token | Editorial | Warm | Atmospheric glass | Instrument | Light¹ |
 | --- | --- | --- | --- | --- | --- |
@@ -93,15 +93,24 @@ below 48px, for the favicon, and for the whole `light` row (`"glow": "off"`).
 
 Adding an **export theme** is a row in `THEMES` and nothing else: `ink` = the skin's text colour,
 `accent` = its primary action colour (the call dot), `dot_muted`/`border` = its subtle border tone.
-Adding an **app skin** is more than that — it also needs its palette in the SKINS block of
-`src/index.css` (the dark block *and* its `[data-theme='light']` block) and registration in
-`src/lib/skins.ts` (the `Skin` union and `SKINS`). What the `--brand-*` aliases save you is the
-brand-specific work, not the skin itself.
+Adding an **app skin** is more than that. It needs its palette in the SKINS block of `src/index.css`
+(the dark block *and* its `[data-theme='light']` block), full registration in `src/lib/skins.ts` —
+the `Skin` union, `SKINS`, `SKIN_LABELS`, `SKIN_GROUND` (both themes, mirroring the skin's
+`--bg-deep`), plus `SKIN_FONT_HREF` if it pulls a family the base document doesn't load — and the
+same three facts repeated in the pre-paint bootstrap in `index.html`, which whitelists the persisted
+skin, lazily links its font, and paints `theme-color` from its own copy of the ground table before
+React exists. Miss the bootstrap and a saved skin renders as glass, with the wrong browser chrome,
+until hydration. What the `--brand-*` aliases save you is the brand-specific work, not the skin
+itself.
 
 ## 4. Rules
 
 - The call dot always uses the theme's primary accent — the same color as the Resume button and
-  note chips. Never introduce a color the theme doesn't have.
+  note chips. Never introduce a color the theme doesn't have. The rule binds the **live in-app
+  mark**, where `--brand-accent` aliases `--primary` and enforces it mechanically. The exported
+  SVGs are stills tuned for standalone use off the app's ground, so a `THEMES` accent may sit a
+  shade from the skin it depicts (§3, §5) — near enough to read as the same colour, which is the
+  bar an export has to clear.
 - Glow belongs to the dot only, never to text.
 - Clear space around the lockup: 1× dot-column width (0.22em) on all sides minimum.
 - Light-ground fallback (marketing): the shipped `light` export row inverts the ink to `#1c1917` on
