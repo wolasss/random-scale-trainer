@@ -53,6 +53,7 @@ import { AudioEngine } from './lib/audio/engine'
 import { isMicSupported, primeMicPermission } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
+import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
 import { useNoteScoring } from './hooks/useNoteScoring'
@@ -87,6 +88,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   })
+  // Held here rather than in NotePoolCard: the installed layout unmounts that
+  // card with the practice sheet, and a preset localStorage refused to take
+  // would go with it.
+  const [savedPresets, setSavedPresets, savedPresetsPersisted] = useSavedPresets()
 
   // One engine for the whole app: playback schedules its cues on it and the
   // microphone hangs its analyser off the very same AudioContext, so a
@@ -385,6 +390,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       onPreset={(preset) => userDispatch({ type: 'setPreset', preset })}
       onPool={(pool) => userDispatch({ type: 'setPool', pool })}
       onSpelling={(value) => userDispatch({ type: 'setSpelling', value })}
+      saved={savedPresets}
+      onSaved={setSavedPresets}
+      savedPersisted={savedPresetsPersisted}
     />
   )
 

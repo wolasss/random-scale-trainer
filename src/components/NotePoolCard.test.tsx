@@ -1,9 +1,26 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotePoolCard } from './NotePoolCard'
+import { useSavedPresets } from '../hooks/useSavedPresets'
 import { STORAGE_KEYS } from '../constants'
 
-const renderCard = (overrides: Partial<Parameters<typeof NotePoolCard>[0]> = {}) => {
+type CardProps = Parameters<typeof NotePoolCard>[0]
+type OwnProps = Omit<CardProps, 'saved' | 'onSaved' | 'savedPersisted'>
+
+/**
+ * Stands in for App, which owns the saved list so it outlives the card: the
+ * installed layout unmounts the card with the practice sheet, and `mounted`
+ * lets a test do exactly that.
+ */
+function Harness({ mounted = true, ...props }: OwnProps & { mounted?: boolean }) {
+  const [saved, setSaved, savedPersisted] = useSavedPresets()
+
+  return mounted ? (
+    <NotePoolCard {...props} saved={saved} onSaved={setSaved} savedPersisted={savedPersisted} />
+  ) : null
+}
+
+const renderCard = (overrides: Partial<OwnProps> = {}) => {
   const props = {
     pool: [0, 2, 4, 5, 7, 9, 11],
     spelling: 'flat' as const,
@@ -14,7 +31,7 @@ const renderCard = (overrides: Partial<Parameters<typeof NotePoolCard>[0]> = {})
     ...overrides,
   }
 
-  return { ...render(<NotePoolCard {...props} />), props }
+  return { ...render(<Harness {...props} />), props }
 }
 
 const groupsOf = (select: HTMLElement) =>
@@ -73,6 +90,10 @@ describe('NotePoolCard saved presets', () => {
     window.localStorage.clear()
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('saves the current notes under a name and selects them', () => {
     renderCard({ pool: [0, 1, 2] })
     expect(screen.getByTestId('preset-select')).toHaveValue('custom')
@@ -113,7 +134,7 @@ describe('NotePoolCard saved presets', () => {
     const { rerender, props } = renderCard({ pool: [0, 1, 2] })
     savePool('Drill')
 
-    rerender(<NotePoolCard {...props} pool={[0, 1, 3]} />)
+    rerender(<Harness {...props} pool={[0, 1, 3]} />)
     savePool('drill')
 
     expect(screen.getByTestId('preset-save-error')).toHaveTextContent('You already have a saved preset by that name.')
@@ -165,5 +186,35 @@ describe('NotePoolCard saved presets', () => {
 
     expect(screen.queryByTestId('preset-save-form')).toBeNull()
     expect(screen.getByRole('button', { name: 'Save these notes' })).toBeInTheDocument()
+  })
+
+  // The practice sheet closes on any Escape that reaches the window, so an
+  // escaping keypress would take the whole of setup down with the form.
+  it('keeps the naming Escape from reaching the sheet around it', () => {
+    const onWindowKeyDown = vi.fn()
+    window.addEventListener('keydown', onWindowKeyDown)
+    renderCard({ pool: [0, 1, 2] })
+    fireEvent.click(screen.getByRole('button', { name: 'Save these notes' }))
+
+    fireEvent.keyDown(screen.getByLabelText('Preset name'), { key: 'Escape' })
+    window.removeEventListener('keydown', onWindowKeyDown)
+
+    expect(onWindowKeyDown).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('preset-save-form')).toBeNull()
+  })
+
+  it('keeps a preset the browser refused to store while the card is away', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage blocked')
+    })
+    const { rerender, props } = renderCard({ pool: [0, 1, 2] })
+    savePool('Two-string drill')
+    expect(screen.getByTestId('preset-ephemeral-notice')).toBeInTheDocument()
+
+    // What closing and reopening the practice sheet does to this card.
+    rerender(<Harness {...props} mounted={false} />)
+    rerender(<Harness {...props} />)
+
+    expect(screen.getByTestId('preset-select')).toHaveValue('saved:Two-string drill')
   })
 })

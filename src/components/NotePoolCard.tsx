@@ -13,17 +13,13 @@ import {
   isSavedPresetId,
   matchPreset,
   MAX_PRESET_NAME_LENGTH,
-  parseSavedPresets,
   presetGroups,
   removeSavedPreset,
   savePreset,
-  serializeSavedPresets,
   type PresetId,
   type SavedPreset,
   type SavePresetFailure,
 } from '../lib/presets'
-import { usePersistentState } from '../hooks/usePersistentState'
-import { STORAGE_KEYS } from '../constants'
 import { SegmentedControl } from './ui/SegmentedControl'
 
 type NotePoolCardProps = {
@@ -33,6 +29,10 @@ type NotePoolCardProps = {
   onPreset: (preset: PresetId) => void
   onPool: (pool: readonly number[]) => void
   onSpelling: (value: SpellingPreference) => void
+  /** Owned above the card — see useSavedPresets. */
+  saved: SavedPreset[]
+  onSaved: (presets: SavedPreset[]) => void
+  savedPersisted: boolean
 }
 
 const SPELLING_OPTIONS = [
@@ -48,12 +48,17 @@ const SAVE_ERRORS: Record<SavePresetFailure, string> = {
   'pool-taken': 'These notes are already a preset.',
 }
 
-export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onPool, onSpelling }: NotePoolCardProps) {
-  const [saved, setSaved, persisted] = usePersistentState<SavedPreset[]>(STORAGE_KEYS.savedPresets, {
-    defaultValue: [],
-    deserialize: parseSavedPresets,
-    serialize: serializeSavedPresets,
-  })
+export function NotePoolCard({
+  pool,
+  spelling,
+  onTogglePc,
+  onPreset,
+  onPool,
+  onSpelling,
+  saved,
+  onSaved,
+  savedPersisted,
+}: NotePoolCardProps) {
   const [draftName, setDraftName] = useState<string | null>(null)
   const [saveOffered, setSaveOffered] = useState(false)
   const [error, setError] = useState<SavePresetFailure | null>(null)
@@ -95,7 +100,7 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onPool, onS
       return
     }
 
-    setSaved(result.saved)
+    onSaved(result.saved)
     closeForm()
   }
 
@@ -176,6 +181,10 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onPool, onS
             }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
+                // The practice sheet listens for Escape on the window; the
+                // innermost thing that can be dismissed is the one that should
+                // go, so this press stops here rather than closing all of setup.
+                event.stopPropagation()
                 closeForm()
               }
             }}
@@ -208,7 +217,7 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onPool, onS
               data-testid="preset-delete"
               // One press, no arm-then-confirm: deleting leaves the chips alone,
               // so the notes are still on screen and saving them again is a click.
-              onClick={() => setSaved(removeSavedPreset(saved, selectedSaved.name))}
+              onClick={() => onSaved(removeSavedPreset(saved, selectedSaved.name))}
             >
               Delete “{selectedSaved.name}”
             </button>
@@ -226,7 +235,7 @@ export function NotePoolCard({ pool, spelling, onTogglePc, onPreset, onPool, onS
 
       {/* Reports on this list's own last write, so a store that had room for
           everything else but not for the presets still gets caught. */}
-      {saveOffered && !persisted ? (
+      {saveOffered && !savedPersisted ? (
         <p className="preset-ephemeral-notice" data-testid="preset-ephemeral-notice">
           Your browser is blocking saved data — this preset will work now, but it won't be here after you close the tab.
         </p>
