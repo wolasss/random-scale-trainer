@@ -637,6 +637,59 @@ h2 {
   }
 }
 
+/* --- The "+1" of a correct note ------------------------------------------ */
+
+/* A zero-sized anchor in the margin the glyph leaves at the right of the note
+   line: nothing here may take room, since the line's fixed height is what keeps
+   descenders off the caption. */
+.hit-bubble-layer {
+  position: absolute;
+  right: 8%;
+  top: 64%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Hung off the anchor and low in the box, so the whole float clears the glyph
+   and stays inside both the instrument skin's clipped panel and the stage's
+   shorter line box. */
+.hit-bubble {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--primary);
+  white-space: nowrap;
+  /* Authored to BUBBLE_MS (useHitBubble.ts): the node is taken out the moment
+     the float is over. */
+  animation: hit-bubble 900ms var(--ease-out) both;
+}
+
+/* Up and out. Each keyframe restates the drift, since a keyframe transform
+   replaces the base one outright. */
+@keyframes hit-bubble {
+  0% {
+    transform: translate(var(--hit-bubble-drift, 0px), 0) scale(0.85);
+    opacity: 0;
+  }
+  25% {
+    transform: translate(var(--hit-bubble-drift, 0px), -0.7rem) scale(1);
+    opacity: 0.95;
+  }
+  70% {
+    transform: translate(var(--hit-bubble-drift, 0px), -1.9rem) scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(var(--hit-bubble-drift, 0px), -2.6rem) scale(1);
+    opacity: 0;
+  }
+}
+
 .beat-dots {
   display: flex;
   justify-content: center;

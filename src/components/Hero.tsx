@@ -9,6 +9,8 @@ type HeroProps = {
   beatsPerNote: number
   poolSize: number
   ringRef: RefObject<HTMLDivElement | null>
+  /** Where the "+1" of a correct note floats up from — see useHitBubble. */
+  bubbleRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
@@ -36,15 +38,18 @@ function BeatDots({ count, active }: { count: number; active: number }) {
 function NoteLine({
   className,
   ringRef,
+  bubbleRef,
   glyph,
 }: {
   className: string
   ringRef: RefObject<HTMLDivElement | null>
+  bubbleRef: RefObject<HTMLDivElement | null>
   glyph: ReactNode
 }) {
   return (
     <div className={className} data-testid="now-playing">
       <div className="beat-ring" ref={ringRef} aria-hidden="true" />
+      <div className="hit-bubble-layer" ref={bubbleRef} aria-hidden="true" />
       {glyph}
     </div>
   )
@@ -77,7 +82,16 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idlePreview, variant = 'card' }: HeroProps) {
+export function Hero({
+  snapshot,
+  beatsPerNote,
+  poolSize,
+  ringRef,
+  bubbleRef,
+  message,
+  idlePreview,
+  variant = 'card',
+}: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
@@ -126,7 +140,12 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   if (isStage) {
     return (
       <section className="stage-hero">
-        <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+        <NoteLine
+          className={`hero-note-line stage-note-line ${state}`}
+          ringRef={ringRef}
+          bubbleRef={bubbleRef}
+          glyph={glyph}
+        />
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
@@ -155,7 +174,7 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
         </div>
       </div>
 
-      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} bubbleRef={bubbleRef} glyph={glyph} />
 
       <PlaybackMessage>{coachingLine}</PlaybackMessage>
 

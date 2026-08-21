@@ -296,6 +296,36 @@ describe('listening for the player', () => {
     expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
   })
 
+  it('floats a point off each hit and nothing off a miss', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    // The first note goes by unplayed: a miss cheers for nothing.
+    await advance(INTO_A_NOTE_MS)
+    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'false')
+    expect(screen.queryAllByTestId('hit-bubble')).toHaveLength(0)
+
+    play(calledPitchClass())
+    await advance(300)
+    expect(screen.getAllByTestId('hit-bubble')).toHaveLength(1)
+
+    // Gone again once it has floated out, and the next note played puts a fresh
+    // one up: nothing accumulates over a session. (Two points in the air at
+    // once needs notes closer together than this tempo calls them — that is
+    // useHitBubble's own suite.)
+    hush()
+    await advance(NOTE_MS)
+    expect(screen.queryAllByTestId('hit-bubble')).toHaveLength(0)
+
+    play(calledPitchClass())
+    await advance(300)
+    expect(screen.getAllByTestId('hit-bubble')).toHaveLength(1)
+  })
+
   it('scores a miss for a note that came and went unplayed', async () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')

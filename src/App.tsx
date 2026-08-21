@@ -56,8 +56,9 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
-import { useNoteScoring } from './hooks/useNoteScoring'
+import { useNoteScoring, type ScoredEvent } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
+import { useHitBubble } from './hooks/useHitBubble'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
 import { useRoutine } from './hooks/useRoutine'
@@ -125,6 +126,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     },
   })
   const beatPulse = useBeatPulse()
+  const hitBubble = useHitBubble()
 
   const playback = usePlayback({
     // The spoken note is always on; count-in and the rest ride the user's settings.
@@ -196,6 +198,21 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
   })
 
+  // The board first and always — every event, unchanged and in the order it was
+  // reported — and then the cheer for the ones worth cheering. The bubble is a
+  // decoration on top of the reporting, never in the way of it.
+  const { recordEvent } = challenge
+  const { spawn: spawnHitBubble } = hitBubble
+  const handleScored = useCallback(
+    (event: ScoredEvent) => {
+      recordEvent(event)
+      if (event.kind === 'hit') {
+        spawnHitBubble()
+      }
+    },
+    [recordEvent, spawnHitBubble],
+  )
+
   // Judging what was heard against what was called. Only ever scores while the
   // microphone is actually open, so the tally is empty by construction with the
   // setting off — and the readout that would show it is not rendered anyway.
@@ -206,7 +223,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     running: playback.isPlaying,
     // Off a challenge this queues nothing: the shared board decides what a note
     // is worth, from the events themselves, and there is no board here to tell.
-    onScored: challenge.recordEvent,
+    onScored: handleScored,
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
@@ -536,6 +553,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             beatsPerNote={settings.beatsPerNote}
             poolSize={settings.pool.length}
             ringRef={beatPulse.ringRef}
+            bubbleRef={hitBubble.layerRef}
             message={heroMessage}
             idlePreview={idlePreview}
           />
@@ -607,6 +625,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
               beatsPerNote={settings.beatsPerNote}
               poolSize={settings.pool.length}
               ringRef={beatPulse.ringRef}
+              bubbleRef={hitBubble.layerRef}
               message={heroMessage}
               idlePreview={idlePreview}
             />

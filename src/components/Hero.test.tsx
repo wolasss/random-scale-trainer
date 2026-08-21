@@ -17,6 +17,7 @@ const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
       beatsPerNote={4}
       poolSize={12}
       ringRef={{ current: null }}
+      bubbleRef={{ current: null }}
       {...props}
     />,
   )
