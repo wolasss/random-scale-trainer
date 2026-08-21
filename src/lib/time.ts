@@ -8,11 +8,13 @@ export const formatElapsed = (elapsedMs: number) => {
 
 /**
  * mm:ss still to go, clamped at '00:00' once the goal is passed — practice that
- * runs long reads as no time left, never as negative time. Floors the way
- * `formatElapsed` does, so both readings agree on the second boundary.
+ * runs long reads as no time left, never as negative time. Rounds a part-second
+ * up, the way any countdown does: the timer ticks every 200ms, so flooring would
+ * drop a 10-minute goal to '09:59' on the first tick and sit at '00:00' for the
+ * last second. Zero shows only at the goal itself.
  */
 export const formatRemaining = (elapsedMs: number, goalMs: number) =>
-  formatElapsed(Math.max(0, goalMs - elapsedMs))
+  formatElapsed(Math.ceil(Math.max(0, goalMs - elapsedMs) / 1000) * 1000)
 
 /** Seconds for one full cycle: every pool note once, each held for its beat span. */
 export const cycleSeconds = (poolSize: number, beatsPerNote: number, bpm: number) =>
