@@ -55,3 +55,23 @@ export const normalizeNickname = (raw: string): string | null => {
 
   return nickname === '' ? null : nickname
 }
+
+/**
+ * The key a nickname is *owned* under, which is the normalized name folded to
+ * lower case. `Alice`, `alice ` and `ALICE` are one person on a board, so they
+ * have to be one owner too — otherwise the difference between your row and
+ * somebody impersonating you is a capital letter.
+ *
+ * Normalised again after folding, because folding can lengthen a name — `İ`
+ * becomes two code units — and a key that is not itself a key would not survive
+ * a round trip through storage.
+ *
+ * Duplicated in src/server/scoreboard.js, which is where it actually decides
+ * anything. This copy is for the client to tell whether the token it stored
+ * belongs to the name it is about to play under.
+ */
+export const nicknameKey = (raw: string): string | null => {
+  const nickname = normalizeNickname(raw)
+
+  return nickname === null ? null : normalizeNickname(nickname.toLowerCase())
+}

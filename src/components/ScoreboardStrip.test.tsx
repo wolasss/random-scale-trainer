@@ -62,3 +62,33 @@ describe('ScoreboardStrip', () => {
     expect(screen.queryByTestId('scoreboard-empty')).toBeNull()
   })
 })
+
+describe('the notice line', () => {
+  /**
+   * An expired session, a name this browser does not own, a rate limit: all
+   * three leave the board readable, and all three are worth saying rather than
+   * letting the player's row quietly stop moving.
+   */
+  it('says why this browser has stopped scoring, without hiding the board', () => {
+    render(
+      <ScoreboardStrip
+        challenge="demo"
+        nickname="bo"
+        scores={SCORES}
+        status="ready"
+        notice="That scoring session expired."
+      />,
+    )
+
+    const notice = screen.getByTestId('scoreboard-notice')
+    expect(notice).toHaveTextContent('That scoring session expired.')
+    expect(notice).toHaveAttribute('role', 'status')
+    expect(document.querySelectorAll('.scoreboard-entry')).toHaveLength(3)
+  })
+
+  it('is absent when there is nothing to say', () => {
+    render(<ScoreboardStrip challenge="demo" nickname={null} scores={SCORES} status="ready" />)
+
+    expect(screen.queryByTestId('scoreboard-notice')).toBeNull()
+  })
+})

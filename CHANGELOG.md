@@ -1,3 +1,31 @@
+# [1.21.0](https://github.com/wolasss/random-scale-trainer/compare/v1.20.0...v1.21.0) (2026-08-21)
+
+
+### Features
+
+* **challenge:** own a nickname with a token and score sessions on the server ([#135](https://github.com/wolasss/random-scale-trainer/issues/135)) ([8aa2dd2](https://github.com/wolasss/random-scale-trainer/commit/8aa2dd2e0b37f0d9b05471201f56ca996037731e))
+
+# [1.20.0](https://github.com/wolasss/random-scale-trainer/compare/v1.19.0...v1.20.0) (2026-08-21)
+
+
+### Features
+
+* **pool:** save the current chip selection as a named preset ([#139](https://github.com/wolasss/random-scale-trainer/issues/139)) ([98b16dc](https://github.com/wolasss/random-scale-trainer/commit/98b16dc7ff1a90b7e68238bb7ce43834da350d31))
+
+# [1.19.0](https://github.com/wolasss/random-scale-trainer/compare/v1.18.0...v1.19.0) (2026-08-21)
+
+
+### Features
+
+* **session:** tap the goal readout to count down instead of up ([#140](https://github.com/wolasss/random-scale-trainer/issues/140)) ([7264f57](https://github.com/wolasss/random-scale-trainer/commit/7264f573caa1d81b9bc312d2895f010963288ae1))
+
+# [1.18.0](https://github.com/wolasss/random-scale-trainer/compare/v1.17.0...v1.18.0) (2026-08-21)
+
+
+### Features
+
+* **scoring:** bonus points at 10, 20 and 30 minutes of practice ([#134](https://github.com/wolasss/random-scale-trainer/issues/134)) ([cbbdf2e](https://github.com/wolasss/random-scale-trainer/commit/cbbdf2e673cbc6b93946f2dc37463416f4f405d7))
+
 # [1.17.0](https://github.com/wolasss/random-scale-trainer/compare/v1.16.1...v1.17.0) (2026-08-20)
 
 

@@ -53,6 +53,7 @@ import { AudioEngine } from './lib/audio/engine'
 import { isMicSupported, primeMicPermission } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
+import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
 import { useNoteScoring } from './hooks/useNoteScoring'
@@ -87,6 +88,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   })
+  // Held here rather than in NotePoolCard: the installed layout unmounts that
+  // card with the practice sheet, and a preset localStorage refused to take
+  // would go with it.
+  const [savedPresets, setSavedPresets, savedPresetsPersisted] = useSavedPresets()
 
   // One engine for the whole app: playback schedules its cues on it and the
   // microphone hangs its analyser off the very same AudioContext, so a
@@ -110,7 +115,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
   // Off entirely unless '?challenge=' brought the user here — see useChallenge.
   // Declared above playback because the transport's pause is what banks a score.
-  const challenge = useChallenge()
+  const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -131,13 +136,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
     onSessionStart: sessionTimer.start,
     onSessionPause: () => {
-      sessionTimer.pause()
+      const pausedAtMs = sessionTimer.pause()
+      // A practice milestone crossed by this very elapsed update is credited
+      // with the pause itself, rather than left to the effect that would
+      // otherwise only catch it on the next render.
+      scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
-      // ...and the same moment puts the tally on the shared board, if there is
-      // one. A no-op off a challenge, and a no-op again for a score already up.
-      challenge.submit(scoringRef.current?.tally.points ?? 0)
+      // ...and the same moment sends what has been played up to the shared
+      // board, if there is one. A no-op off a challenge, and a no-op again with
+      // nothing queued. A pause is not the end of a session — resuming is the
+      // same practice run — so the scoring session stays open across it.
+      challenge.flushEvents()
     },
     // Both of these are ref-only handlers, as onBeat demands: the ring is
     // mutated in place and the score is queued for a microtask.
@@ -193,6 +204,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     subscribe: mic.subscribe,
     active: micEnabled && mic.status === 'listening',
     running: playback.isPlaying,
+    // Off a challenge this queues nothing: the shared board decides what a note
+    // is worth, from the events themselves, and there is no board here to tell.
+    onScored: challenge.recordEvent,
+    sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
   const routine = useRoutine({
@@ -283,8 +298,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
-    // The score is a property of the session, so it goes back with it.
+    // The score is a property of the session, so it goes back with it — on the
+    // shared board too, or a fresh local tally would go on feeding the server
+    // session the old one opened.
     scoring.reset()
+    challenge.endSession()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -292,10 +310,15 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // of what someone has actually practised is not something a stray click on a
   // heading button gets to erase.
   const clearTimer = () => {
+    const cleared = sessionTimer.reset()
     // The routine reads its block clock off this same session time, so the time
     // taken off the clock is handed to it: the block it is on keeps the minutes
     // it has already run, and still hands over when it is due.
-    routine.rebase(sessionTimer.reset())
+    routine.rebase(cleared)
+    // The milestone guards in useNoteScoring are keyed off this same clock; the
+    // same rebase keeps 20 and 30 minutes arriving on schedule instead of a
+    // clock that just went back to zero stranding them.
+    scoring.rebase(cleared)
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {
@@ -383,7 +406,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       spelling={settings.spelling}
       onTogglePc={(pc) => userDispatch({ type: 'togglePoolNote', pc })}
       onPreset={(preset) => userDispatch({ type: 'setPreset', preset })}
+      onPool={(pool) => userDispatch({ type: 'setPool', pool })}
       onSpelling={(value) => userDispatch({ type: 'setSpelling', value })}
+      saved={savedPresets}
+      onSaved={setSavedPresets}
+      savedPersisted={savedPresetsPersisted}
     />
   )
 
@@ -475,6 +502,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     challenge.needsNickname && challenge.name !== null ? (
       <NicknamePrompt
         challenge={challenge.name}
+        prefill={challenge.prefill}
+        pending={challenge.joining}
+        error={challenge.joinError}
         onJoin={challenge.join}
         onDismiss={challenge.dismissPrompt}
       />
@@ -487,6 +517,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         nickname={challenge.nickname}
         scores={challenge.scores}
         status={challenge.status}
+        notice={challenge.notice}
       />
     ) : null
 

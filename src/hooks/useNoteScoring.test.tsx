@@ -7,6 +7,7 @@ import {
   hitAward,
   OCTAVES_BONUS_POINTS,
   POINTS_PER_HIT,
+  PRACTICE_MILESTONES,
   scaleBonus,
   TEMPO_BONUS_POINTS,
   type DifficultyInputs,
@@ -87,6 +88,7 @@ const setup = ({ engine = createFakeEngine(), ...overrides }: Overrides = {}) =>
     subscribe: mic.subscribe,
     active: true,
     running: true,
+    sessionElapsedMs: 0,
     ...overrides,
   }
   const view = renderHook((props: UseNoteScoringOptions) => useNoteScoring(props), { initialProps })
@@ -777,6 +779,181 @@ describe('useNoteScoring', () => {
     })
   })
 
+  describe('practice milestones', () => {
+    // The whole suite is driven by rerender, never a real or a fake timer:
+    // sessionElapsedMs is arithmetic handed in, exactly as scoring.ts's own
+    // crossing helper takes it.
+    const [MILESTONE_10, MILESTONE_20, MILESTONE_30] = PRACTICE_MILESTONES
+
+    it('banks each milestone exactly once, across repeated ticks and an unrelated prop change', async () => {
+      const { result, rerender, initialProps } = setup()
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+      expect(result.current.lastBonuses).toEqual([{ kind: 'practice10', points: MILESTONE_10.points }])
+
+      // A repeated tick at the same elapsed — the 200 ms interval ticking
+      // again before the clock has actually moved — pays nothing more.
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+
+      // Nor does a re-run of some other effect, stood in for by a prop this
+      // hook does not key its milestone effect on.
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs, running: false })
+      await settle()
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs, running: true })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+
+      // No note has been scored between the two crossings to punctuate
+      // `lastBonuses`, so the milestone joins the one still sitting there —
+      // exactly like a second in-note bonus would.
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_20.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points + MILESTONE_20.points)
+      expect(result.current.lastBonuses).toEqual([
+        { kind: 'practice10', points: MILESTONE_10.points },
+        { kind: 'practice20', points: MILESTONE_20.points },
+      ])
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_30.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points + MILESTONE_20.points + MILESTONE_30.points)
+      expect(result.current.lastBonuses).toEqual([
+        { kind: 'practice10', points: MILESTONE_10.points },
+        { kind: 'practice20', points: MILESTONE_20.points },
+        { kind: 'practice30', points: MILESTONE_30.points },
+      ])
+    })
+
+    it('pays every threshold a single long tick jumps past, in order', async () => {
+      const { result, rerender, initialProps } = setup()
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_30.atMs })
+      await settle()
+
+      expect(result.current.tally.points).toBe(MILESTONE_10.points + MILESTONE_20.points + MILESTONE_30.points)
+      expect(result.current.lastBonuses).toEqual([
+        { kind: 'practice10', points: MILESTONE_10.points },
+        { kind: 'practice20', points: MILESTONE_20.points },
+        { kind: 'practice30', points: MILESTONE_30.points },
+      ])
+    })
+
+    it('leaves scored, hits, responseTimesMs, streak and bestStreak untouched by a milestone', async () => {
+      const { result, mic, rerender, initialProps } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+      })
+      await act(async () => {
+        mic.emit(3, 10.2)
+        mic.emit(3, 10.25)
+      })
+
+      const before = { ...result.current.tally }
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+
+      expect(result.current.tally.scored).toBe(before.scored)
+      expect(result.current.tally.hits).toBe(before.hits)
+      expect(result.current.tally.responseTimesMs).toEqual(before.responseTimesMs)
+      expect(result.current.tally.streak).toBe(before.streak)
+      expect(result.current.tally.bestStreak).toBe(before.bestStreak)
+      expect(result.current.tally.points).toBe(before.points + MILESTONE_10.points)
+    })
+
+    it('banks a milestone crossed on the render that pauses, and does not re-bank it on resume', async () => {
+      const { result, rerender, initialProps } = setup()
+
+      // The shape sessionTimer.pause() produces: `running` turns off and the
+      // elapsed total crosses the threshold on the very same render. Gating
+      // on `active` rather than `running` is what still pays this.
+      rerender({ ...initialProps, running: false, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+      expect(result.current.lastBonuses).toEqual([{ kind: 'practice10', points: MILESTONE_10.points }])
+
+      rerender({ ...initialProps, running: true, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+    })
+
+    it('keeps milestones on schedule across a clearTimer-shaped reset via rebase', async () => {
+      const { result, rerender, initialProps } = setup()
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+
+      // clearTimer: sessionTimer.reset() throws the accumulated elapsed away
+      // and hands it to rebase, so the milestone clock stays continuous
+      // despite sessionElapsedMs itself falling back to zero.
+      act(() => {
+        result.current.rebase(MILESTONE_10.atMs)
+      })
+      rerender({ ...initialProps, sessionElapsedMs: 0 })
+      await settle()
+
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_20.atMs - MILESTONE_10.atMs })
+      await settle()
+
+      // No note punctuated `lastBonuses` since practice10 landed, so the
+      // milestone that follows joins it rather than replacing it.
+      expect(result.current.tally.points).toBe(MILESTONE_10.points + MILESTONE_20.points)
+      expect(result.current.lastBonuses).toEqual([
+        { kind: 'practice10', points: MILESTONE_10.points },
+        { kind: 'practice20', points: MILESTONE_20.points },
+      ])
+    })
+
+    it('banks nothing while active is false throughout', async () => {
+      const { result, rerender, initialProps } = setup({ active: false })
+
+      rerender({ ...initialProps, active: false, sessionElapsedMs: MILESTONE_30.atMs })
+      await settle()
+
+      expect(result.current.tally.points).toBe(0)
+      expect(result.current.lastBonuses).toEqual([])
+    })
+
+    it('re-earns milestones after reset', async () => {
+      const { result, rerender, initialProps } = setup()
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+
+      act(() => {
+        result.current.reset()
+      })
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs + 1 })
+      await settle()
+
+      expect(result.current.tally.points).toBe(MILESTONE_10.points)
+      expect(result.current.lastBonuses).toEqual([{ kind: 'practice10', points: MILESTONE_10.points }])
+    })
+
+    it('does not resubscribe to the microphone when a milestone is crossed', async () => {
+      const mic = createFakeMic()
+      const subscribe = vi.fn(mic.subscribe)
+      const { rerender, initialProps } = setup({ subscribe })
+
+      rerender({ ...initialProps, sessionElapsedMs: MILESTONE_10.atMs })
+      await settle()
+
+      expect(subscribe).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('goes back to nothing on reset', async () => {
     const { result, mic } = setup()
 
@@ -804,5 +981,108 @@ describe('useNoteScoring', () => {
     })
 
     expect(result.current.tally.scored).toBe(0)
+  })
+})
+
+/**
+ * What the shared board is built from. The local tally prices every note by how
+ * hard the settings made it; these events say only *what happened*, and the
+ * server does its own arithmetic on them — which is the whole reason a browser
+ * can no longer put a number of its choosing on a board.
+ */
+describe('reporting what landed', () => {
+  it('reports a hit as it is banked, and nothing for the streak', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    for (const time of [10, 11, 12]) {
+      await act(async () => {
+        result.current.handleBeat(beat(time, 3))
+      })
+      await act(async () => {
+        mic.emit(3, time + 0.5)
+        mic.emit(3, time + 0.55)
+      })
+    }
+
+    // Three hits and no streak event: whoever is counting can count a run.
+    // Stamped with the call each one answered, not the frame that confirmed it.
+    expect(onScored.mock.calls.map(([event]) => event)).toEqual([
+      { kind: 'hit', at: 10 },
+      { kind: 'hit', at: 11 },
+      { kind: 'hit', at: 12 },
+    ])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT * 3 + 5)
+  })
+
+  it('reports a miss when a window closes unanswered', async () => {
+    const onScored = vi.fn()
+    const { result } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(11, 5))
+    })
+
+    expect(onScored).toHaveBeenCalledTimes(1)
+    // The note that went unanswered, not the beat that closed it.
+    expect(onScored).toHaveBeenCalledWith({ kind: 'miss', at: 10 })
+  })
+
+  it('reports the octaves bonus after the hit it was earned on', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2, 3)
+      mic.emit(3, 10.25, 3)
+      // The same note an octave up, held, on a note already got right.
+      mic.emit(3, 10.4, 4)
+      mic.emit(3, 10.45, 4)
+    })
+
+    expect(onScored.mock.calls.map(([event]) => event)).toEqual([
+      { kind: 'hit', at: 10 },
+      { kind: 'bonus', bonus: 'octaves', at: 10 },
+    ])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT + OCTAVES_BONUS_POINTS)
+  })
+
+  it('reports the tempo bonus once, whichever moment it lands at', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    // The call, then an in-span click to be in time with.
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+      result.current.handleBeat(beat(10.5))
+    })
+    await act(async () => {
+      mic.emit(3, 10.52)
+      mic.emit(3, 10.57)
+    })
+
+    const bonuses = onScored.mock.calls.map(([event]) => event).filter((event) => event.kind === 'bonus')
+    expect(bonuses).toEqual([{ kind: 'bonus', bonus: 'tempo', at: 10 }])
+    expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
+  })
+
+  it('reports nothing at all while the microphone is off', async () => {
+    const onScored = vi.fn()
+    const { result } = setup({ onScored, active: false })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      result.current.handleBeat(beat(11, 5))
+    })
+
+    expect(onScored).not.toHaveBeenCalled()
   })
 })

@@ -285,6 +285,75 @@ describe('AudioEngine scheduled playback', () => {
     expect(gain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.12, expect.closeTo(2.01, 5))
   })
 
+  /**
+   * The two envelope tests below pin every scheduled value exactly — `toEqual`
+   * over the recorded calls, with each expectation written as the same
+   * arithmetic the engine evaluates. They are the safety net for anything that
+   * moves the tone scheduling around: a click or a chime whose ramp or stop
+   * lands a float bit away from where it used to is a change in the sound.
+   */
+  it('a click schedules one exact envelope', async () => {
+    const engine = await readyEngine()
+
+    engine.playClickAt(2, true)
+
+    const oscillator = context.createOscillator.mock.results[0].value
+    const gain = context.createGain.mock.results[0].value
+    expect(oscillator.type).toBe('triangle')
+    expect(oscillator.frequency.setValueAtTime.mock.calls).toEqual([[1320, 2]])
+    expect(gain.gain.setValueAtTime.mock.calls).toEqual([[0.0001, 2]])
+    expect(gain.gain.exponentialRampToValueAtTime.mock.calls).toEqual([
+      [0.12, 2 + 0.01],
+      [0.0001, 2 + 0.12],
+    ])
+    expect(oscillator.connect.mock.calls).toEqual([[gain]])
+    expect(gain.connect.mock.calls).toEqual([[context.destination]])
+    expect(oscillator.start.mock.calls).toEqual([[2]])
+    expect(oscillator.stop.mock.calls).toEqual([[2 + 0.14]])
+  })
+
+  it('the end chime schedules four exact envelopes', async () => {
+    const engine = await readyEngine()
+    const t1 = 1 + 0
+    const t2 = 1 + 0.19
+
+    engine.playSessionEndChime(1)
+
+    const oscillators = context.createOscillator.mock.results.map((result) => result.value)
+    const gains = context.createGain.mock.results.map((result) => result.value)
+    const tones = [
+      { type: 'triangle', frequency: 783.99, start: t1, peak: 0.11, attack: t1 + 0.012, decayEnd: t1 + 0.24, stop: t1 + 0.24 + 0.03 },
+      { type: 'sine', frequency: 783.99 * 2, start: t1, peak: 0.11 * 0.42, attack: t1 + 0.01, decayEnd: t1 + 0.24 * 0.88, stop: t1 + 0.24 * 0.9 + 0.03 },
+      { type: 'triangle', frequency: 523.25, start: t2, peak: 0.13, attack: t2 + 0.012, decayEnd: t2 + 0.34, stop: t2 + 0.34 + 0.03 },
+      { type: 'sine', frequency: 523.25 * 2, start: t2, peak: 0.13 * 0.42, attack: t2 + 0.01, decayEnd: t2 + 0.34 * 0.88, stop: t2 + 0.34 * 0.9 + 0.03 },
+    ]
+
+    expect(oscillators).toHaveLength(4)
+    expect(gains).toHaveLength(4)
+    tones.forEach((tone, index) => {
+      const oscillator = oscillators[index]
+      const gain = gains[index]
+      expect(oscillator.type).toBe(tone.type)
+      expect(oscillator.frequency.setValueAtTime.mock.calls).toEqual([[tone.frequency, tone.start]])
+      expect(gain.gain.setValueAtTime.mock.calls).toEqual([[0.0001, tone.start]])
+      expect(gain.gain.exponentialRampToValueAtTime.mock.calls).toEqual([
+        [tone.peak, tone.attack],
+        [0.0001, tone.decayEnd],
+      ])
+      expect(oscillator.connect.mock.calls).toEqual([[gain]])
+      expect(gain.connect.mock.calls).toEqual([[context.destination]])
+      expect(oscillator.start.mock.calls).toEqual([[tone.start]])
+      expect(oscillator.stop.mock.calls).toEqual([[tone.stop]])
+    })
+
+    // All four belong to the chime, not the transport, so the stop that spares
+    // the chime leaves each of them with only its own scheduled stop.
+    engine.stopScheduledSounds(true)
+    for (const oscillator of oscillators) {
+      expect(oscillator.stop).toHaveBeenCalledTimes(1)
+    }
+  })
+
   it('playNoteAt starts the buffer at the passed time', async () => {
     const engine = await readyEngine()
 
