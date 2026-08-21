@@ -6,6 +6,14 @@ export const formatElapsed = (elapsedMs: number) => {
   return `${minutes}:${seconds}`
 }
 
+/**
+ * mm:ss still to go, clamped at '00:00' once the goal is passed — practice that
+ * runs long reads as no time left, never as negative time. Floors the way
+ * `formatElapsed` does, so both readings agree on the second boundary.
+ */
+export const formatRemaining = (elapsedMs: number, goalMs: number) =>
+  formatElapsed(Math.max(0, goalMs - elapsedMs))
+
 /** Seconds for one full cycle: every pool note once, each held for its beat span. */
 export const cycleSeconds = (poolSize: number, beatsPerNote: number, bpm: number) =>
   (poolSize * beatsPerNote * 60) / bpm
