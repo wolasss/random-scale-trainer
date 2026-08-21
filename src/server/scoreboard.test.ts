@@ -165,6 +165,20 @@ describe('nicknameKey', () => {
     expect(nicknameKey('   ')).toBeNull()
     expect(nicknameKey(42)).toBeNull()
   })
+
+  /**
+   * A key is read back out of a snapshot and put through here again, so a key
+   * that is not itself a key is an owner that vanishes on restart. Folding can
+   * *lengthen* a name — 'İ' becomes two code units — which is the one way a
+   * fold can push a legal name past the length cap.
+   */
+  it('is a key of itself, even for a name that grows when it is folded', () => {
+    for (const raw of ['Alice', 'İ'.repeat(11), 'a'.repeat(20), 'İ İ İ İ İ İ']) {
+      const key = nicknameKey(raw)
+      expect(key).not.toBeNull()
+      expect(nicknameKey(key)).toBe(key)
+    }
+  })
 })
 
 describe('claimNickname', () => {
@@ -462,6 +476,33 @@ describe('scoring sessions', () => {
     expect(post(store, `${API_PREFIX}other/session/${sessionId}/events`, { events: [] }, { token }).status).toBe(404)
   })
 
+  /**
+   * A name whose folded form is longer than the name itself: eleven 'İ's fold
+   * to twenty-two code units. The key is the store's own, so nothing may
+   * re-derive one from it and quietly get a different answer — that would lock
+   * the owner out of the session they had just been issued.
+   */
+  it('keeps the owner of a name that grows when it is folded', () => {
+    const store = createStore()
+    const nickname = 'İ'.repeat(11)
+    const { token } = claimVia(store, 'demo', nickname)
+    expect(token).not.toBe('')
+
+    const { posted } = playSession(store, 'demo', nickname, token, 2)
+
+    expect(posted.status).toBe(200)
+    expect(posted.json.points).toBe(POINTS_PER_HIT * 2)
+    expect(topScores(store, 'demo')).toEqual([{ nickname, points: POINTS_PER_HIT * 2 }])
+
+    // ...and it is still that browser's name after a restart, and nobody else's.
+    const path = tempFile()
+    writeSnapshot(path, store)
+    const restored = readSnapshot(path)
+    expect(verifyOwner(restored, 'demo', nickname, token)).not.toBeNull()
+    expect(topScores(restored, 'demo')).toEqual([{ nickname, points: POINTS_PER_HIT * 2 }])
+    expect(claimNickname(restored, 'demo', nickname, NOW).outcome).toBe('taken')
+  })
+
   it('forgets a session once it has been abandoned', () => {
     const store = createStore()
     const { token } = claimVia(store, 'demo', 'ada')
@@ -547,6 +588,43 @@ describe('quotas', () => {
     expect(store.challenges.get('demo')?.owners.has('ada')).toBe(true)
     expect(store.challenges.get('demo')?.owners.has('never played')).toBe(false)
     expect(topScores(store, 'demo')).toEqual([{ nickname: 'ada', points: POINTS_PER_HIT * 2 }])
+  })
+
+  /**
+   * The sweep has a budget, and an owner who has scored can never expire — so
+   * spending the budget on those would leave every board behind a busy one
+   * permanently unswept, and permanently full at MAX_UNSCORED_OWNERS.
+   */
+  it('does not spend a sweep on the owners that can never expire', () => {
+    const store = createStore()
+    for (let index = 0; index < 100; index += 1) {
+      claimNickname(store, 'busy', `player ${index}`, NOW)
+      recordSessionTotal(store, 'busy', `player ${index}`, index + 1, NOW)
+    }
+    claimNickname(store, 'quiet', 'never played', NOW)
+
+    sweep(store, NOW + UNUSED_OWNER_TTL_MS + 1)
+
+    expect(store.challenges.get('quiet')?.owners.size).toBe(0)
+    expect(store.challenges.get('busy')?.owners.size).toBe(100)
+  })
+
+  /** And when there is more expiring than one sweep can carry, it picks up where it left off. */
+  it('resumes at the board the last sweep stopped on', () => {
+    const store = createStore()
+    for (let board = 0; board < 3; board += 1) {
+      for (let index = 0; index < MAX_UNSCORED_OWNERS; index += 1) {
+        claimNickname(store, `busy ${board}`, `squat ${index}`, NOW)
+      }
+    }
+    claimNickname(store, 'quiet', 'never played', NOW)
+
+    const later = NOW + UNUSED_OWNER_TTL_MS + 1
+    sweep(store, later)
+    expect(store.challenges.get('quiet')?.owners.size).toBe(1)
+
+    sweep(store, later)
+    expect(store.challenges.get('quiet')?.owners.size).toBe(0)
   })
 
   it('evicts an unscored challenge to make room, and never a scored one', () => {

@@ -21,8 +21,12 @@ export type ChallengeStatus = 'off' | 'loading' | 'ready' | 'unavailable'
 /** Why a join did not happen, in the words the prompt puts on screen. */
 export type JoinError = 'taken' | 'rate-limited' | 'error'
 
-/** The kinds of thing the scoring hook reports; see `recordEvent`. */
-export type ScoredEvent = { kind: 'hit' | 'miss' } | { kind: 'bonus'; bonus: 'octaves' | 'tempo' }
+/**
+ * The kinds of thing the scoring hook reports; see `recordEvent`. `at` is the
+ * audio time in seconds of the note it is about — the app's own call, which is
+ * the only timestamp with no response jitter in it.
+ */
+export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
 
 export type Challenge = {
   /** The whole feature, in one boolean. False means none of it exists. */
@@ -58,8 +62,6 @@ export type UseChallengeOptions = {
   fetchImpl?: typeof fetch
   /** The settings a session opened now would be recorded under. */
   config?: SessionConfig
-  /** Injectable clock, so a test can stamp events without waiting for them. */
-  now?: () => number
 }
 
 const INACTIVE_SCORES: ScoreEntry[] = []
@@ -78,7 +80,11 @@ const NOTICES: Record<Exclude<ScoreboardFailure, 'error'>, string> = {
   expired: 'That scoring session expired. Press start to open a new one.',
   'invalid-config': 'The board would not accept these practice settings.',
   'rate-limited': 'Slow down a moment — the board is rate-limiting this browser.',
+  rejected: 'The board could not read that run. Scoring starts again from here.',
 }
+
+/** Said once, when a claim worked but this browser could not write it down. */
+const UNSAVED_TOKEN_NOTICE = 'This browser could not save the name — it is yours until you reload, and no longer.'
 
 /** Challenge name → the nickname this browser owns on it, and its token. */
 type TokenMap = Record<string, { nickname: string; token: string }>
@@ -111,8 +117,15 @@ const readToken = (challenge: string) => {
     : null
 }
 
-const writeToken = (challenge: string, nickname: string, token: string) => {
+/** False when storage refused it — a token nothing wrote down is one reload old. */
+const writeToken = (challenge: string, nickname: string, token: string) =>
   writeRaw(STORAGE_KEYS.challengeTokens, JSON.stringify({ ...readTokens(), [challenge]: { nickname, token } }))
+
+/** Throws away a claim the server has stopped recognising, so it can be remade. */
+const forgetToken = (challenge: string) => {
+  const tokens = readTokens()
+  delete tokens[challenge]
+  writeRaw(STORAGE_KEYS.challengeTokens, JSON.stringify(tokens))
 }
 
 /**
@@ -137,7 +150,7 @@ const writeToken = (challenge: string, nickname: string, token: string) => {
  * pays every note the same, so nobody can buy a place on it by declaring a hard
  * setup they never practised under.
  */
-export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseChallengeOptions = {}): Challenge {
+export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions = {}): Challenge {
   const [name] = useState(() =>
     readChallengeName(search ?? (typeof window === 'undefined' ? '' : window.location.search)),
   )
@@ -156,12 +169,10 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
 
   const fetchRef = useRef(fetchImpl)
   const configRef = useRef(config)
-  const nowRef = useRef(now)
   const ownerRef = useRef(owner)
   useEffect(() => {
     fetchRef.current = fetchImpl
     configRef.current = config
-    nowRef.current = now
     ownerRef.current = owner
   })
 
@@ -170,7 +181,8 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
   // where nothing may re-enter React, and none of this renders differently.
   const queueRef = useRef<ScoreEvent[]>([])
   const sessionRef = useRef<{ id: string | null; startedAt: number; seq: number } | null>(null)
-  const flushingRef = useRef(false)
+  /** The flush in flight, so a second caller joins it rather than racing it. */
+  const drainRef = useRef<Promise<void> | null>(null)
 
   // Every request is stamped with the number it was issued as, and only the
   // newest one is ever shown. Requests overlap in ordinary use — a poll under a
@@ -236,15 +248,32 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
   }, [active, name])
 
   /**
-   * A refusal that means this browser has stopped being able to score: the
-   * session goes, the queue goes with it, and the board falls back to
-   * read-only rather than a retry loop against a server that is saying no.
+   * A refusal that means this browser has stopped being able to score under the
+   * session it had: the session goes, the queue goes with it, and nothing is
+   * retried against a server that is saying no.
+   *
+   * `unauthorized` is the one that goes further. The token this browser holds is
+   * not one the server recognises — it was cleared out from under it, or the
+   * snapshot it was in is gone — and keeping it would leave the player with a
+   * credential that cannot work and no way to ask for one that can. So it is
+   * thrown away and the prompt comes back, which is the only path to a name
+   * again.
    */
-  const surrender = useCallback((failure: ScoreboardFailure) => {
-    sessionRef.current = null
-    queueRef.current = []
-    setNotice(failure === 'error' ? null : NOTICES[failure])
-  }, [])
+  const surrender = useCallback(
+    (failure: ScoreboardFailure) => {
+      sessionRef.current = null
+      queueRef.current = []
+      if (failure === 'unauthorized' && name !== null) {
+        forgetToken(name)
+        ownerRef.current = null
+        setOwner(null)
+        setPromptDismissed(false)
+      }
+
+      setNotice(failure === 'error' ? null : NOTICES[failure])
+    },
+    [name],
+  )
 
   const join = useCallback(
     (raw: string) => {
@@ -264,10 +293,14 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
 
         // The token is the membership; the bare name is only ever the prefill
         // the next challenge's prompt opens with.
-        writeToken(name, result.value.nickname, result.value.token)
+        const saved = writeToken(name, result.value.nickname, result.value.token)
         writeRaw(STORAGE_KEYS.challengeNickname, result.value.nickname)
         setOwner({ nickname: result.value.nickname, token: result.value.token })
-        setNotice(null)
+        // Storage full, or blocked in a private window. The name is claimed and
+        // this browser can play under it, but nothing has written the only copy
+        // of the token down — and after a reload the name is gone for good, so
+        // that is said now rather than discovered then.
+        setNotice(saved ? null : UNSAVED_TOKEN_NOTICE)
       })
     },
     [active, joining, name],
@@ -277,21 +310,29 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
 
   /**
    * Sends what is queued, one batch at a time, opening a session if there is
-   * none yet. Serialised by `flushingRef` because the server insists on exact
-   * ordering — two batches in flight at once would have one of them arrive with
-   * a sequence number the session has not reached.
+   * none yet. Serialised because the server insists on exact ordering — two
+   * batches in flight at once would have one of them arrive with a sequence
+   * number the session has not reached.
+   *
+   * A second caller does not skip: it is handed the flush already running and
+   * waits on that. Anything else would let a reset clear the queue out from
+   * under a request that was still opening a session, and the run it was
+   * carrying would go nowhere.
    *
    * An event stays in the queue until the server has taken it, so a flush that
    * never landed is retried by the next one rather than lost.
    */
-  const drain = useCallback(async () => {
+  const drain = useCallback((): Promise<void> => {
     const holder = ownerRef.current
-    if (!active || holder === null || flushingRef.current) {
-      return
+    if (!active || holder === null) {
+      return Promise.resolve()
     }
 
-    flushingRef.current = true
-    try {
+    if (drainRef.current !== null) {
+      return drainRef.current
+    }
+
+    const run = async () => {
       while (queueRef.current.length > 0) {
         const pending = sessionRef.current
         if (pending === null) {
@@ -308,7 +349,12 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
             fetchImpl: fetchRef.current,
           })
           if (opened.outcome !== 'ok') {
-            surrender(opened.outcome)
+            // As below: a blip keeps what is queued for the next attempt, and
+            // only a refusal the server actually made ends the session.
+            if (opened.outcome !== 'error') {
+              surrender(opened.outcome)
+            }
+
             return
           }
 
@@ -320,7 +366,10 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
         const sent = await sendScoreEvents(name, pending.id, holder.token, batch, { fetchImpl: fetchRef.current })
         if (sent.outcome !== 'ok') {
           // A network blip keeps the queue and tries again next time; anything
-          // the server actually refused ends the session.
+          // the server actually refused ends the session. `rejected` is the
+          // important half of that: the batch failed rules that do not change,
+          // so retrying it would stall every event after it for ever. The
+          // session is abandoned instead and the next note opens a new one.
           if (sent.outcome !== 'error') {
             surrender(sent.outcome)
           }
@@ -332,9 +381,13 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
         setNotice(null)
         applyRef.current?.(sent.value.scores, issue)
       }
-    } finally {
-      flushingRef.current = false
     }
+
+    drainRef.current = run().finally(() => {
+      drainRef.current = null
+    })
+
+    return drainRef.current
   }, [active, name, surrender])
 
   const flushEvents = useCallback(() => {
@@ -347,19 +400,24 @@ export function useChallenge({ search, fetchImpl, config, now = Date.now }: UseC
         return
       }
 
-      // The session is opened lazily, on the first thing worth scoring, but its
-      // clock starts here — so `at` is measured from before the round trip
-      // rather than after it, which can only ever make an event look earlier
-      // than it was, and never later than the server has lived through.
-      const session = (sessionRef.current ??= { id: null, startedAt: nowRef.current(), seq: 0 })
+      // The session's clock starts at the first note it will hold, and every
+      // `at` after that is an offset from it on the audio clock — the same
+      // clock the beats are scheduled on, so two notes are reported exactly as
+      // far apart as the app called them.
+      const fresh = sessionRef.current === null
+      const session = (sessionRef.current ??= { id: null, startedAt: event.at, seq: 0 })
       queueRef.current.push({
         seq: session.seq++,
         kind: event.kind,
         ...(event.kind === 'bonus' ? { bonus: event.bonus } : {}),
-        at: Math.max(0, Math.round(nowRef.current() - session.startedAt)),
+        at: Math.max(0, Math.round((event.at - session.startedAt) * 1000)),
       })
 
-      if (queueRef.current.length >= MAX_EVENTS_PER_BATCH) {
+      // The first note opens the session there and then, rather than waiting
+      // for a full batch. The server measures a session from the moment it
+      // issued one, so a client that buffered a minute of play before asking
+      // for one would be reporting notes from before the session existed.
+      if (fresh || queueRef.current.length >= MAX_EVENTS_PER_BATCH) {
         void drain()
       }
     },

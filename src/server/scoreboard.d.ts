@@ -31,6 +31,8 @@ export type ChallengeBoard = {
   entries: Map<string, number>
   /** Case-folded nickname key → who owns it. */
   owners: Map<string, NicknameOwner>
+  /** The keys in `owners` that have never scored: the only sweep candidates. */
+  unscored: Set<string>
   lastActiveAt: number
 }
 
@@ -51,6 +53,8 @@ export type ScoreStore = {
   challenges: Map<string, ChallengeBoard>
   sessions: Map<string, SessionRecord>
   limits: Map<string, RateBucket>
+  /** Where the next sweep picks up, so no board is starved of one. */
+  sweepCursor: number
 }
 
 export type RateLimit = {
@@ -115,6 +119,12 @@ export declare const claimNickname: (
   nickname: unknown,
   now: number,
 ) => ClaimResult
+export declare const verifyOwnerKey: (
+  store: ScoreStore,
+  challenge: unknown,
+  key: unknown,
+  token: unknown,
+) => NicknameOwner | null
 export declare const verifyOwner: (
   store: ScoreStore,
   challenge: unknown,

@@ -6,6 +6,13 @@ import { STORAGE_KEYS } from '../constants'
 const CONFIG = { bpm: 72, beatsPerNote: 4 } as const
 const TOKEN = 'a'.repeat(64)
 
+/**
+ * A note called a second later than the last one, on the audio clock a beat
+ * carries. What the hook does with it is turn it into an offset from the first.
+ */
+let called = 0
+const hit = () => ({ kind: 'hit' as const, at: (called += 1) })
+
 const board = (...scores: Array<[string, number]>) => ({
   scores: scores.map(([nickname, points]) => ({ nickname, points })),
 })
@@ -69,10 +76,10 @@ const owning = (challenge = 'demo', nickname = 'ada') => {
   )
 }
 
-const render = (options: UseChallengeOptions) =>
-  renderHook(() => useChallenge({ config: CONFIG, now: () => Date.now(), ...options }))
+const render = (options: UseChallengeOptions) => renderHook(() => useChallenge({ config: CONFIG, ...options }))
 
 afterEach(() => {
+  called = 0
   window.localStorage.clear()
   vi.restoreAllMocks()
   vi.useRealTimers()
@@ -109,7 +116,7 @@ describe('off a challenge', () => {
     const fetchImpl = jsonFetch(board())
     const { result } = render({ search: '', fetchImpl })
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     act(() => result.current.flushEvents())
     act(() => result.current.endSession())
 
@@ -175,6 +182,23 @@ describe('on a challenge', () => {
     expect(window.localStorage.getItem(STORAGE_KEYS.challengeTokens)).toBeNull()
     // The board is still readable — being refused a name is not being locked out.
     await waitFor(() => expect(result.current.scores).toEqual([{ nickname: 'ada', points: 300 }]))
+  })
+
+  /**
+   * The token is spoken once. A browser that could not write it down owns the
+   * name until it reloads and never again, and being told that now is the
+   * difference between a choice and a surprise.
+   */
+  it('says so when the claim worked but nothing could write the token down', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('QuotaExceededError')
+    })
+
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    await act(async () => result.current.join('ada'))
+
+    expect(result.current.nickname).toBe('ada')
+    expect(result.current.notice).toContain('could not save')
   })
 
   it('reports a rate-limited claim as its own thing', async () => {
@@ -260,19 +284,20 @@ describe('scoring through a session', () => {
     const { result } = await joined(fetchImpl)
 
     act(() => {
-      result.current.recordEvent({ kind: 'hit' })
-      result.current.recordEvent({ kind: 'bonus', bonus: 'octaves' })
-      result.current.recordEvent({ kind: 'miss' })
+      result.current.recordEvent({ kind: 'hit', at: 10 })
+      result.current.recordEvent({ kind: 'bonus', bonus: 'octaves', at: 10 })
+      result.current.recordEvent({ kind: 'miss', at: 10.5 })
     })
     await act(async () => result.current.flushEvents())
 
-    // A session first, then the batch. Neither body mentions a total.
+    // A session first, then the batch. Neither body mentions a total, and every
+    // stamp is an offset in milliseconds from the first note of the session.
     expect(bodyOf(fetchImpl, 1)).toEqual({ nickname: 'ada', config: CONFIG })
     expect(bodyOf(fetchImpl, 2)).toEqual({
       events: [
-        { seq: 0, kind: 'hit', at: expect.any(Number) },
-        { seq: 1, kind: 'bonus', bonus: 'octaves', at: expect.any(Number) },
-        { seq: 2, kind: 'miss', at: expect.any(Number) },
+        { seq: 0, kind: 'hit', at: 0 },
+        { seq: 1, kind: 'bonus', bonus: 'octaves', at: 0 },
+        { seq: 2, kind: 'miss', at: 500 },
       ],
     })
     for (const [, init] of fetchImpl.mock.calls) {
@@ -284,7 +309,7 @@ describe('scoring through a session', () => {
     const fetchImpl = service()
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(result.current.scores).toEqual([{ nickname: 'ada', points: 10 }])
@@ -294,7 +319,7 @@ describe('scoring through a session', () => {
     const fetchImpl = service()
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     for (const [url, init] of fetchImpl.mock.calls) {
@@ -309,9 +334,9 @@ describe('scoring through a session', () => {
     const fetchImpl = service()
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/session'))).toHaveLength(1)
@@ -331,7 +356,7 @@ describe('scoring through a session', () => {
     const { result } = render({ search: '?challenge=demo', fetchImpl })
     await waitFor(() => expect(result.current.status).toBe('ready'))
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(fetchImpl).toHaveBeenCalledTimes(1)
@@ -351,7 +376,7 @@ describe('scoring through a session', () => {
 
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
     expect(result.current.scores).toEqual([])
 
@@ -373,13 +398,13 @@ describe('scoring through a session', () => {
 
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(result.current.notice).toContain('expired')
     // Nothing is retried, and the board is still readable.
     const before = fetchImpl.mock.calls.length
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
     expect(fetchImpl.mock.calls.length).toBeGreaterThan(before)
     expect(result.current.scores).toEqual([{ nickname: 'bo', points: 50 }])
@@ -392,10 +417,83 @@ describe('scoring through a session', () => {
 
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(result.current.notice).toContain('read-only')
+    // A token the server does not recognise is not a credential, and keeping it
+    // would leave this browser retrying it with no way back to a name.
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({})
+    expect(result.current.nickname).toBeNull()
+    expect(result.current.needsNickname).toBe(true)
+  })
+
+  /**
+   * A batch the server judged and refused fails rules that do not change, so
+   * sending it again would refuse it again — for ever, taking every event
+   * behind it with it.
+   */
+  it('abandons a refused batch instead of retrying it into a stall', async () => {
+    const inner = service()
+    let refuse = true
+    const fetchImpl = stubFetch(async (url, init) => {
+      if (refuse && url.endsWith('/events')) {
+        refuse = false
+        return reply({ error: 'too_fast' }, 400)
+      }
+
+      return inner(url, init)
+    })
+
+    const { result } = await joined(fetchImpl)
+
+    act(() => result.current.recordEvent(hit()))
+    await act(async () => result.current.flushEvents())
+    expect(result.current.notice).toContain('starts again')
+
+    // The next note opens a fresh session and scores through it normally.
+    act(() => result.current.recordEvent(hit()))
+    await act(async () => result.current.flushEvents())
+
+    expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/session'))).toHaveLength(2)
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 10 }])
+  })
+
+  /**
+   * Reset flushes and then ends the session. The flush is a round trip, so the
+   * end has to wait for the one already running rather than start a second and
+   * clear the queue out from under it — the run it was carrying would go
+   * nowhere at all.
+   */
+  it('waits for the flush already in flight before it ends the session', async () => {
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const inner = service()
+    const fetchImpl = stubFetch(async (url, init) => {
+      if (init?.method === 'POST' && url.endsWith('/session')) {
+        await held
+      }
+
+      return inner(url, init)
+    })
+
+    const { result } = await joined(fetchImpl)
+
+    // The first note opens the session, and the open is still in the air.
+    act(() => result.current.recordEvent(hit()))
+    act(() => result.current.endSession())
+    await act(async () => {
+      release()
+      await held
+    })
+
+    const paths = fetchImpl.mock.calls.map(([url]) => url)
+    const batch = paths.findIndex((path) => path.endsWith('/events'))
+    expect(paths.filter((path) => path.endsWith('/events'))).toHaveLength(1)
+    expect(bodyOf(fetchImpl, batch).events).toHaveLength(1)
+    expect(paths[paths.length - 1]).toContain('/finish')
   })
 
   it('says so when the board is rate-limiting this browser', async () => {
@@ -405,7 +503,7 @@ describe('scoring through a session', () => {
 
     const { result } = await joined(fetchImpl as unknown as ReturnType<typeof service>)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(result.current.notice).toContain('Slow down')
@@ -420,13 +518,13 @@ describe('scoring through a session', () => {
     const fetchImpl = service()
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
     await act(async () => result.current.endSession())
 
     expect(fetchImpl.mock.calls.some(([url]) => url.endsWith('/finish'))).toBe(true)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
     expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/session'))).toHaveLength(2)
@@ -439,7 +537,7 @@ describe('scoring through a session', () => {
     const fetchImpl = service()
     const { result } = await joined(fetchImpl)
 
-    act(() => result.current.recordEvent({ kind: 'hit' }))
+    act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.endSession())
 
     // The queue was flushed on the way out, so it went up before the finish.

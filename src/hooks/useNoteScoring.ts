@@ -84,8 +84,18 @@ const createStore = (): ScoringStore => ({
   listeners: new Set(),
 })
 
-/** One thing that landed, in the shape the shared board reports it in. */
-export type ScoredEvent = { kind: 'hit' | 'miss' } | { kind: 'bonus'; bonus: 'octaves' | 'tempo' }
+/**
+ * One thing that landed, in the shape the shared board reports it in.
+ *
+ * `at` is the audio time — in seconds, on the same clock as a beat — of the note
+ * this is about, which is the moment the *app* called it and not the moment a
+ * callback happened to run. Response times vary by a couple of hundred
+ * milliseconds either way, and at the fastest tempo the app offers two notes are
+ * only 250 ms apart, so stamping these when they are observed would report
+ * ordinary playing as two notes closer together than the app can possibly call
+ * them. The call is the one timestamp with no jitter in it at all.
+ */
+export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
 
 export type UseNoteScoringOptions = {
   engine: ScoringEngine
@@ -236,7 +246,7 @@ export function useNoteScoring({ engine, subscribe, active, running, onScored }:
             store.open = claimed
             store.tally = applyBonus(store.tally, paid)
             store.lastBonuses = [...store.lastBonuses, paid]
-            scoredRef.current?.({ kind: 'bonus', bonus: 'tempo' })
+            scoredRef.current?.({ kind: 'bonus', bonus: 'tempo', at: open.beatTime })
           }
         }
 
@@ -250,7 +260,9 @@ export function useNoteScoring({ engine, subscribe, active, running, onScored }:
         store.tally = applyMiss(store.tally)
         store.lastVerdict = { hit: false, responseMs: null }
         store.lastBonuses = NO_BONUSES
-        scoredRef.current?.({ kind: 'miss' })
+        // The note that went unanswered, not the beat that closed it: a miss
+        // belongs to its own call, exactly as a hit does.
+        scoredRef.current?.({ kind: 'miss', at: store.open.beatTime })
       }
 
       // The settings this note was *called* under rode the event here, because
@@ -328,7 +340,7 @@ export function useNoteScoring({ engine, subscribe, active, running, onScored }:
           store.open = claimed
           store.tally = applyBonus(store.tally, paid)
           store.lastBonuses = [...store.lastBonuses, paid]
-          scoredRef.current?.({ kind: 'bonus', bonus: 'octaves' })
+          scoredRef.current?.({ kind: 'bonus', bonus: 'octaves', at: judged.beatTime })
           scheduleFlush()
           return
         }
@@ -365,10 +377,12 @@ export function useNoteScoring({ engine, subscribe, active, running, onScored }:
 
         // The hit first, then the bonuses that landed with it — the order the
         // tally moved in, which is the order whoever is re-deriving it needs.
-        scoredRef.current?.({ kind: 'hit' })
+        // All of them stamped with the note's own call, so a run of notes is
+        // reported at the spacing the app actually called them at.
+        scoredRef.current?.({ kind: 'hit', at: previous.beatTime })
         for (const bonus of landed) {
           if (bonus.kind !== 'streak') {
-            scoredRef.current?.({ kind: 'bonus', bonus: bonus.kind })
+            scoredRef.current?.({ kind: 'bonus', bonus: bonus.kind, at: previous.beatTime })
           }
         }
 

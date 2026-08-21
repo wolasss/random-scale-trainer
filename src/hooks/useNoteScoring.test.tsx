@@ -829,10 +829,11 @@ describe('reporting what landed', () => {
     }
 
     // Three hits and no streak event: whoever is counting can count a run.
+    // Stamped with the call each one answered, not the frame that confirmed it.
     expect(onScored.mock.calls.map(([event]) => event)).toEqual([
-      { kind: 'hit' },
-      { kind: 'hit' },
-      { kind: 'hit' },
+      { kind: 'hit', at: 10 },
+      { kind: 'hit', at: 11 },
+      { kind: 'hit', at: 12 },
     ])
     expect(result.current.tally.points).toBe(POINTS_PER_HIT * 3 + 5)
   })
@@ -849,7 +850,8 @@ describe('reporting what landed', () => {
     })
 
     expect(onScored).toHaveBeenCalledTimes(1)
-    expect(onScored).toHaveBeenCalledWith({ kind: 'miss' })
+    // The note that went unanswered, not the beat that closed it.
+    expect(onScored).toHaveBeenCalledWith({ kind: 'miss', at: 10 })
   })
 
   it('reports the octaves bonus after the hit it was earned on', async () => {
@@ -868,8 +870,8 @@ describe('reporting what landed', () => {
     })
 
     expect(onScored.mock.calls.map(([event]) => event)).toEqual([
-      { kind: 'hit' },
-      { kind: 'bonus', bonus: 'octaves' },
+      { kind: 'hit', at: 10 },
+      { kind: 'bonus', bonus: 'octaves', at: 10 },
     ])
     expect(result.current.tally.points).toBe(POINTS_PER_HIT + OCTAVES_BONUS_POINTS)
   })
@@ -889,7 +891,7 @@ describe('reporting what landed', () => {
     })
 
     const bonuses = onScored.mock.calls.map(([event]) => event).filter((event) => event.kind === 'bonus')
-    expect(bonuses).toEqual([{ kind: 'bonus', bonus: 'tempo' }])
+    expect(bonuses).toEqual([{ kind: 'bonus', bonus: 'tempo', at: 10 }])
     expect(result.current.tally.points).toBe(POINTS_PER_HIT + TEMPO_BONUS_POINTS)
   })
 

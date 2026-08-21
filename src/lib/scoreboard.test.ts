@@ -201,6 +201,25 @@ describe('scoring sessions', () => {
     }
   })
 
+  /**
+   * A batch the server judged and refused is not a batch that failed to arrive.
+   * The rules it broke are all-or-nothing and do not change, so retrying it is
+   * a loop — the caller needs to know to abandon the session instead.
+   */
+  it('separates a batch the server refused from one that never landed', async () => {
+    for (const error of ['invalid_event', 'too_fast', 'too_many']) {
+      const fetchImpl = fetchReturning({ error }, false, 400)
+      await expect(sendScoreEvents('demo', 'abc', TOKEN, [], { fetchImpl })).resolves.toEqual({ outcome: 'rejected' })
+    }
+
+    const unreachable = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(sendScoreEvents('demo', 'abc', TOKEN, [], { fetchImpl: unreachable })).resolves.toEqual({
+      outcome: 'error',
+    })
+  })
+
   it('is an error, not a total, when the answer carries no points', async () => {
     await expect(sendScoreEvents('demo', 'abc', TOKEN, [], { fetchImpl: fetchReturning(BOARD) })).resolves.toEqual({
       outcome: 'error',

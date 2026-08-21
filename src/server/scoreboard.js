@@ -130,11 +130,17 @@ export const normalizeNickname = (raw) => {
  * `ALICE` are one person and not three — a board where the difference between
  * two rows is a capital letter is a board anybody can impersonate you on.
  * Kept in step with `nicknameKey` in src/lib/challenge.ts.
+ *
+ * Normalised *again* after folding, and that second pass is load-bearing:
+ * lowercasing can lengthen a name — `İ` folds to two code units — so folding a
+ * name at the length limit can push it past it. Without the second pass the key
+ * of a key would differ from the key, and a key is round-tripped through here
+ * every time one is read back out of a snapshot.
  */
 export const nicknameKey = (raw) => {
   const nickname = normalizeNickname(raw)
 
-  return nickname === null ? null : nickname.toLowerCase()
+  return nickname === null ? null : normalizeNickname(nickname.toLowerCase())
 }
 
 export const normalizePoints = (raw) => {
@@ -145,9 +151,9 @@ export const normalizePoints = (raw) => {
   return Math.min(MAX_POINTS, Math.floor(raw))
 }
 
-export const createStore = () => ({ challenges: new Map(), sessions: new Map(), limits: new Map() })
+export const createStore = () => ({ challenges: new Map(), sessions: new Map(), limits: new Map(), sweepCursor: 0 })
 
-const createBoard = (now) => ({ entries: new Map(), owners: new Map(), lastActiveAt: now })
+const createBoard = (now) => ({ entries: new Map(), owners: new Map(), unscored: new Set(), lastActiveAt: now })
 
 const hashToken = (token) => createHash('sha256').update(token, 'utf8').digest('hex')
 
@@ -219,21 +225,42 @@ export const sweep = (store, now) => {
     }
   }
 
+  // Only the owners who have never scored are candidates, so the budget is
+  // spent on those and never on the permanent records of a busy board — which
+  // would otherwise consume a whole sweep and leave the boards behind it
+  // untouched forever. The cursor is the other half of that: a sweep resumes
+  // where the last one stopped, so every board comes round in turn rather than
+  // the first few being swept over and over.
+  const boards = [...store.challenges.values()]
+  if (boards.length === 0) {
+    return
+  }
+
   budget = SWEEP_BUDGET
-  for (const board of store.challenges.values()) {
-    for (const [key, owner] of board.owners) {
+  let index = store.sweepCursor % boards.length
+  for (let visited = 0; visited < boards.length && budget > 0; visited += 1) {
+    const board = boards[index]
+    index = (index + 1) % boards.length
+
+    for (const key of board.unscored) {
       if (budget-- <= 0) {
-        return
+        break
       }
 
       // A claim that never scored is a name somebody typed and walked away
       // from. One that did score is the board, and never expires.
-      if (owner.scoredAt === null && now - owner.claimedAt > UNUSED_OWNER_TTL_MS) {
+      const owner = board.owners.get(key)
+      if (owner === undefined || now - owner.claimedAt > UNUSED_OWNER_TTL_MS) {
         board.owners.delete(key)
-        board.entries.delete(owner.nickname)
+        board.unscored.delete(key)
+        if (owner !== undefined) {
+          board.entries.delete(owner.nickname)
+        }
       }
     }
   }
+
+  store.sweepCursor = index
 }
 
 /**
@@ -316,44 +343,40 @@ export const claimNickname = (store, challenge, nickname, now) => {
     return { outcome: 'full' }
   }
 
-  let unscored = 0
-  for (const owner of board.owners.values()) {
-    if (owner.scoredAt === null) {
-      unscored += 1
-    }
-  }
-
-  if (unscored >= MAX_UNSCORED_OWNERS) {
+  if (board.unscored.size >= MAX_UNSCORED_OWNERS) {
     return { outcome: 'full' }
   }
 
   const token = randomBytes(32).toString('hex')
   board.owners.set(key, { nickname: who, tokenHash: hashToken(token), claimedAt: now, scoredAt: null })
+  board.unscored.add(key)
   board.lastActiveAt = now
 
   return { outcome: 'claimed', nickname: who, token }
 }
 
 /**
- * The owner record a token unlocks, or null. A record with a null hash is a
- * tombstone — a nickname carried over from before ownership existed — and no
- * token satisfies it, ever.
+ * The owner record a token unlocks, looked up by the key it is stored under, or
+ * null. A record with a null hash is a tombstone — a nickname carried over from
+ * before ownership existed — and no token satisfies it, ever.
  */
-export const verifyOwner = (store, challenge, nickname, token) => {
+export const verifyOwnerKey = (store, challenge, key, token) => {
   const name = normalizeChallengeName(challenge)
-  const key = nicknameKey(nickname)
-  if (name === null || key === null || typeof token !== 'string' || token === '') {
+  if (name === null || typeof key !== 'string' || typeof token !== 'string' || token === '') {
     return null
   }
 
-  const board = store.challenges.get(name)
-  const owner = board?.owners.get(key)
+  const owner = store.challenges.get(name)?.owners.get(key)
   if (owner === undefined || owner.tokenHash === null) {
     return null
   }
 
   return hashesMatch(owner.tokenHash, hashToken(token)) ? owner : null
 }
+
+/** The same, for a nickname as somebody typed it rather than a stored key. */
+export const verifyOwner = (store, challenge, nickname, token) =>
+  verifyOwnerKey(store, challenge, nicknameKey(nickname), token)
 
 /**
  * Puts a session's computed total on the board, best-wins.
@@ -379,6 +402,7 @@ export const recordSessionTotal = (store, challenge, nickname, points, now) => {
 
   board.lastActiveAt = now
   owner.scoredAt = now
+  board.unscored.delete(key)
 
   const previous = board.entries.get(owner.nickname)
   if (previous !== undefined && score <= previous) {
@@ -600,10 +624,12 @@ const handleSessionPost = (store, { challenge, id, step, body, headers, client, 
     return answer(404, { error: 'session_expired' })
   }
 
-  // The token is checked against the owner the session was opened for, so a
-  // guessed session id is worth nothing without it.
-  const owner = verifyOwner(store, challenge, record.key, bearerToken(headers))
-  if (owner === null || nicknameKey(owner.nickname) !== record.key) {
+  // The token is checked against the owner the session was opened for, by the
+  // key the store already holds rather than by re-deriving one, so a guessed
+  // session id is worth nothing without the token and a name that is its own
+  // edge case cannot lock its owner out of a session they legitimately opened.
+  const owner = verifyOwnerKey(store, challenge, record.key, bearerToken(headers))
+  if (owner === null) {
     return answer(401, { error: 'invalid_owner' })
   }
 
@@ -726,12 +752,16 @@ export const readSnapshot = (path) => {
         continue
       }
 
+      const scoredAt = rawOwner.scoredAt === null ? null : readTime(rawOwner.scoredAt, now)
       entry.owners.set(key, {
         nickname,
         tokenHash: typeof rawOwner.tokenHash === 'string' && rawOwner.tokenHash !== '' ? rawOwner.tokenHash : null,
         claimedAt: readTime(rawOwner.claimedAt, now),
-        scoredAt: rawOwner.scoredAt === null ? null : readTime(rawOwner.scoredAt, now),
+        scoredAt,
       })
+      if (scoredAt === null) {
+        entry.unscored.add(key)
+      }
     }
 
     for (const [rawNickname, rawPoints] of Object.entries(scores)) {
@@ -751,7 +781,10 @@ export const readSnapshot = (path) => {
         continue
       }
 
+      // A row on the board is a claim that was scored under, whatever the file
+      // said about it.
       owner.scoredAt = readTime(owner.scoredAt, entry.lastActiveAt)
+      entry.unscored.delete(key)
       entry.entries.set(owner.nickname, points)
     }
 

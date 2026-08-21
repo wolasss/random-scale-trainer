@@ -39,8 +39,23 @@ export type ScoreboardRequestOptions = {
   fetchImpl?: typeof fetch
 }
 
-/** What a mutation can come back as. Every one of these has something to say. */
-export type ScoreboardFailure = 'taken' | 'unauthorized' | 'expired' | 'invalid-config' | 'rate-limited' | 'error'
+/**
+ * What a mutation can come back as. Every one of these has something to say.
+ *
+ * `rejected` and `error` are deliberately not the same thing. A fetch that never
+ * arrived is worth trying again with the same body; a batch the server *judged*
+ * and refused is not, because the rules it failed are all-or-nothing and
+ * deterministic — sending it a second time would be refused a second time, for
+ * ever, and nothing after it would ever be scored.
+ */
+export type ScoreboardFailure =
+  | 'taken'
+  | 'unauthorized'
+  | 'expired'
+  | 'invalid-config'
+  | 'rate-limited'
+  | 'rejected'
+  | 'error'
 
 export type ScoreboardResult<T> = { outcome: 'ok'; value: T } | { outcome: ScoreboardFailure }
 
@@ -136,6 +151,10 @@ const failureFrom = (status: number, error: unknown): ScoreboardFailure => {
 
   if (error === 'session_expired' || error === 'session_completed') {
     return 'expired'
+  }
+
+  if (error === 'invalid_event' || error === 'too_fast' || error === 'too_many') {
+    return 'rejected'
   }
 
   return error === 'invalid_config' ? 'invalid-config' : 'error'
