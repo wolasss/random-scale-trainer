@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/wolasss/random-scale-trainer/compare/v1.19.0...v1.20.0) (2026-08-21)
+
+
+### Features
+
+* **pool:** save the current chip selection as a named preset ([#139](https://github.com/wolasss/random-scale-trainer/issues/139)) ([98b16dc](https://github.com/wolasss/random-scale-trainer/commit/98b16dc7ff1a90b7e68238bb7ce43834da350d31))
+
 # [1.19.0](https://github.com/wolasss/random-scale-trainer/compare/v1.18.0...v1.19.0) (2026-08-21)
 
 
