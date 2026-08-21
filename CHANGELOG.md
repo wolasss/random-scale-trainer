@@ -1,3 +1,17 @@
+# [1.19.0](https://github.com/wolasss/random-scale-trainer/compare/v1.18.0...v1.19.0) (2026-08-21)
+
+
+### Features
+
+* **session:** tap the goal readout to count down instead of up ([#140](https://github.com/wolasss/random-scale-trainer/issues/140)) ([7264f57](https://github.com/wolasss/random-scale-trainer/commit/7264f573caa1d81b9bc312d2895f010963288ae1))
+
+# [1.18.0](https://github.com/wolasss/random-scale-trainer/compare/v1.17.0...v1.18.0) (2026-08-21)
+
+
+### Features
+
+* **scoring:** bonus points at 10, 20 and 30 minutes of practice ([#134](https://github.com/wolasss/random-scale-trainer/issues/134)) ([cbbdf2e](https://github.com/wolasss/random-scale-trainer/commit/cbbdf2e673cbc6b93946f2dc37463416f4f405d7))
+
 # [1.17.0](https://github.com/wolasss/random-scale-trainer/compare/v1.16.1...v1.17.0) (2026-08-20)
 
 

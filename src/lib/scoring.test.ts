@@ -15,6 +15,8 @@ import {
   OCTAVES_BONUS_POINTS,
   openWindow,
   POINTS_PER_HIT,
+  PRACTICE_MILESTONES,
+  practiceMilestonesCrossed,
   scaleBonus,
   SCORE_DECAY_MARGIN_S,
   streakBonus,
@@ -519,6 +521,44 @@ describe('the tally', () => {
       streak: banked.streak,
       bestStreak: banked.bestStreak,
     })
+  })
+})
+
+describe('practiceMilestonesCrossed', () => {
+  it('pins each threshold and its flat payout', () => {
+    expect(PRACTICE_MILESTONES).toEqual([
+      { kind: 'practice10', atMs: 600_000, points: 50 },
+      { kind: 'practice20', atMs: 1_200_000, points: 100 },
+      { kind: 'practice30', atMs: 1_800_000, points: 150 },
+    ])
+  })
+
+  it('earns nothing on a step that stays short of the first threshold', () => {
+    expect(practiceMilestonesCrossed(0, 599_999)).toEqual([])
+  })
+
+  it('earns the threshold on the tick that reaches it', () => {
+    expect(practiceMilestonesCrossed(599_999, 600_000)).toEqual([{ kind: 'practice10', points: 50 }])
+  })
+
+  it('earns nothing on the tick just after, already having earned it', () => {
+    expect(practiceMilestonesCrossed(600_000, 600_001)).toEqual([])
+  })
+
+  it('returns every threshold a long step jumps past, in order', () => {
+    expect(practiceMilestonesCrossed(0, 1_800_000)).toEqual([
+      { kind: 'practice10', points: 50 },
+      { kind: 'practice20', points: 100 },
+      { kind: 'practice30', points: 150 },
+    ])
+  })
+
+  it('earns nothing on a zero-length step', () => {
+    expect(practiceMilestonesCrossed(600_000, 600_000)).toEqual([])
+  })
+
+  it('earns nothing on a step backwards', () => {
+    expect(practiceMilestonesCrossed(600_000, 0)).toEqual([])
   })
 })
 

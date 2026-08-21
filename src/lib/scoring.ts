@@ -2,7 +2,11 @@
  * Judging what was played against what was called.
  *
  * Everything here is arithmetic on the audio clock: no DOM, no React, no
- * wall-clock time. A window is opened when a note is called, fed the pitches
+ * wall-clock time — with one exception. `practiceMilestonesCrossed` prices
+ * staying in the chair, and the only clock it can honestly read is the one
+ * the session itself keeps; it stays pure by taking two elapsed values as
+ * arguments rather than reaching for one, so it is still arithmetic and still
+ * reads no clock of its own. A window is opened when a note is called, fed the pitches
  * the microphone heard, and closed when the next call lands — and the two
  * things it has to get right are both about not lying to the player.
  *
@@ -232,7 +236,7 @@ export const TEMPO_LATE_MAX_FRACTION = 0.4
 export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; responseMs: null }
 
 /** The bonuses a note can earn. More kinds join these as they are written. */
-export type BonusKind = 'streak' | 'octaves' | 'tempo'
+export type BonusKind = 'streak' | 'octaves' | 'tempo' | 'practice10' | 'practice20' | 'practice30'
 
 /** One bonus that landed: what it was for, and what it was worth. */
 export type Bonus = { kind: BonusKind; points: number }
@@ -250,6 +254,37 @@ export function streakBonus(streak: number): Bonus | null {
     kind: 'streak',
     points: Math.min((streak - STREAK_BONUS_FROM + 1) * STREAK_BONUS_STEP, STREAK_BONUS_MAX),
   }
+}
+
+/**
+ * The practice milestones: a fixed bonus for reaching 10, 20 and 30 minutes
+ * of session time. These are **unscaled** — a milestone belongs to no note,
+ * so no note's `difficultyMultiplier` applies to it, and it is banked
+ * verbatim rather than passed through `scaleBonus`. Pitched at roughly a good
+ * minute of drilling apiece and never the bulk of a session's score.
+ */
+export const PRACTICE_MILESTONES: readonly { kind: BonusKind; atMs: number; points: number }[] = [
+  { kind: 'practice10', atMs: 10 * 60_000, points: 50 },
+  { kind: 'practice20', atMs: 20 * 60_000, points: 100 },
+  { kind: 'practice30', atMs: 30 * 60_000, points: 150 },
+]
+
+/**
+ * Which milestones does crossing from `fromMs` to `toMs` earn: every
+ * threshold in `(fromMs, toMs]`, in order. Arithmetic on the two elapsed
+ * values handed in and nothing else — no clock is read here, so a caller
+ * that hands in a whole tick's worth of elapsed time at once still gets every
+ * threshold that tick passed through rather than just the nearest one. A
+ * zero-length or backwards step (`toMs <= fromMs`) earns nothing.
+ */
+export function practiceMilestonesCrossed(fromMs: number, toMs: number): Bonus[] {
+  if (toMs <= fromMs) {
+    return []
+  }
+
+  return PRACTICE_MILESTONES.filter((milestone) => milestone.atMs > fromMs && milestone.atMs <= toMs).map(
+    ({ kind, points }) => ({ kind, points }),
+  )
 }
 
 /**
@@ -480,11 +515,16 @@ export const applyHit = (
 }
 
 /**
- * Banks a bonus discovered *after* its note was banked — points and nothing
- * else. It must never touch `scored`, `hits`, `responseTimesMs`, `streak` or
- * `bestStreak`: the note it belongs to has already been counted, and counting
- * it again would inflate the accuracy the readout reports. Whether the bonus is
- * allowed to land at all is `claimBonus`'s question, not this one's.
+ * Banks a bonus discovered *after* its note was banked, or one that belongs
+ * to no note at all — a practice milestone is earned by the session clock,
+ * not by anything played. Either way it moves points and nothing else. It
+ * must never touch `scored`, `hits`, `responseTimesMs`, `streak` or
+ * `bestStreak`: a bonus tied to a note would double-count a note already
+ * counted, and a milestone was never a note to begin with — both would
+ * inflate the accuracy the readout reports. Whether a note-bound bonus is
+ * allowed to land at all is `claimBonus`'s question, not this one's; a
+ * milestone's equivalent guard is the caller's `Set<BonusKind>` of what has
+ * already been paid this session.
  */
 export const applyBonus = (tally: Tally, bonus: Bonus): Tally => ({
   ...tally,

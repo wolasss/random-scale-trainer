@@ -85,6 +85,9 @@ export const STORAGE_KEYS = {
   // '1,,3' can't coerce its way into a pool holding C.
   notePool: 'fretboard-note-pool',
   sessionGoal: 'fretboard-session-goal',
+  // Which way the transport's goal readout counts: literally 'remaining' or
+  // 'elapsed'. Anything else is rejected and the readout counts up.
+  goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.

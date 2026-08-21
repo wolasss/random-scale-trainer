@@ -692,14 +692,27 @@ h2 {
 }
 
 /* Clamped at min-content rather than 0, so a squeeze slides the buttons off
-   centre instead of pushing the readout past the card's edge. */
+   centre instead of pushing the readout past the card's edge.
+
+   It is a button — tapping it counts down instead of up — so it sheds the UA's
+   chrome and takes the surrounding text's font. The 44px floor is the point of
+   the rule: text-sized type would otherwise leave a one-line tap target. The
+   transport row centres a 56px play button, so the floor can't grow it. */
 .transport-readout {
   grid-column: 4;
   justify-self: end;
+  border: 0;
+  background: none;
+  padding: 0 0.25rem;
   color: var(--ink-soft);
+  font: inherit;
   font-size: 0.92rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
 }
 
 .transport-primary {
