@@ -410,7 +410,9 @@ export class AudioEngine {
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           const arrayBuffer = await response.arrayBuffer()
           const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
-            context.decodeAudioData(arrayBuffer, resolve, reject)
+            // The callbacks settle this promise; the one decodeAudioData
+            // returns is redundant here, so drop it explicitly.
+            void context.decodeAudioData(arrayBuffer, resolve, reject)
           })
           this.noteBuffers.set(note, audioBuffer)
           this.missingClips.delete(note)
