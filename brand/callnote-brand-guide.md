@@ -62,24 +62,41 @@ theme's border tone. Inside: Gabarito 800 lowercase `c` in theme ink + one accen
 </div>
 ```
 
-## 3. Theme tokens
+## 3. Exported-asset palette
 
-The mark reads its colors from the active skin.
+The mark reads its colors from the active skin. The table below is **not** those live tokens: it is
+the literal `THEMES` table in `scripts/generate-brand-assets.py`, which is separately hand-tuned and
+drives every SVG in this folder plus `public/favicon.svg` (the PWA's PNGs are rasterized from the
+glass SVGs by `scripts/rasterize-icons.mjs`). The in-app lockup takes its colours from
+`src/index.css` instead, and the two are allowed to differ — see §5. The `Light` column is an export
+row only; the app's light theme is handled by tokens.
 
-| Token | Editorial | Warm | Atmospheric glass | Instrument |
-| --- | --- | --- | --- | --- |
-| `--brand-ink` | `#e9e2d6` | `#f3e6d8` | `#dfe9ec` | `#e7e4db` |
-| `--brand-ink-muted` (.app) | `#8a7f74` | `#a08d7b` | `#6e8b95` | `#8b877c` |
-| `--brand-accent` (call dot) | `#e0786a` | `#ee8d55` | `#3fe0c0` | `#ffb020` |
-| `--brand-accent-glow` (45% α) | `rgba(224,120,106,.45)` | `rgba(238,141,85,.5)` | `rgba(63,224,192,.45)` | `rgba(255,176,32,.45)` |
-| `--brand-dot-muted` | `#4a423b` | `#5d4c3d` | `#2b4652` | `#34383f` |
-| `--brand-border` | `#3a332c` | `#5d4c3d` | `#2b4652` | `#262a30` |
-| `--brand-tile-hi` | `#2a2420` | `#46372c` | `#16303d` | `#101418` |
-| `--brand-tile-lo` | `#1a1714` | `#32271f` | `#0c1a23` | `#070809` |
-| Ground (context) | `#1c1917` | `#362a22` | `#0d1b24` | `#070809` |
+| Token | Editorial | Warm | Atmospheric glass | Instrument | Light¹ |
+| --- | --- | --- | --- | --- | --- |
+| `ink` (wordmark) | `#e9e2d6` | `#f3e6d8` | `#dfe9ec` | `#e7e4db` | `#1c1917` |
+| `ink_muted` (.app) | `#8a7f74` | `#a08d7b` | `#6e8b95` | `#8b877c` | `#8a7f74` |
+| `accent` (call dot) | `#e0786a` | `#ee8d55` | `#3fe0c0` | `#ffb020` | `#d1543f` |
+| `dot_muted` (response dot) | `#4a423b` | `#5d4c3d` | `#2b4652` | `#34383f` | `#c3bbaf` |
+| `border` | `#3a332c` | `#5d4c3d` | `#2b4652` | `#262a30` | `#c3bbaf` |
+| `tile_hi` | `#2a2420` | `#46372c` | `#16303d` | `#101418` | `#1c1917` |
+| `tile_lo` | `#1a1714` | `#32271f` | `#0c1a23` | `#070809` | `#1c1917` |
+| `ground` (context) | `#1c1917` | `#362a22` | `#0d1b24` | `#070809` | `#f4f0e9` |
 
-New skins: `--brand-ink` = the skin's text color; `--brand-accent` = the skin's primary action
-color; glow = accent at 45% alpha; muted dot/border = the skin's subtle border tone.
+¹ The light row also carries `tile_ink` `#f4f0e9` and `tile_accent` `#e0786a`, which the icon builder
+prefers over `ink`/`accent`: with `tile_hi` = `tile_lo` the tile is flat, dark and unbordered even
+under a light lockup, because a home-screen tile is a shape on someone else's wallpaper, not a page
+on paper.
+
+Glow is not a table row — the generator blooms the call dot from that row's own `accent`, at opacity
+0.55 in lockups and 0.6 in icons. It is dropped for the transparent and compact lockups, for icons
+below 48px, for the favicon, and for the whole `light` row (`"glow": "off"`).
+
+Adding an **export theme** is a row in `THEMES` and nothing else: `ink` = the skin's text colour,
+`accent` = its primary action colour (the call dot), `dot_muted`/`border` = its subtle border tone.
+Adding an **app skin** is more than that — it also needs its palette in the SKINS block of
+`src/index.css` (the dark block *and* its `[data-theme='light']` block) and registration in
+`src/lib/skins.ts` (the `Skin` union and `SKINS`). What the `--brand-*` aliases save you is the
+brand-specific work, not the skin itself.
 
 ## 4. Rules
 
@@ -87,8 +104,12 @@ color; glow = accent at 45% alpha; muted dot/border = the skin's subtle border t
   note chips. Never introduce a color the theme doesn't have.
 - Glow belongs to the dot only, never to text.
 - Clear space around the lockup: 1× dot-column width (0.22em) on all sides minimum.
-- Light-ground fallback (marketing): invert — ink `#1c1917`-range dark, accent unchanged, drop
-  glows.
+- Light-ground fallback (marketing): the shipped `light` export row inverts the ink to `#1c1917` on
+  a `#f4f0e9` ground, drops every glow, and re-tunes rather than reusing a dark accent — the call
+  dot becomes `#d1543f` and the response dot `#c3bbaf`, while the icon tile deliberately stays dark.
+  It ships as six files: `callnote-lockup-light.svg`, `callnote-lockup-light-transparent.svg`,
+  `callnote-lockup-compact-light.svg`, and `callnote-icon-{48,180,1024}-light.svg`. The maskable
+  icon and the favicon are glass-only.
 - Don't bold `.app`, don't uppercase anything, don't outline the dots, don't replace the dots with
   musical glyphs.
 - **Motto: "Fretboard fluency, one beat at a time."** The official line — use it verbatim, with
@@ -109,9 +130,21 @@ app's own tokens:
 ```
 
 That alias is what enforces rule 1 mechanically rather than by discipline: a new skin cannot drift
-from its mark, because the mark has no colour of its own. It also means the table above is
-descriptive — the app's tokens are the source of truth, and the four skins × two themes are all
-covered by one component.
+from its mark, because the mark has no colour of its own. It also means **`src/index.css` is the
+source of truth for the in-app mark** — the four skins × two themes are all covered by one
+component, and §3's table is the generator's own hand-tuned palette, which may differ from what the
+app resolves. Where each `--brand-accent` / `--brand-ink` actually lands today:
+
+| Skin | In-app (dark) | Export row (§3) | In-app accent (light theme) |
+| --- | --- | --- | --- |
+| Atmospheric glass | `#26d2bd` / `#ecf7ff` | `#3fe0c0` / `#dfe9ec` | `#0a7d6d` |
+| Instrument | `#ffb020` / `#e7e4db` | `#ffb020` / `#e7e4db` | `#a86a00` |
+| Editorial | `#d66a5f` / `#ece7d8` | `#e0786a` / `#e9e2d6` | `#9e2b25` |
+| Warm | `#ff8a5f` / `#f3e6dd` | `#ee8d55` / `#f3e6d8` | `#ff7a4d` |
+
+Only instrument matches its export row exactly. Every skin has a `[data-theme='light']` block with
+its own accent, and `:root[data-theme='light']` sets `--brand-accent-glow: transparent`, so the live
+light theme is covered by tokens independently of the generator's `light` export row.
 
 The exported assets in this folder, and the PWA's PNG icons, come from
 `scripts/generate-brand-assets.py` (geometry + the token table) and
