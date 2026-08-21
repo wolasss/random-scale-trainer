@@ -383,6 +383,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       spelling={settings.spelling}
       onTogglePc={(pc) => userDispatch({ type: 'togglePoolNote', pc })}
       onPreset={(preset) => userDispatch({ type: 'setPreset', preset })}
+      onPool={(pool) => userDispatch({ type: 'setPool', pool })}
       onSpelling={(value) => userDispatch({ type: 'setSpelling', value })}
     />
   )
