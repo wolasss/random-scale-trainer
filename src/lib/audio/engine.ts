@@ -296,24 +296,70 @@ export class AudioEngine {
     this.cueIntervals = this.cueIntervals.filter((cue) => cue.start <= now)
   }
 
-  playClickAt(startTime: number, accent: boolean): void {
+  /**
+   * One oscillator with one swell-and-fade envelope on it — every tone the app
+   * synthesises, click and chime alike.
+   *
+   * Times are absolute points on the context clock rather than durations from
+   * `startTime`, so each caller keeps doing its own arithmetic and the values
+   * that reach the hardware are exactly the ones it computed. The 0.0001 floor
+   * is here because an exponential ramp cannot touch zero, and every tone
+   * shares the same one.
+   */
+  private scheduleTone({
+    type,
+    frequency,
+    startTime,
+    attack,
+    peak,
+    decayEnd,
+    stopAt,
+    nodes,
+  }: {
+    type: OscillatorType
+    frequency: number
+    startTime: number
+    /** When the tone reaches `peak`. */
+    attack: number
+    peak: number
+    /** When it has faded back to silence. */
+    decayEnd: number
+    stopAt: number
+    /** Which tracking set owns it; the transport's by default. */
+    nodes?: Set<AudioScheduledSourceNode>
+  }): void {
     const context = this.context
     if (!context) return
 
     const oscillator = context.createOscillator()
     const gain = context.createGain()
 
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime)
+    oscillator.type = type
+    oscillator.frequency.setValueAtTime(frequency, startTime)
     gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(accent ? 0.12 : 0.08, startTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.12)
+    gain.gain.exponentialRampToValueAtTime(peak, attack)
+    gain.gain.exponentialRampToValueAtTime(0.0001, decayEnd)
 
     oscillator.connect(gain)
     gain.connect(context.destination)
     oscillator.start(startTime)
-    oscillator.stop(startTime + CLICK_DURATION_S)
-    this.track(oscillator)
+    oscillator.stop(stopAt)
+    this.track(oscillator, nodes ?? this.scheduledNodes)
+  }
+
+  playClickAt(startTime: number, accent: boolean): void {
+    const context = this.context
+    if (!context) return
+
+    this.scheduleTone({
+      type: 'triangle',
+      frequency: accent ? 1320 : 880,
+      startTime,
+      attack: startTime + 0.01,
+      peak: accent ? 0.12 : 0.08,
+      decayEnd: startTime + 0.12,
+      stopAt: startTime + CLICK_DURATION_S,
+    })
     this.recordCue(startTime, startTime + CLICK_DURATION_S, CLICK_DECAY_S)
   }
 
@@ -324,35 +370,29 @@ export class AudioEngine {
     const startTime = at ?? context.currentTime
 
     const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
-      const bodyOscillator = context.createOscillator()
-      const shimmerOscillator = context.createOscillator()
-      const bodyGain = context.createGain()
-      const shimmerGain = context.createGain()
       const toneStart = startTime + offset
 
-      bodyOscillator.type = 'triangle'
-      bodyOscillator.frequency.setValueAtTime(frequency, toneStart)
-      bodyGain.gain.setValueAtTime(0.0001, toneStart)
-      bodyGain.gain.exponentialRampToValueAtTime(peak, toneStart + 0.012)
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
-
-      shimmerOscillator.type = 'sine'
-      shimmerOscillator.frequency.setValueAtTime(frequency * 2, toneStart)
-      shimmerGain.gain.setValueAtTime(0.0001, toneStart)
-      shimmerGain.gain.exponentialRampToValueAtTime(peak * 0.42, toneStart + 0.01)
-      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration * 0.88)
-
-      bodyOscillator.connect(bodyGain)
-      shimmerOscillator.connect(shimmerGain)
-      bodyGain.connect(context.destination)
-      shimmerGain.connect(context.destination)
-
-      bodyOscillator.start(toneStart)
-      shimmerOscillator.start(toneStart)
-      bodyOscillator.stop(toneStart + duration + 0.03)
-      shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
-      this.track(bodyOscillator, this.chimeNodes)
-      this.track(shimmerOscillator, this.chimeNodes)
+      this.scheduleTone({
+        type: 'triangle',
+        frequency,
+        startTime: toneStart,
+        attack: toneStart + 0.012,
+        peak,
+        decayEnd: toneStart + duration,
+        stopAt: toneStart + duration + 0.03,
+        nodes: this.chimeNodes,
+      })
+      // An octave above and quieter, fading first: the bell on top of the body.
+      this.scheduleTone({
+        type: 'sine',
+        frequency: frequency * 2,
+        startTime: toneStart,
+        attack: toneStart + 0.01,
+        peak: peak * 0.42,
+        decayEnd: toneStart + duration * 0.88,
+        stopAt: toneStart + duration * 0.9 + 0.03,
+        nodes: this.chimeNodes,
+      })
     }
 
     playTone(783.99, 0, 0.24, 0.11)
