@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/wolasss/random-scale-trainer/compare/v1.21.0...v1.22.0) (2026-08-21)
+
+
+### Features
+
+* **scoring:** price the shared board by the same difficulty as the readout ([#143](https://github.com/wolasss/random-scale-trainer/issues/143)) ([066f2fb](https://github.com/wolasss/random-scale-trainer/commit/066f2fb98d1daf545739f043d0a5863df43f36bb))
+
 # [1.21.0](https://github.com/wolasss/random-scale-trainer/compare/v1.20.0...v1.21.0) (2026-08-21)
 
 

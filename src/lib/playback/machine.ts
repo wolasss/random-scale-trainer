@@ -238,6 +238,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
         bpm: tempo.bpm(),
         spelling: getSpelling(),
         showFretboard: settings.showFretboard,
+        pool: getPool(),
       },
     )
 

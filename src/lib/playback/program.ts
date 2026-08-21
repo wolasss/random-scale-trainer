@@ -68,6 +68,8 @@ export type BeatProgramInputs = {
   bpm: number
   spelling: SpellingPreference
   showFretboard: boolean
+  /** The pitch classes this beat's note is being drawn from, which price it. */
+  pool: readonly number[]
 }
 
 /** What the shell should do with the beat the program just decided. */
@@ -180,6 +182,7 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
         showFretboard: inputs.showFretboard,
         bpm: inputs.bpm,
         beatsPerNote: inputs.beatsPerNote,
+        pool: inputs.pool,
       },
       nextNote: view.following,
       beatInSpan: 0,
