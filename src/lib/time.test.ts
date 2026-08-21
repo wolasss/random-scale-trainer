@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cycleSeconds, formatCycleLength, formatElapsed } from './time'
+import { cycleSeconds, formatCycleLength, formatElapsed, formatRemaining } from './time'
 
 describe('formatElapsed', () => {
   it('formats zero', () => {
@@ -25,6 +25,27 @@ describe('formatElapsed', () => {
     expect(formatElapsed(3_660_000 + 1_000)).toBe('61:01')
   })
 
+})
+
+describe('formatRemaining', () => {
+  it('subtracts the elapsed time from the goal', () => {
+    expect(formatRemaining(192_000, 20 * 60_000)).toBe('16:48')
+  })
+
+  it('holds the full goal through the first part-second tick', () => {
+    expect(formatRemaining(0, 10 * 60_000)).toBe('10:00')
+    expect(formatRemaining(200, 10 * 60_000)).toBe('10:00')
+    expect(formatRemaining(1_000, 10 * 60_000)).toBe('09:59')
+  })
+
+  it('reaches zero only at the goal', () => {
+    expect(formatRemaining(10 * 60_000 - 200, 10 * 60_000)).toBe('00:01')
+    expect(formatRemaining(10 * 60_000, 10 * 60_000)).toBe('00:00')
+  })
+
+  it('clamps once the goal is passed', () => {
+    expect(formatRemaining(25 * 60_000, 20 * 60_000)).toBe('00:00')
+  })
 })
 
 describe('cycleSeconds', () => {

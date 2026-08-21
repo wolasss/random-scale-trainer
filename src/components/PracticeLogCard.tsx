@@ -12,10 +12,12 @@ import { PracticeHistoryView } from './PracticeHistoryView'
 
 type PracticeLogCardProps = {
   history: PracticeHistory
+  /** Whether the log's last write to storage actually stuck. */
+  persisted: boolean
   onClear: () => void
   /** Both handed to the history view; see App for why they go through it. */
   getBackup: () => string
-  onImportBackup: (incoming: PracticeHistory) => void
+  onImportBackup: (incoming: PracticeHistory) => boolean
   /** Injectable for tests; the card is otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -34,7 +36,14 @@ const barTitle = (minutes: number, sec: number) => {
  * guitar up tonight a specific reason to. The bars exist to make a gap visible
  * without nagging about it — that is the whole mechanic, and it stops there.
  */
-export function PracticeLogCard({ history, onClear, getBackup, onImportBackup, today }: PracticeLogCardProps) {
+export function PracticeLogCard({
+  history,
+  persisted,
+  onClear,
+  getBackup,
+  onImportBackup,
+  today,
+}: PracticeLogCardProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const now = today ?? new Date()
   const streak = currentStreak(history, now)
@@ -121,6 +130,17 @@ export function PracticeLogCard({ history, onClear, getBackup, onImportBackup, t
             ? `${todayBar.sec} sec today — a minute starts the streak`
             : `Last 7 days: ${totals.minutes} min, ${totals.notes} notes`}
       </p>
+
+      {/* Reports on the log's own last write. The bars above keep filling in
+          either way, which is exactly why this has to be said out loud — a
+          streak that looks like it is being kept, and isn't, is worse than no
+          streak at all. */}
+      {!persisted ? (
+        <p className="routine-ephemeral-notice" data-testid="practice-log-ephemeral-notice">
+          Your browser is blocking saved data — practice counts while this tab is open, but it won't be here after you
+          close it.
+        </p>
+      ) : null}
 
       <PracticeHistoryView
         open={historyOpen}

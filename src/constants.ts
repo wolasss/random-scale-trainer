@@ -84,8 +84,20 @@ export const STORAGE_KEYS = {
   // unless every segment is a distinct integer within the octave, so a gappy
   // '1,,3' can't coerce its way into a pool holding C.
   notePool: 'fretboard-note-pool',
+  // A JSON array of the note pools saved from the chips, `{ name, pcs }` each.
+  // Salvaged entry by entry like `routines`: an entry whose name is blank or
+  // already taken, or whose pcs aren't distinct pitch classes within the
+  // octave, is dropped and the rest of the list stands. Only a value that isn't
+  // parseable JSON, or isn't an array, loses the lot and reads as no presets.
+  savedPresets: 'fretboard-saved-presets',
   sessionGoal: 'fretboard-session-goal',
+  // Which way the transport's goal readout counts: literally 'remaining' or
+  // 'elapsed'. Anything else is rejected and the readout counts up.
+  goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Off unless it literally reads 'true'. The microphone is the one setting
+  // where a value we did not write must never be read as consent.
+  micListen: 'fretboard-mic-listen',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value
@@ -108,6 +120,18 @@ export const STORAGE_KEYS = {
   // log stands. The cleaned-up shape only reaches storage on the next practice
   // write, not on mount.
   practiceLog: 'rnt.history.v1',
+  // The name you go by on a shared challenge's board, so joining a second one
+  // costs no typing. Only ever read when `?challenge=` is in the URL — without
+  // it the scoreboard does not exist and this key is never touched. It is a
+  // prefill and nothing more: what makes a nickname yours is the token below.
+  challengeNickname: 'fretboard-challenge-nickname',
+  // The ownership tokens this browser holds, as JSON: challenge name → `{
+  // nickname, token }`. The server hands one out when a nickname is claimed and
+  // keeps only its digest, so this is the *only* copy — clearing it loses that
+  // nickname for good, because a server that would re-issue a token to whoever
+  // asked would not be protecting anything. Sent on mutation requests only,
+  // never on the board's GET, and never in a URL.
+  challengeTokens: 'fretboard-challenge-tokens',
   // Literally 'dismissed', or unset. Anything else reads as not yet dismissed
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.

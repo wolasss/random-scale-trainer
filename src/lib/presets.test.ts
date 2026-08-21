@@ -1,5 +1,36 @@
 import { describe, expect, it } from 'vitest'
-import { FAMILY_ORDER, matchPreset, PRESET_GROUPS, PRESETS } from './presets'
+import {
+  FAMILY_ORDER,
+  findSavedPreset,
+  isSavedPresetId,
+  matchPreset,
+  MAX_PRESET_NAME_LENGTH,
+  normalizePresetName,
+  parseSavedPresets,
+  PRESET_GROUPS,
+  PRESETS,
+  presetGroups,
+  removeSavedPreset,
+  savePreset,
+  savedPresetId,
+  serializeSavedPresets,
+  type SavedPreset,
+} from './presets'
+
+/** The saved list after a save that is expected to succeed. */
+const save = (saved: readonly SavedPreset[], name: string, pool: readonly number[]): SavedPreset[] => {
+  const result = savePreset(saved, name, pool)
+  if (!result.ok) {
+    throw new Error(`expected the save to succeed, got ${result.reason}`)
+  }
+
+  return result.saved
+}
+
+const failure = (saved: readonly SavedPreset[], name: string, pool: readonly number[]) => {
+  const result = savePreset(saved, name, pool)
+  return result.ok ? null : result.reason
+}
 
 describe('PRESETS', () => {
   it('defines the exact pitch-class sets from the product brief', () => {
@@ -88,5 +119,168 @@ describe('matchPreset', () => {
     expect(matchPreset([0])).toBe('custom')
     expect(matchPreset([0, 1, 2])).toBe('custom')
     expect(matchPreset([])).toBe('custom')
+  })
+
+  it('reads back a saved pool by name, whatever order the chips are in', () => {
+    const saved = save([], 'Two-string drill', [0, 1, 2])
+
+    expect(matchPreset([2, 0, 1], saved)).toBe('saved:Two-string drill')
+  })
+
+  it('keeps every shipped preset ahead of a saved one', () => {
+    const saved: SavedPreset[] = [{ name: 'Mine', pcs: [0, 2, 4, 5, 7, 9, 11] }]
+
+    expect(matchPreset([0, 2, 4, 5, 7, 9, 11], saved)).toBe('naturals')
+  })
+
+  it('goes back to custom once the saved pool is gone', () => {
+    const saved = save([], 'Two-string drill', [0, 1, 2])
+
+    expect(matchPreset([0, 1, 2], removeSavedPreset(saved, 'Two-string drill'))).toBe('custom')
+  })
+})
+
+describe('normalizePresetName', () => {
+  it('collapses whitespace and trims', () => {
+    expect(normalizePresetName('  Low   strings  ')).toBe('Low strings')
+  })
+
+  it('rejects a name with nothing visible in it', () => {
+    expect(normalizePresetName('')).toBeNull()
+    expect(normalizePresetName('   ')).toBeNull()
+    // U+200B is a format character, not whitespace — the control-character pass
+    // is what turns it into a space the trim can take away.
+    expect(normalizePresetName('\u200b')).toBeNull()
+    expect(normalizePresetName('\u0007')).toBeNull()
+  })
+
+  it('truncates without leaving a trailing space', () => {
+    const name = normalizePresetName(`${'a'.repeat(MAX_PRESET_NAME_LENGTH - 1)} bcd`)
+
+    expect(name).toBe('a'.repeat(MAX_PRESET_NAME_LENGTH - 1))
+  })
+
+  it('caps the name at the maximum length', () => {
+    expect(normalizePresetName('b'.repeat(MAX_PRESET_NAME_LENGTH + 10))).toHaveLength(MAX_PRESET_NAME_LENGTH)
+  })
+})
+
+describe('savePreset', () => {
+  it('stores the pool sorted, deduped and under the cleaned-up name', () => {
+    expect(save([], '  Drop   D  ', [7, 2, 2, 0])).toEqual([{ name: 'Drop D', pcs: [0, 2, 7] }])
+  })
+
+  it('refuses a name with nothing in it', () => {
+    expect(failure([], '   ', [0, 1, 2])).toBe('name-blank')
+  })
+
+  it('refuses a name already taken, whatever its case', () => {
+    const saved = save([], 'Blues', [0, 1, 2])
+
+    expect(failure(saved, 'blues', [0, 1, 3])).toBe('name-taken')
+  })
+
+  it('refuses an empty pool', () => {
+    expect(failure([], 'Nothing', [])).toBe('pool-empty')
+  })
+
+  it('refuses a pool a shipped preset already owns', () => {
+    expect(failure([], 'My naturals', [0, 2, 4, 5, 7, 9, 11])).toBe('pool-taken')
+  })
+
+  it('refuses a pool an earlier saved preset already owns', () => {
+    const saved = save([], 'First', [0, 1, 2])
+
+    expect(failure(saved, 'Second', [2, 1, 0])).toBe('pool-taken')
+  })
+
+  it('leaves the list it was given alone', () => {
+    const saved = save([], 'First', [0, 1, 2])
+    save(saved, 'Second', [0, 1, 3])
+
+    expect(saved).toHaveLength(1)
+  })
+})
+
+describe('removeSavedPreset', () => {
+  it('drops the entry the name addresses, whatever its case', () => {
+    const saved = save(save([], 'First', [0, 1, 2]), 'Second', [0, 1, 3])
+
+    expect(removeSavedPreset(saved, 'FIRST')).toEqual([{ name: 'Second', pcs: [0, 1, 3] }])
+  })
+
+  it('leaves the list alone when nothing matches', () => {
+    const saved = save([], 'First', [0, 1, 2])
+
+    expect(removeSavedPreset(saved, 'Third')).toEqual(saved)
+  })
+})
+
+describe('savedPresetId', () => {
+  it('round-trips a name through the selector value', () => {
+    const saved = save([], 'Drop D', [0, 2, 7])
+    const id = savedPresetId('Drop D')
+
+    expect(isSavedPresetId(id)).toBe(true)
+    expect(findSavedPreset(saved, id)).toEqual({ name: 'Drop D', pcs: [0, 2, 7] })
+  })
+
+  it('tells a shipped id apart from a saved one', () => {
+    expect(isSavedPresetId('naturals')).toBe(false)
+    expect(findSavedPreset([], 'naturals')).toBeNull()
+    expect(findSavedPreset(save([], 'Drop D', [0, 2, 7]), 'saved:Nope')).toBeNull()
+  })
+})
+
+describe('parseSavedPresets', () => {
+  it('rejects a value that is not a JSON array', () => {
+    expect(parseSavedPresets('nonsense')).toBeUndefined()
+    expect(parseSavedPresets('{"name":"Drop D"}')).toBeUndefined()
+    expect(parseSavedPresets('7')).toBeUndefined()
+  })
+
+  it('round-trips what was serialized', () => {
+    const saved = save(save([], 'First', [0, 1, 2]), 'Second', [0, 1, 3])
+
+    expect(parseSavedPresets(serializeSavedPresets(saved))).toEqual(saved)
+  })
+
+  it('reads an empty array as no presets', () => {
+    expect(parseSavedPresets('[]')).toEqual([])
+  })
+
+  it('drops the entries it cannot use and keeps the rest', () => {
+    const stored = JSON.stringify([
+      null,
+      'Drop D',
+      { name: 'No pcs' },
+      { name: 'Empty', pcs: [] },
+      { name: 'Too high', pcs: [0, 12] },
+      { name: 'Negative', pcs: [-1, 3] },
+      { name: 'Fractional', pcs: [1.5, 3] },
+      { name: 'Strings', pcs: ['3', 5] },
+      { name: 'Repeated', pcs: [3, 3] },
+      { name: '   ', pcs: [0, 1, 2] },
+      { name: 'Keeper', pcs: [2, 0, 1] },
+      { name: 'KEEPER', pcs: [0, 1, 3] },
+      { name: 'Same notes', pcs: [1, 0, 2] },
+      { name: 'Naturals again', pcs: [0, 2, 4, 5, 7, 9, 11] },
+    ])
+
+    expect(parseSavedPresets(stored)).toEqual([{ name: 'Keeper', pcs: [0, 1, 2] }])
+  })
+})
+
+describe('presetGroups', () => {
+  it('is the shipped grouping when nothing has been saved', () => {
+    expect(presetGroups([])).toEqual(PRESET_GROUPS)
+  })
+
+  it('puts the saved pools in their own group, first', () => {
+    const saved = save([], 'Drop D', [0, 2, 7])
+    const groups = presetGroups(saved)
+
+    expect(groups.map((group) => group.family)).toEqual(['Saved', ...FAMILY_ORDER])
+    expect(groups[0].presets).toEqual([{ id: 'saved:Drop D', label: 'Drop D', family: 'Saved', pcs: [0, 2, 7] }])
   })
 })

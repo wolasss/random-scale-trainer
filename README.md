@@ -12,9 +12,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 
 - Shuffled-bag note calling: every note in the pool appears exactly once per cycle, no repeats —
   with a NEXT preview and a "note N of M" cycle position
-- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the
-  six major keys, the A/E/D minor pentatonics and A minor blues) — plus Custom, which is what the
-  selector reads back once the chips no longer match a preset
+- Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the eight
+  major keys — C, G, D, A, E, F, B♭ and E♭ — the A/E/D minor pentatonics and A minor blues) — plus Custom,
+  which is what the selector reads back once the chips no longer match a preset
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -32,12 +32,63 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   reported as "adjusted, next block resets it" rather than silently overridden
 - Practice log: 14 days of daily bars, current and best streak (a day counts at one minute of
   practice), and rolling 7-day minutes/notes totals. A History button on the card opens the whole log
-  — a month-by-month heatmap with each day shaded by minutes, totals across everything stored, and
-  JSON backup export/import, where an import merges with what is already there (keeping the longer of
-  any two days) rather than replacing it
-- "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, and the
-  fretboard map toggle. The spoken note name is always on
+  — a month-by-month heatmap with each day shaded by minutes and tappable to read its minutes and notes
+  out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
+  export/import, where an import merges with what is already there (keeping the longer of any two days)
+  rather than replacing it
+- Listen for my playing (off by default): with the setting on, the app opens the microphone
+  alongside playback and shows the note it hears under the called one, with a tick when it is the
+  note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
+  that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
+  D♯ — and the reading stays up until you play something else or the next note is called, rather
+  than blinking out with the string. The count-in between rounds clears it: no note on screen, so
+  nothing to be right or wrong about. The detector is a hand-rolled Web Audio autocorrelation
+  on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
+  by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
+  released the moment you pause, stop or leave, and a refusal or a browser without one says so and
+  changes nothing else
+- Scoring, with the mic on: every note you actually play banks points, and four bonuses make them
+  climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
+  the called note in two octaves before the next one is called, a small one for striking the
+  string in time with a click, and a flat 50/100/150 points for reaching 10, 20 and 30 minutes of
+  session time. The practice milestones belong to no note, so unlike the other three they are never
+  scaled by the difficulty multiplier below. Two octaves means two pitches and not two places on the neck: the mic
+  hears pitch and nothing else, so finding the note twice in unison earns nothing. The in-time bonus
+  is measured against the clicks that actually sounded, so the speed ramp cannot throw it off — and
+  at one beat per note every beat starts a note, leaving no click under the note to play along with,
+  so it is mostly there to be earned from two beats per note up. The mic is deaf while the click
+  itself sounds, so a string struck on one is not heard until it stops ringing and lateness is
+  allowed for that; above roughly 100 BPM the click covers too much of the beat to tell being in
+  time from being late, and the bonus stops paying rather than paying everyone. Every note — and
+  every bonus earned on it — is priced by the settings in force when it was *called*: mixed sharps
+  and flats, the fretboard map put away, fewer beats per note and a faster tempo all pay more, while
+  the two most generous note spans pay less than the flat rate. The multiplier shows on the score
+  line whenever it is anything other than ×1, so a discount is as plain as a premium and the line
+  only stays quiet when a note is worth exactly what a note is worth. The price is frozen on the note as
+  it is called, so nudging a setting mid-note moves the next one instead, and a bonus found late is
+  paid at what its own note was worth. The tempo part is deliberately sublinear and capped: you
+  already play more notes per minute at a faster tempo, so paying linearly on top of that would make
+  speed worth roughly its square. Doubling the tempo is worth about 2.4× the points per minute
+  rather than 4×, which is to say a couple of extra minutes of slow, accurate practice catches a
+  faster player up. Points sit beside the running
+  `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
+  nothing about them is stored or shared
+- "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
+  your playing, and the fretboard map toggle. The spoken note name is always on
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
+- Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
+  scoreboard appears under the note. **The nickname is reserved for your browser** — claiming it
+  hands back an ownership token, and nobody without that token can put a score under it, raise it
+  or take it down. `Alice` and `alice` are the same name, and a name already taken is refused. Your
+  play goes up whenever you pause or stop, as a stream of *events* rather than a total: the server
+  does the arithmetic, keeps your best, and refreshes every 20 seconds while the page is on screen,
+  so other people's rounds appear without a reload. It goes quiet while the tab is hidden. The
+  microphone is asked for on arrival, since the points come from what it hears. Without
+  `?challenge=` in the URL none of this exists: no board, no prompt, no request, and no microphone.
+  The prompt can be dismissed, which leaves the board readable without putting you on it — and so
+  does holding the link without a token, which is read-only access by design. Clearing this
+  browser's storage loses the token, and with it that nickname: the server keeps only a digest, and
+  anything that would hand you a new one would hand it to anybody
 - Installable PWA: a service worker precaches the app shell and every note clip, so it launches
   and runs with no network. Chromium gets an Install button in the header, iOS a one-time
   Add-to-Home-Screen hint, and a cached new build offers a reload chip instead of reloading
@@ -48,7 +99,7 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - The screen is kept awake while playing, and playback stops itself after a minute in the
   background rather than clicking on in a pocket
 - Light/dark theme, and every setting persisted to localStorage
-- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, R reset
+- Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, T tap tempo, R reset
 
 ## Run locally
 
@@ -76,7 +127,70 @@ docker build -t callnote .
 docker run --rm -p 8080:80 callnote                            # http://localhost:8080
 
 docker run --rm -p 8080:80 wolasss/random-scale-trainer:latest # the published image
+
+# ...and with the shared-challenge board kept across restarts
+docker run --rm -p 8080:80 -v callnote-data:/var/lib/callnote callnote
 ```
+
+### The scoreboard service
+
+Shared challenges are the one thing here that is not a static file, so the image also carries a
+small stdlib-only Node service (`src/server/`). nginx starts it from
+`/docker-entrypoint.d/50-scoreboard.sh` and proxies `/api/` to it on loopback, so the run contract
+is unchanged — still `docker run -p 8080:80`, still one container. In dev and `vite preview` the
+same request handler is mounted as a Vite middleware instead (`vite.config.ts`), which is what
+lets the e2e suite exercise a challenge without a second process.
+
+Everything lives under `/api/scoreboard/<challenge>`. Reading is open to anybody holding the URL;
+writing takes the ownership token issued when the nickname was claimed:
+
+```bash
+# Read the board. No credential, and no credential in the answer either.
+curl localhost:8080/api/scoreboard/demo
+# {"challenge":"demo","scores":[{"nickname":"ada","points":300}]}
+
+# Reserve a nickname. Said once — the server keeps only its sha256.
+curl -X POST -H 'Content-Type: application/json' \
+     -d '{"nickname":"ada"}' localhost:8080/api/scoreboard/demo/nickname
+# {"challenge":"demo","nickname":"ada","token":"…"}   (409 nickname_taken if it is spoken for)
+
+# Open a scoring session, fixed at these settings from this moment.
+curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
+     -d '{"nickname":"ada","config":{"bpm":72,"beatsPerNote":4}}' \
+     localhost:8080/api/scoreboard/demo/session
+# {"challenge":"demo","sessionId":"…","config":{…},"expiresAt":…}
+
+# Report what happened. The server adds it up; the answer is *its* total.
+curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
+     -d '{"events":[{"seq":0,"kind":"hit","at":0},{"seq":1,"kind":"hit","at":250}]}' \
+     localhost:8080/api/scoreboard/demo/session/$SESSION/events
+# {"challenge":"demo","points":20,"scores":[…]}       …then POST …/finish to close it.
+```
+
+The board keeps each nickname's **best**, so a session that ends lower changes nothing.
+`SCOREBOARD_DATA` (default `/var/lib/callnote/scoreboard.json`) is where it is kept — mount it with
+`-v` or a restart starts everyone from zero. Tokens survive that restart as digests; sessions do
+not. The service listens on loopback port 8787, which is fixed rather than configurable: nginx
+proxies to it by number, and only a matching pair works.
+
+**Posting a total is gone**: `POST /api/scoreboard/<challenge>` with `{"nickname":…,"points":…}`
+answers `410`. A score can only be reached through a session, and `session-scoring.js` bounds how
+fast one can grow — an event may not claim a moment the server has not lived through, and two
+judged notes may not be closer together than 250 ms, which is one beat per note at the app's top
+tempo. The declared config is recorded and reported; it prices nothing and times nothing, so a
+routine that moves the tempo mid-session is never read as cheating and a hard setup nobody
+practised under buys no points.
+
+Around that sit the limits in `src/server/scoreboard.js` — 4 KB bodies, 1,000,000 points, 500
+nicknames per challenge, 200 challenges, 10 claims a minute per client and 20 an hour per
+challenge, 30 new challenges an hour overall, and a sweep for abandoned sessions and claims nobody
+ever scored under. None of this proves somebody physically played a guitar; what it does is stop a
+scripted client putting an arbitrary number on a board, and stop a stranger touching a row that is
+not theirs. Don't put anything you care about on a public board.
+
+Serving the microphone at all needs `Permissions-Policy: microphone=(self)`, which `nginx.conf`
+now sends on every response (it was `microphone=()`, which forbade `getUserMedia` outright). It is
+`(self)` and never `*` — this origin only, nothing it embeds.
 
 Every release pushes `wolasss/random-scale-trainer` to Docker Hub for linux/amd64 and
 linux/arm64, tagged with the semantic-release version and `latest`

@@ -2,43 +2,12 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
+import { installMatchMedia } from './test/matchMedia'
+import { FAKE_CLOCKS } from './test/fakeTimers'
 
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
-
-/**
- * The installed-on-a-stand reading is gated on two media queries, so it can only
- * be exercised by answering them. jsdom's own matchMedia always says false —
- * which is exactly why the desktop layout is safe from all of this.
- */
-const installMatchMedia = (matching: Record<string, boolean>) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: matching[query] ?? false,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }),
-  })
-}
 
 const PHONE_PORTRAIT = {
   [STANDALONE_QUERY]: true,
@@ -50,15 +19,16 @@ const PHONE_LANDSCAPE = { ...PHONE_PORTRAIT, [LANDSCAPE_QUERY]: true }
 
 describe('the stand reading', () => {
   beforeEach(() => {
-    vi.useFakeTimers({
-      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance'],
-    })
+    vi.useFakeTimers(FAKE_CLOCKS)
   })
 
   afterEach(() => {
     vi.useRealTimers()
     Reflect.deleteProperty(window, 'matchMedia')
     document.documentElement.removeAttribute('data-stage')
+    // The theme persists, so a flip in one test would otherwise decide the next.
+    document.documentElement.removeAttribute('data-theme')
+    window.localStorage.clear()
   })
 
   it('leaves the desktop layout completely alone', () => {
@@ -243,5 +213,32 @@ describe('the stand reading', () => {
 
     const strip = document.querySelector('.stage-foot .routine-strip')
     expect(strip).not.toBeNull()
+  })
+
+  it('puts the theme toggle in the sheet, since there is no header to hold it', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+
+    const toggle = screen.getByTestId('footer-theme-toggle')
+    expect(toggle).toHaveAttribute('aria-label', 'Switch to light mode')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+
+    fireEvent.click(toggle)
+
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(screen.getByTestId('footer-theme-toggle')).toHaveAttribute(
+      'aria-label',
+      'Switch to dark mode',
+    )
+  })
+
+  it('leaves the browser reading with the one toggle it already had', () => {
+    installMatchMedia({})
+    render(<App />)
+
+    expect(screen.getByTestId('theme-toggle')).toBeInTheDocument()
+    expect(screen.queryByTestId('footer-theme-toggle')).toBeNull()
   })
 })

@@ -14,21 +14,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>callnote.app — Fretboard fluency, one beat at a time</title>
 
+    <!-- The default skin's deepest ground, so the launch screen and the app
+         agree on a colour instead of stepping between two near-blacks. The
+         bootstrap below rewrites it to match the stored theme and skin. -->
+    <meta name="theme-color" content="#06131a" />
+
     <!--
       Apply the stored theme and skin before first paint so a reload never
-      flashes the default and then snaps to the user's choice. Wrapped in
-      try/catch because localStorage throws in some privacy modes.
+      flashes the default and then snaps to the user's choice — including the
+      window chrome of an installed app, which the UA paints from theme-color
+      and color-scheme. Only the reads are wrapped in try/catch, because
+      localStorage throws in some privacy modes and the document still has to
+      end up with a declared scheme. The grounds mirror SKIN_GROUND in
+      src/lib/skins.ts (and `--bg-deep` in index.css); change all three together.
     -->
     <script>
       ;(function () {
+        var theme = 'dark'
+        var skin = 'glass'
         try {
-          var theme = localStorage.getItem('fretboard-theme')
-          if (theme === 'light' || theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', theme)
+          var storedTheme = localStorage.getItem('fretboard-theme')
+          if (storedTheme === 'light' || storedTheme === 'dark') {
+            theme = storedTheme
           }
-          var skin = localStorage.getItem('fretboard-skin')
+          var storedSkin = localStorage.getItem('fretboard-skin')
           var skins = { glass: 1, instrument: 1, editorial: 1, warm: 1 }
-          if (skin && skins[skin]) {
+          if (storedSkin && skins[storedSkin]) {
+            skin = storedSkin
             document.documentElement.setAttribute('data-skin', skin)
             var fonts = {
               instrument:
@@ -44,13 +56,22 @@
             }
           }
         } catch (e) {}
+        var grounds = {
+          glass: { dark: '#06131a', light: '#f2f8ff' },
+          instrument: { dark: '#070809', light: '#d7dade' },
+          editorial: { dark: '#141310', light: '#efece2' },
+          warm: { dark: '#241a18', light: '#fff6ee' },
+        }
+        document.documentElement.setAttribute('data-theme', theme)
+        document.documentElement.style.colorScheme = theme
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) {
+          meta.content = grounds[skin][theme]
+        }
       })()
     </script>
 
     <link rel="manifest" href="/manifest.webmanifest" />
-    <!-- The default skin's deepest ground, so the launch screen and the app
-         agree on a colour instead of stepping between two near-blacks. -->
-    <meta name="theme-color" content="#06131a" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

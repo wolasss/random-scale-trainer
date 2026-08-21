@@ -43,6 +43,8 @@ export type RoutineController = {
   clear: () => void
   remove: (id: string) => void
   save: (name: string) => void
+  /** Clone a routine into an editable copy and load it. */
+  duplicate: (id: string) => void
   addBlock: () => void
   removeBlock: (index: number) => void
   skipBlock: () => void
@@ -272,6 +274,27 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     commit({ blockIndex: 0, blockStartMs: sessionElapsedMs, finished: false, adjusted: false })
   }
 
+  const duplicate = (id: string) => {
+    const source = routines.find((entry) => entry.id === id)
+    if (!source) {
+      return
+    }
+
+    const copy: Routine = {
+      id: createRoutineId(),
+      name: `${source.name} copy`,
+      // Deep enough to cover the one nested value a block holds: a custom pool
+      // is an array, and a shallow spread would leave the copy editing the
+      // original's notes.
+      blocks: source.blocks.map((block) => ({ ...block, pool: block.pool === null ? null : [...block.pool] })),
+    }
+
+    setRoutines((list) => [...list, copy])
+    setSelectedId(copy.id)
+    selectedRef.current = copy
+    startAt(0, copy)
+  }
+
   const replaceSelected = (next: Routine) => {
     selectedRef.current = next
     setRoutines((list) => list.map((routine) => (routine.id === next.id ? next : routine)))
@@ -375,6 +398,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     clear: detach,
     remove,
     save,
+    duplicate,
     addBlock,
     removeBlock,
     skipBlock,

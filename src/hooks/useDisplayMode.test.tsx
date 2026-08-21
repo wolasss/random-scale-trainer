@@ -1,61 +1,7 @@
-import { act, renderHook } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY, useDisplayMode } from './useDisplayMode'
-
-type FakeList = {
-  matches: boolean
-  listeners: (() => void)[]
-}
-
-/**
- * A controllable matchMedia. jsdom's own always reports false, which would make
- * every one of these tests pass for the wrong reason.
- */
-const installMatchMedia = (initial: Record<string, boolean>) => {
-  const lists = new Map<string, FakeList>()
-
-  const listFor = (query: string): FakeList => {
-    const existing = lists.get(query)
-    if (existing) {
-      return existing
-    }
-
-    const created: FakeList = { matches: initial[query] ?? false, listeners: [] }
-    lists.set(query, created)
-    return created
-  }
-
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => {
-      const list = listFor(query)
-      return {
-        get matches() {
-          return list.matches
-        },
-        media: query,
-        addEventListener: (_type: 'change', listener: () => void) => list.listeners.push(listener),
-        removeEventListener: (_type: 'change', listener: () => void) => {
-          const index = list.listeners.indexOf(listener)
-          if (index >= 0) {
-            list.listeners.splice(index, 1)
-          }
-        },
-      }
-    },
-  })
-
-  return {
-    set: (query: string, matches: boolean) => {
-      const list = listFor(query)
-      list.matches = matches
-      act(() => {
-        list.listeners.forEach((listener) => listener())
-      })
-    },
-  }
-}
+import { installMatchMedia } from '../test/matchMedia'
 
 const PHONE_STANDALONE = {
   [STANDALONE_QUERY]: true,
@@ -89,6 +35,24 @@ describe('useDisplayMode', () => {
 
     // A mouse and a keyboard mean a desk, not a music stand.
     expect(result.current).toMatchObject({ standalone: true, stage: false })
+  })
+
+  it('is the stand reading when the home-screen launch lands in minimal-ui', () => {
+    // Nothing matches (display-mode: standalone) here — only the minimal-ui
+    // mode the browser fell back to — and it is still an installed launch.
+    installMatchMedia({ '(display-mode: minimal-ui)': true, [COARSE_POINTER_QUERY]: true })
+    const { result } = renderHook(() => useDisplayMode())
+
+    expect(result.current).toMatchObject({ standalone: true, stage: true })
+  })
+
+  it('does not mistake a fullscreened browser tab for an installed app', () => {
+    // F11, or any video going fullscreen, flips (display-mode: fullscreen) on a
+    // page that was never installed. It must not silence the install offer.
+    installMatchMedia({ '(display-mode: fullscreen)': true, [COARSE_POINTER_QUERY]: true })
+    const { result } = renderHook(() => useDisplayMode())
+
+    expect(result.current).toMatchObject({ standalone: false, stage: false })
   })
 
   it('leaves a phone in a browser tab alone', () => {

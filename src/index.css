@@ -18,6 +18,11 @@
   --primary-strong: #14a691;
   --primary-soft: rgba(38, 210, 189, 0.16);
   --accent: #ffd36e;
+  /* Right note, wrong note. Deliberately not --primary: the skins re-voice
+     that one to amber and terracotta, and a verdict has to stay green and
+     red in every one of them. */
+  --hit: #3ddc97;
+  --miss: #ff6a7a;
   --shadow: 0 24px 44px rgba(2, 8, 14, 0.45);
   --button-border: rgba(174, 236, 255, 0.22);
   --button-bg: rgba(255, 255, 255, 0.08);
@@ -46,6 +51,9 @@
   --primary-strong: #086356;
   --primary-soft: rgba(10, 125, 109, 0.12);
   --accent: #ab6a00;
+  /* The same two readings, darkened to hold their contrast on a light card. */
+  --hit: #0c7a4d;
+  --miss: #c0263a;
   --shadow: 0 18px 36px rgba(22, 52, 84, 0.18);
   --button-border: rgba(10, 125, 109, 0.28);
   --button-bg: rgba(10, 125, 109, 0.08);
@@ -191,6 +199,13 @@ button {
 
 .skin-select {
   max-width: 12rem;
+}
+
+/* The stage reading has no header, so the toggle lives here instead — sized
+   down to sit level with the picker and the links. */
+.footer-theme-toggle {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
 }
 
 /* Flat, solid, hairline-bordered: the setup cards are surfaces, not floating
@@ -677,14 +692,27 @@ h2 {
 }
 
 /* Clamped at min-content rather than 0, so a squeeze slides the buttons off
-   centre instead of pushing the readout past the card's edge. */
+   centre instead of pushing the readout past the card's edge.
+
+   It is a button — tapping it counts down instead of up — so it sheds the UA's
+   chrome and takes the surrounding text's font. The 44px floor is the point of
+   the rule: text-sized type would otherwise leave a one-line tap target. The
+   transport row centres a 56px play button, so the floor can't grow it. */
 .transport-readout {
   grid-column: 4;
   justify-self: end;
+  border: 0;
+  background: none;
+  padding: 0 0.25rem;
   color: var(--ink-soft);
+  font: inherit;
   font-size: 0.92rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
 }
 
 .transport-primary {
@@ -871,6 +899,62 @@ input[type='range'] {
 .preset-select option,
 .preset-select optgroup {
   color: initial;
+}
+
+/* The row under the chips: save what they say, or delete the preset they are. */
+.preset-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.preset-actions .control-subtitle {
+  margin: 0;
+}
+
+.preset-save-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--control-border);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.preset-name-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  color: var(--ink);
+}
+
+.preset-save-confirm {
+  padding: 0.55rem 1.1rem;
+}
+
+.preset-save-error {
+  margin: 0 0 0.9rem;
+  color: var(--miss);
+  font-size: 0.9rem;
+}
+
+/* A caveat, not an error: dashed like the empty states rather than alarmed, so
+   it reads as a note about the browser and not a failed save. */
+.preset-ephemeral-notice {
+  margin: 0 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  border: 1px dashed var(--control-border);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
 }
 
 /* All twelve on one line at full width: the chromatic run reads as the octave
@@ -1377,6 +1461,288 @@ input[type='range'] {
   color: var(--ink);
 }
 
+/* --- Microphone readout --------------------------------------------------- */
+
+/* One quiet line under the note: a label, then either what the mic is hearing
+   or why it is hearing nothing. Deliberately small — this reports on the ear,
+   it is not the thing being read from across the room. */
+.mic-readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  /* The score takes a line of its own below the heard note — see
+     .mic-readout-score, which claims the full row. */
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--control-border);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.mic-readout-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+.mic-readout-heard {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+/* The one part worth glancing at mid-phrase, so it gets the foreground. */
+.mic-readout-note {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink);
+}
+
+/* The verdict, tick or cross. It leads the line rather than trailing it: the
+   answer to "did I get it" is what the glance is for, and the name and the
+   tuning are what you read once you have it. */
+.mic-readout-verdict {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  font-size: 0.95rem;
+}
+
+.mic-readout-heard[data-match='true'] .mic-readout-verdict,
+.mic-readout-heard[data-match='true'] .mic-readout-note {
+  color: var(--hit);
+}
+
+.mic-readout-heard[data-match='false'] .mic-readout-verdict,
+.mic-readout-heard[data-match='false'] .mic-readout-note {
+  color: var(--miss);
+}
+
+/* Second line: how the last note went, and how the session is going. Below
+   the heard note rather than beside it — one is what is happening now and the
+   other is the tally, and a single row of four readings is a paragraph. */
+.mic-readout-score {
+  flex-basis: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  /* Four readings wrap onto a second row on a phone rather than squeezing. */
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mic-readout-verdict-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.mic-readout-verdict-row[data-hit='true'] {
+  color: var(--hit);
+}
+
+.mic-readout-verdict-row[data-hit='false'] {
+  color: var(--miss);
+}
+
+.mic-readout-response {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The number that goes up: the one reading on this line worth a glance. */
+.mic-readout-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Only there when the settings price a note off the flat rate, either way. */
+.mic-readout-multiplier {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  opacity: 0.8;
+}
+
+/* Only there while it is the last note's, so it may be the loud one. */
+.mic-readout-bonus {
+  font-variant-numeric: tabular-nums;
+  color: var(--hit);
+}
+
+/* Read after the session rather than during it, so it yields the foreground. */
+.mic-readout-tally {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.mic-readout-none {
+  color: var(--ink);
+  opacity: 0.45;
+}
+
+.mic-readout[data-status='denied'] {
+  color: var(--accent);
+}
+
+/* --- Shared challenge: the scoreboard and the nickname prompt ------------- */
+
+/* Same weight and the same divider as the mic readout above it, and for the
+   same reason: this is a glance between phrases, not the thing being read from
+   across the room. Only ever on the page with '?challenge=' in the URL. */
+.scoreboard {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--control-border);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.scoreboard-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+/* Ten names on one row on a desktop, wrapping to as many as it takes on a
+   phone. A vertical list would cost the note the room it is called in. */
+.scoreboard-list {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scoreboard-entry {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.scoreboard-rank {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+}
+
+.scoreboard-nickname {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scoreboard-points {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Your own row is marked where it stands rather than moved to the top — a board
+   that reorders itself to keep you in sight is not a board. */
+.scoreboard-entry[data-you='true'] .scoreboard-nickname,
+.scoreboard-entry[data-you='true'] .scoreboard-points {
+  color: var(--accent);
+}
+
+.scoreboard-empty {
+  opacity: 0.7;
+}
+
+/* Why this browser has stopped scoring — an expired session, a nickname it does
+   not own, a rate limit. It sits beside the board rather than over it: the top
+   ten is still worth reading when your own row has stopped moving. */
+.scoreboard-notice {
+  opacity: 0.75;
+  font-style: italic;
+}
+
+/* The prompt reuses the practice sheet's scrim and layer; it is a question
+   rather than a drawer, so it sits in the middle instead of on the bottom. */
+.nickname-layer {
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.nickname-prompt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(26rem, 100%);
+  padding: 1.3rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--bg-mid);
+  box-shadow: var(--shadow);
+}
+
+.nickname-prompt-title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.nickname-prompt-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+/* An inline answer to a claim that was refused, in the accent rather than a red
+   of its own: "that name is taken" is a thing to try again after, not a fault. */
+.nickname-prompt-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.nickname-prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.nickname-prompt-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.nickname-prompt-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.nickname-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
 /* --- Routine ------------------------------------------------------------- */
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
@@ -1424,7 +1790,8 @@ input[type='range'] {
   font-variant-numeric: tabular-nums;
 }
 
-.routine-strip-clear {
+.routine-strip-clear,
+.routine-strip-skip {
   flex: none;
   width: 26px;
   height: 26px;
@@ -1439,7 +1806,8 @@ input[type='range'] {
   transition: color 140ms var(--ease-out), border-color 140ms var(--ease-out);
 }
 
-.routine-strip-clear:hover {
+.routine-strip-clear:hover,
+.routine-strip-skip:hover {
   color: var(--ink);
   border-color: var(--primary);
 }
@@ -1592,10 +1960,12 @@ input[type='range'] {
 }
 
 .routine-chip.selected .routine-chip-body,
+.routine-chip.selected .routine-chip-copy,
 .routine-chip.selected .routine-chip-remove {
   color: var(--primary);
 }
 
+.routine-chip-copy,
 .routine-chip-remove {
   display: inline-flex;
   align-items: center;
@@ -1608,6 +1978,13 @@ input[type='range'] {
   transition: opacity 140ms var(--ease-out);
 }
 
+/* Two icons on one chip: the copy sits tight against the remove so the pair
+   reads as one trailing group rather than as padding. */
+.routine-chip-copy {
+  padding: 0 0.2rem 0 0.4rem;
+}
+
+.routine-chip-copy:hover,
 .routine-chip-remove:hover {
   opacity: 1;
 }
@@ -1729,6 +2106,7 @@ input[type='range'] {
    negative margins spend the segment's own padding on the target instead of
    growing every block in the timeline. */
 @media (pointer: coarse) {
+  .routine-chip-copy,
   .routine-chip-remove {
     justify-content: center;
     min-width: 44px;
@@ -2039,6 +2417,17 @@ input[type='range'] {
   border: 1px solid var(--control-border);
 }
 
+/* The days you can ask about are buttons; stripped back to the square the
+   spans next to them draw, or the browser's own chrome would resize the grid. */
+button.practice-history-cell {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 /* Four steps of the skin's own accent rather than four fixed colours, so the
    calendar carries the theme instead of fighting it. */
 .practice-history-cell.is-l1 {
@@ -2066,10 +2455,24 @@ input[type='range'] {
   outline-offset: 1px;
 }
 
+/* An inner ring, not an outline, so the day being read out is still legible as
+   today when it is both — the two marks stack instead of one hiding the other. */
+.practice-history-cell.is-selected {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
 /* Days the month has but the calendar hasn't reached — present, so the shape of
    the month is right, but plainly not part of the record yet. */
 .practice-history-cell.is-future {
   opacity: 0.35;
+}
+
+.practice-history-day {
+  margin: 0;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .practice-history-backup {
@@ -2490,6 +2893,52 @@ input[type='range'] {
     calc(env(safe-area-inset-left, 0px) + 1rem);
 }
 
+/* The mic readout is the only thing that ever joins the stand's two rows, and
+   only when the setting is on — so the row it needs is opened by its presence
+   rather than reserved for it. A browser without :has() drops the rule and the
+   line lands under the transport instead of above it, which is a placement, not
+   a break. */
+.stage:has(.mic-readout) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'note'
+    'mic'
+    'foot';
+}
+
+/* The scoreboard opens its own row the same way, and the two of them together
+   open both — which is why the pair needs a rule of its own rather than a
+   second one that would simply overwrite the first. An unnamed child would be
+   dropped into an implicit row and clipped by .stage-shell's overflow. */
+.stage:has(.scoreboard) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'note'
+    'board'
+    'foot';
+}
+
+.stage:has(.mic-readout):has(.scoreboard) {
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    'note'
+    'mic'
+    'board'
+    'foot';
+}
+
+.stage > .mic-readout {
+  grid-area: mic;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.stage > .scoreboard {
+  grid-area: board;
+  margin-top: 0;
+  border-top: 0;
+}
+
 .stage-hero {
   grid-area: note;
   display: flex;
@@ -2616,6 +3065,29 @@ input[type='range'] {
       'note side'
       'foot side';
     column-gap: 1rem;
+  }
+
+  /* Same rows, opened the same way — the neck keeps the column beside it. */
+  :root[data-stage] .stage:has(.mic-readout) {
+    grid-template-areas:
+      'note side'
+      'mic side'
+      'foot side';
+  }
+
+  :root[data-stage] .stage:has(.scoreboard) {
+    grid-template-areas:
+      'note side'
+      'board side'
+      'foot side';
+  }
+
+  :root[data-stage] .stage:has(.mic-readout):has(.scoreboard) {
+    grid-template-areas:
+      'note side'
+      'mic side'
+      'board side'
+      'foot side';
   }
 
   /* Height is the scarce axis here, and the neck beside it is doing the work

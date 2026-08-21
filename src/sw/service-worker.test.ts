@@ -213,12 +213,59 @@ describe('fetch', () => {
 
     expect(await captured.responded).toBe(shell)
 
-    // The revalidate is handed to waitUntil, and refreshes the same key — the
-    // start_url query string never becomes a cache entry of its own.
-    await captured.waited
-    expect(cache.put).toHaveBeenCalledWith('/index.html', expect.objectContaining({ cloned: true }))
-    expect(cache.entries.get('/index.html')?.body).toBe('fresh shell')
+    // The shell is precached, so it is served as-is: no revalidate to wait on,
+    // nothing written back, and the start_url query string never becomes a
+    // cache entry of its own.
+    expect(captured.waited).toBeUndefined()
+    expect(worker.fetch).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(cache.entries.get('/index.html')).toBe(shell)
     expect([...cache.entries.keys()]).toEqual(['/index.html'])
+  })
+
+  it('serves a cached precached asset without going to the network', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const asset = makeResponse('cached app.js')
+    cache.entries.set(`${ORIGIN}/assets/app.js`, asset)
+    worker.fetch.mockResolvedValue(makeResponse('fresh app.js'))
+
+    const captured = worker.dispatch('fetch', { method: 'GET', url: `${ORIGIN}/assets/app.js` })
+
+    expect(await captured.responded).toBe(asset)
+    expect(captured.waited).toBeUndefined()
+    expect(worker.fetch).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+  })
+
+  it('fetches and stores a precached asset the cache is missing', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const request = { method: 'GET', url: `${ORIGIN}/assets/app.js` }
+    const fresh = makeResponse('fresh app.js')
+    worker.fetch.mockResolvedValue(fresh)
+
+    const captured = worker.dispatch('fetch', request)
+
+    // An asset whose install-time add failed repairs itself on first use.
+    expect(await captured.responded).toBe(fresh)
+    const cache = currentCache(worker)
+    expect(cache.put).toHaveBeenCalledWith(request, expect.objectContaining({ cloned: true }))
+    expect(cache.entries.get(request.url)?.body).toBe('fresh app.js')
+  })
+
+  it('revalidates a query-bearing asset, which is a cache key of its own', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', url: `${ORIGIN}/assets/app.js?v=1` }
+    cache.entries.set(request.url, makeResponse('cached app.js'))
+    worker.fetch.mockResolvedValue(makeResponse('fresh app.js'))
+
+    const captured = worker.dispatch('fetch', request)
+
+    expect(((await captured.responded) as FakeResponse).body).toBe('cached app.js')
+    await captured.waited
+    expect(cache.put).toHaveBeenCalledWith(request, expect.objectContaining({ cloned: true }))
+    expect(cache.entries.get(request.url)?.body).toBe('fresh app.js')
   })
 
   it('leaves non-GET requests to the network', () => {
@@ -228,6 +275,21 @@ describe('fetch', () => {
 
     expect(captured.responded).toBeUndefined()
     expect(worker.fetch).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The scoreboard. A board served out of a cache is a board that stopped
+   * moving, and a background revalidate would show yesterday's first.
+   */
+  it('leaves the scoreboard API to the network, cached neither way', () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+
+    const captured = worker.dispatch('fetch', { method: 'GET', url: `${ORIGIN}/api/scoreboard/demo` })
+
+    expect(captured.responded).toBeUndefined()
+    expect(captured.waited).toBeUndefined()
+    expect(worker.fetch).not.toHaveBeenCalled()
+    expect(currentCache(worker).put).not.toHaveBeenCalled()
   })
 
   it('leaves cross-origin requests other than the webfont alone', () => {
@@ -253,7 +315,25 @@ describe('fetch', () => {
     expect(cache.entries.get(request.url)?.body).toBe('font')
   })
 
-  it('answers an uncached request with a 504 when the network is gone', async () => {
+  it('revalidates a cached font in the background', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', url: 'https://fonts.gstatic.com/f.woff2' }
+    const stale = makeResponse('old font', { ok: false, status: 0, type: 'opaque' })
+    cache.entries.set(request.url, stale)
+    worker.fetch.mockResolvedValue(makeResponse('new font', { ok: false, status: 0, type: 'opaque' }))
+
+    const captured = worker.dispatch('fetch', request)
+
+    // The font is not precached, so it is not versioned by the cache name and
+    // the revalidate is the only thing that ever refreshes it.
+    expect(await captured.responded).toBe(stale)
+    await captured.waited
+    expect(cache.put).toHaveBeenCalledWith(request, expect.objectContaining({ cloned: true }))
+    expect(cache.entries.get(request.url)?.body).toBe('new font')
+  })
+
+  it('answers an uncached subresource with an empty 504 when the network is gone', async () => {
     const worker = makeWorker({ cacheNames: [CACHE_NAME] })
     worker.fetch.mockRejectedValue(new Error('offline'))
 
@@ -261,6 +341,28 @@ describe('fetch', () => {
 
     const response = (await captured.responded) as Response
     expect(response.status).toBe(504)
+    // The page is expected to render without it, so there is nothing to say.
+    expect(await response.text()).toBe('')
+    expect(currentCache(worker).put).not.toHaveBeenCalled()
+  })
+
+  it('answers a navigation with a readable page when the shell was never cached', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    worker.fetch.mockRejectedValue(new Error('offline'))
+
+    const captured = worker.dispatch('fetch', {
+      method: 'GET',
+      mode: 'navigate',
+      url: `${ORIGIN}/?src=pwa`,
+    })
+
+    // A flaky first visit can leave '/index.html' unprecached. Offline, that
+    // used to be a blank window; it has to explain itself instead.
+    const response = (await captured.responded) as Response
+    expect(response.headers.get('content-type')).toContain('text/html')
+    const body = await response.text()
+    expect(body).not.toBe('')
+    expect(body).toContain('has not finished downloading')
     expect(currentCache(worker).put).not.toHaveBeenCalled()
   })
 })

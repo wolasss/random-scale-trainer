@@ -33,6 +33,7 @@ export const STORAGE_KEYS = {
   spelling: 'fretboard-spelling',
   sessionGoal: 'fretboard-session-goal',
   setupRevealed: 'fretboard-setup-revealed',
+  micListen: 'fretboard-mic-listen',
 }
 
 const POLL_MS = 100
@@ -74,6 +75,14 @@ const SELECTORS = {
   setupReveal: By.css('[data-testid="setup-reveal"]'),
   routineCard: By.css('[data-testid="routine-card"]'),
   transportReadout: By.css('[data-testid="transport-readout"]'),
+  scoreboard: By.css('[data-testid="scoreboard"]'),
+  nicknamePrompt: By.css('[data-testid="nickname-prompt"]'),
+  nicknameError: By.css('[data-testid="nickname-error"]'),
+  nicknameInput: By.css('[data-testid="nickname-input"]'),
+  nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
+  nicknameDismiss: By.css('[data-testid="nickname-dismiss"]'),
+  micReadout: By.css('[data-testid="mic-readout"]'),
+  scoreTally: By.css('[data-testid="score-tally"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -171,6 +180,107 @@ export class TrainerPage {
       STORAGE_KEYS.setupRevealed,
     )
     await this.refresh()
+  }
+
+  /**
+   * Open a shared challenge with a clean localStorage, so the nickname prompt
+   * is always the one a first-time visitor gets. `?challenge=` is the whole
+   * feature switch — the app is untouched without it.
+   */
+  async openChallenge(challenge: string): Promise<void> {
+    await this.open()
+    await this.driver.executeScript('window.localStorage.clear()')
+    await this.driver.get(`${config.appBaseUrl}/?challenge=${encodeURIComponent(challenge)}`)
+    await this.driver.wait(until.elementLocated(SELECTORS.playToggle), 10_000)
+    await this.disableAnimations()
+  }
+
+  /**
+   * Types a name and reserves it. Waits for the round trip to land, either way:
+   * a claim is a request now, so the prompt is still up for a moment after the
+   * click and reading anything before it settles would be reading the old state.
+   */
+  async joinChallenge(nickname: string): Promise<void> {
+    await this.driver.wait(until.elementLocated(SELECTORS.nicknameInput), 10_000)
+    await this.driver.findElement(SELECTORS.nicknameInput).clear()
+    await this.driver.findElement(SELECTORS.nicknameInput).sendKeys(nickname)
+    await this.driver.findElement(SELECTORS.nicknameSubmit).click()
+    await this.driver.wait(
+      async () => (await this.hasNicknamePrompt()) === false || (await this.getNicknameError()) !== '',
+      10_000,
+    )
+  }
+
+  async hasNicknamePrompt(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.nicknamePrompt)).length > 0
+  }
+
+  /** Leaves the prompt without joining: the board stays, read-only. */
+  async dismissNicknamePrompt(): Promise<void> {
+    await this.driver.findElement(SELECTORS.nicknameDismiss).click()
+  }
+
+  /** Why the last claim was refused, or '' if it was not. */
+  async getNicknameError(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.nicknameError)
+
+    return found.length === 0 ? '' : found[0].getText()
+  }
+
+  /**
+   * Forgets everything this browser knows and comes back to the same challenge.
+   * That is a *different person* as far as the board is concerned — the
+   * ownership token was the only copy, and losing it loses the nickname.
+   */
+  async forgetAndReopenChallenge(challenge: string): Promise<void> {
+    await this.driver.executeScript('window.localStorage.clear()')
+    await this.driver.get(`${config.appBaseUrl}/?challenge=${encodeURIComponent(challenge)}`)
+    await this.driver.wait(until.elementLocated(SELECTORS.playToggle), 10_000)
+    await this.disableAnimations()
+  }
+
+  /**
+   * One request against the scoreboard API, made from the page itself — the
+   * same origin, the same cookies, everything a real attacker in this browser
+   * would have. Answers `{ status, body }` so a spec can assert on both.
+   */
+  async callApi(
+    path: string,
+    { method = 'GET', body, token }: { method?: string; body?: unknown; token?: string } = {},
+  ): Promise<{ status: number; body: string }> {
+    return this.driver.executeAsyncScript(
+      `const [path, method, body, token, done] = arguments;
+       fetch(path, {
+         method,
+         headers: {
+           ...(body === null ? {} : { 'Content-Type': 'application/json' }),
+           ...(token === null ? {} : { Authorization: 'Bearer ' + token }),
+         },
+         body: body === null ? undefined : body,
+       })
+         .then((response) => response.text().then((text) => done({ status: response.status, body: text })))
+         .catch((error) => done({ status: 0, body: String(error) }));`,
+      path,
+      method,
+      body === undefined ? null : JSON.stringify(body),
+      token ?? null,
+    )
+  }
+
+  async hasScoreboard(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.scoreboard)).length > 0
+  }
+
+  /** Every row on the board, as "<nickname> <points>" pairs, top first. */
+  async getScoreboardEntries(): Promise<Array<{ nickname: string; points: number }>> {
+    const rows = await this.driver.findElements(By.css('.scoreboard-entry'))
+
+    return Promise.all(
+      rows.map(async (row) => ({
+        nickname: await row.findElement(By.css('.scoreboard-nickname')).getText(),
+        points: Number(await row.findElement(By.css('.scoreboard-points')).getText()),
+      })),
+    )
   }
 
   /** Open the app exactly as a first-time visitor gets it: setup folded away. */
@@ -290,6 +400,11 @@ export class TrainerPage {
 
   async hasTransportReadout(): Promise<boolean> {
     return (await this.driver.findElements(SELECTORS.transportReadout)).length > 0
+  }
+
+  /** The mic readout only mounts once mic listening is turned on in settings. */
+  async hasMicReadout(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.micReadout)).length > 0
   }
 
   async getCycleTime(): Promise<string> {
@@ -554,6 +669,16 @@ export class TrainerPage {
       `current note did not become ${expected}`,
       POLL_MS,
     )
+  }
+
+  /**
+   * Resolves once the score row has something to show — the first note has
+   * been scored. A default tempo takes seconds per note, hence the generous
+   * timeout; the fake microphone rarely lands a hit, so this also passes on
+   * the first miss, which is all the layout guard needs.
+   */
+  async waitForScoreRow(timeoutMs = 25_000): Promise<void> {
+    await this.driver.wait(until.elementLocated(SELECTORS.scoreTally), timeoutMs, 'score row never appeared')
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {

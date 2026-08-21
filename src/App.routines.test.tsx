@@ -1,35 +1,11 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { soundLog } from './test/fakeAudioEngine'
+import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
-/** Every sound the machine schedules, with the audio-clock time it lands at. */
-type ScheduledSound = { kind: 'click' | 'note'; key: string; time: number }
-const scheduled: ScheduledSound[] = []
-let stopScheduledCalls = 0
-
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    async ensureContext() {
-      return {}
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    playClickAt(time: number) {
-      scheduled.push({ kind: 'click', key: 'click', time })
-    }
-    playNoteAt(key: string, time: number) {
-      scheduled.push({ kind: 'note', key, time })
-    }
-    playSessionEndChime() {}
-    stopScheduledSounds() {
-      stopScheduledCalls += 1
-    }
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 const chip = (id: string) => screen.getByTestId(`routine-chip-${id}`)
@@ -58,20 +34,8 @@ const startPractice = async (bpmValue: number) => {
 
 describe('Routines', () => {
   beforeEach(() => {
-    scheduled.length = 0
-    stopScheduledCalls = 0
-    vi.useFakeTimers({
-      toFake: [
-        'setTimeout',
-        'clearTimeout',
-        'setInterval',
-        'clearInterval',
-        'Date',
-        'performance',
-        'requestAnimationFrame',
-        'cancelAnimationFrame',
-      ],
-    })
+    soundLog.record()
+    vi.useFakeTimers(FAKE_CLOCKS_AND_FRAMES)
   })
 
   afterEach(() => {
@@ -225,6 +189,32 @@ describe('Routines', () => {
     fireEvent.click(screen.getByTestId('routine-strip-clear'))
     expect(screen.getByTestId('routine-empty')).toBeInTheDocument()
     expect(screen.queryByTestId('routine-clear')).toBeNull()
+  })
+
+  it('skips to the next block from the hero strip, and hides the button when there is nothing to skip', () => {
+    render(<App />)
+
+    selectRoutine('seed-neck-fluency-12')
+
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 2 of 5 · 3:00 left')
+    expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 5')
+
+    // Three more lands on the last block; one after that ends the workout.
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 5 of 5')
+
+    fireEvent.click(screen.getByTestId('routine-strip-skip'))
+    expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('complete')
+    expect(screen.queryByTestId('routine-strip-skip')).toBeNull()
+
+    // A saved setup is one block: the strip keeps its clear, drops its skip.
+    fireEvent.click(screen.getByTestId('routine-strip-clear'))
+    selectRoutine('seed-chromatic-drill')
+    expect(screen.getByTestId('routine-strip-clear')).toBeInTheDocument()
+    expect(screen.queryByTestId('routine-strip-skip')).toBeNull()
   })
 
   /**
@@ -544,8 +534,9 @@ describe('Routines', () => {
    * must never happen is a note being *drawn* from the old pool after the
    * switch — that would mean the deck was re-seeded from stale settings.
    */
-  // Explicit timeout: 400 awaited act() steps make this the heaviest test in
-  // the suite, and under a loaded parallel run it can brush the 5s default.
+  // The fake clock is driven coarsely — one jump to just short of the computed
+  // boundary, then a short poll for the switch — so the test pays for a handful
+  // of renders rather than hundreds. The explicit timeout is headroom only.
   it('draws nothing from the old pool once a block boundary passes', { timeout: 15_000 }, async () => {
     // Disjoint pools, so every sounded note names the block it came from.
     const NATURAL_KEYS = new Set(['C', 'D', 'E', 'F', 'G', 'A', 'B'])
@@ -567,10 +558,20 @@ describe('Routines', () => {
     selectRoutine('boundary')
     await startPractice(120)
 
+    // The block clock starts on the first real note and runs for the block's
+    // 6s, so one coarse jump gets to within half a second of the switch without
+    // paying for a render in between. The guard makes an overshoot loud.
+    const firstNoteMs = soundLog.sounds.find((sound) => sound.kind === 'note')!.time * 1_000
+    await act(async () => {
+      vi.advanceTimersByTime(firstNoteMs + 6_000 - 500 - performance.now())
+    })
+    expect(screen.getByTestId('routine-segment-1').dataset.state).not.toBe('active')
+
+    // Then creep up on the switch, which the session timer quantises to 200ms.
     let boundaryAt: number | null = null
-    for (let step = 0; step < 400 && boundaryAt === null; step++) {
+    for (let step = 0; step < 20 && boundaryAt === null; step++) {
       await act(async () => {
-        vi.advanceTimersByTime(20)
+        vi.advanceTimersByTime(100)
       })
       if (screen.getByTestId('routine-segment-1').dataset.state === 'active') {
         boundaryAt = performance.now() / 1000
@@ -586,7 +587,7 @@ describe('Routines', () => {
       vi.advanceTimersByTime(2_000)
     })
 
-    const notes = scheduled.filter((sound) => sound.kind === 'note')
+    const notes = soundLog.sounds.filter((sound) => sound.kind === 'note')
     const afterBoundary = notes.filter((sound) => sound.time > boundaryAt!)
     expect(afterBoundary.length).toBeGreaterThan(0)
     expect(afterBoundary.filter((sound) => NATURAL_KEYS.has(sound.key))).toEqual([])
@@ -594,8 +595,8 @@ describe('Routines', () => {
     // Queued audio is deliberately left to drain rather than cancelled: killing
     // it mid-flight would break the click's pulse at every boundary, which is
     // the one thing the look-ahead scheduler exists to prevent.
-    expect(stopScheduledCalls).toBe(0)
-    const clicks = scheduled
+    expect(soundLog.stopScheduledCalls).toBe(0)
+    const clicks = soundLog.sounds
       .filter((sound) => sound.kind === 'click' && sound.time > boundaryAt! - 1 && sound.time < boundaryAt! + 1)
       .map((sound) => sound.time)
     const gaps = clicks.slice(1).map((time, index) => time - clicks[index])

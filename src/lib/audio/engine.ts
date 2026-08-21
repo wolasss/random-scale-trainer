@@ -37,6 +37,49 @@ export const NOTE_AUDIO_FILES: Record<string, string> = {
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRkQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA=='
 
+/** How long the click sounds for — its own scheduled stop, kept in one place. */
+const CLICK_DURATION_S = 0.14
+
+/**
+ * How long the room is assumed to go on ringing with a spoken note after the
+ * clip itself has finished — the tail the microphone must not mistake for the
+ * player. This is the number the hardware pass reaches for: if a real room
+ * still leaks the called note into the readout, widen this rather than trusting
+ * the clarity gate to reject what is genuinely a clean note.
+ */
+const NOTE_DECAY_S = 0.15
+
+/**
+ * The same allowance for the click, which is a tick rather than a note and
+ * needs far less of one. It also cannot afford more: beats are 0.25 s apart at
+ * the top of the tempo range, so a note's tail on every click would suppress
+ * the microphone from one beat straight into the next and leave a fast session
+ * with nothing to listen through.
+ */
+const CLICK_DECAY_S = 0.04
+
+/**
+ * How long a spoken note name is assumed to occupy when a clip is missing. The
+ * speech engine will not say, so this is a deliberate over-estimate: the number
+ * exists to keep the microphone from hearing the app talk to itself, and being
+ * too generous only costs a little listening time.
+ */
+const SPEECH_CUE_FALLBACK_S = 1.2
+
+/** Cues this far behind the clock are gone from the room and from the array. */
+const CUE_HISTORY_S = 5
+
+/** A beat's click and its note are scheduled at one time; float maths is not exact. */
+const BEAT_MATCH_EPSILON_S = 0.001
+
+/**
+ * When a sound the app makes starts and stops, on the AudioContext clock, plus
+ * how long the room keeps ringing with it afterwards. The decay belongs to the
+ * cue rather than to whoever asks, because a spoken note and a click leave very
+ * different amounts of themselves behind.
+ */
+type CueInterval = { start: number; end: number; decay: number }
+
 export type AudioEngineDeps = {
   contextFactory?: () => AudioContext | null
   fetchFn?: typeof fetch
@@ -102,6 +145,13 @@ export class AudioEngine {
   private scheduledNodes = new Set<AudioScheduledSourceNode>()
   /** The end chime is tracked apart so a stop can spare it — see below. */
   private chimeNodes = new Set<AudioScheduledSourceNode>()
+  /**
+   * When each cue the app plays occupies the room. Kept as intervals rather
+   * than a running "last cue" because the scheduler works up to SCHEDULE_AHEAD_S
+   * ahead of the beat you are hearing, so the most recently scheduled sound is
+   * routinely a different beat's from the one playing now.
+   */
+  private cueIntervals: CueInterval[] = []
   private readonly contextFactory: () => AudioContext | null
   private readonly fetchFn: typeof fetch
   private readonly mediaElementFactory: () => HTMLAudioElement | null
@@ -160,6 +210,55 @@ export class AudioEngine {
     return this.context?.currentTime ?? 0
   }
 
+  /**
+   * The context itself, for anything that has to share this clock — the
+   * microphone's analyser, whose detections are only comparable with beat times
+   * because both are read off here. Null until the first gesture opens it.
+   */
+  getContext(): AudioContext | null {
+    return this.context
+  }
+
+  private recordCue(start: number, end: number, decay: number): void {
+    // Bounded by the clock, not by a count: a long session must not grow an
+    // array of every click it has ever played.
+    const cutoff = this.getCurrentTime() - CUE_HISTORY_S
+    this.cueIntervals = this.cueIntervals.filter((cue) => cue.end >= cutoff)
+    this.cueIntervals.push({ start, end, decay })
+  }
+
+  /**
+   * Whether the app itself was making a sound at this moment, or had just made
+   * one and left the room ringing — the microphone's defence against scoring
+   * the player for the note the speakers just called.
+   */
+  isWithinCue(time: number): boolean {
+    return this.cueIntervals.some((cue) => time >= cue.start && time <= cue.end + cue.decay)
+  }
+
+  /**
+   * When the app stops sounding over the beat scheduled at `beatTime` — the
+   * earliest moment anything heard could be the player rather than the app.
+   *
+   * Looked up by the beat's own time rather than by recency, which is what
+   * makes it correct while the scheduler is running a look-ahead window ahead
+   * of the music. Both the cues that begin on the beat (its click and its note
+   * share one start time) and any still ringing over it (the previous note, at
+   * a fast tempo) count, since either one is the app's voice, not the player's.
+   */
+  getCueEndForBeat(beatTime: number): number | null {
+    let end: number | null = null
+    for (const cue of this.cueIntervals) {
+      const onTheBeat = Math.abs(cue.start - beatTime) <= BEAT_MATCH_EPSILON_S
+      const stillRinging = cue.start <= beatTime && beatTime <= cue.end
+      if ((onTheBeat || stillRinging) && (end === null || cue.end > end)) {
+        end = cue.end
+      }
+    }
+
+    return end
+  }
+
   private track(node: AudioScheduledSourceNode, nodes = this.scheduledNodes): void {
     nodes.add(node)
     node.onended = () => nodes.delete(node)
@@ -189,26 +288,79 @@ export class AudioEngine {
     if (!keepSessionEndChime) {
       this.stopTracked(this.chimeNodes)
     }
+
+    // A cue that was cancelled before it sounded never occupied the room, so it
+    // must not go on suppressing the microphone — otherwise pressing stop would
+    // deafen the app for a phantom second of look-ahead.
+    const now = this.getCurrentTime()
+    this.cueIntervals = this.cueIntervals.filter((cue) => cue.start <= now)
   }
 
-  playClickAt(startTime: number, accent: boolean): void {
+  /**
+   * One oscillator with one swell-and-fade envelope on it — every tone the app
+   * synthesises, click and chime alike.
+   *
+   * Times are absolute points on the context clock rather than durations from
+   * `startTime`, so each caller keeps doing its own arithmetic and the values
+   * that reach the hardware are exactly the ones it computed. The 0.0001 floor
+   * is here because an exponential ramp cannot touch zero, and every tone
+   * shares the same one.
+   */
+  private scheduleTone({
+    type,
+    frequency,
+    startTime,
+    attack,
+    peak,
+    decayEnd,
+    stopAt,
+    nodes,
+  }: {
+    type: OscillatorType
+    frequency: number
+    startTime: number
+    /** When the tone reaches `peak`. */
+    attack: number
+    peak: number
+    /** When it has faded back to silence. */
+    decayEnd: number
+    stopAt: number
+    /** Which tracking set owns it; the transport's by default. */
+    nodes?: Set<AudioScheduledSourceNode>
+  }): void {
     const context = this.context
     if (!context) return
 
     const oscillator = context.createOscillator()
     const gain = context.createGain()
 
-    oscillator.type = 'triangle'
-    oscillator.frequency.setValueAtTime(accent ? 1320 : 880, startTime)
+    oscillator.type = type
+    oscillator.frequency.setValueAtTime(frequency, startTime)
     gain.gain.setValueAtTime(0.0001, startTime)
-    gain.gain.exponentialRampToValueAtTime(accent ? 0.12 : 0.08, startTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.12)
+    gain.gain.exponentialRampToValueAtTime(peak, attack)
+    gain.gain.exponentialRampToValueAtTime(0.0001, decayEnd)
 
     oscillator.connect(gain)
     gain.connect(context.destination)
     oscillator.start(startTime)
-    oscillator.stop(startTime + 0.14)
-    this.track(oscillator)
+    oscillator.stop(stopAt)
+    this.track(oscillator, nodes ?? this.scheduledNodes)
+  }
+
+  playClickAt(startTime: number, accent: boolean): void {
+    const context = this.context
+    if (!context) return
+
+    this.scheduleTone({
+      type: 'triangle',
+      frequency: accent ? 1320 : 880,
+      startTime,
+      attack: startTime + 0.01,
+      peak: accent ? 0.12 : 0.08,
+      decayEnd: startTime + 0.12,
+      stopAt: startTime + CLICK_DURATION_S,
+    })
+    this.recordCue(startTime, startTime + CLICK_DURATION_S, CLICK_DECAY_S)
   }
 
   playSessionEndChime(at?: number): void {
@@ -218,35 +370,29 @@ export class AudioEngine {
     const startTime = at ?? context.currentTime
 
     const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
-      const bodyOscillator = context.createOscillator()
-      const shimmerOscillator = context.createOscillator()
-      const bodyGain = context.createGain()
-      const shimmerGain = context.createGain()
       const toneStart = startTime + offset
 
-      bodyOscillator.type = 'triangle'
-      bodyOscillator.frequency.setValueAtTime(frequency, toneStart)
-      bodyGain.gain.setValueAtTime(0.0001, toneStart)
-      bodyGain.gain.exponentialRampToValueAtTime(peak, toneStart + 0.012)
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
-
-      shimmerOscillator.type = 'sine'
-      shimmerOscillator.frequency.setValueAtTime(frequency * 2, toneStart)
-      shimmerGain.gain.setValueAtTime(0.0001, toneStart)
-      shimmerGain.gain.exponentialRampToValueAtTime(peak * 0.42, toneStart + 0.01)
-      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration * 0.88)
-
-      bodyOscillator.connect(bodyGain)
-      shimmerOscillator.connect(shimmerGain)
-      bodyGain.connect(context.destination)
-      shimmerGain.connect(context.destination)
-
-      bodyOscillator.start(toneStart)
-      shimmerOscillator.start(toneStart)
-      bodyOscillator.stop(toneStart + duration + 0.03)
-      shimmerOscillator.stop(toneStart + duration * 0.9 + 0.03)
-      this.track(bodyOscillator, this.chimeNodes)
-      this.track(shimmerOscillator, this.chimeNodes)
+      this.scheduleTone({
+        type: 'triangle',
+        frequency,
+        startTime: toneStart,
+        attack: toneStart + 0.012,
+        peak,
+        decayEnd: toneStart + duration,
+        stopAt: toneStart + duration + 0.03,
+        nodes: this.chimeNodes,
+      })
+      // An octave above and quieter, fading first: the bell on top of the body.
+      this.scheduleTone({
+        type: 'sine',
+        frequency: frequency * 2,
+        startTime: toneStart,
+        attack: toneStart + 0.01,
+        peak: peak * 0.42,
+        decayEnd: toneStart + duration * 0.88,
+        stopAt: toneStart + duration * 0.9 + 0.03,
+        nodes: this.chimeNodes,
+      })
     }
 
     playTone(783.99, 0, 0.24, 0.11)
@@ -290,7 +436,7 @@ export class AudioEngine {
    * engine — which is exactly why the clips exist — but a late note name beats
    * a silent one, and this only ever runs for a note that failed to download.
    */
-  private speakFallback(audioKey: string): void {
+  private speakFallback(audioKey: string, startTime: number): void {
     if (this.speech === null || !this.missingClips.has(audioKey)) {
       return
     }
@@ -301,7 +447,13 @@ export class AudioEngine {
       this.speech.speak(spoken)
     } catch {
       // Speech is the fallback; there is nothing behind it.
+      return
     }
+
+    // Speech starts when it is asked to, not at the beat it was scheduled for,
+    // so the cue is recorded from whichever of the two comes first and given a
+    // generous tail. Nothing here can be measured, so it is over-estimated.
+    this.recordCue(Math.min(startTime, this.getCurrentTime()), startTime + SPEECH_CUE_FALLBACK_S, NOTE_DECAY_S)
   }
 
   playNoteAt(audioKey: string, startTime: number): void {
@@ -310,7 +462,7 @@ export class AudioEngine {
 
     const buffer = this.noteBuffers.get(audioKey)
     if (!buffer) {
-      this.speakFallback(audioKey)
+      this.speakFallback(audioKey, startTime)
       return
     }
 
@@ -319,6 +471,7 @@ export class AudioEngine {
     source.connect(context.destination)
     source.start(startTime)
     this.track(source)
+    this.recordCue(startTime, startTime + buffer.duration, NOTE_DECAY_S)
   }
 
   playClick(): void {

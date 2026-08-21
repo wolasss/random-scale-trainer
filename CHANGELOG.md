@@ -1,3 +1,154 @@
+# [1.21.0](https://github.com/wolasss/random-scale-trainer/compare/v1.20.0...v1.21.0) (2026-08-21)
+
+
+### Features
+
+* **challenge:** own a nickname with a token and score sessions on the server ([#135](https://github.com/wolasss/random-scale-trainer/issues/135)) ([8aa2dd2](https://github.com/wolasss/random-scale-trainer/commit/8aa2dd2e0b37f0d9b05471201f56ca996037731e))
+
+# [1.20.0](https://github.com/wolasss/random-scale-trainer/compare/v1.19.0...v1.20.0) (2026-08-21)
+
+
+### Features
+
+* **pool:** save the current chip selection as a named preset ([#139](https://github.com/wolasss/random-scale-trainer/issues/139)) ([98b16dc](https://github.com/wolasss/random-scale-trainer/commit/98b16dc7ff1a90b7e68238bb7ce43834da350d31))
+
+# [1.19.0](https://github.com/wolasss/random-scale-trainer/compare/v1.18.0...v1.19.0) (2026-08-21)
+
+
+### Features
+
+* **session:** tap the goal readout to count down instead of up ([#140](https://github.com/wolasss/random-scale-trainer/issues/140)) ([7264f57](https://github.com/wolasss/random-scale-trainer/commit/7264f573caa1d81b9bc312d2895f010963288ae1))
+
+# [1.18.0](https://github.com/wolasss/random-scale-trainer/compare/v1.17.0...v1.18.0) (2026-08-21)
+
+
+### Features
+
+* **scoring:** bonus points at 10, 20 and 30 minutes of practice ([#134](https://github.com/wolasss/random-scale-trainer/issues/134)) ([cbbdf2e](https://github.com/wolasss/random-scale-trainer/commit/cbbdf2e673cbc6b93946f2dc37463416f4f405d7))
+
+# [1.17.0](https://github.com/wolasss/random-scale-trainer/compare/v1.16.1...v1.17.0) (2026-08-20)
+
+
+### Features
+
+* **scoring:** price each note by how hard the settings make it ([#132](https://github.com/wolasss/random-scale-trainer/issues/132)) ([1faf118](https://github.com/wolasss/random-scale-trainer/commit/1faf118adcfa793ef712448ee4f1886adf81b30e))
+
+## [1.16.1](https://github.com/wolasss/random-scale-trainer/compare/v1.16.0...v1.16.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* **scoring:** label the readings on the score line ([#130](https://github.com/wolasss/random-scale-trainer/issues/130)) ([800650a](https://github.com/wolasss/random-scale-trainer/commit/800650a312a7bd8ebe0aa56f94584738df1b1172))
+
+# [1.16.0](https://github.com/wolasss/random-scale-trainer/compare/v1.15.0...v1.16.0) (2026-08-20)
+
+
+### Features
+
+* **challenge:** shared challenges with a top-ten scoreboard ([#128](https://github.com/wolasss/random-scale-trainer/issues/128)) ([7cd2d1e](https://github.com/wolasss/random-scale-trainer/commit/7cd2d1ecb89b7b934519e9e63af914a1147932de))
+
+# [1.15.0](https://github.com/wolasss/random-scale-trainer/compare/v1.14.0...v1.15.0) (2026-08-20)
+
+
+### Features
+
+* **scoring:** bonus for playing the note in time with the tick ([#127](https://github.com/wolasss/random-scale-trainer/issues/127)) ([7a82344](https://github.com/wolasss/random-scale-trainer/commit/7a82344d7af5be8648a9bc809c17c59e64a2b42b))
+
+# [1.14.0](https://github.com/wolasss/random-scale-trainer/compare/v1.13.0...v1.14.0) (2026-08-20)
+
+
+### Features
+
+* **scoring:** bonus for playing the called note in two octaves ([#124](https://github.com/wolasss/random-scale-trainer/issues/124)) ([a10f00d](https://github.com/wolasss/random-scale-trainer/commit/a10f00d7457cd6c387479e85075b4beeb3ae7c86))
+
+# [1.13.0](https://github.com/wolasss/random-scale-trainer/compare/v1.12.3...v1.13.0) (2026-08-19)
+
+
+### Features
+
+* **scoring:** give practice a point total with a bonus for a streak ([#123](https://github.com/wolasss/random-scale-trainer/issues/123)) ([19c83c5](https://github.com/wolasss/random-scale-trainer/commit/19c83c58899b84c8a9de25c14f04e23b5bac4fff))
+
+## [1.12.3](https://github.com/wolasss/random-scale-trainer/compare/v1.12.2...v1.12.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** follow the chosen theme in the installed app's window chrome ([#115](https://github.com/wolasss/random-scale-trainer/issues/115)) ([a8e0938](https://github.com/wolasss/random-scale-trainer/commit/a8e09386c8510ea21570ae28de03c4ed26dd03eb))
+
+## [1.12.2](https://github.com/wolasss/random-scale-trainer/compare/v1.12.1...v1.12.2) (2026-08-19)
+
+
+### Bug Fixes
+
+* **options:** say why the mic switch is off when the browser can't listen ([#114](https://github.com/wolasss/random-scale-trainer/issues/114)) ([072d5f0](https://github.com/wolasss/random-scale-trainer/commit/072d5f088c82f1217363923a270e6a5c089bf578))
+
+## [1.12.1](https://github.com/wolasss/random-scale-trainer/compare/v1.12.0...v1.12.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **pwa:** treat every installed display mode as standalone ([#110](https://github.com/wolasss/random-scale-trainer/issues/110)) ([d733baa](https://github.com/wolasss/random-scale-trainer/commit/d733baac70c8bf3e4cd86be184ada6aa0a959347))
+
+# [1.12.0](https://github.com/wolasss/random-scale-trainer/compare/v1.11.1...v1.12.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **ts:** stop tsconfig.test.json from excluding every test file it exists to check ([#111](https://github.com/wolasss/random-scale-trainer/issues/111)) ([1050f1a](https://github.com/wolasss/random-scale-trainer/commit/1050f1a85fe7306b0024ba1ad3e0dbe7ec823b0a))
+
+
+### Features
+
+* **routines:** duplicate a routine into an editable copy ([#112](https://github.com/wolasss/random-scale-trainer/issues/112)) ([df3df45](https://github.com/wolasss/random-scale-trainer/commit/df3df45abccead26cd9c89406d12e6620d6c6c58))
+
+## [1.11.1](https://github.com/wolasss/random-scale-trainer/compare/v1.11.0...v1.11.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **wakelock:** release the lock a superseded request leaves behind ([#108](https://github.com/wolasss/random-scale-trainer/issues/108)) ([fb1460c](https://github.com/wolasss/random-scale-trainer/commit/fb1460cb0ecf9aee42b0b2ba8ce954207997cb0e))
+
+# [1.11.0](https://github.com/wolasss/random-scale-trainer/compare/v1.10.0...v1.11.0) (2026-08-19)
+
+
+### Bug Fixes
+
+* **history:** surface a failed save instead of silently losing the practice log ([#107](https://github.com/wolasss/random-scale-trainer/issues/107)) ([b75c621](https://github.com/wolasss/random-scale-trainer/commit/b75c621d990d5c80efbf290403447f857e923254))
+
+
+### Features
+
+* **practice:** score the heard notes against the called notes ([#106](https://github.com/wolasss/random-scale-trainer/issues/106)) ([5ad5fd2](https://github.com/wolasss/random-scale-trainer/commit/5ad5fd29e1c4615db0f1a88e776f695b8a6cb96f))
+
+# [1.10.0](https://github.com/wolasss/random-scale-trainer/compare/v1.9.1...v1.10.0) (2026-08-19)
+
+
+### Features
+
+* **routines:** let the hero routine strip skip to the next block ([#117](https://github.com/wolasss/random-scale-trainer/issues/117)) ([b1c4050](https://github.com/wolasss/random-scale-trainer/commit/b1c40508613e1808a245ead4427008c5b192ea87))
+
+## [1.9.1](https://github.com/wolasss/random-scale-trainer/compare/v1.9.0...v1.9.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **sw:** answer an offline navigation with a readable page instead of an empty 504 ([#116](https://github.com/wolasss/random-scale-trainer/issues/116)) ([6c1a118](https://github.com/wolasss/random-scale-trainer/commit/6c1a118e239c0b71d13e058f28ef2fa2e46fbb83))
+
+# [1.9.0](https://github.com/wolasss/random-scale-trainer/compare/v1.8.1...v1.9.0) (2026-08-17)
+
+
+### Bug Fixes
+
+* **a11y:** give the installed app a way to switch between light and dark ([#101](https://github.com/wolasss/random-scale-trainer/issues/101)) ([191f33d](https://github.com/wolasss/random-scale-trainer/commit/191f33dbfe461416cf6a1295284afa3303fd7cd3))
+* **a11y:** hide the header key hints when there is no hardware keyboard ([#102](https://github.com/wolasss/random-scale-trainer/issues/102)) ([ae1c154](https://github.com/wolasss/random-scale-trainer/commit/ae1c154d3c9b13e309515b883c7ab6eeec8855ae))
+* **sw:** stop the background revalidate from overwriting precached entries ([#98](https://github.com/wolasss/random-scale-trainer/issues/98)) ([230a673](https://github.com/wolasss/random-scale-trainer/commit/230a67338ad74b0dca0846cf01c72fdc33594e23))
+
+
+### Features
+
+* **history:** tap a day in the practice calendar to read it out ([#103](https://github.com/wolasss/random-scale-trainer/issues/103)) ([79c8133](https://github.com/wolasss/random-scale-trainer/commit/79c8133362b264ec3dc502882e44b49ff1a9d142))
+* **mic:** hear the player with an autocorrelation pitch detector and a live heard-note readout ([#105](https://github.com/wolasss/random-scale-trainer/issues/105)) ([bc4fc4e](https://github.com/wolasss/random-scale-trainer/commit/bc4fc4e9d0f0de18b2ca83021b64e7f2e92dcc57))
+
 ## [1.8.1](https://github.com/wolasss/random-scale-trainer/compare/v1.8.0...v1.8.1) (2026-08-16)
 
 

@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { clientIdentity } from './src/server/http.js'
+import { API_PREFIX, createStore, handleRequest } from './src/server/scoreboard.js'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
 const SW_SOURCE = resolve(ROOT, 'src/sw/service-worker.js')
@@ -94,8 +96,72 @@ const serviceWorkerPlugin = (): Plugin => ({
   },
 })
 
+/** A claim is a short string and a batch is twenty small objects; see http.js. */
+const MAX_BODY_BYTES = 4096
+
+/**
+ * The scoreboard, for `vite dev` and `vite preview`.
+ *
+ * In the container nginx proxies /api/ to src/server/main.js. Nothing proxies
+ * anything here, so the very same handler is mounted as a middleware instead —
+ * which is what lets a challenge be developed, and end-to-end tested against
+ * `vite preview`, without a second process to start.
+ *
+ * The board lives in memory for the life of the server: it is a dev fixture,
+ * not a deployment.
+ */
+const scoreboardApiPlugin = (): Plugin => {
+  const store = createStore()
+
+  const middleware: Connect.NextHandleFunction = (request, response, next) => {
+    const { pathname } = new URL(request.url ?? '/', 'http://localhost')
+    if (!pathname.startsWith(API_PREFIX)) {
+      next()
+      return
+    }
+
+    // Bytes, decoded once at the end: a multi-byte character split across two
+    // data events survives that and does not survive per-chunk decoding.
+    const chunks: Buffer[] = []
+    let bytes = 0
+    request.on('data', (chunk: Buffer) => {
+      bytes += chunk.length
+      if (bytes <= MAX_BODY_BYTES) {
+        chunks.push(chunk)
+      }
+    })
+
+    request.on('end', () => {
+      const answer =
+        bytes > MAX_BODY_BYTES
+          ? { status: 413, json: { error: 'body too large' } }
+          : handleRequest(store, {
+              method: request.method ?? 'GET',
+              pathname,
+              body: Buffer.concat(chunks).toString('utf8'),
+              // A nickname's ownership token rides here and nowhere else.
+              headers: { authorization: request.headers.authorization },
+              client: clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for']),
+            })
+
+      response.writeHead(answer.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      response.end(JSON.stringify(answer.json))
+    })
+  }
+
+  return {
+    name: 'callnote-scoreboard-api',
+    configureServer: (server) => {
+      server.middlewares.use(middleware)
+    },
+    configurePreviewServer: (server) => {
+      server.middlewares.use(middleware)
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), serviceWorkerPlugin()],
+  plugins: [react(), serviceWorkerPlugin(), scoreboardApiPlugin()],
   server: {
     // The dev server is shared the same way the preview server is — through a
     // tailnet proxy — so it takes the same guests.

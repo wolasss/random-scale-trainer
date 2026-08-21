@@ -11,18 +11,25 @@ function hasInlay(stringIndex: number, fret: number) {
   return stringIndex === 2 && [3, 5, 7, 9].includes(fret)
 }
 
+// One model of where a pitch class lives: for each string, high e first, the
+// frets in 0–12 that sound it. The dots and the spoken reading are both drawn
+// from the same instance, so the picture and its label cannot drift apart.
+function litFrets(pc: number) {
+  return STRING_MIDI.map((midi) => FRETS.filter((fret) => (midi + fret) % 12 === pc))
+}
+
 // Reads the lit dots out in the order they are drawn, high e string first, so
 // someone hearing the label can walk the neck in the same order as someone
 // looking at it. Every string carries the note somewhere in 0–12, and a string
 // whose open note matches also lights the 12th fret.
-function describePositions(pc: number) {
-  return STRING_MIDI.map((midi, stringIndex) => {
-    const frets = FRETS.filter((fret) => (midi + fret) % 12 === pc).map((fret) =>
-      fret === 0 ? 'open' : `fret ${fret}`,
-    )
+function describePositions(lit: number[][]) {
+  return lit
+    .map((frets, stringIndex) => {
+      const spoken = frets.map((fret) => (fret === 0 ? 'open' : `fret ${fret}`))
 
-    return `${STRING_ORDINALS[stringIndex]} string (${STRING_LABELS[stringIndex]}) ${frets.join(' and ')}`
-  }).join(', ')
+      return `${STRING_ORDINALS[stringIndex]} string (${STRING_LABELS[stringIndex]}) ${spoken.join(' and ')}`
+    })
+    .join(', ')
 }
 
 type FretboardCardProps = {
@@ -32,9 +39,9 @@ type FretboardCardProps = {
 }
 
 export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps) {
-  const showDots = currentPc !== null
+  const lit = currentPc !== null ? litFrets(currentPc) : null
   const hint =
-    showDots && currentDisplay
+    lit !== null && currentDisplay
       ? `Every ${currentDisplay} from open to the 12th fret`
       : 'Where each note lives — all six strings, standard tuning'
 
@@ -42,8 +49,8 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
   // content is the dot marking the called note, which reads as nothing at all.
   // Labelling it as an image spells out the positions instead.
   const label =
-    currentPc !== null
-      ? `Fretboard map: ${currentDisplay ?? 'the called note'} at ${describePositions(currentPc)}`
+    lit !== null
+      ? `Fretboard map: ${currentDisplay ?? 'the called note'} at ${describePositions(lit)}`
       : 'Fretboard map: no note called — all six strings, standard tuning'
 
   return (
@@ -61,7 +68,7 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
               {FRETS.map((fret) => (
                 <span key={fret} className={`fret-cell ${fret === 0 ? 'nut' : ''}`}>
                   {hasInlay(stringIndex, fret) ? <span className="inlay-dot" aria-hidden="true" /> : null}
-                  {showDots && (midi + fret) % 12 === currentPc ? (
+                  {lit?.[stringIndex].includes(fret) ? (
                     <span className="fret-dot" data-testid="fret-dot" />
                   ) : null}
                 </span>

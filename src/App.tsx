@@ -44,11 +44,19 @@ import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
+import { MicReadout } from './components/MicReadout'
+import { NicknamePrompt } from './components/NicknamePrompt'
+import { ScoreboardStrip } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
+import { AudioEngine } from './lib/audio/engine'
+import { isMicSupported, primeMicPermission } from './lib/audio/mic'
 import { useAppearance } from './hooks/useAppearance'
 import { usePersistentState } from './hooks/usePersistentState'
+import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
+import { useMicPitch } from './hooks/useMicPitch'
+import { useNoteScoring } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -61,11 +69,18 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
-function App() {
+type AppProps = {
+  /** Injectable for tests; otherwise the browser's own reload. */
+  reload?: () => void
+}
+
+function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const { theme, setTheme, skin, setSkin } = useAppearance()
+  const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
@@ -73,15 +88,34 @@ function App() {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   })
+  // Held here rather than in NotePoolCard: the installed layout unmounts that
+  // card with the practice sheet, and a preset localStorage refused to take
+  // would go with it.
+  const [savedPresets, setSavedPresets, savedPresetsPersisted] = useSavedPresets()
+
+  // One engine for the whole app: playback schedules its cues on it and the
+  // microphone hangs its analyser off the very same AudioContext, so a
+  // detection and a beat are timestamps on one clock rather than two. Created
+  // lazily in a ref the way usePlayback used to create its own — the
+  // constructor opens no AudioContext, so building it during render is safe.
+  const engineRef = useRef<AudioEngine | null>(null)
+  const engine = (engineRef.current ??= new AudioEngine())
 
   // The session timer, playback and the routine all need handles on each
   // other, so they go through refs that are refreshed on every render.
   const playbackRef = useRef<ReturnType<typeof usePlayback> | null>(null)
   const routineRef = useRef<ReturnType<typeof useRoutine> | null>(null)
+  // Scoring needs the microphone, which needs the engine playback runs on, so
+  // it cannot be declared above the beat handler that feeds it either.
+  const scoringRef = useRef<ReturnType<typeof useNoteScoring> | null>(null)
 
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
   const practiceHistory = usePracticeHistory()
+
+  // Off entirely unless '?challenge=' brought the user here — see useChallenge.
+  // Declared above playback because the transport's pause is what banks a score.
+  const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -102,12 +136,78 @@ function App() {
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
     onSessionStart: sessionTimer.start,
     onSessionPause: () => {
-      sessionTimer.pause()
+      const pausedAtMs = sessionTimer.pause()
+      // A practice milestone crossed by this very elapsed update is credited
+      // with the pause itself, rather than left to the effect that would
+      // otherwise only catch it on the next render.
+      scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
+      // ...and the same moment sends what has been played up to the shared
+      // board, if there is one. A no-op off a challenge, and a no-op again with
+      // nothing queued. A pause is not the end of a session — resuming is the
+      // same practice run — so the scoring session stays open across it.
+      challenge.flushEvents()
     },
-    onBeat: beatPulse.handleBeat,
+    // Both of these are ref-only handlers, as onBeat demands: the ring is
+    // mutated in place and the score is queued for a microtask.
+    onBeat: (event) => {
+      beatPulse.handleBeat(event)
+      scoringRef.current?.handleBeat(event)
+    },
+    audio: engine,
+  })
+
+  // One value for "the mic is on", read by the hook, the readout and the switch
+  // alike: a browser with no microphone API cannot listen, whatever a setting
+  // stored by a browser that could says, and a readout the switch reports as
+  // off is one the user has no way to be rid of.
+  //
+  // A shared challenge turns it on regardless of the setting: the board is a
+  // board of points, and points come from what the microphone hears. The switch
+  // in setup still shows the stored preference, which is what it is for — it is
+  // the challenge, not the setting, that is listening.
+  const micEnabled = (settings.micEnabled || challenge.active) && isMicSupported()
+
+  // ...and the browser's permission dialog is asked for on arrival rather than
+  // at the first note, so it lands on a setup screen instead of on top of the
+  // thing you are meant to be reading. Once per visit, and without waiting for
+  // a nickname: the permission is needed whether or not anybody joins.
+  const micPrimedRef = useRef(false)
+  useEffect(() => {
+    if (!challenge.active || micPrimedRef.current) {
+      return
+    }
+
+    micPrimedRef.current = true
+    void primeMicPermission()
+  }, [challenge.active])
+
+  // Default off, and only ever open alongside playback: with the setting off
+  // nothing here touches a microphone API at all. The note count is what the
+  // readout is cleared by — what you played last is an answer to the note that
+  // was on screen when you played it, and stale the moment the next one lands.
+  const mic = useMicPitch({
+    engine,
+    enabled: micEnabled,
+    running: playback.isPlaying,
+    // Null through the count-in, which has no note on screen to answer.
+    callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
+  })
+
+  // Judging what was heard against what was called. Only ever scores while the
+  // microphone is actually open, so the tally is empty by construction with the
+  // setting off — and the readout that would show it is not rendered anyway.
+  const scoring = useNoteScoring({
+    engine,
+    subscribe: mic.subscribe,
+    active: micEnabled && mic.status === 'listening',
+    running: playback.isPlaying,
+    // Off a challenge this queues nothing: the shared board decides what a note
+    // is worth, from the events themselves, and there is no board here to tell.
+    onScored: challenge.recordEvent,
+    sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
   const routine = useRoutine({
@@ -121,6 +221,7 @@ function App() {
   useEffect(() => {
     playbackRef.current = playback
     routineRef.current = routine
+    scoringRef.current = scoring
   })
 
   /**
@@ -197,6 +298,11 @@ function App() {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
+    // The score is a property of the session, so it goes back with it — on the
+    // shared board too, or a fresh local tally would go on feeding the server
+    // session the old one opened.
+    scoring.reset()
+    challenge.endSession()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -204,10 +310,15 @@ function App() {
   // of what someone has actually practised is not something a stray click on a
   // heading button gets to erase.
   const clearTimer = () => {
+    const cleared = sessionTimer.reset()
     // The routine reads its block clock off this same session time, so the time
     // taken off the clock is handed to it: the block it is on keeps the minutes
     // it has already run, and still hands over when it is due.
-    routine.rebase(sessionTimer.reset())
+    routine.rebase(cleared)
+    // The milestone guards in useNoteScoring are keyed off this same clock; the
+    // same rebase keeps 20 and 30 minutes arriving on schedule instead of a
+    // clock that just went back to zero stranding them.
+    scoring.rebase(cleared)
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {
@@ -265,6 +376,7 @@ function App() {
         blockIndex={routine.blockIndex}
         blockElapsedMs={routine.blockElapsedMs}
         finished={routine.finished}
+        onSkip={routine.skipBlock}
         onClear={routine.clear}
       />
     ) : null
@@ -294,7 +406,11 @@ function App() {
       spelling={settings.spelling}
       onTogglePc={(pc) => userDispatch({ type: 'togglePoolNote', pc })}
       onPreset={(preset) => userDispatch({ type: 'setPreset', preset })}
+      onPool={(pool) => userDispatch({ type: 'setPool', pool })}
       onSpelling={(value) => userDispatch({ type: 'setSpelling', value })}
+      saved={savedPresets}
+      onSaved={setSavedPresets}
+      savedPersisted={savedPresetsPersisted}
     />
   )
 
@@ -333,20 +449,77 @@ function App() {
   // storage once, on mount, so anything short of a reload would be overwritten
   // by its next commit. (A tick landing between the two would cost the seconds
   // in flight — the same seconds a refresh mid-session costs anyway.)
-  const importPracticeBackup = (incoming: PracticeHistory) => {
+  //
+  // Only once the merged log is really in the store, though. Reloading on a
+  // write that was dropped would come back to the log the restore was meant to
+  // repair, with the restored days gone and the reload reading as a success —
+  // so a refused write is reported back instead, and nothing is thrown away.
+  const importPracticeBackup = (incoming: PracticeHistory): boolean => {
     practiceHistory.commit()
-    writeHistory(mergeHistories(readHistory(), incoming))
-    window.location.reload()
+    const stored = writeHistory(mergeHistories(readHistory(), incoming))
+    if (!stored) {
+      return false
+    }
+
+    reload()
+
+    return true
   }
 
   const practiceLogCard = (
     <PracticeLogCard
       history={practiceHistory.history}
+      persisted={practiceHistory.persisted}
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
     />
   )
+
+  // Only when asked for: with the setting off the tree is exactly what it was
+  // before the microphone existed.
+  const micReadout = micEnabled ? (
+    <MicReadout
+      status={mic.status}
+      heard={mic.heard}
+      spelling={settings.spelling}
+      called={playback.snapshot.currentNote}
+      score={{
+        lastVerdict: scoring.lastVerdict,
+        hits: scoring.tally.hits,
+        scored: scoring.tally.scored,
+        points: scoring.tally.points,
+        streak: scoring.tally.streak,
+        bonuses: scoring.lastBonuses,
+        multiplier: scoring.multiplier,
+      }}
+    />
+  ) : null
+
+  // Both of these are null off a challenge, which is the whole of "without
+  // ?challenge= in the URL this feature does not exist".
+  const nicknamePrompt =
+    challenge.needsNickname && challenge.name !== null ? (
+      <NicknamePrompt
+        challenge={challenge.name}
+        prefill={challenge.prefill}
+        pending={challenge.joining}
+        error={challenge.joinError}
+        onJoin={challenge.join}
+        onDismiss={challenge.dismissPrompt}
+      />
+    ) : null
+
+  const scoreboard =
+    challenge.active && challenge.name !== null ? (
+      <ScoreboardStrip
+        challenge={challenge.name}
+        nickname={challenge.nickname}
+        scores={challenge.scores}
+        status={challenge.status}
+        notice={challenge.notice}
+      />
+    ) : null
 
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
@@ -371,6 +544,10 @@ function App() {
               neck is wide enough to read at arm's length. In portrait it goes
               back in the sheet with the rest of the setup. */}
           {display.landscape && fretboardCard !== null ? <div className="stage-side">{fretboardCard}</div> : null}
+
+          {micReadout}
+
+          {scoreboard}
 
           <StageTransport
             isPlaying={playback.isPlaying}
@@ -397,8 +574,10 @@ function App() {
           {practiceLogCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
-          <Footer skin={skin} onSkinChange={setSkin} />
+          <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
         </PracticeSheet>
+
+        {nicknamePrompt}
 
         {updateChip}
       </div>
@@ -411,7 +590,7 @@ function App() {
       <main className="app-grid">
         <TopBar
           theme={theme}
-          onToggleTheme={() => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))}
+          onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
         />
 
@@ -435,6 +614,8 @@ function App() {
             {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
           </div>
 
+          {micReadout}
+
           {routineStrip}
 
           <TransportBar
@@ -448,6 +629,8 @@ function App() {
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
           />
+
+          {scoreboard}
         </section>
 
         {/* Setup below, in the order the concepts build on each other: the
@@ -486,6 +669,8 @@ function App() {
       </main>
 
       <Footer skin={skin} onSkinChange={setSkin} />
+
+      {nicknamePrompt}
 
       {updateChip}
     </div>

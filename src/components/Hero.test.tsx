@@ -4,21 +4,11 @@ import { Hero } from './Hero'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { TOUCH_INPUT_QUERY } from '../hooks/useHardwareKeyboard'
 import { INITIAL_PLAYBACK_SNAPSHOT } from '../lib/playback/machine'
+import { installMatchMedia } from '../test/matchMedia'
 
 /** jsdom's own matchMedia never matches anything, so each test says whether the
  * browser reports a touchscreen among its inputs. */
-const installMatchMedia = (touchInput: boolean) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (query: string) => ({
-      matches: query === TOUCH_INPUT_QUERY && touchInput,
-      media: query,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }),
-  })
-}
+const installTouchInput = (touchInput: boolean) => installMatchMedia({ [TOUCH_INPUT_QUERY]: touchInput })
 
 const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
   render(
@@ -37,7 +27,7 @@ describe('Hero coaching line', () => {
   })
 
   it('names the Space shortcut on a browser with no touch input', () => {
-    installMatchMedia(false)
+    installTouchInput(false)
 
     renderHero()
 
@@ -45,7 +35,7 @@ describe('Hero coaching line', () => {
   })
 
   it('drops the shortcut until there is a keyboard to press it with', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     renderHero()
 
@@ -55,7 +45,7 @@ describe('Hero coaching line', () => {
   })
 
   it('passes every other machine message straight through', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     renderHero({ snapshot: { ...INITIAL_PLAYBACK_SNAPSHOT, message: PLAYBACK_MESSAGES.playing } })
 
@@ -63,7 +53,7 @@ describe('Hero coaching line', () => {
   })
 
   it('lets a routine block keep the line it asked for', () => {
-    installMatchMedia(true)
+    installTouchInput(true)
 
     renderHero({ message: 'Block 2 of 3 — string skipping' })
 

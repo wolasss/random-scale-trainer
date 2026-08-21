@@ -29,9 +29,10 @@ const SHORT_TODAY: PracticeHistory = { days: { '2026-02-14': { sec: 20, notes: 2
 const renderCard = (history: PracticeHistory, overrides: Partial<Parameters<typeof PracticeLogCard>[0]> = {}) => {
   const props = {
     history,
+    persisted: true,
     onClear: vi.fn(),
     getBackup: vi.fn(() => 'BACKUP-FILE-TEXT'),
-    onImportBackup: vi.fn(),
+    onImportBackup: vi.fn(() => true),
     today: TODAY,
     ...overrides,
   }
@@ -103,6 +104,20 @@ describe('PracticeLogCard', () => {
 
     expect(screen.getByLabelText('2026-02-14: under a minute')).toBeInTheDocument()
     expect(screen.getByTestId('practice-log-footer')).toHaveTextContent('20 sec today — a minute starts the streak')
+  })
+
+  it('says nothing about the store while the log is being saved', () => {
+    renderCard(RUNNING)
+
+    expect(screen.queryByTestId('practice-log-ephemeral-notice')).toBeNull()
+  })
+
+  it('warns that the practice on screen is not being saved', () => {
+    renderCard(RUNNING, { persisted: false })
+
+    expect(screen.getByTestId('practice-log-ephemeral-notice')).toHaveTextContent('blocking saved data')
+    // The bars are still drawn — the warning is what stops them from lying.
+    expect(screen.getByTestId('practice-streak')).toHaveTextContent('3')
   })
 
   it('hands the reset straight to its owner', () => {
