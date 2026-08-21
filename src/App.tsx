@@ -131,7 +131,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
     onSessionStart: sessionTimer.start,
     onSessionPause: () => {
-      sessionTimer.pause()
+      const pausedAtMs = sessionTimer.pause()
+      // A practice milestone crossed by this very elapsed update is credited
+      // here, before the read below, rather than left to the effect that
+      // would otherwise only catch it on the next render.
+      scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
       // ever loses the seconds since the last ten-second write.
       practiceHistory.commit()
@@ -193,6 +197,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     subscribe: mic.subscribe,
     active: micEnabled && mic.status === 'listening',
     running: playback.isPlaying,
+    sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
   const routine = useRoutine({
@@ -292,10 +297,15 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // of what someone has actually practised is not something a stray click on a
   // heading button gets to erase.
   const clearTimer = () => {
+    const cleared = sessionTimer.reset()
     // The routine reads its block clock off this same session time, so the time
     // taken off the clock is handed to it: the block it is on keeps the minutes
     // it has already run, and still hands over when it is due.
-    routine.rebase(sessionTimer.reset())
+    routine.rebase(cleared)
+    // The milestone guards in useNoteScoring are keyed off this same clock; the
+    // same rebase keeps 20 and 30 minutes arriving on schedule instead of a
+    // clock that just went back to zero stranding them.
+    scoring.rebase(cleared)
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {

@@ -89,6 +89,7 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
     setIsRunning(true)
   }
 
+  /** Returns the elapsed time as of the pause, for readers that cannot wait for the next render. */
   const pause = () => {
     if (startedAtRef.current !== null) {
       const now = observeNow()
@@ -99,6 +100,8 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
 
     isRunningRef.current = false
     setIsRunning(false)
+
+    return accumulatedMsRef.current
   }
 
   /** Returns the elapsed time it threw away, for clocks measured against it. */

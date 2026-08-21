@@ -47,10 +47,12 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
   changes nothing else
-- Scoring, with the mic on: every note you actually play banks points, and three bonuses make them
+- Scoring, with the mic on: every note you actually play banks points, and four bonuses make them
   climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
-  the called note in two octaves before the next one is called, and a small one for striking the
-  string in time with a click. Two octaves means two pitches and not two places on the neck: the mic
+  the called note in two octaves before the next one is called, a small one for striking the
+  string in time with a click, and a flat 50/100/150 points for reaching 10, 20 and 30 minutes of
+  session time. The practice milestones belong to no note, so unlike the other three they are never
+  scaled by the difficulty multiplier below. Two octaves means two pitches and not two places on the neck: the mic
   hears pitch and nothing else, so finding the note twice in unison earns nothing. The in-time bonus
   is measured against the clicks that actually sounded, so the speed ramp cannot throw it off — and
   at one beat per note every beat starts a note, leaving no click under the note to play along with,
