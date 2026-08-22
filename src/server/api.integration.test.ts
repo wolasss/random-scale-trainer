@@ -341,6 +341,24 @@ describe('the edge itself', () => {
     expect((await claim('simple', 'ada')).status).toBe(201)
   })
 
+  /**
+   * The same simple request with nothing declared at all: a body built from a
+   * `Blob` or a typed array with no MIME type makes `fetch` send valid JSON and
+   * no Content-Type, which is how a forgery would dodge a check that only read
+   * a *declared* type. The bodyless POST above (`…/finish`) still goes through.
+   */
+  it('refuses a claim that sends a body without declaring what it is', async () => {
+    const response = await fetch(`${base}${API_PREFIX}typeless/nickname`, {
+      method: 'POST',
+      body: new Blob([JSON.stringify({ nickname: 'ada' })]),
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}typeless`)).body.scores).toEqual([])
+    expect((await claim('typeless', 'ada')).status).toBe(201)
+  })
+
   /** Present but not on the allowlist is refused; only *absent* is allowed. */
   it('refuses a claim carrying an empty Sec-Fetch-Site', async () => {
     const forged = await claim('empty-site', 'ada', { headers: { 'Sec-Fetch-Site': '' } })

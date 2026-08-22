@@ -58,13 +58,18 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
  * quota, so both halves of the loophole are refused at the edge:
  *
  * - a `Sec-Fetch-Site` the browser attached that is not same-origin/same-site;
- * - a declared Content-Type that is not `application/json`, which is exactly
- *   the shape that skips the preflight the missing CORS headers would fail.
+ * - a Content-Type that is not `application/json`, declared or missing, which
+ *   is exactly the shape that skips the preflight the missing CORS headers
+ *   would fail. Missing counts because `fetch` sends no Content-Type at all for
+ *   a body built from a `Blob` or a typed array with no MIME type — still valid
+ *   JSON on the wire, still a simple request, and the way a forgery would dodge
+ *   a check that only read a declared type.
  *
- * The rule is *present-and-allowed*, not present-and-non-empty: an absent
- * header is allowed, so `curl`, the container's own checks and the bodyless
- * `…/finish` POST (which `fetch` sends with no Content-Type at all) still work,
- * but a header that is there must pass — an empty value is not an allowed one.
+ * The Sec-Fetch-Site rule is *present-and-allowed*, not present-and-non-empty:
+ * an absent header is allowed, so `curl` and the container's own checks still
+ * work, but a header that is there must pass — an empty value is not an allowed
+ * one. A POST with no body at all is likewise left alone: there is nothing for
+ * it to declare, and it is the shape a bodyless `…/finish` takes.
  */
 export const isCrossSitePost = (method, headers) => {
   if (method !== 'POST') {
@@ -79,7 +84,16 @@ export const isCrossSitePost = (method, headers) => {
   }
 
   const type = headers['content-type']
-  return typeof type === 'string' && type.split(';')[0].trim().toLowerCase() !== 'application/json'
+  if (typeof type === 'string') {
+    return type.split(';')[0].trim().toLowerCase() !== 'application/json'
+  }
+
+  // Nothing declared, so the only question left is whether there is a body to
+  // declare. `Content-Length: 0` — what a bodyless POST carries — is not one.
+  const length = headers['content-length']
+  const declared = typeof length === 'string' ? length.trim() : ''
+
+  return typeof headers['transfer-encoding'] === 'string' || (declared !== '' && declared !== '0')
 }
 
 /**
