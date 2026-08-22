@@ -19,6 +19,9 @@ export type NoteCall = {
   /** Size of the bag this note was dealt from — the "of 12" in "note 7 of 12".
    * Lets cycle completion be detected even after the pool changes mid-cycle. */
   bagSize: number
+  /** The string this call asks for (0 = high e), when string calls are on.
+   * Undefined means the note may be played anywhere on the neck. */
+  stringIndex?: number
 }
 
 export const FLAT_DISPLAY = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'] as const

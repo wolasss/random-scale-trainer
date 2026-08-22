@@ -95,6 +95,9 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Off unless it literally reads 'true': with it on every call also names a
+  // string to play the note on.
+  stringCalls: 'fretboard-string-calls',
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',

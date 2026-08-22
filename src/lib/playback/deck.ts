@@ -1,10 +1,13 @@
 import { spellNote, type NoteCall, type SpellingPreference } from '../notes'
+import { shuffleStrings } from '../strings'
 
 export type NoteDeckDeps = {
   /** Read fresh at every refill so pool edits land on the next bag. */
   getPool(): number[]
   /** Read fresh at every refill; mixed spelling is decided per enqueued call. */
   getSpelling(): SpellingPreference
+  /** Read fresh at every refill: should each call also name a string? */
+  getStringCalls?(): boolean
   random?: () => number
 }
 
@@ -23,12 +26,26 @@ export type NoteDeck = {
  * Shuffled-bag note source: each refill deals every pool note exactly once in
  * random order, so nothing repeats or starves within a cycle. A bag whose
  * first note would repeat the previous one is reordered at the boundary.
+ *
+ * String calls ride a second bag of their own, dealt a string at a time and
+ * refilled when it runs dry. Keeping it separate from the note bag is what
+ * makes all six strings come up whatever the pool is: a two-note pool still
+ * walks the whole neck, over three bags rather than one.
  */
 export const createNoteDeck = (deps: NoteDeckDeps): NoteDeck => {
   const random = deps.random ?? Math.random
 
   let deck: NoteCall[] = []
   let lastPc: number | null = null
+  let stringBag: number[] = []
+
+  const nextString = () => {
+    if (stringBag.length === 0) {
+      stringBag = shuffleStrings(random)
+    }
+
+    return stringBag.shift()!
+  }
 
   const refill = () => {
     const pool = deps.getPool()
@@ -48,12 +65,14 @@ export const createNoteDeck = (deps: NoteDeckDeps): NoteDeck => {
     }
 
     const spelling = deps.getSpelling()
+    const stringCalls = deps.getStringCalls?.() ?? false
     deck.push(
       ...bag.map((pc, index) => ({
         pc,
         ...spellNote(pc, spelling, random),
         cycleStart: index === 0,
         bagSize: bag.length,
+        ...(stringCalls ? { stringIndex: nextString() } : {}),
       })),
     )
 
@@ -82,11 +101,14 @@ export const createNoteDeck = (deps: NoteDeckDeps): NoteDeck => {
       return call
     },
     invalidate: () => {
+      // The string bag survives, exactly as lastPc does: a pool edit is no
+      // reason to hand out a string that has already come round this bag.
       deck = []
     },
     reset: () => {
       deck = []
       lastPc = null
+      stringBag = []
     },
   }
 }

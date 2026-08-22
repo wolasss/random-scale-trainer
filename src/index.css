@@ -518,6 +518,14 @@ h2 {
   color: var(--ink-soft);
 }
 
+/* The string the next note is coming on, beside the name rather than in it. */
+.next-chip-string {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  opacity: 0.75;
+}
+
 /* Fixed-height line box: flat/sharp descenders can never push the caption. */
 .hero-note-line {
   position: relative;
@@ -540,6 +548,21 @@ h2 {
 
 .hero-note-line.paused .hero-note {
   opacity: 0.8;
+}
+
+/* The string the note is asked for on: a caption under the glyph, sized to be
+   read in the same glance without competing with it. */
+.hero-string {
+  align-self: center;
+  padding: 0.25rem 0.85rem;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  color: var(--primary);
+  background: var(--primary-soft);
 }
 
 .hero-ready {
@@ -1108,6 +1131,16 @@ input[type='range'] {
   color: var(--ink-soft);
 }
 
+/* With a string called, the other five recede rather than disappear: the neck
+   is still a neck, and the one row being asked for is the one that reads. */
+.fretboard[data-string-called] .fret-row:not(.target):not(.fret-numbers) {
+  opacity: 0.35;
+}
+
+.fret-row.target .string-label {
+  color: var(--primary);
+}
+
 .fret-cell {
   position: relative;
   height: 30px;
@@ -1494,6 +1527,14 @@ input[type='range'] {
   font-weight: 600;
   line-height: 1;
   color: var(--ink);
+}
+
+/* Whether the pitch heard is one the called string can sound. A hint and never
+   a verdict, so it stays quiet and takes no colour of its own. */
+.mic-readout-string {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  opacity: 0.8;
 }
 
 /* The verdict, tick or cross. It leads the line rather than trailing it: the
@@ -2966,6 +3007,10 @@ button.practice-history-cell {
 
 :root[data-stage] .hero-ready {
   font-size: min(14vh, 18vw);
+}
+
+:root[data-stage] .hero-string {
+  font-size: min(3vh, 1.25rem);
 }
 
 /* On the stand the ghost fills the note's room and the caption stays a label —

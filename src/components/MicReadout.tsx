@@ -1,15 +1,17 @@
 import { faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { FLAT_DISPLAY, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
+import { carriesPitch, describeString, STRING_ORDINALS } from '../lib/strings'
 import type { MicStatus } from '../hooks/useMicPitch'
 import type { Bonus, BonusKind, NoteVerdict } from '../lib/scoring'
 
 type MicReadoutProps = {
   status: MicStatus
-  heard: { pitchClass: number } | null
+  /** The octave comes along because a string only carries a note in some of them. */
+  heard: { pitchClass: number; octave: number } | null
   spelling: SpellingPreference
   /** The note being called, so a hit can be named the way it was asked for. */
-  called: { pc: number; display: string } | null
+  called: { pc: number; display: string; stringIndex?: number | null } | null
   /** How the session is going, or null when nothing is being scored. */
   score: {
     lastVerdict: NoteVerdict | null
@@ -104,6 +106,15 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * streak — a count of notes, not a factor on points — is spelled out as "N in
  * a row" rather than "×N".
  *
+ * When the call named a string, a hint follows the note the mic heard — but
+ * only ever as a hint. A microphone yields pitch and nothing else: several
+ * strings sound the very same pitch, so which one was actually struck is not a
+ * thing that can be heard. What can be said is whether the string that was
+ * called can produce the pitch that came out at all, and that is exactly what
+ * this reads out. It scores nothing, moves no tick or cross, and stays out of
+ * the line entirely whenever the note itself was wrong — a hint about the
+ * string under a cross would be answering a question nobody got to yet.
+ *
  * The multiplier itself is only shown when it is doing something. At ×1 the
  * reading would say nothing and the row is narrow enough already, so it is left
  * out entirely rather than printed as a number that changes no total.
@@ -133,6 +144,7 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
   const names = spelling === 'flat' ? FLAT_DISPLAY : SHARP_DISPLAY
   const match = heard === null || called === null ? null : heard.pitchClass === called.pc
   const name = heard === null ? '' : match && called !== null ? called.display : names[heard.pitchClass]
+  const calledString = called?.stringIndex ?? null
 
   return (
     <div className="mic-readout" data-testid="mic-readout" data-status={status}>
@@ -161,6 +173,7 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
             </span>
           )}
           <span className="mic-readout-note">{name}</span>
+          {match && calledString !== null ? <StringHint stringIndex={calledString} heard={heard} /> : null}
         </span>
       )}
 
@@ -185,6 +198,38 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Whether the pitch that was heard is one the called string can actually sound,
+ * spoken as the guess it is. The microphone cannot say which string was played
+ * — it hears a pitch — so this never becomes a verdict: it is the same right
+ * note read an octave away from where it was asked for, said out loud.
+ */
+function StringHint({
+  stringIndex,
+  heard,
+}: {
+  stringIndex: number
+  heard: { pitchClass: number; octave: number }
+}) {
+  const onString = carriesPitch(stringIndex, heard)
+  const ordinal = STRING_ORDINALS[stringIndex]
+
+  return (
+    <span
+      className="mic-readout-string"
+      data-testid="heard-string"
+      role="img"
+      aria-label={
+        onString
+          ? `that pitch is on the ${describeString(stringIndex)}`
+          : `that pitch is not on the ${describeString(stringIndex)} — the right note, somewhere else on the neck`
+      }
+    >
+      · {onString ? `${ordinal} string` : `not the ${ordinal} string`}
+    </span>
   )
 }
 

@@ -246,6 +246,43 @@ describe('App integration', () => {
     expect(screen.getByTestId('next-note').textContent).toMatch(NOTE_PATTERN)
   })
 
+  it('calls a string with every note once the switch asks for it', async () => {
+    render(<App />)
+
+    fireEvent.click(document.getElementById('string-calls')!)
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 100)
+    })
+
+    expect(screen.getByTestId('called-string')).toBeInTheDocument()
+
+    // The neck narrows with the call: every dot on it is on the one lit row.
+    const board = screen.getByTestId('fretboard')
+    expect(board).toHaveAttribute('data-string-called')
+    const dots = screen.getAllByTestId('fret-dot')
+    expect(dots.length).toBeGreaterThan(0)
+    for (const dot of dots) {
+      expect(dot.closest('.fret-row')).toHaveClass('target')
+    }
+  })
+
+  it('leaves the whole neck lit with the switch off', async () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 100)
+    })
+
+    expect(screen.queryByTestId('called-string')).toBeNull()
+    expect(screen.getByTestId('fretboard')).not.toHaveAttribute('data-string-called')
+    // At least one dot per string, and more where an open string carries the
+    // note at the 12th fret too.
+    expect(screen.getAllByTestId('fret-dot').length).toBeGreaterThanOrEqual(6)
+    expect(document.querySelectorAll('.fret-row.target')).toHaveLength(0)
+  })
+
   it('toggles the theme and persists it', () => {
     render(<App />)
 

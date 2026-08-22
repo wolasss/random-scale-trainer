@@ -3,6 +3,7 @@ import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
+import { describeString, STRING_LABELS, STRING_ORDINALS } from '../lib/strings'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
@@ -54,10 +55,40 @@ function NextChipContent({ nextNote }: { nextNote: PlaybackSnapshot['nextNote'] 
   return (
     <>
       <span className="chip-label">Next</span>
+      {/* The note's own span stays the bare name: the string it is coming on
+          rides beside it rather than inside it. */}
       <span className="next-chip-value" data-testid="next-note">
         {nextNote?.display ?? '—'}
       </span>
+      {nextNote?.stringIndex !== undefined ? (
+        <span
+          className="next-chip-string"
+          data-testid="next-string"
+          role="img"
+          aria-label={`on the ${describeString(nextNote.stringIndex)}`}
+        >
+          {STRING_ORDINALS[nextNote.stringIndex]}
+        </span>
+      ) : null}
     </>
+  )
+}
+
+/**
+ * Which string to find the note on, when the call names one. The ordinal is
+ * what a player counts with and the letter is what the neck is labelled with,
+ * so the badge carries both; a screen reader gets the sentence instead.
+ */
+function StringBadge({ stringIndex }: { stringIndex: number }) {
+  return (
+    <span
+      className="hero-string"
+      data-testid="called-string"
+      role="img"
+      aria-label={describeString(stringIndex)}
+    >
+      {STRING_ORDINALS[stringIndex]} · {STRING_LABELS[stringIndex]}
+    </span>
   )
 }
 
@@ -90,6 +121,10 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
     (!hasKeyboard && snapshot.message === PLAYBACK_MESSAGES.idle
       ? PLAYBACK_MESSAGES.idleTouch
       : snapshot.message)
+
+  // Only ever a string while a note is actually on screen: the count-in has no
+  // call to place, and the idle ghost is decoration.
+  const calledString = currentNote?.stringIndex
 
   const nowText =
     currentNote && positionInCycle !== null
@@ -128,6 +163,8 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       <section className="stage-hero">
         <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
 
+        {calledString !== undefined ? <StringBadge stringIndex={calledString} /> : null}
+
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
         <div className="stage-readout">
@@ -156,6 +193,8 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       </div>
 
       <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+
+      {calledString !== undefined ? <StringBadge stringIndex={calledString} /> : null}
 
       <PlaybackMessage>{coachingLine}</PlaybackMessage>
 

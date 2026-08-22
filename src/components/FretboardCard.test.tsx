@@ -22,6 +22,40 @@ describe('FretboardCard', () => {
     expect(screen.getAllByTestId('fret-dot')).toHaveLength(6)
   })
 
+  it('narrows to the one string the call asks for', () => {
+    render(<FretboardCard currentPc={0} currentDisplay="C" currentString={4} />)
+
+    // C on the 5th string is one place only, and it is the only dot drawn.
+    expect(screen.getAllByTestId('fret-dot')).toHaveLength(1)
+    expect(screen.getByRole('img')).toHaveAccessibleName('Fretboard map: C at 5th string (A) fret 3')
+    expect(screen.getByTestId('fretboard')).toHaveAttribute('data-string-called')
+
+    const rows = document.querySelectorAll('.fret-row.target')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].querySelector('.string-label')).toHaveTextContent('A')
+  })
+
+  it('names the called string in the hint above the neck', () => {
+    render(<FretboardCard currentPc={4} currentDisplay="E" currentString={5} />)
+
+    expect(screen.getByRole('heading', { name: 'On the neck' }).nextElementSibling).toHaveTextContent(
+      'Every E on the 6th string (E)',
+    )
+    // Open and the 12th fret: the same string carries it twice.
+    expect(screen.getAllByTestId('fret-dot')).toHaveLength(2)
+    expect(screen.getByRole('img')).toHaveAccessibleName(
+      'Fretboard map: E at 6th string (E) open and fret 12',
+    )
+  })
+
+  it('leaves the whole neck lit when no string is called', () => {
+    render(<FretboardCard currentPc={0} currentDisplay="C" currentString={null} />)
+
+    expect(screen.getAllByTestId('fret-dot')).toHaveLength(6)
+    expect(screen.getByTestId('fretboard')).not.toHaveAttribute('data-string-called')
+    expect(document.querySelectorAll('.fret-row.target')).toHaveLength(0)
+  })
+
   it('rewrites the accessible name when the called note changes', () => {
     const { rerender } = render(<FretboardCard currentPc={0} currentDisplay="C" />)
     const before = screen.getByRole('img').getAttribute('aria-label')

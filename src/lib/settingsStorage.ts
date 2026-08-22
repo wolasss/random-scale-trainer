@@ -25,6 +25,8 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Whether each called note also names the string to play it on. */
+  stringCallsEnabled: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
   spelling: SpellingPreference
@@ -86,6 +88,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  stringCallsEnabled: booleanCodec(STORAGE_KEYS.stringCalls),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -125,6 +128,7 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: true,
+  stringCallsEnabled: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],

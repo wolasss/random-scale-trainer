@@ -1,8 +1,4 @@
-// Standard tuning, high e → low E, by MIDI note number.
-const STRING_MIDI = [64, 59, 55, 50, 45, 40]
-const STRING_LABELS = ['e', 'B', 'G', 'D', 'A', 'E']
-const STRING_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
+import { describeString, FRETS, litFrets, STRING_LABELS, STRING_MIDI } from '../lib/strings'
 
 // Classic inlay markers, drawn on the string boundary below the given row so
 // singles sit on the neck's center line and fret 12 gets a symmetric pair.
@@ -11,24 +7,23 @@ function hasInlay(stringIndex: number, fret: number) {
   return stringIndex === 2 && [3, 5, 7, 9].includes(fret)
 }
 
-// One model of where a pitch class lives: for each string, high e first, the
-// frets in 0–12 that sound it. The dots and the spoken reading are both drawn
-// from the same instance, so the picture and its label cannot drift apart.
-function litFrets(pc: number) {
-  return STRING_MIDI.map((midi) => FRETS.filter((fret) => (midi + fret) % 12 === pc))
-}
-
 // Reads the lit dots out in the order they are drawn, high e string first, so
 // someone hearing the label can walk the neck in the same order as someone
 // looking at it. Every string carries the note somewhere in 0–12, and a string
-// whose open note matches also lights the 12th fret.
+// whose open note matches also lights the 12th fret. With a string called,
+// only that one row is drawn and only that one row is read out.
 function describePositions(lit: number[][]) {
   return lit
     .map((frets, stringIndex) => {
+      if (frets.length === 0) {
+        return null
+      }
+
       const spoken = frets.map((fret) => (fret === 0 ? 'open' : `fret ${fret}`))
 
-      return `${STRING_ORDINALS[stringIndex]} string (${STRING_LABELS[stringIndex]}) ${spoken.join(' and ')}`
+      return `${describeString(stringIndex)} ${spoken.join(' and ')}`
     })
+    .filter((reading) => reading !== null)
     .join(', ')
 }
 
@@ -36,13 +31,25 @@ type FretboardCardProps = {
   currentPc: number | null
   /** Spelled name of the note being called, for the hint line. */
   currentDisplay?: string | null
+  /** The string the call asks for (0 = high e), or null when it asks for none. */
+  currentString?: number | null
 }
 
-export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps) {
-  const lit = currentPc !== null ? litFrets(currentPc) : null
+export function FretboardCard({ currentPc, currentDisplay, currentString = null }: FretboardCardProps) {
+  // A called string narrows the picture to that row: the point of the call is
+  // to send you to one place on the neck, and six lit dots would say the
+  // opposite of what the badge above them says.
+  const all = currentPc !== null ? litFrets(currentPc) : null
+  const lit =
+    all !== null && currentString !== null
+      ? all.map((frets, stringIndex) => (stringIndex === currentString ? frets : []))
+      : all
+
   const hint =
     lit !== null && currentDisplay
-      ? `Every ${currentDisplay} from open to the 12th fret`
+      ? currentString !== null
+        ? `Every ${currentDisplay} on the ${describeString(currentString)}`
+        : `Every ${currentDisplay} from open to the 12th fret`
       : 'Where each note lives — all six strings, standard tuning'
 
   // The grid is a picture of the neck: six rows of blank spans whose only
@@ -61,9 +68,15 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
       </div>
 
       <div className="fretboard-scroll">
-        <div className="fretboard" data-testid="fretboard" role="img" aria-label={label}>
+        <div
+          className="fretboard"
+          data-testid="fretboard"
+          data-string-called={currentString !== null ? '' : undefined}
+          role="img"
+          aria-label={label}
+        >
           {STRING_MIDI.map((midi, stringIndex) => (
-            <div className="fret-row" key={midi}>
+            <div className={`fret-row ${stringIndex === currentString ? 'target' : ''}`} key={midi}>
               <span className="string-label">{STRING_LABELS[stringIndex]}</span>
               {FRETS.map((fret) => (
                 <span key={fret} className={`fret-cell ${fret === 0 ? 'nut' : ''}`}>

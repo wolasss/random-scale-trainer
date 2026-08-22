@@ -131,6 +131,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     settings: { ...settings, speakNotes: true },
     pool: settings.pool,
     spelling: settings.spelling,
+    stringCalls: settings.stringCallsEnabled,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
     // own doing, never the user drifting off one.
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
@@ -428,6 +429,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
+      currentString={playback.snapshot.currentNote?.stringIndex ?? null}
     />
   ) : null
 

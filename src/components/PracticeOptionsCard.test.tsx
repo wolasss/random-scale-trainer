@@ -19,6 +19,7 @@ const SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: 120,
   showFretboard: true,
+  stringCallsEnabled: false,
   micEnabled: false,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
@@ -31,6 +32,27 @@ const renderCard = (overrides: Partial<Settings> = {}) => {
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
 }
+
+describe('PracticeOptionsCard string calls', () => {
+  it('offers the switch, off by default', () => {
+    renderCard()
+
+    const row = document.getElementById('string-calls')!
+    expect(row).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('Call the string')).toBeInTheDocument()
+    expect(screen.getByText('Every note names a string to play it on — all six come up.')).toBeInTheDocument()
+  })
+
+  it('reports the setting and toggles it', () => {
+    const { props } = renderCard({ stringCallsEnabled: true })
+
+    const row = document.getElementById('string-calls')!
+    expect(row).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(row)
+    expect(props.onToggle).toHaveBeenCalledWith('stringCallsEnabled')
+  })
+})
 
 describe('PracticeOptionsCard mic switch', () => {
   beforeEach(() => {

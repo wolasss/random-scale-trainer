@@ -17,6 +17,8 @@ export type UsePlaybackOptions = {
   settings: PlaybackSettings
   pool: number[]
   spelling: SpellingPreference
+  /** Ask for a string with every note. Off unless the setting says otherwise. */
+  stringCalls?: boolean
   onBpmChange: (bpm: number) => void
   onSessionStart: () => void
   onSessionPause: () => void
@@ -52,6 +54,7 @@ export function usePlayback(options: UsePlaybackOptions) {
         getSettings: () => optionsRef.current.settings,
         getPool: () => optionsRef.current.pool,
         getSpelling: () => optionsRef.current.spelling,
+        getStringCalls: () => optionsRef.current.stringCalls ?? false,
         onSnapshot: setSnapshot,
         onBeat: (event) => optionsRef.current.onBeat?.(event),
         onBpmChange: (bpm) => optionsRef.current.onBpmChange(bpm),
@@ -76,17 +79,18 @@ export function usePlayback(options: UsePlaybackOptions) {
     }
   }, [])
 
-  // Pool or spelling edits drop the pending deck so they take effect on the
-  // next note — while idle, paused, or playing.
+  // Pool, spelling or string-call edits drop the pending deck so they take
+  // effect on the next note — while idle, paused, or playing.
   // Stable, so the visibility listener that drives it binds once rather than
   // rebinding on every render.
   const handleVisible = useCallback(() => machineRef.current?.handleVisible(), [])
 
   const poolKey = options.pool.join(',')
   const spelling = options.spelling
+  const stringCalls = options.stringCalls ?? false
   useEffect(() => {
     machineRef.current?.invalidateDeck()
-  }, [poolKey, spelling])
+  }, [poolKey, spelling, stringCalls])
 
   return {
     snapshot,

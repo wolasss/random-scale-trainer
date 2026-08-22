@@ -76,6 +76,8 @@ export type PlaybackMachineDeps = {
   getSettings(): PlaybackSettings
   getPool(): number[]
   getSpelling(): SpellingPreference
+  /** Whether each call also names a string to play it on. Read at every refill. */
+  getStringCalls?(): boolean
   onSnapshot(snapshot: PlaybackSnapshot): void
   /** Fired at visual time for every beat — drive ref-based effects here. */
   onBeat?(event: BeatEvent): void
@@ -132,7 +134,12 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     deps
   const timers = deps.timers ?? defaultTimers
   const frame = deps.frame ?? defaultFrame
-  const deck = createNoteDeck({ getPool, getSpelling, random: deps.random })
+  const deck = createNoteDeck({
+    getPool,
+    getSpelling,
+    getStringCalls: deps.getStringCalls,
+    random: deps.random,
+  })
 
   let snapshot: PlaybackSnapshot = { ...INITIAL_PLAYBACK_SNAPSHOT }
   let active = false

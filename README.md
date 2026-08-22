@@ -21,7 +21,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
 - "On the neck" fretboard map showing every position of the called note (frets 0–12, standard
-  tuning), hideable from "How it runs"
+  tuning), hideable from "How it runs". With string calls on it narrows to the one string being
+  asked for
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
   target you choose, then holds there — so a session ends on a tempo you reached, not the first one
   you missed. Routine blocks own their own ramp and ceiling
@@ -36,6 +37,13 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
   export/import, where an import merges with what is already there (keeping the longer of any two days)
   rather than replacing it
+- Call the string (off by default): with the setting on, every note also names a string to play it
+  on — "C · 5th (A)" — dealt from its own shuffled bag of the six, so all six come up whatever the
+  note pool is, and the fretboard map lights only that string. With the mic on as well, the readout
+  adds a note beside what it heard: whether the pitch that came out is one the called string can
+  actually sound. That is a hint and nothing more — a microphone hears pitch, several strings sound
+  the very same pitch, and which one was struck cannot be heard — so it never moves the tick, the
+  cross or the score. String calls do not change what a note is worth
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note

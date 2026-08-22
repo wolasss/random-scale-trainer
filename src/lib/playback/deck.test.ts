@@ -13,12 +13,17 @@ const IDENTITY = 0.99
 
 const makeDeck = (
   pool: number[],
-  options: { spelling?: SpellingPreference; random?: () => number } = {},
+  options: { spelling?: SpellingPreference; random?: () => number; stringCalls?: boolean } = {},
 ) => {
-  const state = { pool, spelling: options.spelling ?? ('flat' as SpellingPreference) }
+  const state = {
+    pool,
+    spelling: options.spelling ?? ('flat' as SpellingPreference),
+    stringCalls: options.stringCalls ?? false,
+  }
   const deck = createNoteDeck({
     getPool: () => state.pool,
     getSpelling: () => state.spelling,
+    getStringCalls: () => state.stringCalls,
     random: options.random ?? sequence(),
   })
 
@@ -144,6 +149,68 @@ describe('createNoteDeck', () => {
     // Invalidating again once the new pool is visible is what actually switches it.
     deck.invalidate()
     expect([1, 3, 6, 8, 10]).toContain(deck.peek()!.pc)
+  })
+
+  describe('string calls', () => {
+    /** A seeded LCG, so the shuffles are varied but the run is repeatable. */
+    const seeded = () => {
+      let seed = 12345
+      return () => {
+        seed = (seed * 9301 + 49297) % 233280
+        return seed / 233280
+      }
+    }
+
+    it('names no string at all with the setting off', () => {
+      const { deck } = makeDeck([0, 1, 2])
+
+      for (let index = 0; index < 6; index++) {
+        expect(deck.draw()!.stringIndex).toBeUndefined()
+      }
+    })
+
+    it('names no string when the deck was never told about the setting', () => {
+      const deck = createNoteDeck({ getPool: () => [0, 1], getSpelling: () => 'flat', random: sequence() })
+
+      expect(deck.draw()!.stringIndex).toBeUndefined()
+      expect(deck.peek()!.stringIndex).toBeUndefined()
+    })
+
+    it('covers all six strings across six consecutive calls', () => {
+      const { deck } = makeDeck([0, 1, 2], { stringCalls: true, random: seeded() })
+
+      const strings = Array.from({ length: 6 }, () => deck.draw()!.stringIndex)
+      expect([...strings].sort((left, right) => left! - right!)).toEqual([0, 1, 2, 3, 4, 5])
+    })
+
+    /** The string bag is its own: a two-note pool still walks the whole neck. */
+    it('walks every string even on a pool far smaller than six', () => {
+      const { deck } = makeDeck([3, 8], { stringCalls: true, random: seeded() })
+
+      const strings = Array.from({ length: 6 }, () => deck.draw()!.stringIndex)
+      expect(new Set(strings).size).toBe(6)
+    })
+
+    it('takes the setting up on the next bag', () => {
+      const { deck, state } = makeDeck([0, 1], { random: seeded() })
+
+      expect(deck.draw()!.stringIndex).toBeUndefined()
+      state.stringCalls = true
+      deck.invalidate()
+
+      expect(deck.peek()!.stringIndex).toBeGreaterThanOrEqual(0)
+    })
+
+    it('reset starts the neck over from a fresh bag', () => {
+      const { deck } = makeDeck([0], { stringCalls: true, random: seeded() })
+
+      const first = Array.from({ length: 3 }, () => deck.draw()!.stringIndex)
+      deck.reset()
+      const afterReset = Array.from({ length: 6 }, () => deck.draw()!.stringIndex)
+
+      expect(first).toHaveLength(3)
+      expect([...afterReset].sort((left, right) => left! - right!)).toEqual([0, 1, 2, 3, 4, 5])
+    })
   })
 
   it('threads the RNG into mixed spelling decisions', () => {

@@ -23,7 +23,7 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 - `src/hooks/` — React hooks (settings, keyboard shortcuts, session timer, wake lock, service worker, persistent state…), each with a colocated `*.test.tsx`.
 - `src/lib/audio/` — Web Audio engine, mic capture and pitch detection (`engine.ts`, `mic.ts`, `pitch.ts`), each with tests.
 - `src/lib/playback/` — playback state machine and note deck (`machine.ts`, `deck.ts`, plus the `program.ts`/`tempo.ts` split out of the machine), each with tests.
-- `src/lib/` — the rest of the domain logic: practice log (`history.ts`), note/scale generation (`notes.ts`), presets and routines math (`presets.ts`, `routines.ts`), scoring, storage and timing helpers (`scoring.ts`, `storage.ts`, `tapTempo.ts`, `time.ts`, `transport.ts`), each with a colocated `*.test.ts`; plus `skins.ts` and `src/constants.ts` — the visual skins and app constants.
+- `src/lib/` — the rest of the domain logic: practice log (`history.ts`), note/scale generation (`notes.ts`), presets and routines math (`presets.ts`, `routines.ts`), the neck model behind the fretboard map and string calls (`strings.ts`), scoring, storage and timing helpers (`scoring.ts`, `storage.ts`, `tapTempo.ts`, `time.ts`, `transport.ts`), each with a colocated `*.test.ts`; plus `skins.ts` and `src/constants.ts` — the visual skins and app constants.
 - `src/server/` — the shared-challenge scoreboard: `scoreboard.js` (routing, the store, nickname
   ownership, quotas and rate limits, all as pure functions of a store), `session-scoring.js` (the
   point rules and the event-validation rules, pure), `http.js` (the `node:http` edge — body cap,

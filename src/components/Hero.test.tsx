@@ -21,6 +21,63 @@ const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
     />,
   )
 
+const playing = (overrides: Partial<(typeof INITIAL_PLAYBACK_SNAPSHOT)['currentNote'] & object> = {}) => ({
+  ...INITIAL_PLAYBACK_SNAPSHOT,
+  status: 'playing' as const,
+  currentNote: { pc: 0, display: 'C', audioKey: 'C', cycleStart: true, bagSize: 12, ...overrides },
+  positionInCycle: 1,
+  cycleLength: 12,
+})
+
+describe('Hero string call', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'matchMedia')
+  })
+
+  it('stays out of the way when the call names no string', () => {
+    installTouchInput(false)
+
+    renderHero({ snapshot: playing() })
+
+    expect(screen.queryByTestId('called-string')).toBeNull()
+    expect(screen.queryByTestId('next-string')).toBeNull()
+  })
+
+  it('badges the string the note is asked for on', () => {
+    installTouchInput(false)
+
+    renderHero({ snapshot: playing({ stringIndex: 4 }) })
+
+    const badge = screen.getByTestId('called-string')
+    expect(badge).toHaveTextContent('5th · A')
+    expect(badge).toHaveAccessibleName('5th string (A)')
+  })
+
+  it('shows it on the stage too', () => {
+    installTouchInput(true)
+
+    renderHero({ snapshot: playing({ stringIndex: 0 }), variant: 'stage' })
+
+    expect(screen.getByTestId('called-string')).toHaveAccessibleName('1st string (e)')
+  })
+
+  /** The e2e page object reads this span, so it stays the bare note name. */
+  it('keeps the next string beside the next note rather than inside it', () => {
+    installTouchInput(false)
+
+    renderHero({
+      snapshot: {
+        ...playing({ stringIndex: 4 }),
+        nextNote: { pc: 7, display: 'G', audioKey: 'G', cycleStart: false, bagSize: 12, stringIndex: 2 },
+      },
+    })
+
+    expect(screen.getByTestId('next-note')).toHaveTextContent('G')
+    expect(screen.getByTestId('next-note').textContent).toBe('G')
+    expect(screen.getByTestId('next-string')).toHaveAccessibleName('on the 3rd string (G)')
+  })
+})
+
 describe('Hero coaching line', () => {
   afterEach(() => {
     Reflect.deleteProperty(window, 'matchMedia')

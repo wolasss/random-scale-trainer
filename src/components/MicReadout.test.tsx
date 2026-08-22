@@ -4,19 +4,19 @@ import { MicReadout } from './MicReadout'
 
 describe('MicReadout', () => {
   it('names the note it is hearing', () => {
-    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 9 }} spelling="sharp" called={null} />)
+    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 9, octave: 3 }} spelling="sharp" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('A')
   })
 
   it('shows a flat name to a player who asked for flats', () => {
-    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 1 }} spelling="flat" called={null} />)
+    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 1, octave: 3 }} spelling="flat" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('D♭')
   })
 
   it('spells mixed as sharps — there is no note being called to follow', () => {
-    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 1 }} spelling="mixed" called={null} />)
+    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 1, octave: 3 }} spelling="mixed" called={null} />)
 
     expect(screen.getByTestId('heard-note')).toHaveTextContent('C♯')
   })
@@ -29,7 +29,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening" score={null}
-        heard={{ pitchClass: 3 }}
+        heard={{ pitchClass: 3, octave: 3 }}
         spelling="mixed"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -43,7 +43,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening" score={null}
-        heard={{ pitchClass: 6 }}
+        heard={{ pitchClass: 6, octave: 3 }}
         spelling="flat"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -60,7 +60,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening" score={null}
-        heard={{ pitchClass: 3 }}
+        heard={{ pitchClass: 3, octave: 3 }}
         spelling="sharp"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -74,7 +74,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening" score={null}
-        heard={{ pitchClass: 5 }}
+        heard={{ pitchClass: 5, octave: 3 }}
         spelling="sharp"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -85,7 +85,7 @@ describe('MicReadout', () => {
   })
 
   it('judges nothing while no note is being called', () => {
-    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 5 }} spelling="sharp" called={null} />)
+    render(<MicReadout status="listening" score={null} heard={{ pitchClass: 5, octave: 3 }} spelling="sharp" called={null} />)
 
     // A count-in has a note on its way and none on screen. There is nothing to
     // be right or wrong about yet, and a cross would be a lie.
@@ -99,7 +99,7 @@ describe('MicReadout', () => {
     render(
       <MicReadout
         status="listening" score={null}
-        heard={{ pitchClass: 3 }}
+        heard={{ pitchClass: 3, octave: 3 }}
         spelling="sharp"
         called={{ pc: 3, display: 'E♭' }}
       />,
@@ -108,6 +108,71 @@ describe('MicReadout', () => {
     expect(screen.getByTestId('heard-note')).toHaveTextContent('E♭')
     expect(screen.getByTestId('heard-note')).not.toHaveTextContent('cents')
     expect(screen.getByTestId('heard-note')).not.toHaveTextContent('tune')
+  })
+
+  /**
+   * The hint answers "could that pitch have come off the string I asked for",
+   * which is the only string question a microphone can answer at all.
+   */
+  it('says the pitch is one the called string can sound', () => {
+    render(
+      <MicReadout
+        status="listening" score={null}
+        // C3 — the 5th string, 3rd fret.
+        heard={{ pitchClass: 0, octave: 3 }}
+        spelling="sharp"
+        called={{ pc: 0, display: 'C', stringIndex: 4 }}
+      />,
+    )
+
+    expect(screen.getByTestId('heard-string')).toHaveTextContent('5th string')
+    expect(screen.getByTestId('heard-string')).toHaveAccessibleName('that pitch is on the 5th string (A)')
+    // Still a hit: the string hint is beside the verdict and never in it.
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+  })
+
+  it('says the right note came out an octave the called string cannot reach', () => {
+    render(
+      <MicReadout
+        status="listening" score={null}
+        // C4 — the right note, but not on the 5th string below the 12th fret.
+        heard={{ pitchClass: 0, octave: 4 }}
+        spelling="sharp"
+        called={{ pc: 0, display: 'C', stringIndex: 4 }}
+      />,
+    )
+
+    expect(screen.getByTestId('heard-string')).toHaveTextContent('not the 5th string')
+    expect(screen.getByTestId('heard-string')).toHaveAccessibleName(
+      'that pitch is not on the 5th string (A) — the right note, somewhere else on the neck',
+    )
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+  })
+
+  it('says nothing about strings when the note itself was wrong', () => {
+    render(
+      <MicReadout
+        status="listening" score={null}
+        heard={{ pitchClass: 5, octave: 3 }}
+        spelling="sharp"
+        called={{ pc: 0, display: 'C', stringIndex: 4 }}
+      />,
+    )
+
+    expect(screen.queryByTestId('heard-string')).toBeNull()
+  })
+
+  it('says nothing about strings when no string was called', () => {
+    render(
+      <MicReadout
+        status="listening" score={null}
+        heard={{ pitchClass: 0, octave: 3 }}
+        spelling="sharp"
+        called={{ pc: 0, display: 'C' }}
+      />,
+    )
+
+    expect(screen.queryByTestId('heard-string')).toBeNull()
   })
 
   it('says so when it is listening and has heard nothing yet', () => {

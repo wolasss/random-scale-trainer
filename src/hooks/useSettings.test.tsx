@@ -11,6 +11,7 @@ const baseSettings = (): Settings => ({
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  stringCallsEnabled: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -257,6 +258,27 @@ describe('useSettings persistence', () => {
 
     expect(result.current[0].micEnabled).toBe(true)
     expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('true')
+  })
+
+  it('persists the string-call toggle, off until asked for', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].stringCallsEnabled).toBe(false)
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'stringCallsEnabled' })
+    })
+
+    expect(result.current[0].stringCallsEnabled).toBe(true)
+    expect(window.localStorage.getItem('fretboard-string-calls')).toBe('true')
+  })
+
+  it('reads a stored string-call preference back', () => {
+    window.localStorage.setItem('fretboard-string-calls', 'true')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].stringCallsEnabled).toBe(true)
   })
 
   it('persists dispatched changes per key', () => {
