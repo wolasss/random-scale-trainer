@@ -66,8 +66,9 @@ export const SCHEDULER_TICK_MS = 25
  * missing key, and a write that fails — a full quota — is dropped silently and
  * the value lives on in memory for the rest of the session.
  *
- * `practiceLog` and `iosInstallHint` reach localStorage on their own, with the
- * same crash-proofing but different salvage rules; see their notes below.
+ * `practiceLog`, `noteStats` and `iosInstallHint` reach localStorage on their
+ * own, with the same crash-proofing but different salvage rules; see their
+ * notes below.
  */
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
@@ -120,6 +121,13 @@ export const STORAGE_KEYS = {
   // log stands. The cleaned-up shape only reaches storage on the next practice
   // write, not on mount.
   practiceLog: 'rnt.history.v1',
+  // What each of the twelve notes has been worth to you: notes scored, notes
+  // hit, and the response times behind those hits. JSON, read and written by
+  // src/lib/noteStats.ts rather than the hooks above, and — unlike the practice
+  // log's day-by-day salvage — rejected *whole*. Twelve entries is not a record
+  // worth keeping half of, and a half-read one would print an accuracy nobody
+  // played; an unrecognised value reads as no record at all.
+  noteStats: 'fretboard-note-stats',
   // The name you go by on a shared challenge's board, so joining a second one
   // costs no typing. Only ever read when `?challenge=` is in the URL — without
   // it the scoreboard does not exist and this key is never touched. It is a
