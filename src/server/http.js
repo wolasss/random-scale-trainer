@@ -47,6 +47,56 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
 }
 
 /**
+ * Whether a request is a cross-site POST, and so a forgery (CWE-352).
+ *
+ * Nothing here sends CORS headers, so a cross-origin `fetch` that needs a
+ * preflight is stopped by the browser on its own. What is *not* stopped is the
+ * CORS "simple request": a form-shaped POST with `Content-Type: text/plain`
+ * goes out without a preflight, carrying whatever the victim's browser would
+ * carry, and `…/nickname` needs no Authorization to succeed. That is a page
+ * anywhere squatting names on somebody else's board and burning their claim
+ * quota, so both halves of the loophole are refused at the edge:
+ *
+ * - a `Sec-Fetch-Site` the browser attached that is not same-origin/same-site;
+ * - a Content-Type that is not `application/json`, declared or missing, which
+ *   is exactly the shape that skips the preflight the missing CORS headers
+ *   would fail. Missing counts because `fetch` sends no Content-Type at all for
+ *   a body built from a `Blob` or a typed array with no MIME type — still valid
+ *   JSON on the wire, still a simple request, and the way a forgery would dodge
+ *   a check that only read a declared type.
+ *
+ * The Sec-Fetch-Site rule is *present-and-allowed*, not present-and-non-empty:
+ * an absent header is allowed, so `curl` and the container's own checks still
+ * work, but a header that is there must pass — an empty value is not an allowed
+ * one. A POST with no body at all is likewise left alone: there is nothing for
+ * it to declare, and it is the shape a bodyless `…/finish` takes.
+ */
+export const isCrossSitePost = (method, headers) => {
+  if (method !== 'POST') {
+    return false
+  }
+
+  // Node lowercases header names, and so does the Connect middleware in
+  // vite.config.ts that shares this rule.
+  const site = headers['sec-fetch-site']
+  if (typeof site === 'string' && site !== 'same-origin' && site !== 'same-site') {
+    return true
+  }
+
+  const type = headers['content-type']
+  if (typeof type === 'string') {
+    return type.split(';')[0].trim().toLowerCase() !== 'application/json'
+  }
+
+  // Nothing declared, so the only question left is whether there is a body to
+  // declare. `Content-Length: 0` — what a bodyless POST carries — is not one.
+  const length = headers['content-length']
+  const declared = typeof length === 'string' ? length.trim() : ''
+
+  return typeof headers['transfer-encoding'] === 'string' || (declared !== '' && declared !== '0')
+}
+
+/**
  * The body, capped — or null if the caller went over and the socket was cut.
  *
  * The chunks are kept as bytes and decoded once at the end: a nickname is text
@@ -82,6 +132,14 @@ const readBody = (request, response) =>
  */
 export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) =>
   createServer(async (request, response) => {
+    // Before readBody: a forged POST is refused without its body ever being read.
+    if (isCrossSitePost(request.method, request.headers)) {
+      response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      response.end(JSON.stringify({ error: 'cross_site' }))
+      request.destroy()
+      return
+    }
+
     const body = request.method === 'POST' ? await readBody(request, response) : ''
     if (body === null) {
       return
