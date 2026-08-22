@@ -51,12 +51,14 @@ type Reply = { status: number; body: Record<string, unknown>; raw: string }
 
 const request = async (
   path: string,
-  { method = 'GET', body, token, forwardedFor, url = base }: {
+  { method = 'GET', body, token, forwardedFor, url = base, headers = {} }: {
     method?: string
     body?: unknown
     token?: string
     forwardedFor?: string
     url?: string
+    /** Spread last, so a case can override the Content-Type the body implies. */
+    headers?: Record<string, string>
   } = {},
 ): Promise<Reply> => {
   const response = await fetch(`${url}${path}`, {
@@ -65,6 +67,7 @@ const request = async (
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
       ...(forwardedFor === undefined ? {} : { 'X-Forwarded-For': forwardedFor }),
+      ...headers,
     },
     body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
   })
@@ -78,11 +81,18 @@ const claim = (challenge: string, nickname: string, extra: Parameters<typeof req
   request(`${API_PREFIX}${challenge}/nickname`, { method: 'POST', body: { nickname }, ...extra })
 
 /** Opens a session and plays `count` notes through it at the legal spacing. */
-const play = async (challenge: string, nickname: string, token: string, count: number) => {
+const play = async (
+  challenge: string,
+  nickname: string,
+  token: string,
+  count: number,
+  extra: Parameters<typeof request>[1] = {},
+) => {
   const opened = await request(`${API_PREFIX}${challenge}/session`, {
     method: 'POST',
     token,
     body: { nickname, config: { bpm: 72, beatsPerNote: 4 } },
+    ...extra,
   })
   const sessionId = String(opened.body.sessionId ?? '')
   const events = Array.from({ length: count }, (_, index) => ({
@@ -94,6 +104,7 @@ const play = async (challenge: string, nickname: string, token: string, count: n
     method: 'POST',
     token,
     body: { events },
+    ...extra,
   })
 
   return { opened, sessionId, events, posted }
@@ -304,6 +315,63 @@ describe('the edge itself', () => {
     const refused = await claim('spoofed', 'one more', { forwardedFor: '10.9.9.9, 203.0.113.9' })
     expect(refused.status).toBe(429)
     expect(refused.body).toEqual({ error: 'rate_limited' })
+  })
+
+  /**
+   * A claim needs no Authorization, so without this the page a player happens
+   * to be reading could squat names on their board in their name.
+   */
+  it('refuses a claim the browser marks as coming from another site', async () => {
+    const forged = await claim('forged', 'ada', { headers: { 'Sec-Fetch-Site': 'cross-site' } })
+
+    expect(forged.status).toBe(403)
+    expect(forged.body).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}forged`)).body.scores).toEqual([])
+    // Nothing was spent: the name is still there to be claimed.
+    expect((await claim('forged', 'ada')).status).toBe(201)
+  })
+
+  /** The CORS 'simple request' — a POST that skips the preflight entirely. */
+  it('refuses a claim declaring a Content-Type that is not JSON', async () => {
+    const forged = await claim('simple', 'ada', { headers: { 'Content-Type': 'text/plain' } })
+
+    expect(forged.status).toBe(403)
+    expect(forged.body).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}simple`)).body.scores).toEqual([])
+    expect((await claim('simple', 'ada')).status).toBe(201)
+  })
+
+  /** Present but not on the allowlist is refused; only *absent* is allowed. */
+  it('refuses a claim carrying an empty Sec-Fetch-Site', async () => {
+    const forged = await claim('empty-site', 'ada', { headers: { 'Sec-Fetch-Site': '' } })
+
+    expect(forged.status).toBe(403)
+    expect((await request(`${API_PREFIX}empty-site`)).body.scores).toEqual([])
+    expect((await claim('empty-site', 'ada')).status).toBe(201)
+  })
+
+  /** Reading a board is public — a shared link is meant to open anywhere. */
+  it('still serves a board to a cross-site GET', async () => {
+    const owner = await claim('public-read', 'ada')
+    await play('public-read', 'ada', String(owner.body.token), 2)
+
+    const read = await request(`${API_PREFIX}public-read`, { headers: { 'Sec-Fetch-Site': 'cross-site' } })
+    expect(read.status).toBe(200)
+    expect(read.body.scores).toEqual([{ nickname: 'ada', points: POINTS_PER_HIT * 2 }])
+  })
+
+  /** The shape the app's own fetches actually have, claim through to score. */
+  it('lets the app’s own same-origin JSON requests claim and score', async () => {
+    const sameOrigin = { headers: { 'Sec-Fetch-Site': 'same-origin' } }
+    const owner = await claim('same-origin', 'ada', sameOrigin)
+    expect(owner.status).toBe(201)
+
+    const { opened, posted } = await play('same-origin', 'ada', String(owner.body.token), 2, sameOrigin)
+    expect(opened.status).toBe(201)
+    expect(posted.status).toBe(200)
+    expect((await request(`${API_PREFIX}same-origin`)).body.scores).toEqual([
+      { nickname: 'ada', points: POINTS_PER_HIT * 2 },
+    ])
   })
 })
 

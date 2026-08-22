@@ -16,4 +16,5 @@ export type ScoreboardServerOptions = {
 
 export declare const MAX_BODY_BYTES: number
 export declare const clientIdentity: (remoteAddress: unknown, forwardedFor: unknown) => string
+export declare const isCrossSitePost: (method: unknown, headers: Record<string, unknown>) => boolean
 export declare const createScoreboardServer: (options: ScoreboardServerOptions) => Server

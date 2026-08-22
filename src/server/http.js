@@ -47,6 +47,42 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
 }
 
 /**
+ * Whether a request is a cross-site POST, and so a forgery (CWE-352).
+ *
+ * Nothing here sends CORS headers, so a cross-origin `fetch` that needs a
+ * preflight is stopped by the browser on its own. What is *not* stopped is the
+ * CORS "simple request": a form-shaped POST with `Content-Type: text/plain`
+ * goes out without a preflight, carrying whatever the victim's browser would
+ * carry, and `…/nickname` needs no Authorization to succeed. That is a page
+ * anywhere squatting names on somebody else's board and burning their claim
+ * quota, so both halves of the loophole are refused at the edge:
+ *
+ * - a `Sec-Fetch-Site` the browser attached that is not same-origin/same-site;
+ * - a declared Content-Type that is not `application/json`, which is exactly
+ *   the shape that skips the preflight the missing CORS headers would fail.
+ *
+ * The rule is *present-and-allowed*, not present-and-non-empty: an absent
+ * header is allowed, so `curl`, the container's own checks and the bodyless
+ * `…/finish` POST (which `fetch` sends with no Content-Type at all) still work,
+ * but a header that is there must pass — an empty value is not an allowed one.
+ */
+export const isCrossSitePost = (method, headers) => {
+  if (method !== 'POST') {
+    return false
+  }
+
+  // Node lowercases header names, and so does the Connect middleware in
+  // vite.config.ts that shares this rule.
+  const site = headers['sec-fetch-site']
+  if (typeof site === 'string' && site !== 'same-origin' && site !== 'same-site') {
+    return true
+  }
+
+  const type = headers['content-type']
+  return typeof type === 'string' && type.split(';')[0].trim().toLowerCase() !== 'application/json'
+}
+
+/**
  * The body, capped — or null if the caller went over and the socket was cut.
  *
  * The chunks are kept as bytes and decoded once at the end: a nickname is text
@@ -82,6 +118,14 @@ const readBody = (request, response) =>
  */
 export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) =>
   createServer(async (request, response) => {
+    // Before readBody: a forged POST is refused without its body ever being read.
+    if (isCrossSitePost(request.method, request.headers)) {
+      response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      response.end(JSON.stringify({ error: 'cross_site' }))
+      request.destroy()
+      return
+    }
+
     const body = request.method === 'POST' ? await readBody(request, response) : ''
     if (body === null) {
       return
