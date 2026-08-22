@@ -1,3 +1,10 @@
+## [1.22.1](https://github.com/wolasss/random-scale-trainer/compare/v1.22.0...v1.22.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **api:** refuse cross-site POSTs to the scoreboard endpoints ([#147](https://github.com/wolasss/random-scale-trainer/issues/147)) ([6e75767](https://github.com/wolasss/random-scale-trainer/commit/6e75767d483b5f46a051b60445de4131d067d250))
+
 # [1.22.0](https://github.com/wolasss/random-scale-trainer/compare/v1.21.0...v1.22.0) (2026-08-21)
 
 
