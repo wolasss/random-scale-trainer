@@ -101,7 +101,14 @@ export function useNoteStats({ engine, subscribe, active, running }: UseNoteStat
     store.flushQueued = false
 
     for (const event of store.pendingBeats) {
-      // A count-in calls nothing, so there is nothing to judge under it.
+      // A count-in calls nothing, so there is nothing to judge under it — and
+      // it does not close the note before it either. In continuous mode a
+      // cycle boundary counts in while the previous call is still the
+      // readout's open question, so closing it here would bank a miss against
+      // a note the session card still has open, or refuse a late answer the
+      // tally beside it accepted. Whether a call survives a count-in is the
+      // judging's to say, in scoring.ts, for the readout and the record at
+      // once; it is not a rule this card gets to keep privately.
       if (event.countInValue !== undefined) {
         continue
       }
@@ -177,6 +184,15 @@ export function useNoteStats({ engine, subscribe, active, running }: UseNoteStat
 
   // A pause, a stop, or a microphone that goes away mid-note leaves a question
   // nobody was given the chance to answer. It is dropped, not missed.
+  //
+  // The last note of a finite session leaves by the same door, and it does get
+  // a full span to be answered in first — so a record that scored it would
+  // count a miss the session card standing beside it never counted. Telling
+  // that ending apart from a pause means knowing when a window has expired,
+  // and a `NoteWindow` carries no end: it is closed by the next call and by
+  // nothing else. That is a rule of the shared judging, so the place to change
+  // it is `openWindow`/`useNoteScoring`, where both the readout and this
+  // record would change together.
   useEffect(() => {
     if (running && active) {
       return
