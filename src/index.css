@@ -990,6 +990,12 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* The pool can't go empty, so the last selected chip won't turn off — say so. */
+.note-chip[aria-pressed='true'][aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
 /* At full width the spelling choice lies down: label, pills and the line that
    explains them across one row, instead of a stack in a box that is a metre
    wide and mostly empty. The sheet keeps the stacked reading. */

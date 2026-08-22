@@ -109,7 +109,11 @@ export function NotePoolCard({
       <div className="panel-heading note-pool-heading">
         <div>
           <h2>Which notes</h2>
-          <p data-testid="pool-guarantee">Shuffled — you get all {count} before any repeats.</p>
+          <p data-testid="pool-guarantee">
+            {count === 1
+              ? 'One note — it repeats until you add another.'
+              : `Shuffled — you get all ${count} before any repeats.`}
+          </p>
         </div>
         <select
           className="preset-select"
@@ -144,18 +148,25 @@ export function NotePoolCard({
       </div>
 
       <div className="note-chip-grid">
-        {PITCH_CLASSES.map((pc) => (
-          <button
-            key={pc}
-            type="button"
-            className={`note-chip ${spelling === 'mixed' && !isNaturalPitchClass(pc) ? 'dual' : ''}`}
-            data-testid={`note-chip-${pc}`}
-            aria-pressed={pool.includes(pc)}
-            onClick={() => onTogglePc(pc)}
-          >
-            {chipLabel(pc)}
-          </button>
-        ))}
+        {PITCH_CLASSES.map((pc) => {
+          // The pool can never empty, so the sole survivor cannot be switched off.
+          const locked = count === 1 && pool.includes(pc)
+
+          return (
+            <button
+              key={pc}
+              type="button"
+              className={`note-chip ${spelling === 'mixed' && !isNaturalPitchClass(pc) ? 'dual' : ''}`}
+              data-testid={`note-chip-${pc}`}
+              aria-pressed={pool.includes(pc)}
+              aria-disabled={locked || undefined}
+              title={locked ? 'The last note stays selected — add another to remove this one' : undefined}
+              onClick={() => onTogglePc(pc)}
+            >
+              {chipLabel(pc)}
+            </button>
+          )
+        })}
       </div>
 
       {isNaming ? (

@@ -4,6 +4,8 @@ import { NotePoolCard } from './NotePoolCard'
 import { useSavedPresets } from '../hooks/useSavedPresets'
 import { STORAGE_KEYS } from '../constants'
 
+const LOCKED_TITLE = 'The last note stays selected — add another to remove this one'
+
 type CardProps = Parameters<typeof NotePoolCard>[0]
 type OwnProps = Omit<CardProps, 'saved' | 'onSaved' | 'savedPersisted'>
 
@@ -82,6 +84,33 @@ describe('NotePoolCard preset selector', () => {
     fireEvent.change(screen.getByTestId('preset-select'), { target: { value: 'e-flat-major' } })
 
     expect(props.onPreset).toHaveBeenCalledWith('e-flat-major')
+  })
+})
+
+describe('NotePoolCard', () => {
+  it('counts the notes you get before a repeat', () => {
+    renderCard({ pool: [0, 4, 7], spelling: 'sharp' })
+
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('Shuffled — you get all 3 before any repeats.')
+    expect(screen.getByTestId('note-chip-0')).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('says a single note just repeats', () => {
+    renderCard({ pool: [0], spelling: 'sharp' })
+
+    expect(screen.getByTestId('pool-guarantee')).toHaveTextContent('One note — it repeats until you add another.')
+  })
+
+  it('marks the last remaining chip as locked', () => {
+    renderCard({ pool: [0], spelling: 'sharp' })
+
+    const last = screen.getByTestId('note-chip-0')
+    expect(last).toHaveAttribute('aria-disabled', 'true')
+    expect(last).toHaveAttribute('title', LOCKED_TITLE)
+
+    const unselected = screen.getByTestId('note-chip-4')
+    expect(unselected).not.toHaveAttribute('aria-disabled')
+    expect(unselected).not.toHaveAttribute('title')
   })
 })
 
