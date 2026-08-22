@@ -351,7 +351,7 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
               accept="application/json,.json"
               tabIndex={-1}
               aria-hidden="true"
-              onChange={handleFile}
+              onChange={(event) => void handleFile(event)}
               data-testid="history-file"
             />
 
