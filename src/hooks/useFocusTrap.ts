@@ -16,6 +16,19 @@ function focusableWithin(root: HTMLElement) {
   )
 }
 
+export type FocusTrapOptions = {
+  /**
+   * Listen on the capture phase and stop the press there. For a trap that opens
+   * on top of another one — the practice history over the practice sheet —
+   * capture is what makes this one run first, and stopping is what keeps the
+   * sheet below from acting on the same press: otherwise one Escape closes
+   * both, and two tab traps pull the focus in opposite directions.
+   */
+  capture?: boolean
+  /** Where focus starts, when the first focusable isn't the right landing spot. */
+  initialFocus?: RefObject<HTMLElement | null>
+}
+
 /**
  * Holds keyboard focus inside `ref` for as long as `open`, and calls `onClose`
  * on Escape.
@@ -28,7 +41,9 @@ export function useFocusTrap(
   ref: RefObject<HTMLElement | null>,
   open: boolean,
   onClose: () => void,
+  options: FocusTrapOptions = {},
 ): void {
+  const { capture = false, initialFocus } = options
   const onCloseRef = useRef(onClose)
 
   useEffect(() => {
@@ -43,13 +58,18 @@ export function useFocusTrap(
     // Whatever opened the sheet — the setup button, on the stand layout — is
     // where a keyboard user expects to land again once it is gone.
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    if (ref.current !== null) {
+    if (initialFocus !== undefined) {
+      initialFocus.current?.focus()
+    } else if (ref.current !== null) {
       focusableWithin(ref.current)[0]?.focus()
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        if (capture) {
+          event.stopPropagation()
+        }
         onCloseRef.current()
         return
       }
@@ -63,6 +83,10 @@ export function useFocusTrap(
       const sheet = ref.current
       if (sheet === null) {
         return
+      }
+
+      if (capture) {
+        event.stopPropagation()
       }
 
       const focusable = focusableWithin(sheet)
@@ -95,15 +119,23 @@ export function useFocusTrap(
     // makes the note it is covering impossible to get back to.
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKeyDown)
+    if (capture) {
+      document.addEventListener('keydown', onKeyDown, true)
+    } else {
+      window.addEventListener('keydown', onKeyDown)
+    }
 
     return () => {
       document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', onKeyDown)
+      if (capture) {
+        document.removeEventListener('keydown', onKeyDown, true)
+      } else {
+        window.removeEventListener('keydown', onKeyDown)
+      }
 
       if (opener !== null && opener.isConnected) {
         opener.focus()
       }
     }
-  }, [open, ref])
+  }, [open, ref, capture, initialFocus])
 }
