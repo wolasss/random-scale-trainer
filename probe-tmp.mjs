@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs'
-import { Builder, By } from 'selenium-webdriver'
+import { Builder } from 'selenium-webdriver'
 import chrome from 'selenium-webdriver/chrome.js'
 const [out, w, h] = process.argv.slice(2)
 const width = Number(w), height = Number(h)
