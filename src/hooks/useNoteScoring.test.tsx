@@ -31,7 +31,7 @@ const createFakeMic = () => {
     },
     emit: (pitchClass: number, audioTime: number, octave = 3) => {
       for (const listener of listeners) {
-        listener({ pitchClass, cents: 0, octave, clarity: 0.99, audioTime })
+        listener({ pitchClass, cents: 0, octave, clarity: 0.99, level: 0.2, audioTime })
       }
     },
   }

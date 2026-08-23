@@ -44,6 +44,18 @@ export type PitchReading = {
   frequency: number
   /** The NSDF peak: 1 is perfectly periodic, 0 is not periodic at all. */
   clarity: number
+  /** RMS level of the frame, used to distinguish a new pluck from a sustain. */
+  level: number
+}
+
+/** RMS level of a frame, also useful when the frame has no detectable pitch. */
+export const measureFrameLevel = (frame: Float32Array): number => {
+  let sumOfSquares = 0
+  for (let index = 0; index < frame.length; index += 1) {
+    sumOfSquares += frame[index] * frame[index]
+  }
+
+  return Math.sqrt(sumOfSquares / frame.length)
 }
 
 /** Positive-region maxima, ascending by lag — one per lobe, not per wiggle. */
@@ -102,13 +114,8 @@ const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag
  */
 export function detectPitch(frame: Float32Array, sampleRate: number): PitchReading | null {
   const size = frame.length
-
-  let sumOfSquares = 0
-  for (let index = 0; index < size; index += 1) {
-    sumOfSquares += frame[index] * frame[index]
-  }
-
-  if (Math.sqrt(sumOfSquares / size) < SILENCE_RMS) {
+  const level = measureFrameLevel(frame)
+  if (level < SILENCE_RMS) {
     return null
   }
 
@@ -159,7 +166,7 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
     return null
   }
 
-  return { frequency, clarity }
+  return { frequency, clarity, level }
 }
 
 /**

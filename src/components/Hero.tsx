@@ -3,12 +3,15 @@ import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
+import { HitBubbles } from './HitBubbles'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
   beatsPerNote: number
   poolSize: number
   ringRef: RefObject<HTMLDivElement | null>
+  /** Increases for every distinct, confirmed pluck of the called note. */
+  hitPulses?: number
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
@@ -37,15 +40,20 @@ function NoteLine({
   className,
   ringRef,
   glyph,
+  hitPulses,
+  feedbackActive,
 }: {
   className: string
   ringRef: RefObject<HTMLDivElement | null>
   glyph: ReactNode
+  hitPulses: number
+  feedbackActive: boolean
 }) {
   return (
     <div className={className} data-testid="now-playing">
       <div className="beat-ring" ref={ringRef} aria-hidden="true" />
       {glyph}
+      <HitBubbles pulses={hitPulses} active={feedbackActive} />
     </div>
   )
 }
@@ -77,7 +85,16 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idlePreview, variant = 'card' }: HeroProps) {
+export function Hero({
+  snapshot,
+  beatsPerNote,
+  poolSize,
+  ringRef,
+  hitPulses = 0,
+  message,
+  idlePreview,
+  variant = 'card',
+}: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
@@ -126,7 +143,13 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   if (isStage) {
     return (
       <section className="stage-hero">
-        <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+        <NoteLine
+          className={`hero-note-line stage-note-line ${state}`}
+          ringRef={ringRef}
+          glyph={glyph}
+          hitPulses={hitPulses}
+          feedbackActive={state === 'active'}
+        />
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
@@ -155,7 +178,13 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
         </div>
       </div>
 
-      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      <NoteLine
+        className={`hero-note-line ${state}`}
+        ringRef={ringRef}
+        glyph={glyph}
+        hitPulses={hitPulses}
+        feedbackActive={state === 'active'}
+      />
 
       <PlaybackMessage>{coachingLine}</PlaybackMessage>
 

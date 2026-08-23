@@ -114,6 +114,7 @@ const play = (pitchClass: number) => {
   vi.mocked(detectPitch).mockReturnValue({
     frequency: 440 * 2 ** ((60 + pitchClass - 69) / 12),
     clarity: 0.99,
+    level: 0.2,
   })
 }
 

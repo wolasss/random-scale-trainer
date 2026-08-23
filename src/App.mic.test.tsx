@@ -87,10 +87,11 @@ const INTO_A_NOTE_MS = NOTE_MS + 100
 const COUNT_IN_MS = 4 * BEAT_MS
 
 /** The named pitch class, played in the fourth octave. */
-const play = (pitchClass: number) => {
+const play = (pitchClass: number, level = 0.2) => {
   vi.mocked(detectPitch).mockReturnValue({
     frequency: 440 * 2 ** ((60 + pitchClass - 69) / 12),
     clarity: 0.99,
+    level,
   })
 }
 
@@ -277,6 +278,7 @@ describe('listening for the player', () => {
     await start()
     // Nothing to report before a note has been judged.
     expect(screen.queryByTestId('score-tally')).toBeNull()
+    expect(screen.queryByTestId('hit-bubble')).toBeNull()
 
     // The first note goes by unplayed, so the second one is called with a miss
     // already on the board — which is what makes the hit below visible as a
@@ -294,6 +296,26 @@ describe('listening for the player', () => {
     expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
+    expect(screen.getAllByTestId('hit-bubble')).toHaveLength(1)
+    expect(screen.getByTestId('hit-bubble')).toHaveTextContent('✓')
+
+    // The detector keeps reporting this sustained pitch, but the settled note
+    // must never celebrate again.
+    await advance(200)
+    expect(screen.getAllByTestId('hit-bubble')).toHaveLength(1)
+
+    // Silence separates a second physical pluck of the same called note from
+    // the sustain. It gets its own visual acknowledgement without scoring the
+    // call twice.
+    hush()
+    await advance(200)
+    play(calledPitchClass())
+    await advance(100)
+    expect(screen.getAllByTestId('hit-bubble')).toHaveLength(2)
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
+
+    await advance(800)
+    expect(screen.queryByTestId('hit-bubble')).toBeNull()
   })
 
   it('scores a miss for a note that came and went unplayed', async () => {
@@ -310,6 +332,7 @@ describe('listening for the player', () => {
     expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'false')
     expect(screen.getByTestId('score-verdict')).toHaveTextContent('missed')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('0/1')
+    expect(screen.queryByTestId('hit-bubble')).toBeNull()
   })
 
   it('holds the note it heard until the next one is called', async () => {

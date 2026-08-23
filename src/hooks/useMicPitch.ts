@@ -8,7 +8,7 @@ import {
   type MicCapture,
   type PcmFrame,
 } from '../lib/audio/mic'
-import { detectPitch, frequencyToPitch } from '../lib/audio/pitch'
+import { detectPitch, frequencyToPitch, measureFrameLevel } from '../lib/audio/pitch'
 
 /** How often a frame is pulled off the analyser and run through the detector. */
 export const MIC_POLL_MS = 50
@@ -30,10 +30,21 @@ export type HeardPitch = {
   cents: number
   octave: number
   clarity: number
+  /** RMS frame level: attack rises can identify a second physical pluck. */
+  level: number
   audioTime: number
 }
 
 export type HeardPitchListener = (heard: HeardPitch) => void
+
+/** Every microphone frame outside the app's own cue, including real silence. */
+export type MicSample = {
+  heard: HeardPitch | null
+  level: number
+  audioTime: number
+}
+
+export type MicSampleListener = (sample: MicSample) => void
 
 /**
  * The slice of AudioEngine the microphone needs. Narrow on purpose: a fake in a
@@ -89,10 +100,20 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
 
   const listenersRef = useRef<Set<HeardPitchListener> | null>(null)
   listenersRef.current ??= new Set()
+  const sampleListenersRef = useRef<Set<MicSampleListener> | null>(null)
+  sampleListenersRef.current ??= new Set()
 
   /** Stable, so a subscriber can bind once — this is what scoring hangs off. */
   const subscribe = useCallback((listener: HeardPitchListener) => {
     const listeners = listenersRef.current
+    listeners?.add(listener)
+    return () => {
+      listeners?.delete(listener)
+    }
+  }, [])
+
+  const subscribeSamples = useCallback((listener: MicSampleListener) => {
+    const listeners = sampleListenersRef.current
     listeners?.add(listener)
     return () => {
       listeners?.delete(listener)
@@ -135,12 +156,32 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       //
       // Neither the app's own sound nor the silence after a note is news: the
       // reading already on screen stands until something is actually heard.
-      if (detected === null || engineRef.current.isWithinCue(audioTime)) {
+      if (engineRef.current.isWithinCue(audioTime)) {
+        return
+      }
+
+      if (detected === null) {
+        const sample: MicSample = { heard: null, level: measureFrameLevel(frame), audioTime }
+        for (const listener of sampleListenersRef.current ?? []) {
+          listener(sample)
+        }
         return
       }
 
       const { pitchClass, cents, octave } = frequencyToPitch(detected.frequency)
-      const event: HeardPitch = { pitchClass, cents, octave, clarity: detected.clarity, audioTime }
+      const event: HeardPitch = {
+        pitchClass,
+        cents,
+        octave,
+        clarity: detected.clarity,
+        level: detected.level,
+        audioTime,
+      }
+
+      const sample: MicSample = { heard: event, level: event.level, audioTime }
+      for (const listener of sampleListenersRef.current ?? []) {
+        listener(sample)
+      }
 
       for (const listener of listenersRef.current ?? []) {
         listener(event)
@@ -208,5 +249,5 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
   // the last call is gone in the same render that puts the new call on screen.
   const heard = callId !== null && reading?.callId === callId ? reading.heard : null
 
-  return { status, heard, subscribe }
+  return { status, heard, subscribe, subscribeSamples }
 }
