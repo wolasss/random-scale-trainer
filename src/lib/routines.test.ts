@@ -17,6 +17,9 @@ import {
   SEEDED_ROUTINES,
   suggestRoutineName,
   withAppendedBlock,
+  withBlockDuration,
+  withInsertedBlock,
+  withMovedBlock,
   withRemovedBlock,
   type Routine,
   type RoutineBlock,
@@ -237,16 +240,16 @@ describe('suggestRoutineName', () => {
   })
 })
 
-describe('withAppendedBlock', () => {
-  const settings = {
-    bpm: 90,
-    beatsPerNote: 2 as const,
-    pool: [1, 3, 6, 8, 10],
-    spelling: 'sharp' as const,
-    ramp: false,
-    rampTo: 130,
-  }
+const settings = {
+  bpm: 90,
+  beatsPerNote: 2 as const,
+  pool: [1, 3, 6, 8, 10],
+  spelling: 'sharp' as const,
+  ramp: false,
+  rampTo: 130,
+}
 
+describe('withAppendedBlock', () => {
   it('times the lone open block on the way, or it could never be passed', () => {
     const grown = withAppendedBlock(routine([block({ dur: null })]), settings)
 
@@ -259,6 +262,163 @@ describe('withAppendedBlock', () => {
     const grown = withAppendedBlock(routine([block({ dur: 240 }), block({ dur: 180 })]), settings)
 
     expect(grown.blocks.map((entry) => entry.dur)).toEqual([240, 180, 120])
+  })
+})
+
+describe('withInsertedBlock', () => {
+  const workout = () => routine([block({ name: 'A', dur: 240 }), block({ name: 'B', dur: 180 })])
+
+  it('puts the new block in front of the one it was aimed at', () => {
+    const grown = withInsertedBlock(workout(), 0, settings)
+
+    expect(grown.blocks.map((entry) => entry.name)).toEqual(['Accidentals', 'A', 'B'])
+    expect(grown.blocks[0]).toMatchObject({ bpm: 90, beats: 2, dur: 120 })
+  })
+
+  it('inserts between blocks and at the end', () => {
+    expect(withInsertedBlock(workout(), 1, settings).blocks.map((entry) => entry.name)).toEqual([
+      'A',
+      'Accidentals',
+      'B',
+    ])
+    expect(withInsertedBlock(workout(), 2, settings).blocks.map((entry) => entry.name)).toEqual([
+      'A',
+      'B',
+      'Accidentals',
+    ])
+  })
+
+  it('clamps an index that points outside the sequence', () => {
+    expect(withInsertedBlock(workout(), -5, settings).blocks.map((entry) => entry.name)).toEqual([
+      'Accidentals',
+      'A',
+      'B',
+    ])
+    expect(withInsertedBlock(workout(), 99, settings).blocks.map((entry) => entry.name)).toEqual([
+      'A',
+      'B',
+      'Accidentals',
+    ])
+  })
+
+  it('times the lone open block on the way, wherever the insert lands', () => {
+    const grown = withInsertedBlock(routine([block({ name: 'Setup', dur: null })]), 0, settings)
+
+    expect(grown.blocks.map((entry) => entry.name)).toEqual(['Accidentals', 'Setup'])
+    expect(grown.blocks.map((entry) => entry.dur)).toEqual([120, 120])
+  })
+
+  it('leaves the source routine alone', () => {
+    const source = workout()
+    withInsertedBlock(source, 1, settings)
+
+    expect(source.blocks.map((entry) => entry.name)).toEqual(['A', 'B'])
+  })
+})
+
+describe('withMovedBlock', () => {
+  const workout = () =>
+    routine([
+      block({ name: 'A', bpm: 60, dur: 240 }),
+      block({ name: 'B', bpm: 80, dur: 180 }),
+      block({ name: 'C', bpm: 100, dur: 120 }),
+    ])
+
+  it('swaps whole blocks with the neighbour, not just their names', () => {
+    const moved = withMovedBlock(workout(), 1, -1)
+
+    expect(moved.blocks.map((entry) => entry.name)).toEqual(['B', 'A', 'C'])
+    expect(moved.blocks.map((entry) => entry.bpm)).toEqual([80, 60, 100])
+    expect(moved.blocks.map((entry) => entry.dur)).toEqual([180, 240, 120])
+  })
+
+  it('moves a block later as readily as earlier', () => {
+    expect(withMovedBlock(workout(), 1, 1).blocks.map((entry) => entry.name)).toEqual(['A', 'C', 'B'])
+  })
+
+  it('refuses a move off either end, and an index that is not a block', () => {
+    const source = workout()
+
+    expect(withMovedBlock(source, 0, -1)).toBe(source)
+    expect(withMovedBlock(source, 2, 1)).toBe(source)
+    expect(withMovedBlock(source, 7, -1)).toBe(source)
+    expect(withMovedBlock(source, -1, 1)).toBe(source)
+  })
+
+  it('leaves the source routine alone', () => {
+    const source = workout()
+    withMovedBlock(source, 0, 1)
+
+    expect(source.blocks.map((entry) => entry.name)).toEqual(['A', 'B', 'C'])
+  })
+})
+
+describe('withBlockDuration', () => {
+  const workout = () => routine([block({ name: 'A', dur: 240 }), block({ name: 'B', dur: 180 })])
+
+  it('retimes the named block and leaves the rest on their own clocks', () => {
+    expect(withBlockDuration(workout(), 0, 270).blocks.map((entry) => entry.dur)).toEqual([270, 180])
+    expect(withBlockDuration(workout(), 1, 150).blocks.map((entry) => entry.dur)).toEqual([240, 150])
+  })
+
+  it('rounds to whole seconds, the only shape storage reads back', () => {
+    expect(withBlockDuration(workout(), 0, 150.4).blocks[0].dur).toBe(150)
+  })
+
+  /**
+   * A ceiling here would disagree with the parser, which accepts any positive
+   * duration — a stored 90-minute block must come back 30 seconds shorter, not
+   * truncated to whatever maximum the buttons happen to imply.
+   */
+  it('trims a very long block by the step rather than capping it', () => {
+    const long = routine([block({ dur: 5400 }), block({ dur: 180 })])
+
+    expect(withBlockDuration(long, 0, 5370).blocks[0].dur).toBe(5370)
+  })
+
+  it('refuses a duration that would leave the block unrunnable', () => {
+    const source = workout()
+
+    expect(withBlockDuration(source, 0, 0)).toBe(source)
+    expect(withBlockDuration(source, 0, -30)).toBe(source)
+    expect(withBlockDuration(source, 0, Number.NaN)).toBe(source)
+    expect(withBlockDuration(source, 0, 0.4)).toBe(source)
+  })
+
+  it('refuses a change that changes nothing, and an index that is not a block', () => {
+    const source = workout()
+
+    expect(withBlockDuration(source, 0, 240)).toBe(source)
+    expect(withBlockDuration(source, 0, 240.2)).toBe(source)
+    expect(withBlockDuration(source, 5, 120)).toBe(source)
+  })
+
+  /** Untimed inside a sequence stalls the routine — normalizeBlocks' own rule. */
+  it('refuses to untime a block that has neighbours', () => {
+    const source = workout()
+
+    expect(withBlockDuration(source, 0, null)).toBe(source)
+  })
+
+  it('untimes a lone block, turning a workout of one back into a setup', () => {
+    const untimed = withBlockDuration(routine([block({ dur: 540 })]), 0, null)
+
+    expect(untimed.blocks[0].dur).toBeNull()
+    expect(isOpenEnded(untimed)).toBe(true)
+  })
+
+  it('gives a lone open block a clock, which is the trip back', () => {
+    const timed = withBlockDuration(routine([block({ dur: null })]), 0, 120)
+
+    expect(timed.blocks[0].dur).toBe(120)
+    expect(isOpenEnded(timed)).toBe(false)
+  })
+
+  it('leaves the source routine alone', () => {
+    const source = workout()
+    withBlockDuration(source, 0, 300)
+
+    expect(source.blocks.map((entry) => entry.dur)).toEqual([240, 180])
   })
 })
 

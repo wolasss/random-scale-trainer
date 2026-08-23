@@ -378,6 +378,203 @@ describe('duplicate', () => {
   })
 })
 
+describe('moveBlock around the active block', () => {
+  it('carries the active block with it, clock and settings intact', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.moveBlock(1, -1)
+    })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['Second', 'First', 'Third'])
+    expect(routine.blockIndex).toBe(0)
+    expect(activeBlockName(routine)).toBe('Second')
+    // Renumbered, not restarted — the same block is still running.
+    expect(routine.blockElapsedMs).toBe(70_000)
+    expect(settings).toMatchObject({ bpm: 80, beatsPerNote: 2 })
+  })
+
+  it('follows the active block the other way too', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.moveBlock(1, 1)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['First', 'Third', 'Second'])
+    expect(routine.blockIndex).toBe(2)
+    expect(activeBlockName(routine)).toBe('Second')
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+
+  /** The block that was swapped *into* the active slot must not steal it. */
+  it('follows the active block when its neighbour is the one moved', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.moveBlock(2, -1)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['First', 'Third', 'Second'])
+    expect(routine.blockIndex).toBe(2)
+    expect(activeBlockName(routine)).toBe('Second')
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+
+  it('leaves the active index alone when two other blocks trade places', () => {
+    const view = renderOnBlock(2)
+
+    act(() => {
+      view.result.current.routine.moveBlock(0, 1)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['Second', 'First', 'Third'])
+    expect(routine.blockIndex).toBe(2)
+    expect(activeBlockName(routine)).toBe('Third')
+  })
+
+  it('does nothing at the ends of the sequence', () => {
+    const view = renderOnBlock(1)
+    const before = view.result.current.routine.selected
+
+    act(() => {
+      view.result.current.routine.moveBlock(0, -1)
+    })
+
+    expect(view.result.current.routine.selected).toBe(before)
+    expect(view.result.current.routine.blockIndex).toBe(1)
+  })
+})
+
+describe('setBlockDuration', () => {
+  it('retimes a later block without touching the running one', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.setBlockDuration(2, 300)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.dur)).toEqual([120, 180, 300])
+    expect(routine.blockIndex).toBe(1)
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+
+  it('keeps the running clock when the active block is retimed', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.setBlockDuration(1, 210)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks[1].dur).toBe(210)
+    expect(routine.blockIndex).toBe(1)
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+
+  it('refuses to untime a block inside a sequence', () => {
+    const view = renderOnBlock(1)
+    const before = view.result.current.routine.selected
+
+    act(() => {
+      view.result.current.routine.setBlockDuration(1, null)
+    })
+
+    expect(view.result.current.routine.selected).toBe(before)
+  })
+
+  /** A block cut below the time it has already run is meant to hand over. */
+  it('hands over on the next tick when the active block is cut short', () => {
+    const { view } = renderClock()
+
+    tickAt(view, 60_000)
+    expect(view.result.current.blockIndex).toBe(0)
+
+    act(() => {
+      view.result.current.setBlockDuration(0, 30)
+    })
+    tickAt(view, 60_200)
+
+    expect(view.result.current.blockIndex).toBe(1)
+  })
+
+  /**
+   * The trap the untimed → timed case exists for: a setup that has been running
+   * ten minutes must get the full two minutes it was just handed, not expire
+   * against a session clock that ran long before the timer existed.
+   */
+  it('starts the clock now when a lone open block is given one', () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.routines,
+      JSON.stringify([{ id: 'setup', name: 'Setup', blocks: [block('Open', { dur: null })] }]),
+    )
+
+    const onFinish = vi.fn()
+    const view = renderHook(
+      ({ sessionElapsedMs }) =>
+        useRoutine({ settings: STATIC_SETTINGS, dispatch: vi.fn(), sessionElapsedMs, isPlaying: true, onFinish }),
+      { initialProps: { sessionElapsedMs: 0 } },
+    )
+
+    act(() => {
+      view.result.current.select('setup')
+    })
+    act(() => {
+      view.result.current.tick(600_000)
+    })
+    view.rerender({ sessionElapsedMs: 600_000 })
+    expect(view.result.current.blockElapsedMs).toBe(600_000)
+
+    act(() => {
+      view.result.current.setBlockDuration(0, 120)
+    })
+    view.rerender({ sessionElapsedMs: 600_000 })
+
+    expect(view.result.current.blockElapsedMs).toBe(0)
+
+    act(() => {
+      view.result.current.tick(600_200)
+    })
+    expect(view.result.current.finished).toBe(false)
+    expect(onFinish).not.toHaveBeenCalled()
+  })
+})
+
+describe('insertBlock', () => {
+  it('pushes the active block down a place, clock intact', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.insertBlock(1)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['First', 'Accidentals', 'Second', 'Third'])
+    expect(routine.blockIndex).toBe(2)
+    expect(activeBlockName(routine)).toBe('Second')
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+
+  it('leaves the active index alone when the new block lands after it', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.insertBlock(2)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['First', 'Second', 'Accidentals', 'Third'])
+    expect(routine.blockIndex).toBe(1)
+    expect(activeBlockName(routine)).toBe('Second')
+    expect(routine.blockElapsedMs).toBe(70_000)
+  })
+})
+
 describe('removeBlock around the active block', () => {
   it('shifts the active index down when an earlier block goes, clock intact', () => {
     const view = renderOnBlock(1)
