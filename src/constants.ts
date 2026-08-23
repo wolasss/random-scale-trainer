@@ -95,6 +95,12 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Which tuning the neck is drawn in, as its id. An id no tuning answers to is
+  // rejected and standard stands.
+  tuning: 'fretboard-tuning',
+  // Where the capo is clamped, as a single digit. Anything else — a blank, a
+  // fret past the offered range — is rejected and the neck starts at the nut.
+  capo: 'fretboard-capo',
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',

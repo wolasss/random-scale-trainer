@@ -1019,6 +1019,22 @@ input[type='range'] {
   gap: 0.3rem;
 }
 
+/* The tuning and the capo sit under the hint rather than beside the title: the
+   neck column of the stage is only as wide as the board, and a pair of selects
+   on the heading row would be the thing that widened it. */
+.fretboard-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+
+.fretboard-controls .preset-select {
+  max-width: 150px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
 /* On a phone the neck is wider than its card — 400px of board in a box nearer
    294px — so frets 10-12 sit behind an edge that, with every cell closing on a
    fret hairline, reads as the end of the map rather than the start of a scroll.

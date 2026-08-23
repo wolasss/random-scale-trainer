@@ -3,8 +3,9 @@ import { clampBpm, clampRampTarget, defaultRampTarget, type BeatsPerNote } from 
 import { sortedPcs, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
 import { initSettings, writeChangedSettings, type Settings, type SessionGoalMin } from '../lib/settingsStorage'
+import { isCapo, type TuningId } from '../lib/tuning'
 
-export type { BeatsPerNote, Settings, SessionGoalMin }
+export type { BeatsPerNote, Settings, SessionGoalMin, TuningId }
 
 export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'showFretboard' | 'micEnabled'
 
@@ -23,6 +24,8 @@ export type SettingsAction =
   | { type: 'setPreset'; preset: PresetId }
   | { type: 'setPool'; pool: readonly number[] }
   | { type: 'setSessionGoal'; minutes: SessionGoalMin }
+  | { type: 'setTuning'; value: TuningId }
+  | { type: 'setCapo'; value: number }
 
 export const settingsReducer = (state: Settings, action: SettingsAction): Settings => {
   switch (action.type) {
@@ -94,6 +97,12 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
     }
     case 'setSessionGoal':
       return { ...state, sessionGoalMin: action.minutes }
+    case 'setTuning':
+      return { ...state, tuning: action.value }
+    case 'setCapo':
+      // Only frets the picker offers: a capo elsewhere would draw a window the
+      // neck has no numbers for.
+      return isCapo(action.value) ? { ...state, capo: action.value } : state
   }
 }
 

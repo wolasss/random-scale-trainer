@@ -20,8 +20,10 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
-- "On the neck" fretboard map showing every position of the called note (frets 0–12, standard
-  tuning), hideable from "How it runs"
+- "On the neck" fretboard map showing every position of the called note across twelve frets, in
+  the tuning you actually play — standard, Drop D, E♭ standard, DADGAD, Open G or 4-string bass —
+  and with a capo up to the 7th fret, which slides the window and the fret numbers up to meet it.
+  Hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
   target you choose, then holds there — so a session ends on a tempo you reached, not the first one
   you missed. Routine blocks own their own ramp and ceiling

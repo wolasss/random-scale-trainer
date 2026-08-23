@@ -11,6 +11,8 @@ const baseSettings = (): Settings => ({
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  tuning: 'standard',
+  capo: 0,
   micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -95,6 +97,18 @@ describe('settingsReducer', () => {
     expect(settingsReducer(grown, { type: 'togglePoolNote', pc: 3 }).pool).toEqual([0])
   })
 
+  it('takes the tuning it is handed', () => {
+    expect(settingsReducer(baseSettings(), { type: 'setTuning', value: 'dadgad' }).tuning).toBe('dadgad')
+  })
+
+  it('accepts a capo the picker offers and refuses one it does not', () => {
+    const state = baseSettings()
+
+    expect(settingsReducer(state, { type: 'setCapo', value: 3 }).capo).toBe(3)
+    expect(settingsReducer(state, { type: 'setCapo', value: 99 })).toBe(state)
+    expect(settingsReducer(state, { type: 'setCapo', value: -1 })).toBe(state)
+  })
+
   it('applies presets as sorted pools and ignores custom', () => {
     const state = baseSettings()
 
@@ -123,6 +137,8 @@ describe('useSettings persistence', () => {
     window.localStorage.setItem('fretboard-spelling', 'sharp')
     window.localStorage.setItem('fretboard-beats-per-note', '8')
     window.localStorage.setItem('fretboard-show-neck', 'false')
+    window.localStorage.setItem('fretboard-tuning', 'drop-d')
+    window.localStorage.setItem('fretboard-capo', '2')
 
     const { result } = renderHook(() => useSettings())
 
@@ -132,6 +148,8 @@ describe('useSettings persistence', () => {
       spelling: 'sharp',
       beatsPerNote: 8,
       showFretboard: false,
+      tuning: 'drop-d',
+      capo: 2,
     })
   })
 
@@ -139,6 +157,8 @@ describe('useSettings persistence', () => {
     window.localStorage.setItem('fretboard-note-pool', '5,5,99')
     window.localStorage.setItem('fretboard-beats-per-note', '3')
     window.localStorage.setItem('fretboard-spelling', 'both')
+    window.localStorage.setItem('fretboard-tuning', 'banjo')
+    window.localStorage.setItem('fretboard-capo', '99')
 
     const { result } = renderHook(() => useSettings())
 
@@ -146,7 +166,26 @@ describe('useSettings persistence', () => {
       pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       beatsPerNote: 4,
       spelling: 'mixed',
+      tuning: 'standard',
+      capo: 0,
     })
+  })
+
+  /**
+   * `Number('')` and `Number(' ')` are both 0, so a corrupted capo key would
+   * otherwise read as a deliberate "no capo" rather than as nothing at all.
+   */
+  it.each([
+    ['an empty value', ''],
+    ['a whitespace value', ' '],
+    ['junk', 'x'],
+    ['a fret past the picker', '9'],
+  ])('falls back to no capo on %s', (_label, stored) => {
+    window.localStorage.setItem('fretboard-capo', stored)
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].capo).toBe(0)
   })
 
   /**

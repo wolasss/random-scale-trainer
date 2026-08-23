@@ -428,6 +428,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
+      tuning={settings.tuning}
+      capo={settings.capo}
+      onTuningChange={(value) => dispatch({ type: 'setTuning', value })}
+      onCapoChange={(value) => dispatch({ type: 'setCapo', value })}
     />
   ) : null
 

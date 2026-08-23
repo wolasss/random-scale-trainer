@@ -11,6 +11,7 @@ import {
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
+import { DEFAULT_TUNING_ID, isCapo, isTuningId, type TuningId } from './tuning'
 
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 
@@ -25,6 +26,10 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Which tuning that card draws. */
+  tuning: TuningId
+  /** Which fret the capo is clamped to; 0 means none. */
+  capo: number
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
   spelling: SpellingPreference
@@ -86,6 +91,18 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  tuning: {
+    storageKey: STORAGE_KEYS.tuning,
+    deserialize: (raw) => (isTuningId(raw) ? raw : undefined),
+    serialize: String,
+  },
+  capo: {
+    storageKey: STORAGE_KEYS.capo,
+    // Checked as text first, like a pool segment: `Number('')` and `Number(' ')`
+    // are both 0, so a blank value would otherwise read as a deliberate "no capo".
+    deserialize: (raw) => (/^\d$/.test(raw) && isCapo(Number(raw)) ? Number(raw) : undefined),
+    serialize: String,
+  },
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -125,6 +142,8 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: true,
+  tuning: DEFAULT_TUNING_ID,
+  capo: 0,
   micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],

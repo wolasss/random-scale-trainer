@@ -1,83 +1,121 @@
-// Standard tuning, high e → low E, by MIDI note number.
-const STRING_MIDI = [64, 59, 55, 50, 45, 40]
-const STRING_LABELS = ['e', 'B', 'G', 'D', 'A', 'E']
-const STRING_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th']
-const FRETS = Array.from({ length: 13 }, (_, fret) => fret)
-
-// Classic inlay markers, drawn on the string boundary below the given row so
-// singles sit on the neck's center line and fret 12 gets a symmetric pair.
-function hasInlay(stringIndex: number, fret: number) {
-  if (fret === 12) return stringIndex === 1 || stringIndex === 3
-  return stringIndex === 2 && [3, 5, 7, 9].includes(fret)
-}
-
-// One model of where a pitch class lives: for each string, high e first, the
-// frets in 0–12 that sound it. The dots and the spoken reading are both drawn
-// from the same instance, so the picture and its label cannot drift apart.
-function litFrets(pc: number) {
-  return STRING_MIDI.map((midi) => FRETS.filter((fret) => (midi + fret) % 12 === pc))
-}
-
-// Reads the lit dots out in the order they are drawn, high e string first, so
-// someone hearing the label can walk the neck in the same order as someone
-// looking at it. Every string carries the note somewhere in 0–12, and a string
-// whose open note matches also lights the 12th fret.
-function describePositions(lit: number[][]) {
-  return lit
-    .map((frets, stringIndex) => {
-      const spoken = frets.map((fret) => (fret === 0 ? 'open' : `fret ${fret}`))
-
-      return `${STRING_ORDINALS[stringIndex]} string (${STRING_LABELS[stringIndex]}) ${spoken.join(' and ')}`
-    })
-    .join(', ')
-}
+import {
+  CAPO_OPTIONS,
+  findTuning,
+  hasInlay,
+  isCapo,
+  isTuningId,
+  neckModel,
+  TUNINGS,
+  type TuningId,
+} from '../lib/tuning'
 
 type FretboardCardProps = {
   currentPc: number | null
   /** Spelled name of the note being called, for the hint line. */
   currentDisplay?: string | null
+  tuning: TuningId
+  /** Fret the capo is clamped to; 0 means none. */
+  capo: number
+  onTuningChange: (value: TuningId) => void
+  onCapoChange: (value: number) => void
 }
 
-export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps) {
-  const lit = currentPc !== null ? litFrets(currentPc) : null
-  const hint =
-    lit !== null && currentDisplay
-      ? `Every ${currentDisplay} from open to the 12th fret`
-      : 'Where each note lives — all six strings, standard tuning'
+export function FretboardCard({
+  currentPc,
+  currentDisplay,
+  tuning,
+  capo,
+  onTuningChange,
+  onCapoChange,
+}: FretboardCardProps) {
+  // One model of the neck: the dots, the numbers under them and the spoken
+  // reading are all drawn from the same instance, so the picture and its label
+  // cannot drift apart.
+  const neck = neckModel(findTuning(tuning), capo, currentPc)
+  const called = currentPc !== null
 
-  // The grid is a picture of the neck: six rows of blank spans whose only
-  // content is the dot marking the called note, which reads as nothing at all.
+  const hint =
+    called && currentDisplay
+      ? capo === 0
+        ? `Every ${currentDisplay} from open to the 12th fret`
+        : `Every ${currentDisplay} from the capo up twelve frets`
+      : `Where each note lives — ${neck.summary}`
+
+  // The grid is a picture of the neck: rows of blank spans whose only content
+  // is the dot marking the called note, which reads as nothing at all.
   // Labelling it as an image spells out the positions instead.
-  const label =
-    lit !== null
-      ? `Fretboard map: ${currentDisplay ?? 'the called note'} at ${describePositions(lit)}`
-      : 'Fretboard map: no note called — all six strings, standard tuning'
+  const label = called
+    ? `Fretboard map: ${currentDisplay ?? 'the called note'} at ${neck.reading}`
+    : `Fretboard map: no note called — ${neck.summary}`
 
   return (
     <section className="panel fretboard-card">
       <div className="panel-heading fretboard-heading">
         <h2>On the neck</h2>
         <p>{hint}</p>
+        <div className="fretboard-controls">
+          <select
+            className="preset-select"
+            data-testid="tuning-select"
+            aria-label="Tuning"
+            value={tuning}
+            onChange={(event) => {
+              const value = event.target.value
+              // The options came from this same list, so an id it doesn't hold
+              // is impossible — but it costs one check to say so.
+              if (isTuningId(value)) {
+                onTuningChange(value)
+              }
+            }}
+          >
+            {TUNINGS.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="preset-select"
+            data-testid="capo-select"
+            aria-label="Capo"
+            value={capo}
+            onChange={(event) => {
+              const value = Number(event.target.value)
+              if (isCapo(value)) {
+                onCapoChange(value)
+              }
+            }}
+          >
+            {CAPO_OPTIONS.map((fret) => (
+              <option key={fret} value={fret}>
+                {fret === 0 ? 'No capo' : `Capo ${fret}`}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="fretboard-scroll">
         <div className="fretboard" data-testid="fretboard" role="img" aria-label={label}>
-          {STRING_MIDI.map((midi, stringIndex) => (
-            <div className="fret-row" key={midi}>
-              <span className="string-label">{STRING_LABELS[stringIndex]}</span>
-              {FRETS.map((fret) => (
-                <span key={fret} className={`fret-cell ${fret === 0 ? 'nut' : ''}`}>
-                  {hasInlay(stringIndex, fret) ? <span className="inlay-dot" aria-hidden="true" /> : null}
-                  {lit?.[stringIndex].includes(fret) ? (
-                    <span className="fret-dot" data-testid="fret-dot" />
+          {neck.strings.map((string, stringIndex) => (
+            // Keyed by position, not by note: two strings can be tuned to the
+            // same pitch (DADGAD, Open G) and share a MIDI number.
+            <div className="fret-row" key={stringIndex}>
+              <span className="string-label">{string.label}</span>
+              {neck.frets.map((fret) => (
+                <span key={fret} className={`fret-cell ${fret === capo ? 'nut' : ''}`}>
+                  {hasInlay(neck.strings.length, stringIndex, fret, capo) ? (
+                    <span className="inlay-dot" aria-hidden="true" />
                   ) : null}
+                  {string.lit.includes(fret) ? <span className="fret-dot" data-testid="fret-dot" /> : null}
                 </span>
               ))}
             </div>
           ))}
           <div className="fret-row fret-numbers" aria-hidden="true">
             <span className="string-label" />
-            {FRETS.map((fret) => (
+            {neck.frets.map((fret) => (
               <span key={fret} className="fret-number">
                 {fret}
               </span>
