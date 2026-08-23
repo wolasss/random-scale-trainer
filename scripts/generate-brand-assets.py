@@ -3,8 +3,10 @@
 
 The brand is a call sign: two stacked dots — the call and its response — beside
 the lowercase wordmark. The geometry never changes; only the ink re-tunes per
-skin. That is the whole reason this is a generator rather than a folder of
-hand-drawn variants: adding a skin is a row in THEMES, not a new drawing.
+theme. That is the whole reason this is a generator rather than a folder of
+hand-drawn variants: adding a theme is a row in THEMES, not a new drawing. Four
+of those rows are the app skins from `src/lib/skins.ts`; `light` is the
+light-ground fallback, exported for light surfaces with no app skin behind it.
 
 The letterforms are Gabarito 800, baked to outlines here so nothing depends on a
 font being installed at render time. `PATH_C` is the same outline the wordmark's
@@ -15,6 +17,7 @@ Outputs (all pure stdlib, no dependencies):
   brand/callnote-lockup-<skin>-transparent.svg  same, no ground — for overlays
   brand/callnote-lockup-compact-<skin>.svg      wordmark without the .app suffix
   brand/callnote-icon-<size>-<skin>.svg         app icon at 48 / 180 / 1024
+  brand/callnote-icon-maskable-1024-glass.svg   PWA maskable icon, full-bleed
   public/favicon.svg                            the default skin's icon, tab-sized
 
 The PWA's PNG icons are rasterized from the emitted SVGs; this script does not
