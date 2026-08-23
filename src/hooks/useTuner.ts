@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   createMicCapture,
   isMicSupported,
-  MIC_FRAME_SIZE,
   releaseMicStream,
   requestMicStream,
   type MicCapture,
@@ -68,6 +67,14 @@ export type TunerReading = {
  * string 40 cents flat is still nearer its own pitch than any other, and
  * rounding it onto the semitone it happens to be closest to would report it as
  * in tune while it plainly isn't.
+ *
+ * Absolute frequencies, not pitch classes, for the same reason. Folding octaves
+ * away would rescue the odd frame `detectPitch` names an octave out — but it
+ * would also call a string that is a whole tone flat, which is a real and
+ * common state for one, by the name of the string it has landed on top of and
+ * pronounce it in tune. A pinned needle against the wrong string's name is a
+ * reading you distrust; a confident "in tune" is one you act on. It also keeps
+ * the two E strings, two octaves apart, tellable apart at all.
  */
 export const nearestOpenString = (frequency: number): { string: TunerString; cents: number } => {
   let best = STANDARD_TUNING[0]
@@ -86,7 +93,9 @@ export const nearestOpenString = (frequency: number): { string: TunerString; cen
 
 /**
  * The slice of AudioEngine the tuner needs — one method, so a fake in a test is
- * one function and the real engine satisfies it structurally.
+ * one function and the real engine satisfies it structurally. A caller that has
+ * already opened the context inside the click can answer with that promise
+ * instead; either way the hook has a context before it asks for a microphone.
  */
 export type TunerAudio = {
   ensureContext(): Promise<AudioContext | null>
@@ -109,8 +118,11 @@ export type UseTunerOptions = {
  * The context comes first, before the permission prompt, because
  * `AudioEngine.ensureContext` has to run inside the gesture that opened the
  * panel: awaiting `getUserMedia` first would spend that activation on the
- * prompt and leave the context suspended. Nothing has been asked for at that
- * point, so a context that never opens strands no stream.
+ * prompt and leave the context suspended. An effect runs after the click that
+ * scheduled it has returned, so the caller is expected to *start* the context
+ * in the click handler and hand this hook the promise it started — `ensureContext`
+ * here awaits that opening rather than beginning one. Nothing has been asked
+ * for at that point either way, so a context that never opens strands no stream.
  */
 export function useTuner({ audio, open }: UseTunerOptions) {
   const [micStatus, setStatus] = useState<MicStatus>('idle')
@@ -206,7 +218,9 @@ export function useTuner({ audio, open }: UseTunerOptions) {
       }
 
       capture = createMicCapture(context, stream)
-      const frame = new Float32Array(MIC_FRAME_SIZE)
+      // Sized by the capture, not by the constant: a context running at 96 kHz
+      // needs a longer frame before the low E's period fits inside the search.
+      const frame = new Float32Array(capture.frameSize)
       const { sampleRate } = context
       setStatus('listening')
       pollId = window.setInterval(() => poll(frame, sampleRate), MIC_POLL_MS)

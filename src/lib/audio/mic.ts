@@ -3,9 +3,37 @@
  * it — the hook, the readout, and whatever scores what it hears — works against
  * the two small shapes below, so none of it needs a browser to be tested.
  */
+import { MIN_PITCH_HZ } from './pitch'
 
-/** Frames of this length hold four periods of a low E at any sane sample rate. */
+/** Frames of this length hold four periods of a low E at 44.1 or 48 kHz. */
 export const MIC_FRAME_SIZE = 2048
+
+/** As large an analyser as the Web Audio API will build. */
+const MAX_FRAME_SIZE = 32768
+
+/**
+ * The frame length a context's sample rate needs, as a size an analyser takes.
+ *
+ * `detectPitch` searches lags out to half a frame, and the longest period it
+ * will name is `sampleRate / MIN_PITCH_HZ` samples — so the constant above is
+ * only enough while the hardware runs at the rates a laptop picks. Plug in an
+ * audio interface at 96 kHz and a low E's period is 1165 samples, past the end
+ * of the search inside a 2048-sample frame, and the 6th string reads as nothing
+ * at all. Doubling with the rate keeps the frame the same length in *seconds*,
+ * which is what the detector actually cares about.
+ */
+export const micFrameSizeFor = (sampleRate: number): number => {
+  const needed = 2 * (sampleRate / MIN_PITCH_HZ)
+
+  let size = MIC_FRAME_SIZE
+  // Analyser sizes are powers of two. A rate that wants more than the largest
+  // of them is not a rate anything records a guitar at.
+  while (size < needed && size < MAX_FRAME_SIZE) {
+    size *= 2
+  }
+
+  return size
+}
 
 /**
  * Echo cancellation is on because the app is playing the very note it is
@@ -27,8 +55,15 @@ export type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<Medi
  */
 export type PcmFrame = Float32Array<ArrayBuffer>
 
-/** A live microphone, reduced to the two things the detector loop needs. */
+/** A live microphone, reduced to the things the detector loop needs. */
 export type MicCapture = {
+  /**
+   * How many samples a frame holds, from `micFrameSizeFor`. Allocate against
+   * this rather than the constant: `getFloatTimeDomainData` fills a shorter
+   * array by dropping the samples that do not fit, which on a fast context
+   * would throw away exactly the extra length the low strings need.
+   */
+  readonly frameSize: number
   /** Fills `target` with the newest frame of samples. */
   readFrame(target: PcmFrame): void
   /** Disconnects the nodes AND stops the tracks — the indicator must go dark. */
@@ -85,12 +120,14 @@ export const primeMicPermission = async (getUserMedia?: GetUserMedia): Promise<b
 export const createMicCapture = (context: AudioContext, stream: MediaStream): MicCapture => {
   const source = context.createMediaStreamSource(stream)
   const analyser = context.createAnalyser()
-  analyser.fftSize = MIC_FRAME_SIZE
+  const frameSize = micFrameSizeFor(context.sampleRate)
+  analyser.fftSize = frameSize
   // Time-domain data only, and the detector wants the samples as they arrived.
   analyser.smoothingTimeConstant = 0
   source.connect(analyser)
 
   return {
+    frameSize,
     readFrame: (target) => analyser.getFloatTimeDomainData(target),
     release: () => {
       source.disconnect()

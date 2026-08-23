@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createMicCapture,
   isMicSupported,
-  MIC_FRAME_SIZE,
   releaseMicStream,
   requestMicStream,
   type MicCapture,
@@ -185,7 +184,9 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       }
 
       capture = createMicCapture(context, stream)
-      const frame = new Float32Array(MIC_FRAME_SIZE)
+      // Sized by the capture: a fast context analyses a longer frame, and a
+      // shorter array would be filled by dropping the end of it.
+      const frame = new Float32Array(capture.frameSize)
       const { sampleRate } = context
       setStatus('listening')
       pollId = window.setInterval(() => poll(frame, sampleRate), MIC_POLL_MS)

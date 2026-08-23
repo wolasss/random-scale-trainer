@@ -13,7 +13,7 @@ const createFakeStream = () => {
   return { tracks, stream: { getTracks: () => tracks } as unknown as MediaStream }
 }
 
-const createFakeContext = () => {
+const createFakeContext = (sampleRate = 44100) => {
   const source = { connect: vi.fn(), disconnect: vi.fn() }
   const analyser = {
     fftSize: 0,
@@ -23,6 +23,7 @@ const createFakeContext = () => {
     disconnect: vi.fn(),
   }
   const context = {
+    sampleRate,
     createMediaStreamSource: vi.fn(() => source),
     createAnalyser: vi.fn(() => analyser),
     destination: {},
@@ -114,13 +115,30 @@ describe('createMicCapture', () => {
     const { stream } = createFakeStream()
 
     const capture = createMicCapture(context, stream)
-    const frame = new Float32Array(MIC_FRAME_SIZE)
+    const frame = new Float32Array(capture.frameSize)
     capture.readFrame(frame)
 
+    expect(capture.frameSize).toBe(MIC_FRAME_SIZE)
     expect(analyser.fftSize).toBe(MIC_FRAME_SIZE)
     expect(source.connect).toHaveBeenCalledWith(analyser)
     expect(analyser.getFloatTimeDomainData).toHaveBeenCalledWith(frame)
     expect(frame[0]).toBe(0.25)
+  })
+
+  /**
+   * An interface at 96 kHz puts a low E's period at 1165 samples, and the
+   * detector only searches half a frame — so a 2048-sample analyser would hear
+   * the 6th string as silence.
+   */
+  it('lengthens the frame for a context that runs fast', () => {
+    const { context, analyser } = createFakeContext(96000)
+    const { stream } = createFakeStream()
+
+    const capture = createMicCapture(context, stream)
+
+    expect(capture.frameSize).toBe(4096)
+    expect(analyser.fftSize).toBe(4096)
+    expect(Math.floor(capture.frameSize / 2)).toBeGreaterThan(96000 / 82.41)
   })
 
   it('never routes the microphone back to the speakers', () => {

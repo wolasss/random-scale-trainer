@@ -16,6 +16,13 @@ vi.mock('./lib/audio/pitch', async (importOriginal) => ({
   detectPitch: vi.fn(() => null),
 }))
 
+/**
+ * Records every call with whether the tuner was already on screen at the time,
+ * which is what tells a call made from the click apart from one made later by
+ * the panel's own effect.
+ */
+const { ensureContext } = vi.hoisted(() => ({ ensureContext: vi.fn<(panelOnScreen: boolean) => void>() }))
+
 /** The App fake engine, plus the context the tuner hangs its analyser off. */
 vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
@@ -31,6 +38,7 @@ vi.mock('./lib/audio/engine', () => ({
       }),
     }
     async ensureContext() {
+      ensureContext(document.querySelector('[data-testid="tuner-panel"]') !== null)
       return this.context
     }
     getContext() {
@@ -82,6 +90,7 @@ const click = async (testId: string) => {
 describe('tuning up', () => {
   beforeEach(() => {
     vi.useFakeTimers(FAKE_CLOCKS)
+    ensureContext.mockClear()
     vi.mocked(detectPitch).mockReturnValue(null)
     window.localStorage.setItem('fretboard-setup-revealed', 'true')
   })
@@ -120,6 +129,31 @@ describe('tuning up', () => {
     expect(screen.getByTestId('tuner-string')).toHaveTextContent('5th string')
     expect(screen.getByTestId('tuner-note')).toHaveTextContent('A2')
     expect(screen.getByTestId('tuner-reading')).toHaveTextContent('5th string A — in tune')
+  })
+
+  /**
+   * Safari unlocks an audio context only inside the gesture that asked for one,
+   * and an effect runs after the click that scheduled it has returned — so the
+   * click opens the context and the panel awaits the one the click opened,
+   * rather than asking for a second from a handler no gesture is behind.
+   * Reopening asks again: a context suspended in between needs the new gesture.
+   */
+  it('opens the audio context from the click, not from the panel', async () => {
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    expect(ensureContext).not.toHaveBeenCalled()
+
+    await click('open-tuner')
+
+    // Asked for while the panel was still not on screen: the click made the
+    // call, and the panel's effect — which runs a commit later — reused it.
+    expect(ensureContext).toHaveBeenCalledTimes(1)
+    expect(ensureContext).toHaveBeenCalledWith(false)
+
+    await click('tuner-close')
+    await click('open-tuner')
+    expect(ensureContext).toHaveBeenCalledTimes(2)
   })
 
   it('gives the microphone back the moment it is closed', async () => {

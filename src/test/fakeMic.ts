@@ -19,15 +19,17 @@ export const createFakeStream = () => {
 
 /**
  * A context whose analyser always hears one steady frequency. `raw` is the
- * unerased object, for asserting on the nodes the capture asked it for.
+ * unerased object, for asserting on the nodes the capture asked it for. The
+ * rate is a parameter because an attached interface can run at twice the one a
+ * laptop picks, and the frame the detector needs grows with it.
  */
-export const createFakeMicContext = (frequency: number) => {
+export const createFakeMicContext = (frequency: number, sampleRate = FAKE_SAMPLE_RATE) => {
   const analyser = {
     fftSize: 0,
     smoothingTimeConstant: 1,
     getFloatTimeDomainData: vi.fn((target: Float32Array) => {
       for (let index = 0; index < target.length; index += 1) {
-        target[index] = 0.5 * Math.sin((2 * Math.PI * frequency * index) / FAKE_SAMPLE_RATE)
+        target[index] = 0.5 * Math.sin((2 * Math.PI * frequency * index) / sampleRate)
       }
     }),
     connect: vi.fn(),
@@ -35,7 +37,7 @@ export const createFakeMicContext = (frequency: number) => {
   }
 
   const context = {
-    sampleRate: FAKE_SAMPLE_RATE,
+    sampleRate,
     createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
     createAnalyser: vi.fn(() => analyser),
   }

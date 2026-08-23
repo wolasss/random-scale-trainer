@@ -128,6 +128,26 @@ describe('useTuner', () => {
   })
 
   /**
+   * The 6th string is the one a long frame is for: at 96 kHz its period is 1165
+   * samples, and the detector only searches half a frame. A capture that stayed
+   * at 2048 samples would hear an attached interface's low E as silence.
+   */
+  it('still hears the low E through a context running at 96 kHz', async () => {
+    const { stream } = createFakeStream()
+    installGetUserMedia(async () => stream)
+    const { context, analyser } = createFakeMicContext(82.41, 96000)
+    const audio = createFakeAudio(context)
+
+    const { result } = renderHook(() => useTuner({ audio, open: true }))
+    await flush()
+    await tick()
+
+    expect(analyser.fftSize).toBe(4096)
+    expect(result.current.reading?.string.label).toBe('6th string')
+    expect(result.current.reading?.status).toBe('in-tune')
+  })
+
+  /**
    * A plucked string is under the detector's clarity gate within a second — a
    * needle that swung back to nothing with it would be unreadable.
    */

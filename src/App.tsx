@@ -244,7 +244,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // playing — and the only one that opens one with the "listen" setting off.
   // It holds the stream for exactly as long as the panel is up.
   const [tunerOpen, setTunerOpen] = useState(false)
-  const tuner = useTuner({ audio: engine, open: tunerOpen })
+
+  // Safari only unlocks an AudioContext inside the gesture that asked for it,
+  // and the panel's effect runs after the click handler has returned — so the
+  // click makes the call and the hook awaits what the click started rather than
+  // asking for its own. Held per opening: a context suspended while the panel
+  // was shut has to be resumed by the gesture that reopens it.
+  const tunerContextRef = useRef<Promise<AudioContext | null> | null>(null)
+  const tuner = useTuner({
+    audio: { ensureContext: () => tunerContextRef.current ?? engine.ensureContext() },
+    open: tunerOpen,
+  })
 
   // You tune up *before* you practise, so opening the tuner pauses whatever is
   // running. That is also what keeps it from hearing the app's own clicks and
@@ -255,7 +265,16 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       playback.pause()
     }
 
+    // Caught here so the promise the ref holds is never an unhandled rejection
+    // if the panel closes before the hook gets to await it. A context that
+    // refused to open and one that never existed are the same answer.
+    tunerContextRef.current = engine.ensureContext().catch(() => null)
     setTunerOpen(true)
+  }
+
+  const closeTuner = () => {
+    tunerContextRef.current = null
+    setTunerOpen(false)
   }
 
   // Everything that rearranges for the music stand keys off this one attribute,
@@ -550,7 +569,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   )
 
   const tunerPanel = (
-    <TunerPanel open={tunerOpen} onClose={() => setTunerOpen(false)} status={tuner.status} reading={tuner.reading} />
+    <TunerPanel open={tunerOpen} onClose={closeTuner} status={tuner.status} reading={tuner.reading} />
   )
 
   const updateChip = serviceWorker.updateReady ? (
