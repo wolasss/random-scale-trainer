@@ -563,6 +563,38 @@ describe('Routines', () => {
       expect(screen.getByTestId('routine-strip-status')).toHaveTextContent(`block 2 of 6 · ${countdown} left`)
     })
 
+    /**
+     * The commoner case by far: the workout is edited on the card before Start
+     * is ever pressed. Nothing is running to renumber around, so a block put at
+     * the front is the block practice begins on — not one already behind it.
+     */
+    it('begins on a block inserted before the first one, rather than skipping it', async () => {
+      render(<App />)
+
+      selectRoutine('seed-neck-fluency-12')
+      fireEvent.click(screen.getByLabelText('Insert current settings before block Settle in'))
+
+      expect(blockNames()).toEqual([
+        'All 12',
+        'Settle in',
+        'Accidentals',
+        'All 12, quicker',
+        'Naturals sprint',
+        'Exam',
+      ])
+      expect(screen.getByTestId('routine-segment-0').dataset.state).toBe('active')
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 6 · 2:00 left of 14:25')
+
+      await startPractice(60)
+      await act(async () => {
+        vi.advanceTimersByTime(60_000)
+      })
+
+      // A minute in, it is the new block running its own two minutes.
+      expect(screen.getByTestId('routine-segment-0').dataset.state).toBe('active')
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 6 · 1:00 left of 14:25')
+    })
+
     it('still calls a hand nudge an override once the blocks have been edited', async () => {
       render(<App />)
 

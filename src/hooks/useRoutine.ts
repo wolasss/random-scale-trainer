@@ -353,6 +353,21 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   }
 
   /**
+   * Nothing has played yet: the routine is standing on its first block with the
+   * clock still at zero. An edit here rewrites the plan rather than renumbering
+   * around a block in flight, so the routine has to go back to standing on
+   * whatever is now the top of the list — a warm-up put in front of block one is
+   * the block Start begins on, not one already behind it.
+   *
+   * The counterpart of that rule is `finished`, which the three edits below all
+   * leave as they found it: a completed routine that is edited is still
+   * completed, and clearing the flag would send Start back into the expired last
+   * block, ending the workout again on the very next tick rather than running
+   * the order that was just edited.
+   */
+  const notStarted = runtime.blockIndex === 0 && blockElapsedMs === 0 && !runtime.finished
+
+  /**
    * The block clock is a reading of the session clock, so a block that keeps
    * running through an edit keeps `blockStartMs` — renumbering is not
    * restarting. Only the block index is chased, and only where the edit moved
@@ -370,9 +385,14 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
     replaceSelected(next)
 
+    if (notStarted) {
+      startAt(0, next)
+      return
+    }
+
     const { blockIndex } = runtime
     const followed = blockIndex === index ? index + delta : blockIndex === index + delta ? index : blockIndex
-    commit({ ...runtime, blockIndex: followed, finished: false })
+    commit({ ...runtime, blockIndex: followed })
   }
 
   const setBlockDuration = (index: number, seconds: number | null) => {
@@ -395,7 +415,6 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     commit({
       ...runtime,
       blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
-      finished: false,
     })
   }
 
@@ -405,7 +424,14 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     }
 
     const wasOpenEnded = selected.blocks.length === 1 && selected.blocks[0].dur === null
-    replaceSelected(withInsertedBlock(selected, index, blockSettingsOf(settings)))
+    const next = withInsertedBlock(selected, index, blockSettingsOf(settings))
+    replaceSelected(next)
+
+    if (notStarted) {
+      startAt(0, next)
+      return
+    }
+
     commit({
       ...runtime,
       // Everything at or after the insert point shifts down one; the running
@@ -414,7 +440,6 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       // The open block just gained a 2:00 timer — give it the full two minutes
       // rather than expiring it against a clock that has been running all along.
       blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
-      finished: false,
     })
   }
 

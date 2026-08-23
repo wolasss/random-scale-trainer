@@ -575,6 +575,112 @@ describe('insertBlock', () => {
   })
 })
 
+/**
+ * A workout is most often edited before it is started, and there is no block in
+ * flight to renumber around then — whatever ends up first is what Start has to
+ * run, or the very block that was just put at the front is skipped.
+ */
+describe('editing a routine that has not started yet', () => {
+  it('starts on the block a move puts first, settings and all', () => {
+    const view = renderOnFirstBlock(false)
+
+    act(() => {
+      view.result.current.routine.moveBlock(0, 1)
+    })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['Second', 'First', 'Third'])
+    expect(routine.blockIndex).toBe(0)
+    expect(activeBlockName(routine)).toBe('Second')
+    expect(settings).toMatchObject({ bpm: 80, beatsPerNote: 2 })
+  })
+
+  it('starts on an inserted block rather than the one it was put in front of', () => {
+    const view = renderOnFirstBlock(false)
+
+    act(() => {
+      view.result.current.routine.insertBlock(0)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.blocks.map((entry) => entry.name)).toEqual(['Naturals', 'First', 'Second', 'Third'])
+    expect(routine.blockIndex).toBe(0)
+    expect(activeBlockName(routine)).toBe('Naturals')
+    expect(routine.blockElapsedMs).toBe(0)
+  })
+
+  it('still chases the running block once the routine is under way', () => {
+    const view = renderOnBlock(0)
+
+    act(() => {
+      view.result.current.routine.insertBlock(0)
+    })
+
+    const { routine } = view.result.current
+    expect(routine.blockIndex).toBe(1)
+    expect(activeBlockName(routine)).toBe('First')
+  })
+})
+
+/**
+ * Editing a workout that has just been finished must not un-finish it: App
+ * restarts a finished routine from block 0, and a cleared flag would instead
+ * resume the expired last block and end the session on the next tick.
+ */
+describe('editing a finished routine', () => {
+  const renderFinished = () => {
+    const harness = renderClock()
+    // One handover per tick, so the workout is run out block by block.
+    tickAt(harness.view, 120_000)
+    tickAt(harness.view, 300_000)
+    tickAt(harness.view, 540_000)
+    expect(harness.view.result.current.finished).toBe(true)
+    return harness
+  }
+
+  it('stays finished through a move', () => {
+    const { view } = renderFinished()
+
+    act(() => {
+      view.result.current.moveBlock(0, 1)
+    })
+
+    expect(view.result.current.finished).toBe(true)
+  })
+
+  it('stays finished through a retime and an insert', () => {
+    const { view } = renderFinished()
+
+    act(() => {
+      view.result.current.setBlockDuration(2, 300)
+    })
+    expect(view.result.current.finished).toBe(true)
+
+    act(() => {
+      view.result.current.insertBlock(1)
+    })
+    expect(view.result.current.finished).toBe(true)
+  })
+
+  it('runs the edited order from the top when it is restarted', () => {
+    const { view, dispatch, applied } = renderFinished()
+
+    act(() => {
+      view.result.current.moveBlock(0, 1)
+    })
+    dispatch.mockClear()
+    act(() => {
+      view.result.current.restart()
+    })
+
+    expect(view.result.current.finished).toBe(false)
+    expect(view.result.current.blockIndex).toBe(0)
+    expect(view.result.current.blockElapsedMs).toBe(0)
+    // The block that was moved to the front is the one the settings came from.
+    expect(applied()).toContainEqual({ type: 'setBpm', bpm: 80 })
+  })
+})
+
 describe('removeBlock around the active block', () => {
   it('shifts the active index down when an earlier block goes, clock intact', () => {
     const view = renderOnBlock(1)
