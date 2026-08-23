@@ -45,6 +45,7 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout } from './components/MicReadout'
+import { TunerPanel } from './components/TunerPanel'
 import { NicknamePrompt } from './components/NicknamePrompt'
 import { ScoreboardStrip } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
@@ -56,6 +57,7 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
+import { useTuner } from './hooks/useTuner'
 import { useNoteScoring } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
@@ -237,6 +239,24 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const serviceWorker = useServiceWorker()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
+
+  // The tuner is the one thing in the app that opens a microphone with nothing
+  // playing — and the only one that opens one with the "listen" setting off.
+  // It holds the stream for exactly as long as the panel is up.
+  const [tunerOpen, setTunerOpen] = useState(false)
+  const tuner = useTuner({ audio: engine, open: tunerOpen })
+
+  // You tune up *before* you practise, so opening the tuner pauses whatever is
+  // running. That is also what keeps it from hearing the app's own clicks and
+  // spoken notes, and what keeps two microphone streams — this one and
+  // useMicPitch's — from being open at the same moment.
+  const openTuner = () => {
+    if (playback.isPlaying) {
+      playback.pause()
+    }
+
+    setTunerOpen(true)
+  }
 
   // Everything that rearranges for the music stand keys off this one attribute,
   // so the stylesheet and the component tree can never disagree about which
@@ -521,6 +541,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       />
     ) : null
 
+  // One node, two homes: the header on a page that scrolls, and the top of the
+  // practice sheet on a stand, where there is no header to put it in.
+  const tunerButton = (
+    <button type="button" className="ghost-button" onClick={openTuner} data-testid="open-tuner">
+      Tuner
+    </button>
+  )
+
+  const tunerPanel = (
+    <TunerPanel open={tunerOpen} onClose={() => setTunerOpen(false)} status={tuner.status} reading={tuner.reading} />
+  )
+
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
   ) : null
@@ -565,6 +597,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         </main>
 
         <PracticeSheet open={setupOpen} onClose={() => setSetupOpen(false)}>
+          <div className="sheet-actions">{tunerButton}</div>
           {tempoCard}
           {notePoolCard}
           {practiceOptionsCard}
@@ -579,6 +612,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
         {nicknamePrompt}
 
+        {tunerPanel}
+
         {updateChip}
       </div>
     )
@@ -592,6 +627,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
+          tuner={tunerButton}
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}
@@ -671,6 +707,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       <Footer skin={skin} onSkinChange={setSkin} />
 
       {nicknamePrompt}
+
+      {tunerPanel}
 
       {updateChip}
     </div>

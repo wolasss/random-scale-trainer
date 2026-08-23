@@ -2505,6 +2505,120 @@ button.practice-history-cell {
   font-size: 0.82rem;
 }
 
+/* --- Tuner ---------------------------------------------------------------- */
+
+/* Like the history sheet, this one opens on a desktop too — and it is one
+   reading, not a page, so it stays narrow rather than stretching a needle. */
+.tuner-layer {
+  justify-content: center;
+}
+
+.tuner-sheet {
+  max-width: 420px;
+  border-radius: 22px 22px 0 0;
+}
+
+.tuner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* Wraps rather than shrinking: at 320px the string name and the note heard sit
+   on two lines instead of both becoming unreadable on one. */
+.tuner-heads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 0.9rem;
+}
+
+.tuner-string {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.tuner-note {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.tuner-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tuner-meter {
+  position: relative;
+  height: 42px;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+}
+
+/* The in-tune band, drawn dead centre. Its width is IN_TUNE_CENTS against
+   METER_RANGE_CENTS — five either way out of fifty, so a tenth of the track. */
+.tuner-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 45%;
+  width: 10%;
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  border-inline: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+/* Positioned as a percentage so it lands in the same place at any width, and
+   left unclipped by the track so a string far enough out to pin the needle
+   against one end still shows the whole of it. */
+.tuner-needle {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: left 90ms linear;
+}
+
+.tuner-meter[data-state='in-tune'] .tuner-needle {
+  background: var(--primary);
+}
+
+.tuner-reading {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.tuner-hint,
+.tuner-message {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* The sheet's own row of buttons, above the cards it holds. */
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tuner-needle {
+    transition: none;
+  }
+}
+
 .app-footer {
   position: relative;
   max-width: 1180px;

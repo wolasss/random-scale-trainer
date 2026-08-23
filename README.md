@@ -38,7 +38,7 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   rather than replacing it
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
-  note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
+  note asked for and a cross when it isn't. How in tune the string was is the tuner's job, below. A note
   that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
   D♯ — and the reading stays up until you play something else or the next note is called, rather
   than blinking out with the string. The count-in between rounds clears it: no note on screen, so
@@ -47,6 +47,14 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
   released the moment you pause, stop or leave, and a refusal or a browser without one says so and
   changes nothing else
+- Tuner: a Tuner button in the header — and at the top of the practice sheet on a stand — opens a
+  dialog that pauses playback and listens for one open string at a time. It names the nearest open
+  string, the note it actually heard, and how far off it is on a cents meter with a ±5-cent in-tune
+  band; the same reading is spelled out in words in a live region beside the needle, so it is usable
+  without seeing it. Distance is measured against the string rather than the nearest semitone, so a
+  string forty cents flat reads as forty cents flat instead of as an in-tune something-else. The
+  microphone is opened only while the panel is up and released on close, unmount or refusal, and a
+  refusal or a browser without one says so in the same words the practice readout uses
 - Scoring, with the mic on: every note you actually play banks points, and four bonuses make them
   climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
   the called note in two octaves before the next one is called, a small one for striking the

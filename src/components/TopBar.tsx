@@ -11,9 +11,11 @@ type TopBarProps = {
   onToggleTheme: () => void
   /** The install button, when the browser has an install prompt to offer. */
   install?: ReactNode
+  /** The button that opens the tuner — first, since tuning comes first. */
+  tuner?: ReactNode
 }
 
-export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
+export function TopBar({ theme, onToggleTheme, install, tuner }: TopBarProps) {
   // The hints name keys a touch-only browser has no way to press: keep them for
   // the machines that can act on them.
   const hasKeyboard = useHardwareKeyboard()
@@ -27,6 +29,7 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
         <p className="lede">Fretboard fluency, one beat at a time.</p>
       </div>
       <div className="header-side">
+        {tuner}
         {install}
         {hasKeyboard && (
           <div className="key-hints">
