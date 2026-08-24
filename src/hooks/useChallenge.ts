@@ -144,7 +144,10 @@ const readTokens = (): TokenMap => {
 }
 
 /** This browser's claim on one challenge, or null if it holds none. */
-const readToken = (challenge: string) => readTokens()[challenge] ?? null
+const readToken = (challenge: string) => {
+  const tokens = readTokens()
+  return Object.hasOwn(tokens, challenge) ? tokens[challenge] : null
+}
 
 /** False when storage refused it — a token nothing wrote down is one reload old. */
 const writeToken = (challenge: string, nickname: string, token: string) =>

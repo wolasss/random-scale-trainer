@@ -274,6 +274,13 @@ describe('on a challenge', () => {
     })
   })
 
+  it('does not mistake an inherited object property for a stored token', () => {
+    const { result } = render({ search: '?challenge=constructor', fetchImpl: service() })
+
+    expect(result.current.nickname).toBeNull()
+    expect(result.current.needsNickname).toBe(true)
+  })
+
   it('refuses a name that normalises away', () => {
     const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
 
