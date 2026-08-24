@@ -238,7 +238,15 @@ describe('on a challenge', () => {
   })
 
   it('ignores a token map that has been edited into nonsense', () => {
-    for (const raw of ['not json', '[]', '{"demo":{"nickname":"ada"}}', '{"demo":{"token":""}}']) {
+    for (const raw of [
+      'not json',
+      '[]',
+      '{"demo":{"nickname":"ada"}}',
+      '{"demo":{"token":""}}',
+      '{"demo":null}',
+      '{"demo":"ada"}',
+      `{"demo":{"nickname":5,"token":"${TOKEN}"}}`,
+    ]) {
       window.localStorage.setItem(STORAGE_KEYS.challengeTokens, raw)
       const { result, unmount } = render({ search: '?challenge=demo', fetchImpl: service() })
 
@@ -246,6 +254,24 @@ describe('on a challenge', () => {
       expect(result.current.needsNickname).toBe(true)
       unmount()
     }
+  })
+
+  it('drops the junk it read rather than writing it back beside a good token', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.challengeTokens,
+      JSON.stringify({ demo: null, stale: 'nope', other: { nickname: 5, token: TOKEN } }),
+    )
+
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    expect(result.current.needsNickname).toBe(true)
+    expect(result.current.nickname).toBeNull()
+
+    act(() => result.current.join('Ada'))
+    await waitFor(() => expect(result.current.nickname).toBe('Ada'))
+
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({
+      demo: { nickname: 'Ada', token: TOKEN },
+    })
   })
 
   it('refuses a name that normalises away', () => {

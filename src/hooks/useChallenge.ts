@@ -101,6 +101,22 @@ const UNSAVED_TOKEN_NOTICE = 'This browser could not save the name — it is you
 /** Challenge name → the nickname this browser owns on it, and its token. */
 type TokenMap = Record<string, { nickname: string; token: string }>
 
+/** Accepts only a well-formed `{nickname, token}`; everything else is junk. */
+const readEntry = (value: unknown): { nickname: string; token: string } | null => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+
+  const { nickname, token } = value as Partial<Record<'nickname' | 'token', unknown>>
+
+  return typeof nickname === 'string' &&
+    nicknameKey(nickname) !== null &&
+    typeof token === 'string' &&
+    token !== ''
+    ? { nickname, token }
+    : null
+}
+
 const readTokens = (): TokenMap => {
   const raw = readRaw(STORAGE_KEYS.challengeTokens)
   if (raw === null) {
@@ -109,25 +125,26 @@ const readTokens = (): TokenMap => {
 
   try {
     const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
 
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as TokenMap) : {}
+    const tokens: TokenMap = {}
+    for (const [challenge, value] of Object.entries(parsed)) {
+      const entry = readEntry(value)
+      if (entry !== null) {
+        tokens[challenge] = entry
+      }
+    }
+
+    return tokens
   } catch {
     return {}
   }
 }
 
 /** This browser's claim on one challenge, or null if it holds none. */
-const readToken = (challenge: string) => {
-  const entry = readTokens()[challenge]
-
-  return entry !== undefined &&
-    typeof entry.nickname === 'string' &&
-    typeof entry.token === 'string' &&
-    entry.token !== '' &&
-    nicknameKey(entry.nickname) !== null
-    ? entry
-    : null
-}
+const readToken = (challenge: string) => readTokens()[challenge] ?? null
 
 /** False when storage refused it — a token nothing wrote down is one reload old. */
 const writeToken = (challenge: string, nickname: string, token: string) =>
