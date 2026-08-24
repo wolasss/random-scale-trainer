@@ -31,7 +31,7 @@ const groundSelectors = (skin: string): { dark: string; light: string } =>
     ? { dark: ':root', light: `:root[data-theme='light']` }
     : { dark: `:root[data-skin='${skin}']`, light: `:root[data-skin='${skin}'][data-theme='light']` }
 
-const bootstrapScript = /<script>([\s\S]*?)<\/script>/.exec(html)
+const bootstrapScript = /<script\b[^>]*>([\s\S]*?)<\/script\b[^>]*>/i.exec(html)
 if (!bootstrapScript) throw new Error('no bootstrap <script> block found in index.html')
 const script = bootstrapScript[1]
 
