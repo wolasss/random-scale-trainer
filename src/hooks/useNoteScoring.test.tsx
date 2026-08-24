@@ -15,6 +15,7 @@ import {
 import { DEFAULT_BPM } from '../constants'
 import { PITCH_CLASSES } from '../lib/notes'
 import type { HeardPitch } from './useMicPitch'
+import { allowConsole } from '../test/consoleGuard'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
 /** A stand-in for useMicPitch: a stable subscribe and a way to push frames. */
@@ -139,7 +140,7 @@ describe('useNoteScoring', () => {
     // switched on for the length of this test, React complains about any of
     // them, which is precisely what a beat must not cause.
     withActWarnings()
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errors = allowConsole('error')
     const { result } = setup()
 
     await act(async () => {
@@ -154,7 +155,7 @@ describe('useNoteScoring', () => {
     expect(result.current.tally).toBe(before)
     expect(result.current.lastVerdict).toBeNull()
     // An update escaping the callback would have React complaining about act().
-    expect(consoleError).not.toHaveBeenCalled()
+    expect(errors.calls).toEqual([])
 
     await settle()
 
