@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { createNoteDeck } from './deck'
 import type { SpellingPreference } from '../notes'

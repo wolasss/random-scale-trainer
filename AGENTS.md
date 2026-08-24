@@ -27,7 +27,7 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 - `src/server/` — the shared-challenge scoreboard: `scoreboard.js` (routing, the store, nickname
   ownership, quotas and rate limits, all as pure functions of a store), `session-scoring.js` (the
   point rules and the event-validation rules, pure), `http.js` (the `node:http` edge — body cap,
-  client identity) and `main.js` (the process), each with a hand-written `.d.ts`. Plain JS like the
+  client identity, cross-site refusal) and `main.js` (the process), each with a hand-written `.d.ts`. Plain JS like the
   service worker, and for the same reason — it runs outside the app bundle, under bare `node` in the
   container. **A nickname is owned**: claiming one issues a token the server keeps only a digest of,
   and every mutation carries it as `Authorization: Bearer`. The client never sends a total; it

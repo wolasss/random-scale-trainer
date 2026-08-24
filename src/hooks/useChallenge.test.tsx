@@ -238,7 +238,15 @@ describe('on a challenge', () => {
   })
 
   it('ignores a token map that has been edited into nonsense', () => {
-    for (const raw of ['not json', '[]', '{"demo":{"nickname":"ada"}}', '{"demo":{"token":""}}']) {
+    for (const raw of [
+      'not json',
+      '[]',
+      '{"demo":{"nickname":"ada"}}',
+      '{"demo":{"token":""}}',
+      '{"demo":null}',
+      '{"demo":"ada"}',
+      `{"demo":{"nickname":5,"token":"${TOKEN}"}}`,
+    ]) {
       window.localStorage.setItem(STORAGE_KEYS.challengeTokens, raw)
       const { result, unmount } = render({ search: '?challenge=demo', fetchImpl: service() })
 
@@ -246,6 +254,31 @@ describe('on a challenge', () => {
       expect(result.current.needsNickname).toBe(true)
       unmount()
     }
+  })
+
+  it('drops the junk it read rather than writing it back beside a good token', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.challengeTokens,
+      JSON.stringify({ demo: null, stale: 'nope', other: { nickname: 5, token: TOKEN } }),
+    )
+
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    expect(result.current.needsNickname).toBe(true)
+    expect(result.current.nickname).toBeNull()
+
+    act(() => result.current.join('Ada'))
+    await waitFor(() => expect(result.current.nickname).toBe('Ada'))
+
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({
+      demo: { nickname: 'Ada', token: TOKEN },
+    })
+  })
+
+  it('does not mistake an inherited object property for a stored token', () => {
+    const { result } = render({ search: '?challenge=constructor', fetchImpl: service() })
+
+    expect(result.current.nickname).toBeNull()
+    expect(result.current.needsNickname).toBe(true)
   })
 
   it('refuses a name that normalises away', () => {
@@ -438,7 +471,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('expired')
+    expect(result.current.notice).toContain('timed out')
     // Nothing is retried, and the board is still readable.
     const before = fetchImpl.mock.calls.length
     act(() => result.current.recordEvent(hit()))
@@ -457,7 +490,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('read-only')
+    expect(result.current.notice).toContain('Watching only')
     // A token the server does not recognise is not a credential, and keeping it
     // would leave this browser retrying it with no way back to a name.
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({})
@@ -486,7 +519,7 @@ describe('scoring through a session', () => {
 
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
-    expect(result.current.notice).toContain('starts again')
+    expect(result.current.notice).toContain('starts fresh')
 
     // The next note opens a fresh session and scores through it normally.
     act(() => result.current.recordEvent(hit()))
@@ -543,7 +576,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('Slow down')
+    expect(result.current.notice).toContain('too fast')
   })
 
   /**

@@ -1,10 +1,17 @@
 // @vitest-environment node
 import { mkdtempSync, rmSync } from 'node:fs'
+import { connect } from 'node:net'
 import type { AddressInfo, Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createScoreboardServer, MAX_BODY_BYTES } from './http.js'
+import {
+  createScoreboardServer,
+  HEADERS_TIMEOUT_MS,
+  KEEP_ALIVE_TIMEOUT_MS,
+  MAX_BODY_BYTES,
+  REQUEST_TIMEOUT_MS,
+} from './http.js'
 import { API_PREFIX, CLAIM_LIMIT, createStore, readSnapshot } from './scoreboard.js'
 import {
   difficultyMultiplier,
@@ -51,12 +58,14 @@ type Reply = { status: number; body: Record<string, unknown>; raw: string }
 
 const request = async (
   path: string,
-  { method = 'GET', body, token, forwardedFor, url = base }: {
+  { method = 'GET', body, token, forwardedFor, url = base, headers = {} }: {
     method?: string
     body?: unknown
     token?: string
     forwardedFor?: string
     url?: string
+    /** Spread last, so a case can override the Content-Type the body implies. */
+    headers?: Record<string, string>
   } = {},
 ): Promise<Reply> => {
   const response = await fetch(`${url}${path}`, {
@@ -65,6 +74,7 @@ const request = async (
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
       ...(forwardedFor === undefined ? {} : { 'X-Forwarded-For': forwardedFor }),
+      ...headers,
     },
     body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
   })
@@ -74,15 +84,45 @@ const request = async (
   return { status: response.status, body: raw === '' ? {} : JSON.parse(raw), raw }
 }
 
+/**
+ * A raw socket, for the two shapes `fetch` cannot send: a declared
+ * Content-Length that lies about what follows, and a chunked body with no
+ * declared length at all. `fetch` computes Content-Length itself and forbids
+ * overriding it.
+ */
+const sendRaw = (path: string, extraHead: string, chunks: string[] = []) =>
+  new Promise<string>((resolve) => {
+    const { port } = server.address() as AddressInfo
+    let received = ''
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(`POST ${path} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n${extraHead}\r\n`)
+      for (const chunk of chunks) socket.write(chunk)
+    })
+    socket.on('data', (chunk) => {
+      received += chunk
+    })
+    // The server cuts the socket after answering; that reset is the point, not a failure.
+    socket.on('error', () => {})
+    socket.on('close', () => resolve(received))
+    socket.setTimeout(2_000, () => socket.destroy())
+  })
+
 const claim = (challenge: string, nickname: string, extra: Parameters<typeof request>[1] = {}) =>
   request(`${API_PREFIX}${challenge}/nickname`, { method: 'POST', body: { nickname }, ...extra })
 
 /** Opens a session and plays `count` notes through it at the legal spacing. */
-const play = async (challenge: string, nickname: string, token: string, count: number) => {
+const play = async (
+  challenge: string,
+  nickname: string,
+  token: string,
+  count: number,
+  extra: Parameters<typeof request>[1] = {},
+) => {
   const opened = await request(`${API_PREFIX}${challenge}/session`, {
     method: 'POST',
     token,
     body: { nickname, config: { bpm: 72, beatsPerNote: 4 } },
+    ...extra,
   })
   const sessionId = String(opened.body.sessionId ?? '')
   const events = Array.from({ length: count }, (_, index) => ({
@@ -94,6 +134,7 @@ const play = async (challenge: string, nickname: string, token: string, count: n
     method: 'POST',
     token,
     body: { events },
+    ...extra,
   })
 
   return { opened, sessionId, events, posted }
@@ -281,12 +322,32 @@ describe('scoring over the wire', () => {
 
 describe('the edge itself', () => {
   it('refuses a body past the cap without reading it', async () => {
-    const answer = await request(`${API_PREFIX}oversized/nickname`, {
-      method: 'POST',
-      body: JSON.stringify({ nickname: 'a'.repeat(MAX_BODY_BYTES * 2) }),
-    })
+    const payload = 'a'.repeat(MAX_BODY_BYTES * 2)
+    const chunk = `${payload.length.toString(16)}\r\n${payload}\r\n`
+    const reply = await sendRaw(`${API_PREFIX}oversized/nickname`, 'Transfer-Encoding: chunked\r\n', [
+      chunk,
+      '0\r\n\r\n',
+    ])
 
-    expect(answer.status).toBe(413)
+    expect(reply.startsWith('HTTP/1.1 413')).toBe(true)
+  })
+
+  it('refuses a POST that only declares an oversized body', async () => {
+    const reply = await sendRaw(`${API_PREFIX}declared/nickname`, 'Content-Length: 100000000\r\n')
+
+    expect(reply.startsWith('HTTP/1.1 413')).toBe(true)
+    expect(reply).toContain('body too large')
+    expect((await request(`${API_PREFIX}declared`)).body.scores).toEqual([])
+    // Nothing was spent: the name is still there to be claimed.
+    expect((await claim('declared', 'ada')).status).toBe(201)
+  })
+
+  it('bounds a slow caller with short socket timeouts', () => {
+    const bounded = createScoreboardServer({ store: createStore() })
+
+    expect(bounded.headersTimeout).toBe(HEADERS_TIMEOUT_MS)
+    expect(bounded.requestTimeout).toBe(REQUEST_TIMEOUT_MS)
+    expect(bounded.keepAliveTimeout).toBe(KEEP_ALIVE_TIMEOUT_MS)
   })
 
   /**
@@ -304,6 +365,81 @@ describe('the edge itself', () => {
     const refused = await claim('spoofed', 'one more', { forwardedFor: '10.9.9.9, 203.0.113.9' })
     expect(refused.status).toBe(429)
     expect(refused.body).toEqual({ error: 'rate_limited' })
+  })
+
+  /**
+   * A claim needs no Authorization, so without this the page a player happens
+   * to be reading could squat names on their board in their name.
+   */
+  it('refuses a claim the browser marks as coming from another site', async () => {
+    const forged = await claim('forged', 'ada', { headers: { 'Sec-Fetch-Site': 'cross-site' } })
+
+    expect(forged.status).toBe(403)
+    expect(forged.body).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}forged`)).body.scores).toEqual([])
+    // Nothing was spent: the name is still there to be claimed.
+    expect((await claim('forged', 'ada')).status).toBe(201)
+  })
+
+  /** The CORS 'simple request' — a POST that skips the preflight entirely. */
+  it('refuses a claim declaring a Content-Type that is not JSON', async () => {
+    const forged = await claim('simple', 'ada', { headers: { 'Content-Type': 'text/plain' } })
+
+    expect(forged.status).toBe(403)
+    expect(forged.body).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}simple`)).body.scores).toEqual([])
+    expect((await claim('simple', 'ada')).status).toBe(201)
+  })
+
+  /**
+   * The same simple request with nothing declared at all: a body built from a
+   * `Blob` or a typed array with no MIME type makes `fetch` send valid JSON and
+   * no Content-Type, which is how a forgery would dodge a check that only read
+   * a *declared* type. The bodyless POST above (`…/finish`) still goes through.
+   */
+  it('refuses a claim that sends a body without declaring what it is', async () => {
+    const response = await fetch(`${base}${API_PREFIX}typeless/nickname`, {
+      method: 'POST',
+      body: new Blob([JSON.stringify({ nickname: 'ada' })]),
+    })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'cross_site' })
+    expect((await request(`${API_PREFIX}typeless`)).body.scores).toEqual([])
+    expect((await claim('typeless', 'ada')).status).toBe(201)
+  })
+
+  /** Present but not on the allowlist is refused; only *absent* is allowed. */
+  it('refuses a claim carrying an empty Sec-Fetch-Site', async () => {
+    const forged = await claim('empty-site', 'ada', { headers: { 'Sec-Fetch-Site': '' } })
+
+    expect(forged.status).toBe(403)
+    expect((await request(`${API_PREFIX}empty-site`)).body.scores).toEqual([])
+    expect((await claim('empty-site', 'ada')).status).toBe(201)
+  })
+
+  /** Reading a board is public — a shared link is meant to open anywhere. */
+  it('still serves a board to a cross-site GET', async () => {
+    const owner = await claim('public-read', 'ada')
+    await play('public-read', 'ada', String(owner.body.token), 2)
+
+    const read = await request(`${API_PREFIX}public-read`, { headers: { 'Sec-Fetch-Site': 'cross-site' } })
+    expect(read.status).toBe(200)
+    expect(read.body.scores).toEqual([{ nickname: 'ada', points: POINTS_PER_HIT * 2 }])
+  })
+
+  /** The shape the app's own fetches actually have, claim through to score. */
+  it('lets the app’s own same-origin JSON requests claim and score', async () => {
+    const sameOrigin = { headers: { 'Sec-Fetch-Site': 'same-origin' } }
+    const owner = await claim('same-origin', 'ada', sameOrigin)
+    expect(owner.status).toBe(201)
+
+    const { opened, posted } = await play('same-origin', 'ada', String(owner.body.token), 2, sameOrigin)
+    expect(opened.status).toBe(201)
+    expect(posted.status).toBe(200)
+    expect((await request(`${API_PREFIX}same-origin`)).body.scores).toEqual([
+      { nickname: 'ada', points: POINTS_PER_HIT * 2 },
+    ])
   })
 })
 

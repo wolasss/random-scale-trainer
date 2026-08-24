@@ -1,8 +1,28 @@
 // @vitest-environment node
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { dirname, join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+/** Lets one test simulate a disk that fills up partway through a write. */
+const fsControl = vi.hoisted(() => ({ tearWriteAfterBytes: -1 }))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    writeFileSync: (...args: Parameters<typeof actual.writeFileSync>) => {
+      if (fsControl.tearWriteAfterBytes < 0) {
+        return actual.writeFileSync(...args)
+      }
+
+      const [target, data] = args
+      actual.writeFileSync(target, String(data).slice(0, fsControl.tearWriteAfterBytes))
+      throw new Error('ENOSPC: no space left on device')
+    },
+  }
+})
+
 import {
   API_PREFIX,
   CHALLENGE_CLAIM_LIMIT,
@@ -37,6 +57,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true })
   }
+  fsControl.tearWriteAfterBytes = -1
 })
 
 const tempFile = (contents?: string): string => {
@@ -835,10 +856,33 @@ describe('snapshots', () => {
   })
 
   it('reports a write it could not make rather than throwing', () => {
-    // A directory where the file should be: the write cannot possibly land.
-    const dir = mkdtempSync(join(tmpdir(), 'callnote-board-'))
-    dirs.push(dir)
+    // A directory where the file should be: the rename cannot possibly land.
+    const path = tempFile()
+    mkdirSync(path)
 
-    expect(writeSnapshot(dir, seeded([['ada', 10]]).store)).toBe(false)
+    expect(writeSnapshot(path, seeded([['ada', 10]]).store)).toBe(false)
+    expect(readdirSync(dirname(path))).toEqual(['scoreboard.json'])
+  })
+
+  it('leaves no temp file beside the snapshot it wrote', () => {
+    const path = tempFile()
+
+    expect(writeSnapshot(path, seeded([['ada', 300]]).store)).toBe(true)
+
+    expect(readdirSync(dirname(path))).toEqual(['scoreboard.json'])
+    expect(claimNickname(readSnapshot(path), 'demo', 'ada', NOW).outcome).toBe('taken')
+  })
+
+  it('keeps the previous snapshot when a write tears part-way through', () => {
+    const path = tempFile()
+    expect(writeSnapshot(path, seeded([['ada', 300]]).store)).toBe(true)
+    const before = readFileSync(path, 'utf8')
+
+    fsControl.tearWriteAfterBytes = 12
+    expect(writeSnapshot(path, seeded([['bo', 10]]).store)).toBe(false)
+
+    expect(readFileSync(path, 'utf8')).toBe(before)
+    expect(readdirSync(dirname(path))).toEqual(['scoreboard.json'])
+    expect(claimNickname(readSnapshot(path), 'demo', 'ada', NOW).outcome).toBe('taken')
   })
 })

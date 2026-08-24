@@ -84,6 +84,29 @@ describe('settingsReducer', () => {
       const state = { ...baseSettings(), bpm: 108, speedRampMode: true, rampTargetBpm: 110 }
       expect(settingsReducer(state, { type: 'setBpm', bpm: 110 }).rampTargetBpm).toBe(110)
     })
+
+    it('hands the ramp a fresh goal when the tempo climbs past the target', () => {
+      const state = { ...baseSettings(), bpm: 72, rampTargetBpm: 112 }
+      const withRamp = settingsReducer(state, { type: 'setRamp', enabled: true })
+      expect(withRamp.rampTargetBpm).toBe(112)
+
+      const climbed = settingsReducer(withRamp, { type: 'setBpm', bpm: 150 })
+      expect(climbed.rampTargetBpm).toBe(190)
+
+      const nudged = settingsReducer(climbed, { type: 'nudgeRampTarget', delta: -5 })
+      expect(nudged.rampTargetBpm).toBe(185)
+      expect(nudged.rampTargetBpm).not.toBeGreaterThan(climbed.rampTargetBpm)
+    })
+
+    it('re-floors the target on nudgeBpm too', () => {
+      const state = { ...baseSettings(), bpm: 150, speedRampMode: true, rampTargetBpm: 112 }
+      expect(settingsReducer(state, { type: 'nudgeBpm', delta: 1 }).rampTargetBpm).toBe(191)
+    })
+
+    it('leaves the target alone while the ramp is off', () => {
+      const state = { ...baseSettings(), bpm: 72, speedRampMode: false, rampTargetBpm: 112 }
+      expect(settingsReducer(state, { type: 'setBpm', bpm: 150 }).rampTargetBpm).toBe(112)
+    })
   })
 
   it('toggles pool notes but never empties the pool', () => {

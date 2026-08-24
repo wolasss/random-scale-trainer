@@ -347,6 +347,16 @@ describe('judgeDetection', () => {
     expectHit(after, 700)
   })
 
+  it('keeps the strike time when another string rings on a note already answered', () => {
+    // Past the verdict, `candidateAt` is the moment the string was struck and
+    // the tempo bonus is still owed from it — not a candidate to be broken.
+    const hit = feed(openWindow(3, BEAT_TIME, CUE_END), [heard(3, 10.7), heard(3, 10.75)])
+    const after = feed(hit, [heard(8, 10.9)])
+
+    expect(after.candidateAt).toBe(10.7)
+    expect(after.octaveCandidate).toBeNull()
+  })
+
   it('returns the very same window when a frame told it nothing', () => {
     // The hook leans on identity to tell a real change from a wasted frame.
     const open = openWindow(3, BEAT_TIME, CUE_END)

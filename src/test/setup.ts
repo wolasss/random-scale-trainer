@@ -1,5 +1,6 @@
 import { afterEach, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
+import './consoleGuard'
 import { cleanup } from '@testing-library/react'
 import { STORAGE_KEYS } from '../constants'
 

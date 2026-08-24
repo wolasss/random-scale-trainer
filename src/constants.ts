@@ -140,6 +140,15 @@ export const STORAGE_KEYS = {
   // asked would not be protecting anything. Sent on mutation requests only,
   // never on the board's GET, and never in a URL.
   challengeTokens: 'fretboard-challenge-tokens',
+  // Which challenges the player has folded the scoreboard rail away on, as
+  // JSON: challenge name → true. Per challenge because the choice is about
+  // *this* board — one you are winning is worth a column of the stage and one
+  // you dropped out of is not — and a single flag would carry the second
+  // decision over to the first. Whole-value rejection like the rest: anything
+  // that is not an object of booleans reads as no preferences at all, and the
+  // rail is expanded, which is the default it would have had anyway. Only ever
+  // touched on a challenge; the mobile fold ignores it entirely.
+  challengeBoardHidden: 'fretboard-challenge-board-hidden',
   // Literally 'dismissed', or unset. Anything else reads as not yet dismissed
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.

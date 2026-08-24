@@ -77,13 +77,17 @@ const SELECTORS = {
   routineCard: By.css('[data-testid="routine-card"]'),
   transportReadout: By.css('[data-testid="transport-readout"]'),
   scoreboard: By.css('[data-testid="scoreboard"]'),
+  scoreboardHide: By.css('[data-testid="scoreboard-hide"]'),
+  scoreboardHandle: By.css('[data-testid="scoreboard-handle"]'),
+  scoreboardNudge: By.css('[data-testid="scoreboard-nudge"]'),
+  scoreboardEmpty: By.css('[data-testid="scoreboard-empty"]'),
   nicknamePrompt: By.css('[data-testid="nickname-prompt"]'),
   nicknameError: By.css('[data-testid="nickname-error"]'),
   nicknameInput: By.css('[data-testid="nickname-input"]'),
   nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
   nicknameDismiss: By.css('[data-testid="nickname-dismiss"]'),
   micReadout: By.css('[data-testid="mic-readout"]'),
-  scoreTally: By.css('[data-testid="score-tally"]'),
+  scorePlay: By.css('[data-testid="score-play"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -272,16 +276,47 @@ export class TrainerPage {
     return (await this.driver.findElements(SELECTORS.scoreboard)).length > 0
   }
 
-  /** Every row on the board, as "<nickname> <points>" pairs, top first. */
+  /**
+   * Every row on the board, as "<nickname> <points>" pairs, top first. The name
+   * is read off `.scoreboard-name` rather than the cell around it: your own row
+   * carries a "· you" tag in that cell, and a board is a list of names.
+   */
   async getScoreboardEntries(): Promise<Array<{ nickname: string; points: number }>> {
     const rows = await this.driver.findElements(By.css('.scoreboard-entry'))
 
     return Promise.all(
       rows.map(async (row) => ({
-        nickname: await row.findElement(By.css('.scoreboard-nickname')).getText(),
+        nickname: await row.findElement(By.css('.scoreboard-name')).getText(),
         points: Number(await row.findElement(By.css('.scoreboard-points')).getText()),
       })),
     )
+  }
+
+  /** What the board says for itself while it has no rows — '' once it has some. */
+  async getScoreboardEmptyText(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.scoreboardEmpty)
+
+    return found.length === 0 ? '' : found[0].getText()
+  }
+
+  /** Folds the desktop rail away to its handle, and reads what the handle says. */
+  async hideScoreboardRail(): Promise<void> {
+    await this.driver.findElement(SELECTORS.scoreboardHide).click()
+    await this.driver.wait(until.elementLocated(SELECTORS.scoreboardHandle), 5_000)
+  }
+
+  /** The handle's full standing, as a screen reader would get it — '' if absent. */
+  async getScoreboardHandleLabel(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.scoreboardHandle)
+
+    return found.length === 0 ? '' : ((await found[0].getAttribute('aria-label')) ?? '')
+  }
+
+  /** The one line under the rail that is about you rather than everybody. */
+  async getScoreboardNudge(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.scoreboardNudge)
+
+    return found.length === 0 ? '' : found[0].getText()
   }
 
   /** Open the app exactly as a first-time visitor gets it: setup folded away. */
@@ -676,10 +711,12 @@ export class TrainerPage {
    * Resolves once the score row has something to show — the first note has
    * been scored. A default tempo takes seconds per note, hence the generous
    * timeout; the fake microphone rarely lands a hit, so this also passes on
-   * the first miss, which is all the layout guard needs.
+   * the first miss, which is all the layout guard needs. The in-play row is
+   * what it waits for: the summary only exists once playback has stopped, and
+   * the guard measures the readout while a session is running.
    */
   async waitForScoreRow(timeoutMs = 25_000): Promise<void> {
-    await this.driver.wait(until.elementLocated(SELECTORS.scoreTally), timeoutMs, 'score row never appeared')
+    await this.driver.wait(until.elementLocated(SELECTORS.scorePlay), timeoutMs, 'score row never appeared')
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {
