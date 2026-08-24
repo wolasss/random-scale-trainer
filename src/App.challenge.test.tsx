@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
+import { SCOREBOARD_RAIL_QUERY } from './components/ScoreboardStrip'
 import { STORAGE_KEYS } from './constants'
 import { installMatchMedia } from './test/matchMedia'
 import { FAKE_CLOCKS } from './test/fakeTimers'
@@ -108,6 +109,9 @@ const PHONE_PORTRAIT = {
   [LANDSCAPE_QUERY]: false,
 }
 
+/** A pointer-and-keyboard browser with the width the rail asks for. */
+const DESKTOP = { [SCOREBOARD_RAIL_QUERY]: true }
+
 const visit = (search: string) => window.history.replaceState({}, '', `/${search}`)
 
 const renderApp = async () => {
@@ -162,7 +166,10 @@ describe('without ?challenge= in the URL', () => {
 })
 
 describe('arriving on a challenge', () => {
-  beforeEach(() => visit('?challenge=demo'))
+  beforeEach(() => {
+    visit('?challenge=demo')
+    installMatchMedia(DESKTOP)
+  })
 
   /**
    * Scoring is what a shared board is a board of, so the permission is needed
@@ -191,16 +198,41 @@ describe('arriving on a challenge', () => {
     expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('shows the board that is already there', async () => {
+  it('shows the board that is already there, in a rail beside the note', async () => {
     installFetch(board(['ada', 300], ['bo', 120]))
     installGetUserMedia()
 
     await renderApp()
 
-    const entries = document.querySelectorAll('.scoreboard-entry')
+    const entries = document.querySelectorAll('.scoreboard-rail .scoreboard-entry')
     expect(entries).toHaveLength(2)
     expect(entries[0]).toHaveTextContent('ada')
     expect(entries[0]).toHaveTextContent('300')
+    // The stack the rail stands beside, rather than under.
+    const stage = document.querySelector('.practice-stage')
+    expect(Array.from(stage!.children).map((child) => child.className.split(' ')[0])).toEqual([
+      'practice-stage-main',
+      'scoreboard',
+    ])
+  })
+
+  /** Folding it away is layout and nothing else — the board goes on polling. */
+  it('folds the rail to a handle that survives a reload, per challenge', async () => {
+    installFetch(board(['ada', 300]))
+    installGetUserMedia()
+    owning()
+
+    const first = await renderApp()
+
+    fireEvent.click(screen.getByTestId('scoreboard-hide'))
+    expect(screen.getByTestId('scoreboard-handle')).toHaveAccessibleName(
+      'Show the demo scoreboard — you are 1st with 300 points',
+    )
+    first.unmount()
+
+    await renderApp()
+    expect(screen.getByTestId('scoreboard-handle')).toBeInTheDocument()
+    expect(screen.queryByTestId('scoreboard')).toBeNull()
   })
 
   it('reserves the name that was typed before joining under it', async () => {
@@ -292,6 +324,7 @@ describe('banking a session', () => {
   beforeEach(() => {
     vi.useFakeTimers(FAKE_CLOCKS)
     visit('?challenge=demo')
+    installMatchMedia(DESKTOP)
     owning()
   })
 
@@ -343,7 +376,7 @@ describe('banking a session', () => {
 })
 
 describe('on the stand', () => {
-  it('puts the board between the mic readout and the transport', async () => {
+  it('folds the board to one line between the mic readout and the transport', async () => {
     installFetch(board(['ada', 300]))
     installGetUserMedia()
     installMatchMedia(PHONE_PORTRAIT)
@@ -357,6 +390,18 @@ describe('on the stand', () => {
 
     const order = Array.from(stage!.children).map((child) => child.className.split(' ')[0])
     expect(order).toEqual(['stage-hero', 'mic-readout', 'scoreboard', 'stage-foot'])
+
+    // A stand has no column to give a rail, so the board is a strip and a
+    // sheet — and the list is behind the tap rather than taking the screen.
+    expect(screen.getByTestId('scoreboard-summary')).toHaveTextContent('you #1 · 300')
+    expect(document.querySelectorAll('.scoreboard-entry')).toHaveLength(0)
+
+    fireEvent.click(screen.getByTestId('scoreboard-summary'))
+    expect(document.querySelectorAll('.scoreboard-sheet .scoreboard-entry')).toHaveLength(1)
+
+    fireEvent.click(screen.getByTestId('scoreboard-sheet-close'))
+    expect(screen.queryByTestId('scoreboard-sheet')).toBeNull()
+    expect(screen.getByTestId('scoreboard-summary')).toBeInTheDocument()
   })
 
   it('has no board at all off a challenge, so the stand layout is what it was', async () => {

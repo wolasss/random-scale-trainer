@@ -46,7 +46,7 @@ import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout } from './components/MicReadout'
 import { NicknamePrompt } from './components/NicknamePrompt'
-import { ScoreboardStrip } from './components/ScoreboardStrip'
+import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
@@ -65,6 +65,7 @@ import { useIdlePreview } from './hooks/useIdlePreview'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { usePracticeHistory } from './hooks/usePracticeHistory'
 import { useDisplayMode } from './hooks/useDisplayMode'
+import { useMediaQuery } from './hooks/useMediaQuery'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
@@ -234,6 +235,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   }
 
   const display = useDisplayMode()
+  // Which shape the shared board takes. The rail wants a column of its own, so
+  // it is only offered where there is a desktop's width to spare — the stand
+  // never qualifies, whatever it is propped on, because the note owns that
+  // screen. Everywhere else the board folds above the transport instead.
+  const boardRailFits = useMediaQuery(SCOREBOARD_RAIL_QUERY)
+  const boardLayout: ScoreboardLayout = !display.stage && boardRailFits ? 'rail' : 'fold'
   const serviceWorker = useServiceWorker()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
@@ -518,8 +525,15 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         scores={challenge.scores}
         status={challenge.status}
         notice={challenge.notice}
+        layout={boardLayout}
       />
     ) : null
+
+  // The two mounting points the two readings need: a column beside the stage,
+  // or a line directly above the play control. Never both, and both null off a
+  // challenge — which is the whole of "without ?challenge= this does not exist".
+  const scoreboardRail = boardLayout === 'rail' ? scoreboard : null
+  const scoreboardFold = boardLayout === 'rail' ? null : scoreboard
 
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
@@ -547,7 +561,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
           {micReadout}
 
-          {scoreboard}
+          {scoreboardFold}
 
           <StageTransport
             isPlaying={playback.isPlaying}
@@ -584,6 +598,47 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     )
   }
 
+  /*
+   * The playing stack, in the order it is read: note and neck, then what the
+   * microphone heard, then the routine, then the board's own line, then the
+   * transport. The fold sits directly above the play control on purpose — it
+   * is the last thing a thumb passes on the way to starting a run.
+   */
+  const practiceStack = (
+    <>
+      <div className={`practice-stage-view ${fretboardCard !== null ? 'with-neck' : ''}`}>
+        <Hero
+          snapshot={playback.snapshot}
+          beatsPerNote={settings.beatsPerNote}
+          poolSize={settings.pool.length}
+          ringRef={beatPulse.ringRef}
+          message={heroMessage}
+          idlePreview={idlePreview}
+        />
+
+        {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
+      </div>
+
+      {micReadout}
+
+      {routineStrip}
+
+      {scoreboardFold}
+
+      <TransportBar
+        isPlaying={playback.isPlaying}
+        isPaused={playback.isPaused}
+        routineName={routine.selected?.name ?? null}
+        routineFinished={routine.finished}
+        onPlayPause={playOrPause}
+        onReset={resetSession}
+        started={sessionTouched}
+        elapsedMs={sessionTimer.elapsedMs}
+        goalMin={settings.sessionGoalMin}
+      />
+    </>
+  )
+
   return (
     <div className="app-shell">
       <div className="backdrop" />
@@ -601,36 +656,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             than in a column of its own — it is the answer to the question the
             note asks, and the pairing is lost across a few hundred pixels. */}
         <section className="panel practice-stage">
-          <div className={`practice-stage-view ${fretboardCard !== null ? 'with-neck' : ''}`}>
-            <Hero
-              snapshot={playback.snapshot}
-              beatsPerNote={settings.beatsPerNote}
-              poolSize={settings.pool.length}
-              ringRef={beatPulse.ringRef}
-              message={heroMessage}
-              idlePreview={idlePreview}
-            />
+          {/* A column of its own for the stack only when a board is taking the
+              one beside it. Off a challenge the stage is exactly the block
+              stack it has always been — the wrapper is what the rail needs to
+              be a grid column against, and nothing else asks for it. */}
+          {scoreboardRail === null ? (
+            practiceStack
+          ) : (
+            <>
+              <div className="practice-stage-main">{practiceStack}</div>
 
-            {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
-          </div>
-
-          {micReadout}
-
-          {routineStrip}
-
-          <TransportBar
-            isPlaying={playback.isPlaying}
-            isPaused={playback.isPaused}
-            routineName={routine.selected?.name ?? null}
-            routineFinished={routine.finished}
-            onPlayPause={playOrPause}
-            onReset={resetSession}
-            started={sessionTouched}
-            elapsedMs={sessionTimer.elapsedMs}
-            goalMin={settings.sessionGoalMin}
-          />
-
-          {scoreboard}
+              {scoreboardRail}
+            </>
+          )}
         </section>
 
         {/* Setup below, in the order the concepts build on each other: the
