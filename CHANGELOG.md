@@ -1,3 +1,12 @@
+## [1.22.2](https://github.com/wolasss/random-scale-trainer/compare/v1.22.1...v1.22.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **routines:** name a block after the key it drills instead of calling five presets 'custom' ([#163](https://github.com/wolasss/random-scale-trainer/issues/163)) ([59a2f51](https://github.com/wolasss/random-scale-trainer/commit/59a2f51228775be8960a4080036fbfe78b6a7aa5))
+* **scoreboard:** write the snapshot atomically so a torn file can't reset every nickname's ownership ([#164](https://github.com/wolasss/random-scale-trainer/issues/164)) ([24d995b](https://github.com/wolasss/random-scale-trainer/commit/24d995b301b241b6662bf853caf21e24a5d51ada))
+* **scoring:** keep the strike time after a hit so the in-time bonus survives a stray detection ([#161](https://github.com/wolasss/random-scale-trainer/issues/161)) ([73481a5](https://github.com/wolasss/random-scale-trainer/commit/73481a5573023dbfdda8248ec1eb3f9f34ab659f))
+
 ## [1.22.1](https://github.com/wolasss/random-scale-trainer/compare/v1.22.0...v1.22.1) (2026-08-22)
 
 
