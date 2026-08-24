@@ -343,21 +343,6 @@ button {
   opacity: 0.7;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  padding: 0.34rem 0.66rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--accent);
-  background: rgba(255, 211, 110, 0.13);
-  border: 1px solid rgba(255, 211, 110, 0.35);
-}
-
 .theme-toggle {
   border: 1px solid var(--panel-border);
   border-radius: 999px;
@@ -457,13 +442,6 @@ h2 {
   margin: 0;
   max-width: 58ch;
   font-size: 1rem;
-}
-
-.hero-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: 1rem;
 }
 
 .chip {
@@ -767,13 +745,6 @@ h2 {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--control-border);
   margin-bottom: 1.15rem;
-}
-
-.target-time-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
 }
 
 input[type='range'] {
@@ -1178,12 +1149,6 @@ input[type='range'] {
   text-align: center;
   font-size: 0.72rem;
   color: var(--ink-soft);
-}
-
-.target-time-info {
-  margin-top: 0.7rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--control-border);
 }
 
 .target-time {
@@ -2658,11 +2623,6 @@ button.practice-history-cell {
   .note-pool-heading .preset-select {
     max-width: 100%;
     width: 100%;
-  }
-
-  .target-time-info {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   /* The stepper, the readout and the tap button only just fit a phone at the
