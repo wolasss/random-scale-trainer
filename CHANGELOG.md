@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/wolasss/random-scale-trainer/compare/v1.24.0...v1.25.0) (2026-08-24)
+
+
+### Features
+
+* **mic:** split the score readout into a play row and a pause summary ([#173](https://github.com/wolasss/random-scale-trainer/issues/173)) ([69a2037](https://github.com/wolasss/random-scale-trainer/commit/69a2037a5ac196a467e1cdf80e1757c17d529f2e))
+
 # [1.24.0](https://github.com/wolasss/random-scale-trainer/compare/v1.23.2...v1.24.0) (2026-08-24)
 
 
