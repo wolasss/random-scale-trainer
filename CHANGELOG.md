@@ -1,3 +1,10 @@
+## [1.23.2](https://github.com/wolasss/random-scale-trainer/compare/v1.23.1...v1.23.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **challenge:** reject a malformed stored ownership token instead of crashing on the board ([#169](https://github.com/wolasss/random-scale-trainer/issues/169)) ([9466550](https://github.com/wolasss/random-scale-trainer/commit/9466550eab40264324bbd94bf9eb7e6b56bf6a99))
+
 ## [1.23.1](https://github.com/wolasss/random-scale-trainer/compare/v1.23.0...v1.23.1) (2026-08-24)
 
 
