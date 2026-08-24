@@ -11,6 +11,7 @@ import {
   isBackupFileType,
   MAX_BACKUP_BYTES,
   parseBackup,
+  practiceDayTitle,
   WEEKDAY_INITIALS,
   type PracticeHistory,
 } from '../lib/history'
@@ -25,15 +26,6 @@ type PracticeHistoryViewProps = {
   onImport: (incoming: PracticeHistory) => boolean
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date
-}
-
-/** Same wording as the strip on the card, so one day reads the same in both. */
-const dayTitle = (minutes: number, sec: number) => {
-  if (sec === 0) {
-    return 'no practice'
-  }
-
-  return minutes === 0 ? 'under a minute' : `${minutes} min`
 }
 
 const IMPORT_ERROR = "That file doesn't look like a practice-log backup — nothing was changed."
@@ -210,7 +202,7 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
                       return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
                     }
 
-                    const label = `${cell.key}: ${dayTitle(cell.minutes, cell.sec)}`
+                    const label = `${cell.key}: ${practiceDayTitle(cell.minutes, cell.sec)}`
                     const className = [
                       `practice-history-cell is-l${cell.level}`,
                       cell.isToday ? 'is-today' : '',
@@ -242,7 +234,7 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
           </div>
 
           <p className="practice-history-day" data-testid="history-day">
-            {selectedDay} · {dayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
+            {selectedDay} · {practiceDayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
           </p>
 
           <div className="practice-history-backup">
