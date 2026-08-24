@@ -397,7 +397,9 @@ export type ScoredDetection = {
 
 /**
  * A called note's open question. `candidateAt` is the audio time of a first
- * matching detection still waiting for the second that would confirm it, and
+ * matching detection still waiting for the second that would confirm it —
+ * until the verdict settles, after which it stands as the moment the string was
+ * struck, because a later in-span click can still pay the tempo bonus from it.
  * `awarded` remembers which bonuses this note has already paid out, so a bonus
  * is earned once per note however many frames go on saying so.
  *
@@ -499,10 +501,15 @@ export function judgeDetection(
 
   if (pitchClass !== noteWindow.pc) {
     // A different note breaks a sustain in progress — but not the window: the
-    // player is allowed to hunt for the right fret and still get there.
-    return noteWindow.candidateAt === null && noteWindow.octaveCandidate === null
+    // player is allowed to hunt for the right fret and still get there. Past
+    // the verdict there is no sustain left to break: `candidateAt` is the
+    // moment the string was struck, which a later in-span click still pays the
+    // tempo bonus from, so a neighbouring string ringing must not erase it.
+    const candidateAt = noteWindow.verdict === null ? null : noteWindow.candidateAt
+
+    return candidateAt === noteWindow.candidateAt && noteWindow.octaveCandidate === null
       ? noteWindow
-      : { ...noteWindow, candidateAt: null, octaveCandidate: null }
+      : { ...noteWindow, candidateAt, octaveCandidate: null }
   }
 
   // The octave gets the sustain rule of its own, on the same two-frames-close-
