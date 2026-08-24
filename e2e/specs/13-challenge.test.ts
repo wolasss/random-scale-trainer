@@ -19,6 +19,7 @@ import { useTrainerSession } from '../session.ts'
 const CHALLENGE = 'e2e-challenge'
 const OWNED = 'e2e-owned'
 const GUARDED = 'e2e-guarded'
+const RAIL = 'e2e-rail'
 
 /** The fastest the app can call a note, which is the server's spacing rule. */
 const NOTE_INTERVAL_MS = 250
@@ -46,6 +47,8 @@ describe('shared challenge', () => {
     // Nothing has been played, so the board is still empty — what is being
     // asserted is that it loaded at all, which means the API answered.
     assert.deepEqual(await page().getScoreboardEntries(), [])
+    // ...and it says as much rather than sitting blank.
+    assert.equal(await page().getScoreboardEmptyText(), 'No scores yet. Set the bar.')
 
     // The name is remembered as the next prompt's prefill...
     assert.equal(await page().getLocalStorage('fretboard-challenge-nickname'), 'ada')
@@ -53,6 +56,49 @@ describe('shared challenge', () => {
     const tokens = JSON.parse((await page().getLocalStorage('fretboard-challenge-tokens')) ?? '{}')
     assert.equal(tokens[CHALLENGE].nickname, 'ada')
     assert.ok(tokens[CHALLENGE].token.length >= 32)
+  })
+
+  /**
+   * The desktop reading: a rail down the side of the practice stage, foldable
+   * to a handle, and the fold remembered per challenge. Nothing about it
+   * touches what the board is doing — it is layout and no more.
+   */
+  it('folds the rail away to a handle, and is still folded on the way back', async () => {
+    await page().openChallenge(RAIL)
+    await page().joinChallenge('ada')
+
+    const tokens = JSON.parse((await page().getLocalStorage('fretboard-challenge-tokens')) ?? '{}')
+    const { token } = tokens[RAIL]
+
+    const opened = await page().callApi(`/api/scoreboard/${RAIL}/session`, {
+      method: 'POST',
+      token,
+      body: { nickname: 'ada', config: { bpm: 72, beatsPerNote: 4 } },
+    })
+    const { sessionId } = JSON.parse(opened.body)
+    await page().callApi(`/api/scoreboard/${RAIL}/session/${sessionId}/events`, {
+      method: 'POST',
+      token,
+      body: { events: [{ seq: 0, kind: 'hit', at: 0 }] },
+    })
+
+    // Back on the board with a row of her own, which is what the nudge and the
+    // handle's standing are both read off.
+    await page().refresh()
+    assert.deepEqual(await page().getScoreboardEntries(), [{ nickname: 'ada', points: 10 }])
+    assert.equal(await page().getScoreboardNudge(), 'Top of the board — hold it.')
+
+    await page().hideScoreboardRail()
+    assert.equal(await page().hasScoreboard(), false)
+    assert.equal(
+      await page().getScoreboardHandleLabel(),
+      `Show the ${RAIL} scoreboard — you are 1st with 10 points`,
+    )
+
+    // The choice is stored against this challenge, so a reload comes back to it.
+    await page().refresh()
+    assert.equal(await page().hasScoreboard(), false)
+    assert.match(await page().getScoreboardHandleLabel(), /^Show the e2e-rail scoreboard/)
   })
 
   it('leaves the practice app itself exactly as it was', async () => {

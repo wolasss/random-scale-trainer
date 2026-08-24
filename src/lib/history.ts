@@ -251,6 +251,18 @@ export const buildWindow = (
   })
 }
 
+/**
+ * How one day's practice reads. Shared by the card's strip and the calendar, so
+ * the same day says the same thing wherever it is shown.
+ */
+export const practiceDayTitle = (minutes: number, sec: number) => {
+  if (sec === 0) {
+    return 'no practice'
+  }
+
+  return minutes === 0 ? 'under a minute' : `${minutes} min`
+}
+
 /** Rolling totals for the footer line, today included. */
 export const recentTotals = (history: PracticeHistory, today = new Date(), days = 7) => {
   let sec = 0

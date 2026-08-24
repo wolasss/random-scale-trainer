@@ -99,6 +99,25 @@ describe('NicknamePrompt', () => {
     expect(document.activeElement).toBe(last)
   })
 
+  /**
+   * The permission dialog is asked for the moment a challenge opens, so the
+   * modal has to have said why before the browser's own does the asking.
+   */
+  it('says the microphone is coming, and what it is for', () => {
+    renderPrompt()
+
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'We’ll ask for your microphone — that’s how notes become points.',
+    )
+  })
+
+  it('offers to leave you off the board rather than out of the challenge', () => {
+    renderPrompt()
+
+    expect(screen.getByTestId('nickname-dismiss')).toHaveTextContent('Just watch')
+    expect(screen.getByTestId('nickname-submit')).toHaveTextContent('Put me on the board')
+  })
+
   it('caps what can be typed at the length the board will keep', () => {
     renderPrompt()
 
@@ -129,8 +148,8 @@ describe('reserving the name', () => {
   it('says why a claim was refused, in each of the three ways it can be', () => {
     for (const [error, text] of [
       ['taken', 'already has that name'],
-      ['rate-limited', 'Too many tries'],
-      ['error', 'could not be reached'],
+      ['rate-limited', 'a little too fast'],
+      ['error', 'reach the board'],
     ] as const) {
       const { unmount } = renderPrompt({ error })
 

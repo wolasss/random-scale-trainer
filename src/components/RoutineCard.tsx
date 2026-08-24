@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClone, faForwardStep, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
 import {
+  faChevronLeft,
+  faChevronRight,
+  faClone,
+  faForwardStep,
+  faPlus,
+  faXmark,
+} from '@fortawesome/free-solid-svg-icons'
+import { DEFAULT_BLOCK_SECONDS } from '../constants'
+import {
+  BLOCK_STEP_SECONDS,
   blockCycleSeconds,
   blockFill,
   blockFlex,
@@ -12,6 +21,7 @@ import {
   routineMeta,
   routineProgress,
   type Routine,
+  type RoutineBlock,
 } from '../lib/routines'
 import type { RoutineController } from '../hooks/useRoutine'
 
@@ -64,6 +74,9 @@ type RoutineTimelineProps = {
   finished: boolean
   armedIndex: number | null
   onRemoveBlock: (index: number) => void
+  onMoveBlock: (index: number, delta: -1 | 1) => void
+  onSetDuration: (index: number, seconds: number | null) => void
+  onInsertBlock: (index: number) => void
   onDisarm: () => void
 }
 
@@ -71,6 +84,9 @@ type RoutineTimelineProps = {
  * The sequence, drawn to scale. Only ever rendered for a routine with more than
  * one block, which is why every segment here carries a remove control — the
  * lone-block case that had to suppress it no longer reaches this far.
+ *
+ * Editing is plain buttons rather than a drag handle: reordering has to be
+ * reachable from a keyboard and hittable with a thumb, and a handle is neither.
  */
 function RoutineTimeline({
   routine,
@@ -79,6 +95,9 @@ function RoutineTimeline({
   finished,
   armedIndex,
   onRemoveBlock,
+  onMoveBlock,
+  onSetDuration,
+  onInsertBlock,
   onDisarm,
 }: RoutineTimelineProps) {
   return (
@@ -105,7 +124,7 @@ function RoutineTimeline({
             className={`routine-segment ${state}`}
             data-testid={`routine-segment-${index}`}
             data-state={state}
-            style={{ flexGrow: blockFlex(block), flexShrink: 1, flexBasis: 0 }}
+            style={{ flexGrow: blockFlex(block), flexShrink: 1 }}
           >
             <div className="routine-segment-head">
               <span className="routine-segment-name">{block.name}</span>
@@ -130,10 +149,118 @@ function RoutineTimeline({
               <span className="routine-segment-cycle">{formatClock(blockCycleSeconds(block))} / cycle</span>
               <span>{caption}</span>
             </div>
+            <div className="routine-segment-controls">
+              <button
+                type="button"
+                className="routine-segment-control"
+                aria-label={`Insert current settings before block ${block.name}`}
+                title={`Insert current settings before block ${block.name}`}
+                onClick={() => onInsertBlock(index)}
+              >
+                <FontAwesomeIcon icon={faPlus} />
+              </button>
+              <button
+                type="button"
+                className="routine-segment-control"
+                aria-label={`Move block ${block.name} earlier`}
+                title={`Move block ${block.name} earlier`}
+                disabled={index === 0}
+                onClick={() => onMoveBlock(index, -1)}
+              >
+                <FontAwesomeIcon icon={faChevronLeft} />
+              </button>
+              <button
+                type="button"
+                className="routine-segment-control"
+                aria-label={`Move block ${block.name} later`}
+                title={`Move block ${block.name} later`}
+                disabled={index === routine.blocks.length - 1}
+                onClick={() => onMoveBlock(index, 1)}
+              >
+                <FontAwesomeIcon icon={faChevronRight} />
+              </button>
+              {/* Every block in a sequence is timed — normalizeBlocks sees to
+                  that — so these two always have a duration to work from. */}
+              <button
+                type="button"
+                className="routine-segment-control"
+                aria-label={`Shorten block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+                title={`Shorten block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+                disabled={(block.dur ?? 0) <= BLOCK_STEP_SECONDS}
+                onClick={() => onSetDuration(index, (block.dur ?? 0) - BLOCK_STEP_SECONDS)}
+              >
+                −{BLOCK_STEP_SECONDS}s
+              </button>
+              <button
+                type="button"
+                className="routine-segment-control"
+                aria-label={`Lengthen block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+                title={`Lengthen block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+                onClick={() => onSetDuration(index, (block.dur ?? 0) + BLOCK_STEP_SECONDS)}
+              >
+                +{BLOCK_STEP_SECONDS}s
+              </button>
+            </div>
           </li>
         )
       })}
     </ol>
+  )
+}
+
+type LoneBlockTimerProps = {
+  block: RoutineBlock
+  onSetDuration: (index: number, seconds: number | null) => void
+}
+
+/**
+ * The timer controls for a routine of one block — the only place a block may
+ * gain or lose its clock, which is the round trip between the two shapes on the
+ * shelf: untimed it is a saved setup, timed it is a single exercise.
+ */
+function LoneBlockTimer({ block, onSetDuration }: LoneBlockTimerProps) {
+  const dur = block.dur
+  if (dur === null) {
+    return (
+      <button
+        type="button"
+        className="ghost-button"
+        data-testid="routine-add-timer"
+        onClick={() => onSetDuration(0, DEFAULT_BLOCK_SECONDS)}
+      >
+        Add a timer
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="ghost-button"
+        aria-label={`Shorten block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+        disabled={dur <= BLOCK_STEP_SECONDS}
+        onClick={() => onSetDuration(0, dur - BLOCK_STEP_SECONDS)}
+      >
+        −{BLOCK_STEP_SECONDS}s
+      </button>
+      <button
+        type="button"
+        className="ghost-button"
+        aria-label={`Lengthen block ${block.name} by ${BLOCK_STEP_SECONDS} seconds`}
+        onClick={() => onSetDuration(0, dur + BLOCK_STEP_SECONDS)}
+      >
+        +{BLOCK_STEP_SECONDS}s
+      </button>
+      <button
+        type="button"
+        className="ghost-button"
+        data-testid="routine-remove-timer"
+        onClick={() => onSetDuration(0, null)}
+      >
+        Remove timer
+      </button>
+    </>
   )
 }
 
@@ -187,6 +314,25 @@ export function RoutineCard({ routine }: RoutineCardProps) {
     }
 
     setPendingRemove({ kind: 'block', routineId: selected.id, index })
+  }
+
+  // Every edit disarms first. The pending index addresses a position, not a
+  // block, so a move or an insert would otherwise leave a *different* block
+  // armed and one tap from deletion — the same hazard the shift-up after a
+  // delete has.
+  const moveBlock = (index: number, delta: -1 | 1) => {
+    disarmRemove()
+    routine.moveBlock(index, delta)
+  }
+
+  const setBlockDuration = (index: number, seconds: number | null) => {
+    disarmRemove()
+    routine.setBlockDuration(index, seconds)
+  }
+
+  const insertBlock = (index: number) => {
+    disarmRemove()
+    routine.insertBlock(index)
   }
 
   useEffect(() => {
@@ -372,6 +518,9 @@ export function RoutineCard({ routine }: RoutineCardProps) {
               finished={finished}
               armedIndex={armedBlockIndex}
               onRemoveBlock={removeBlock}
+              onMoveBlock={moveBlock}
+              onSetDuration={setBlockDuration}
+              onInsertBlock={insertBlock}
               onDisarm={disarmRemove}
             />
           ) : null}
@@ -400,6 +549,11 @@ export function RoutineCard({ routine }: RoutineCardProps) {
                   Skip block <FontAwesomeIcon icon={faForwardStep} />
                 </button>
               ) : null}
+              {/* A lone block is the only shape whose timer may come and go: an
+                  untimed block inside a sequence would stall the routine on it
+                  forever, so the round trip is offered here and nowhere else.
+                  The segments carry their own retiming controls. */}
+              {selected.blocks.length === 1 ? <LoneBlockTimer block={selected.blocks[0]} onSetDuration={setBlockDuration} /> : null}
             </div>
             <p className="routine-status" data-testid="routine-status">
               {statusLine(selected, blockIndex, blockElapsedMs, finished)}

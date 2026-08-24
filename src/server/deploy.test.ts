@@ -20,6 +20,12 @@ const DOCKERFILE = read('Dockerfile')
 const ENTRYPOINT = read('docker/50-scoreboard.sh')
 const MAIN = read('src/server/main.js')
 
+const RUNTIME = DOCKERFILE.match(/^FROM [^\n]*\bAS runtime\b[\s\S]*$/m)?.[0] ?? ''
+const SERVER_COPIES = (RUNTIME.match(/^COPY .*$/gm) ?? [])
+  .filter((line) => line.includes('/opt/callnote/server'))
+const SERVER_SOURCES = SERVER_COPIES.flatMap((line) =>
+  line.replace(/^COPY\s+/, '').trim().split(/\s+/).slice(0, -1))
+
 describe('nginx.conf', () => {
   /**
    * add_header does not merge: a location that declares one of its own inherits
@@ -55,6 +61,24 @@ describe('nginx.conf', () => {
     // A location with add_header of its own inherits none of the rest.
     expect(location).toContain('X-Content-Type-Options')
     expect(location).toContain('Content-Security-Policy')
+  })
+
+  /**
+   * http.js's own socket timeouts and streaming body cap only ever see the
+   * fast loopback connection nginx makes to it — nginx is the client-facing
+   * listener, and with request buffering on (nginx's default) it reads a
+   * slow or oversized public body in full before those protections ever run.
+   * Streaming instead, and bounding the client-facing connection here too,
+   * is what makes them apply to the caller they were written for.
+   */
+  it('bounds a slow or oversized public caller itself, rather than only the upstream it proxies to', () => {
+    const location = NGINX.match(/location \/api\/ \{[\s\S]*?\n {2}\}/)?.[0]
+
+    expect(location).toBeDefined()
+    expect(location).toContain('proxy_request_buffering off')
+    expect(location).toContain('client_max_body_size 8k')
+    expect(NGINX).toContain('client_header_timeout')
+    expect(NGINX).toContain('client_body_timeout')
   })
 
   /**
@@ -97,7 +121,6 @@ describe('Dockerfile', () => {
   })
 
   it('ships the service and the script that starts it', () => {
-    expect(DOCKERFILE).toContain('COPY src/server/ /opt/callnote/server/')
     expect(DOCKERFILE).toContain('/docker-entrypoint.d/50-scoreboard.sh')
     expect(ENTRYPOINT).toContain('/opt/callnote/server/main.js')
     // Blocking here would stop nginx from ever starting.
@@ -105,17 +128,37 @@ describe('Dockerfile', () => {
   })
 
   /**
-   * main.js imports these two at boot. The COPY above ships the whole directory,
-   * so this is really a check that they still live in it — a module moved
-   * anywhere else is a container that exits before nginx has finished starting.
+   * main.js imports these at boot, and each is now named individually in the
+   * COPY rather than shipped by directory — a module moved anywhere else, or
+   * never added to the COPY, is a container that exits before nginx has
+   * finished starting.
    */
   it('ships every module the service imports', () => {
-    for (const module of ['http.js', 'scoreboard.js', 'session-scoring.js']) {
+    expect(RUNTIME).not.toBe('')
+
+    for (const module of ['http.js', 'main.js', 'scoreboard.js', 'session-scoring.js']) {
       expect(existsSync(fileURLToPath(new URL(`./${module}`, import.meta.url)))).toBe(true)
+      expect(SERVER_SOURCES).toContain(`src/server/${module}`)
     }
 
     expect(MAIN).toContain("from './http.js'")
     expect(MAIN).toContain("from './scoreboard.js'")
+  })
+
+  /**
+   * The image is published, and the test sources spell out the rate-limit
+   * constants, the snapshot format and the ownership rules to anyone who
+   * pulls it — so the runtime stage must copy exactly the four runtime
+   * modules and nothing else out of src/server.
+   */
+  it('ships nothing else from src/server — no tests, no declarations', () => {
+    expect(SERVER_COPIES.length).toBeGreaterThan(0)
+    expect([...SERVER_SOURCES].sort()).toEqual([
+      'src/server/http.js',
+      'src/server/main.js',
+      'src/server/scoreboard.js',
+      'src/server/session-scoring.js',
+    ])
   })
 
   /** The published image's run contract: `docker run -p 8080:80`, unchanged. */

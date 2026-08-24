@@ -87,12 +87,12 @@ export const SCOREBOARD_REFRESH_MS = 20_000
 
 /** What each way of being locked out says on the strip. */
 const NOTICES: Record<Exclude<ScoreboardFailure, 'error'>, string> = {
-  taken: 'That name is taken on this board.',
-  unauthorized: 'This browser does not own that name — the board is read-only here.',
-  expired: 'That scoring session expired. Press start to open a new one.',
+  taken: 'That name’s taken on this board — try another?',
+  unauthorized: 'Watching only — this name was claimed in another browser.',
+  expired: 'That run timed out. Press start and you’re back in.',
   'invalid-config': 'The board would not accept these practice settings.',
-  'rate-limited': 'Slow down a moment — the board is rate-limiting this browser.',
-  rejected: 'The board could not read that run. Scoring starts again from here.',
+  'rate-limited': 'Whoa — a little too fast. Give it a moment.',
+  rejected: 'The board couldn’t read that run. Scoring starts fresh from here.',
 }
 
 /** Said once, when a claim worked but this browser could not write it down. */
@@ -100,6 +100,22 @@ const UNSAVED_TOKEN_NOTICE = 'This browser could not save the name — it is you
 
 /** Challenge name → the nickname this browser owns on it, and its token. */
 type TokenMap = Record<string, { nickname: string; token: string }>
+
+/** Accepts only a well-formed `{nickname, token}`; everything else is junk. */
+const readEntry = (value: unknown): { nickname: string; token: string } | null => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+
+  const { nickname, token } = value as Partial<Record<'nickname' | 'token', unknown>>
+
+  return typeof nickname === 'string' &&
+    nicknameKey(nickname) !== null &&
+    typeof token === 'string' &&
+    token !== ''
+    ? { nickname, token }
+    : null
+}
 
 const readTokens = (): TokenMap => {
   const raw = readRaw(STORAGE_KEYS.challengeTokens)
@@ -109,8 +125,19 @@ const readTokens = (): TokenMap => {
 
   try {
     const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
 
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as TokenMap) : {}
+    const tokens: TokenMap = {}
+    for (const [challenge, value] of Object.entries(parsed)) {
+      const entry = readEntry(value)
+      if (entry !== null) {
+        tokens[challenge] = entry
+      }
+    }
+
+    return tokens
   } catch {
     return {}
   }
@@ -118,15 +145,8 @@ const readTokens = (): TokenMap => {
 
 /** This browser's claim on one challenge, or null if it holds none. */
 const readToken = (challenge: string) => {
-  const entry = readTokens()[challenge]
-
-  return entry !== undefined &&
-    typeof entry.nickname === 'string' &&
-    typeof entry.token === 'string' &&
-    entry.token !== '' &&
-    nicknameKey(entry.nickname) !== null
-    ? entry
-    : null
+  const tokens = readTokens()
+  return Object.hasOwn(tokens, challenge) ? tokens[challenge] : null
 }
 
 /** False when storage refused it — a token nothing wrote down is one reload old. */

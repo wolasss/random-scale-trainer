@@ -61,4 +61,15 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  {
+    // The repo's node-side tooling: the icon rasterizer and the root scratch
+    // scripts. Matched by glob rather than by name so the block stays correct
+    // as one-off scripts come and go.
+    files: ['scripts/**/*.mjs', '*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      sourceType: 'module',
+      globals: globals.node,
+    },
+  },
 ])

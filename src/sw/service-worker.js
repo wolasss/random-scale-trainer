@@ -20,7 +20,7 @@ const CACHE_NAME = CACHE_PREFIX + '__CACHE_VERSION__'
  */
 const LEGACY_CACHE_PREFIXES = ['note-trainer-']
 
-const isOwnCache = (name) =>
+const isOwnCache = (/** @type {string} */ name) =>
   name.startsWith(CACHE_PREFIX) || LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
 const PRECACHE_URLS = __PRECACHE_MANIFEST__
 const PRECACHE_SET = new Set(PRECACHE_URLS)
@@ -28,20 +28,22 @@ const PRECACHE_SET = new Set(PRECACHE_URLS)
 /** The webfont, the one thing the app fetches cross-origin. Cached on first use. */
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', /** @type {EventListener} */ ((/** @type {ExtendableEvent} */ event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_NAME)
       // Deliberately not cache.addAll: that rejects as a unit, so one asset
       // failing would leave the app with no offline shell at all. Each URL is
       // added on its own and a miss is simply re-fetched later.
-      await Promise.all(PRECACHE_URLS.map((url) => cache.add(url).catch(() => undefined)))
-      await self.skipWaiting()
+      await Promise.all(
+        PRECACHE_URLS.map((/** @type {string} */ url) => cache.add(url).catch(() => undefined)),
+      )
+      await /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (self).skipWaiting()
     })(),
   )
-})
+}))
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', /** @type {EventListener} */ ((/** @type {ExtendableEvent} */ event) => {
   event.waitUntil(
     (async () => {
       const names = await caches.keys()
@@ -50,10 +52,10 @@ self.addEventListener('activate', (event) => {
           .filter((name) => isOwnCache(name) && name !== CACHE_NAME)
           .map((name) => caches.delete(name)),
       )
-      await self.clients.claim()
+      await /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (self).clients.claim()
     })(),
   )
-})
+}))
 
 /**
  * A navigation is the one request whose failure the user sees directly, so it
@@ -130,7 +132,13 @@ const offlineShell = () =>
  * the next offline launch would render a blank page. A miss still goes to the
  * network, so an asset whose install-time cache.add failed repairs itself.
  */
-const cacheFirst = async (event, request, cacheKey, revalidateOnHit, offlineFallback) => {
+const cacheFirst = async (
+  /** @type {ExtendableEvent} */ event,
+  /** @type {RequestInfo} */ request,
+  /** @type {RequestInfo} */ cacheKey,
+  /** @type {boolean} */ revalidateOnHit,
+  /** @type {() => Response} */ offlineFallback,
+) => {
   const cache = await caches.open(CACHE_NAME)
   const cached = await cache.match(cacheKey)
 
@@ -161,7 +169,7 @@ const cacheFirst = async (event, request, cacheKey, revalidateOnHit, offlineFall
   return offlineFallback()
 }
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', /** @type {EventListener} */ ((/** @type {FetchEvent} */ event) => {
   const request = event.request
   if (request.method !== 'GET') {
     return
@@ -192,4 +200,4 @@ self.addEventListener('fetch', (event) => {
   // key of its own — counts as a runtime entry and keeps revalidating.
   const isPrecached = isSameOrigin && PRECACHE_SET.has(url.pathname + url.search)
   event.respondWith(cacheFirst(event, request, request, !isPrecached, offlineSubresource))
-})
+}))

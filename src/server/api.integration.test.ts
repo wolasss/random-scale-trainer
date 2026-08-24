@@ -1,10 +1,17 @@
 // @vitest-environment node
 import { mkdtempSync, rmSync } from 'node:fs'
+import { connect } from 'node:net'
 import type { AddressInfo, Server } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createScoreboardServer, MAX_BODY_BYTES } from './http.js'
+import {
+  createScoreboardServer,
+  HEADERS_TIMEOUT_MS,
+  KEEP_ALIVE_TIMEOUT_MS,
+  MAX_BODY_BYTES,
+  REQUEST_TIMEOUT_MS,
+} from './http.js'
 import { API_PREFIX, CLAIM_LIMIT, createStore, readSnapshot } from './scoreboard.js'
 import {
   difficultyMultiplier,
@@ -76,6 +83,29 @@ const request = async (
 
   return { status: response.status, body: raw === '' ? {} : JSON.parse(raw), raw }
 }
+
+/**
+ * A raw socket, for the two shapes `fetch` cannot send: a declared
+ * Content-Length that lies about what follows, and a chunked body with no
+ * declared length at all. `fetch` computes Content-Length itself and forbids
+ * overriding it.
+ */
+const sendRaw = (path: string, extraHead: string, chunks: string[] = []) =>
+  new Promise<string>((resolve) => {
+    const { port } = server.address() as AddressInfo
+    let received = ''
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(`POST ${path} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n${extraHead}\r\n`)
+      for (const chunk of chunks) socket.write(chunk)
+    })
+    socket.on('data', (chunk) => {
+      received += chunk
+    })
+    // The server cuts the socket after answering; that reset is the point, not a failure.
+    socket.on('error', () => {})
+    socket.on('close', () => resolve(received))
+    socket.setTimeout(2_000, () => socket.destroy())
+  })
 
 const claim = (challenge: string, nickname: string, extra: Parameters<typeof request>[1] = {}) =>
   request(`${API_PREFIX}${challenge}/nickname`, { method: 'POST', body: { nickname }, ...extra })
@@ -292,12 +322,32 @@ describe('scoring over the wire', () => {
 
 describe('the edge itself', () => {
   it('refuses a body past the cap without reading it', async () => {
-    const answer = await request(`${API_PREFIX}oversized/nickname`, {
-      method: 'POST',
-      body: JSON.stringify({ nickname: 'a'.repeat(MAX_BODY_BYTES * 2) }),
-    })
+    const payload = 'a'.repeat(MAX_BODY_BYTES * 2)
+    const chunk = `${payload.length.toString(16)}\r\n${payload}\r\n`
+    const reply = await sendRaw(`${API_PREFIX}oversized/nickname`, 'Transfer-Encoding: chunked\r\n', [
+      chunk,
+      '0\r\n\r\n',
+    ])
 
-    expect(answer.status).toBe(413)
+    expect(reply.startsWith('HTTP/1.1 413')).toBe(true)
+  })
+
+  it('refuses a POST that only declares an oversized body', async () => {
+    const reply = await sendRaw(`${API_PREFIX}declared/nickname`, 'Content-Length: 100000000\r\n')
+
+    expect(reply.startsWith('HTTP/1.1 413')).toBe(true)
+    expect(reply).toContain('body too large')
+    expect((await request(`${API_PREFIX}declared`)).body.scores).toEqual([])
+    // Nothing was spent: the name is still there to be claimed.
+    expect((await claim('declared', 'ada')).status).toBe(201)
+  })
+
+  it('bounds a slow caller with short socket timeouts', () => {
+    const bounded = createScoreboardServer({ store: createStore() })
+
+    expect(bounded.headersTimeout).toBe(HEADERS_TIMEOUT_MS)
+    expect(bounded.requestTimeout).toBe(REQUEST_TIMEOUT_MS)
+    expect(bounded.keepAliveTimeout).toBe(KEEP_ALIVE_TIMEOUT_MS)
   })
 
   /**
