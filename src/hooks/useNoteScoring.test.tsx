@@ -15,6 +15,7 @@ import {
 import { DEFAULT_BPM } from '../constants'
 import { PITCH_CLASSES } from '../lib/notes'
 import type { HeardPitch } from './useMicPitch'
+import { allowConsole } from '../test/consoleGuard'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
 /** A stand-in for useMicPitch: a stable subscribe and a way to push frames. */
@@ -139,7 +140,7 @@ describe('useNoteScoring', () => {
     // switched on for the length of this test, React complains about any of
     // them, which is precisely what a beat must not cause.
     withActWarnings()
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errors = allowConsole('error')
     const { result } = setup()
 
     await act(async () => {
@@ -154,7 +155,7 @@ describe('useNoteScoring', () => {
     expect(result.current.tally).toBe(before)
     expect(result.current.lastVerdict).toBeNull()
     // An update escaping the callback would have React complaining about act().
-    expect(consoleError).not.toHaveBeenCalled()
+    expect(errors.calls).toEqual([])
 
     await settle()
 
@@ -596,6 +597,35 @@ describe('useNoteScoring', () => {
         scored: 1,
         hits: 1,
         streak: 1,
+        points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
+      })
+    })
+
+    it('pays a strike that anticipated a click through a stray detection', async () => {
+      // The same shape as the test above, with a neighbouring string left
+      // ringing after the note was banked. A player who keeps playing is owed
+      // the same 'in time' points as one who goes silent.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+      await act(async () => {
+        mic.emit(8, 11.05)
+      })
+      await act(async () => {
+        result.current.handleBeat(beat(11))
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally).toMatchObject({
+        scored: 1,
+        hits: 1,
         points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
       })
     })

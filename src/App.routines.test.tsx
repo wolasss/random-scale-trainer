@@ -475,6 +475,163 @@ describe('Routines', () => {
     expect(screen.queryByTestId('routine-skip-block')).toBeNull()
   })
 
+  /**
+   * Editing a workout in place is the alternative to rebuilding it: the proof
+   * that matters is what the live readouts do while the routine is running
+   * under the edit, which neither the helpers nor the hook can show on their own.
+   */
+  describe('editing a workout while it runs', () => {
+    const cardStatus = () => screen.getByTestId('routine-status').textContent ?? ''
+    const blockNames = () =>
+      screen
+        .getAllByTestId(/^routine-segment-\d+$/)
+        .map((segment) => segment.querySelector('.routine-segment-name')?.textContent)
+    /** The countdown on its own — the part a restarted block would reset. */
+    const remaining = () => /· (\d+:\d\d) left/.exec(cardStatus())![1]
+
+    it('renumbers the running block when it is moved, without restarting it', async () => {
+      render(<App />)
+
+      selectRoutine('seed-neck-fluency-12')
+      await startPractice(60)
+      await act(async () => {
+        vi.advanceTimersByTime(60_000)
+      })
+
+      const before = cardStatus()
+      expect(before).toMatch(/^Block 1 of 5 · /)
+      expect(before).not.toContain('4:00 left')
+
+      fireEvent.click(screen.getByLabelText('Move block Settle in later'))
+
+      expect(blockNames()).toEqual(['Accidentals', 'Settle in', 'All 12, quicker', 'Naturals sprint', 'Exam'])
+      expect(screen.getByTestId('routine-segment-1').dataset.state).toBe('active')
+      // Everything but the block number is the line it already had: the clock
+      // was renumbered, not restarted.
+      expect(screen.getByTestId('routine-status')).toHaveTextContent(before.replace('Block 1 of 5', 'Block 2 of 5'))
+      expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 2 of 5')
+    })
+
+    it('follows a retimed block in the card, the strip and the timeline', () => {
+      render(<App />)
+
+      selectRoutine('seed-neck-fluency-12')
+      fireEvent.click(screen.getByLabelText('Lengthen block Settle in by 30 seconds'))
+
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 5 · 4:30 left of 12:55')
+      expect(screen.getByTestId('routine-strip-status')).toHaveTextContent('block 1 of 5 · 4:30 left')
+      // Segments are drawn to duration, so a longer block is a wider one.
+      expect(screen.getByTestId('routine-segment-0').style.flexGrow).toBe('270')
+
+      // Two blocks in, the bar reads against whatever the total is now.
+      fireEvent.click(screen.getByTestId('routine-skip-block'))
+      fireEvent.click(screen.getByTestId('routine-skip-block'))
+      expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '58')
+
+      fireEvent.click(screen.getByLabelText('Lengthen block Exam by 30 seconds'))
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 3 of 5 · 3:00 left of 13:25')
+      expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '56')
+
+      fireEvent.click(screen.getByLabelText('Shorten block Settle in by 30 seconds'))
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 3 of 5 · 3:00 left of 12:55')
+      expect(screen.getByTestId('routine-strip-progress')).toHaveAttribute('aria-valuenow', '54')
+    })
+
+    it('pushes the running block down a place when a block is inserted before it', async () => {
+      render(<App />)
+
+      selectRoutine('seed-neck-fluency-12')
+      await startPractice(60)
+      await act(async () => {
+        vi.advanceTimersByTime(60_000)
+      })
+
+      const countdown = remaining()
+      fireEvent.click(screen.getByLabelText('Insert current settings before block Settle in'))
+
+      expect(blockNames()).toEqual([
+        'All 12',
+        'Settle in',
+        'Accidentals',
+        'All 12, quicker',
+        'Naturals sprint',
+        'Exam',
+      ])
+      // Same block, same clock, one place further down a longer workout.
+      expect(screen.getByTestId('routine-segment-1').dataset.state).toBe('active')
+      expect(screen.getByTestId('routine-status')).toHaveTextContent(`Block 2 of 6 · ${countdown} left of 14:25`)
+      expect(screen.getByTestId('routine-strip-status')).toHaveTextContent(`block 2 of 6 · ${countdown} left`)
+    })
+
+    /**
+     * The commoner case by far: the workout is edited on the card before Start
+     * is ever pressed. Nothing is running to renumber around, so a block put at
+     * the front is the block practice begins on — not one already behind it.
+     */
+    it('begins on a block inserted before the first one, rather than skipping it', async () => {
+      render(<App />)
+
+      selectRoutine('seed-neck-fluency-12')
+      fireEvent.click(screen.getByLabelText('Insert current settings before block Settle in'))
+
+      expect(blockNames()).toEqual([
+        'All 12',
+        'Settle in',
+        'Accidentals',
+        'All 12, quicker',
+        'Naturals sprint',
+        'Exam',
+      ])
+      expect(screen.getByTestId('routine-segment-0').dataset.state).toBe('active')
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 6 · 2:00 left of 14:25')
+
+      await startPractice(60)
+      await act(async () => {
+        vi.advanceTimersByTime(60_000)
+      })
+
+      // A minute in, it is the new block running its own two minutes.
+      expect(screen.getByTestId('routine-segment-0').dataset.state).toBe('active')
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 1 of 6 · 1:00 left of 14:25')
+    })
+
+    it('still calls a hand nudge an override once the blocks have been edited', async () => {
+      render(<App />)
+
+      selectRoutine('seed-warmup-6')
+      await startPractice(60)
+
+      fireEvent.click(screen.getByLabelText('Move block Slow naturals later'))
+      // The edit is not itself a drift — nothing was overridden by moving a block.
+      expect(screen.getByTestId('routine-status')).not.toHaveTextContent('adjusted')
+
+      fireEvent.click(screen.getByTestId('bpm-up'))
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('· adjusted, next block resets it')
+    })
+
+    /** A lone block is the only one whose timer may come and go. */
+    it('takes a saved setup through a timer and back', () => {
+      render(<App />)
+
+      selectRoutine('seed-chromatic-drill')
+      fireEvent.click(screen.getByTestId('routine-add-timer'))
+
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 2:00 left of 2:00')
+      // Timed, it belongs with the workouts rather than the setups — and it is
+      // still the loaded routine across the move.
+      expect(screen.getByTestId('routine-group-workouts')).toHaveTextContent('Chromatic drill')
+      expect(chip('seed-chromatic-drill').className).toContain('selected')
+
+      fireEvent.click(screen.getByLabelText('Lengthen block All 12 by 30 seconds'))
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('One block · 2:30 left of 2:30')
+
+      fireEvent.click(screen.getByTestId('routine-remove-timer'))
+      expect(screen.getByTestId('routine-status')).toHaveTextContent('No timer — runs until you stop.')
+      expect(screen.getByTestId('routine-group-setups')).toHaveTextContent('Chromatic drill')
+      expect(chip('seed-chromatic-drill').className).toContain('selected')
+    })
+  })
+
   it('saves the current settings as a one-block routine and selects it', () => {
     render(<App />)
 
