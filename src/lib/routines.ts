@@ -58,7 +58,12 @@ export type PoolKey =
   | 'A'
   | 'E'
   | 'F'
+  | 'Bb'
+  | 'Eb'
   | 'Am'
+  | 'Em'
+  | 'Dm'
+  | 'Ablues'
   | 'custom'
 
 export type RoutineAccidental = 'flats' | 'sharps' | 'mixed'
@@ -83,7 +88,12 @@ const PRESET_BY_POOL_KEY: Record<Exclude<PoolKey, 'custom'>, PresetId> = {
   A: 'a-major',
   E: 'e-major',
   F: 'f-major',
+  Bb: 'b-flat-major',
+  Eb: 'e-flat-major',
   Am: 'a-minor-pentatonic',
+  Em: 'e-minor-pentatonic',
+  Dm: 'd-minor-pentatonic',
+  Ablues: 'a-minor-blues',
 }
 
 const POOL_LABELS: Record<PoolKey, string> = {
@@ -96,7 +106,12 @@ const POOL_LABELS: Record<PoolKey, string> = {
   A: 'A major',
   E: 'E major',
   F: 'F major',
+  Bb: 'B♭ major',
+  Eb: 'E♭ major',
   Am: 'A minor pent.',
+  Em: 'E minor pent.',
+  Dm: 'D minor pent.',
+  Ablues: 'A minor blues',
   custom: 'custom',
 }
 

@@ -7,6 +7,7 @@ import {
   blockFromSettings,
   blockMeta,
   blockPool,
+  blockPoolLabel,
   blockSpelling,
   formatClock,
   isOpenEnded,
@@ -44,6 +45,8 @@ describe('blockPool', () => {
     expect(blockPool(block({ poolKey: 'accidentals' }))).toEqual([1, 3, 6, 8, 10])
     expect(blockPool(block({ poolKey: 'G' }))).toEqual([0, 2, 4, 6, 7, 9, 11])
     expect(blockPool(block({ poolKey: 'Am' }))).toEqual([0, 2, 4, 7, 9])
+    expect(blockPool(block({ poolKey: 'Bb' }))).toEqual([0, 2, 3, 5, 7, 9, 10])
+    expect(blockPool(block({ poolKey: 'Em' }))).toEqual([2, 4, 7, 9, 11])
   })
 
   it('prefers an explicit custom pool and sorts it', () => {
@@ -220,6 +223,16 @@ describe('blockFromSettings', () => {
 
     expect(built.rampTo).toBe(122)
   })
+
+  it('names a block after the key it drills for one of the newer presets', () => {
+    const built = blockFromSettings(
+      { bpm: 72, beatsPerNote: 4, pool: [0, 2, 3, 5, 7, 9, 10], spelling: 'flat', ramp: false, rampTo: 100 },
+      null,
+    )
+
+    expect(built).toMatchObject({ name: 'B♭ major', poolKey: 'Bb', pool: null })
+    expect(blockPoolLabel(block({ poolKey: 'Bb' }))).toBe('B♭ major')
+  })
 })
 
 describe('suggestRoutineName', () => {
@@ -234,6 +247,19 @@ describe('suggestRoutineName', () => {
         rampTo: 100,
       }),
     ).toBe('Naturals @ 60')
+  })
+
+  it('names one of the newer key presets rather than falling back to custom', () => {
+    expect(
+      suggestRoutineName({
+        bpm: 72,
+        beatsPerNote: 4,
+        pool: [0, 2, 3, 5, 7, 9, 10],
+        spelling: 'flat',
+        ramp: false,
+        rampTo: 100,
+      }),
+    ).toBe('B♭ major @ 72')
   })
 })
 
@@ -391,6 +417,26 @@ describe('parseRoutines', () => {
   it('keeps the duration of a stored lone block', () => {
     const stored = JSON.stringify([{ id: 'a', name: 'A', blocks: [{ poolKey: 'chromatic', bpm: 60, beats: 4, dur: 90 }] }])
     expect(parseRoutines(stored)![0].blocks[0].dur).toBe(90)
+  })
+
+  /**
+   * Widening PoolKey with the newer presets must not retroactively rename
+   * blocks saved before they existed — an old 'custom' block keeps its
+   * explicit pool, and a block already keyed 'Bb' now survives isPoolKey.
+   */
+  it('leaves an old stored custom block unchanged and accepts a new key preset', () => {
+    const stored = JSON.stringify([
+      {
+        id: 'a',
+        name: 'Old custom',
+        blocks: [{ poolKey: 'custom', pool: [0, 2, 3, 5, 7, 9, 10], bpm: 72, beats: 4, dur: 120 }],
+      },
+      { id: 'b', name: 'New key', blocks: [{ poolKey: 'Bb', bpm: 72, beats: 4, dur: 120 }] },
+    ])
+
+    const parsed = parseRoutines(stored)!
+    expect(parsed[0].blocks[0]).toMatchObject({ poolKey: 'custom', pool: [0, 2, 3, 5, 7, 9, 10] })
+    expect(parsed[1].blocks[0]).toMatchObject({ poolKey: 'Bb', pool: null })
   })
 
   /** Storage predates the ramp, so absence has to mean "off", never "unknown". */
