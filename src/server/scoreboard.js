@@ -35,7 +35,7 @@
  * score on it is never thrown away.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import {
   applySessionEvents,
@@ -799,13 +799,28 @@ export const readSnapshot = (path) => {
 /**
  * Best-effort: a scoreboard is not worth taking the server down for, so a
  * read-only volume or a full disk is reported rather than thrown.
+ *
+ * Writes to a sibling temp file and renames it over the target instead of
+ * truncating the target in place, because a kill or a full disk mid-write
+ * would otherwise leave torn JSON — which readSnapshot treats as an empty
+ * board, putting every owned nickname and every tokenHash back up for grabs.
  */
 export const writeSnapshot = (path, store) => {
+  let temp = null
   try {
+    temp = `${path}.${randomBytes(8).toString('hex')}.tmp`
     mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, serializeSnapshot(store))
+    writeFileSync(temp, serializeSnapshot(store))
+    renameSync(temp, path)
     return true
   } catch {
+    if (temp !== null) {
+      try {
+        rmSync(temp, { force: true })
+      } catch {
+        // best-effort cleanup: a failed write must not throw out of a best-effort writer
+      }
+    }
     return false
   }
 }
