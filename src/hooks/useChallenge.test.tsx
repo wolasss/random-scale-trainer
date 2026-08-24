@@ -471,7 +471,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('expired')
+    expect(result.current.notice).toContain('timed out')
     // Nothing is retried, and the board is still readable.
     const before = fetchImpl.mock.calls.length
     act(() => result.current.recordEvent(hit()))
@@ -490,7 +490,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('read-only')
+    expect(result.current.notice).toContain('Watching only')
     // A token the server does not recognise is not a credential, and keeping it
     // would leave this browser retrying it with no way back to a name.
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({})
@@ -519,7 +519,7 @@ describe('scoring through a session', () => {
 
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
-    expect(result.current.notice).toContain('starts again')
+    expect(result.current.notice).toContain('starts fresh')
 
     // The next note opens a fresh session and scores through it normally.
     act(() => result.current.recordEvent(hit()))
@@ -576,7 +576,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('Slow down')
+    expect(result.current.notice).toContain('too fast')
   })
 
   /**
