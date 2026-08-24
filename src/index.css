@@ -2084,6 +2084,17 @@ input[type='range'] {
     left: -6px;
     right: -14px;
   }
+
+  /* In stage mode the strip's own top padding shrinks to 0.6rem (see
+     .stage-foot .routine-strip below), and when a challenge scoreboard is
+     showing its tappable summary sits flush against that edge with no gap —
+     the base -15px overhang would reach past the strip's own box and into it.
+     Keep the overlay inside the smaller budget so a tap there still lands on
+     the scoreboard. */
+  .stage-foot .routine-strip-skip::after,
+  .stage-foot .routine-strip-clear::after {
+    top: -9px;
+  }
 }
 
 .routine-card {
