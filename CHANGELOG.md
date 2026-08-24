@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/wolasss/random-scale-trainer/compare/v1.23.2...v1.24.0) (2026-08-24)
+
+
+### Features
+
+* **challenge:** read the shared board as a rail, and fold it on a phone ([#172](https://github.com/wolasss/random-scale-trainer/issues/172)) ([787acd7](https://github.com/wolasss/random-scale-trainer/commit/787acd7a2a9ff408b918a71d861996300450ab61))
+
 ## [1.23.2](https://github.com/wolasss/random-scale-trainer/compare/v1.23.1...v1.23.2) (2026-08-24)
 
 
