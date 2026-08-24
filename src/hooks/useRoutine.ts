@@ -9,6 +9,9 @@ import {
   SEEDED_ROUTINES,
   suggestRoutineName,
   withAppendedBlock,
+  withBlockDuration,
+  withInsertedBlock,
+  withMovedBlock,
   withRemovedBlock,
   type BlockSettings,
   type Routine,
@@ -47,6 +50,12 @@ export type RoutineController = {
   duplicate: (id: string) => void
   addBlock: () => void
   removeBlock: (index: number) => void
+  /** Swap a block with the neighbour `delta` away; the active one is renumbered, not restarted. */
+  moveBlock: (index: number, delta: -1 | 1) => void
+  /** Retime a block; null untimes it, which only a lone block may be. */
+  setBlockDuration: (index: number, seconds: number | null) => void
+  /** Add the current settings as a block *before* `index`. */
+  insertBlock: (index: number) => void
   skipBlock: () => void
   /** Start pressed on a finished routine — back to block 0. */
   restart: () => void
@@ -343,6 +352,97 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     startAt(Math.min(runtime.blockIndex, next.blocks.length - 1), next)
   }
 
+  /**
+   * Nothing has played yet: the routine is standing on its first block with the
+   * clock still at zero. An edit here rewrites the plan rather than renumbering
+   * around a block in flight, so the routine has to go back to standing on
+   * whatever is now the top of the list — a warm-up put in front of block one is
+   * the block Start begins on, not one already behind it.
+   *
+   * The counterpart of that rule is `finished`, which the three edits below all
+   * leave as they found it: a completed routine that is edited is still
+   * completed, and clearing the flag would send Start back into the expired last
+   * block, ending the workout again on the very next tick rather than running
+   * the order that was just edited.
+   */
+  const notStarted = runtime.blockIndex === 0 && blockElapsedMs === 0 && !runtime.finished
+
+  /**
+   * The block clock is a reading of the session clock, so a block that keeps
+   * running through an edit keeps `blockStartMs` — renumbering is not
+   * restarting. Only the block index is chased, and only where the edit moved
+   * the block the routine is standing on.
+   */
+  const moveBlock = (index: number, delta: -1 | 1) => {
+    if (selected === null) {
+      return
+    }
+
+    const next = withMovedBlock(selected, index, delta)
+    if (next === selected) {
+      return
+    }
+
+    replaceSelected(next)
+
+    if (notStarted) {
+      startAt(0, next)
+      return
+    }
+
+    const { blockIndex } = runtime
+    const followed = blockIndex === index ? index + delta : blockIndex === index + delta ? index : blockIndex
+    commit({ ...runtime, blockIndex: followed })
+  }
+
+  const setBlockDuration = (index: number, seconds: number | null) => {
+    if (selected === null) {
+      return
+    }
+
+    const next = withBlockDuration(selected, index, seconds)
+    if (next === selected) {
+      return
+    }
+
+    replaceSelected(next)
+
+    // An open block that has just been handed a clock starts that clock now.
+    // Anything else keeps the time it has run: a block shortened past what it
+    // has already spent is *meant* to hand over on the next tick, and both
+    // readouts clamp on the way (formatClock floors, blockFill caps).
+    const wasOpenEnded = index === runtime.blockIndex && selected.blocks[index]?.dur === null && seconds !== null
+    commit({
+      ...runtime,
+      blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
+    })
+  }
+
+  const insertBlock = (index: number) => {
+    if (selected === null) {
+      return
+    }
+
+    const wasOpenEnded = selected.blocks.length === 1 && selected.blocks[0].dur === null
+    const next = withInsertedBlock(selected, index, blockSettingsOf(settings))
+    replaceSelected(next)
+
+    if (notStarted) {
+      startAt(0, next)
+      return
+    }
+
+    commit({
+      ...runtime,
+      // Everything at or after the insert point shifts down one; the running
+      // block is the same block at a new number, so its clock rides along.
+      blockIndex: index <= runtime.blockIndex ? runtime.blockIndex + 1 : runtime.blockIndex,
+      // The open block just gained a 2:00 timer — give it the full two minutes
+      // rather than expiring it against a clock that has been running all along.
+      blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
+    })
+  }
+
   const skipBlock = () => {
     if (selected === null) {
       return
@@ -401,6 +501,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     duplicate,
     addBlock,
     removeBlock,
+    moveBlock,
+    setBlockDuration,
+    insertBlock,
     skipBlock,
     restart,
     reset,

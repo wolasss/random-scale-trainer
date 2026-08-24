@@ -1991,6 +1991,8 @@ input[type='range'] {
   gap: 0.2rem;
   align-content: start;
   min-width: 0;
+  /* Width comes from the duration alone (flex-grow), never from the content. */
+  flex-basis: 0;
   padding: 0.7rem 0.75rem;
   border-radius: 16px;
   border: 1px solid var(--control-border);
@@ -2060,6 +2062,43 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* Reorder, insert and retime, as buttons rather than a drag handle: a handle is
+   reachable by neither keyboard nor thumb. They wrap because a narrow segment —
+   the 25-second exam — cannot hold five of them on one line. */
+.routine-segment-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.routine-segment-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 8px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.routine-segment-control:hover:not(:disabled) {
+  opacity: 1;
+}
+
+/* An end block cannot move further out, and a block already at the step cannot
+   be shortened by it — the button stays put and reads as unavailable. */
+.routine-segment-control:disabled {
+  opacity: 0.3;
+}
+
 /* A delete this small is a miss waiting to happen on a phone. Both buttons get
    the 44px fingertip target the segmented control already gets; the segment's
    negative margins spend the segment's own padding on the target instead of
@@ -2079,6 +2118,11 @@ input[type='range'] {
     min-width: 44px;
     min-height: 44px;
     margin: -0.7rem -0.75rem -0.2rem 0;
+  }
+
+  .routine-segment-control {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -2616,6 +2660,18 @@ button.practice-history-cell {
     grid-template-columns: repeat(4, minmax(48px, 1fr));
   }
 
+  /* A five-block workout drawn to scale gives each segment a fifth of a phone —
+     too narrow to read, let alone to edit in. Stacked, every block is full
+     width and its controls are a comfortable row; the proportional drawing is a
+     desktop luxury, and the bar inside each segment still tells the length. */
+  .routine-timeline {
+    flex-wrap: wrap;
+  }
+
+  .routine-segment {
+    flex-basis: 100%;
+  }
+
   .note-pool-heading {
     flex-direction: column;
   }
@@ -3077,6 +3133,7 @@ button.practice-history-cell {
 :root[data-stage] .routine-chip-meta,
 :root[data-stage] .routine-segment-meta,
 :root[data-stage] .routine-segment-time,
+:root[data-stage] .routine-segment-control,
 :root[data-stage] .routine-status,
 :root[data-stage] .practice-log-footer,
 :root[data-stage] .practice-log-weekday {
