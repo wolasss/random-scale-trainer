@@ -86,7 +86,7 @@ const SELECTORS = {
   nicknameSubmit: By.css('[data-testid="nickname-submit"]'),
   nicknameDismiss: By.css('[data-testid="nickname-dismiss"]'),
   micReadout: By.css('[data-testid="mic-readout"]'),
-  scoreTally: By.css('[data-testid="score-tally"]'),
+  scorePlay: By.css('[data-testid="score-play"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -710,10 +710,12 @@ export class TrainerPage {
    * Resolves once the score row has something to show — the first note has
    * been scored. A default tempo takes seconds per note, hence the generous
    * timeout; the fake microphone rarely lands a hit, so this also passes on
-   * the first miss, which is all the layout guard needs.
+   * the first miss, which is all the layout guard needs. The in-play row is
+   * what it waits for: the summary only exists once playback has stopped, and
+   * the guard measures the readout while a session is running.
    */
   async waitForScoreRow(timeoutMs = 25_000): Promise<void> {
-    await this.driver.wait(until.elementLocated(SELECTORS.scoreTally), timeoutMs, 'score row never appeared')
+    await this.driver.wait(until.elementLocated(SELECTORS.scorePlay), timeoutMs, 'score row never appeared')
   }
 
   async waitForTimerAtLeast(seconds: number, timeoutMs = 10_000): Promise<void> {

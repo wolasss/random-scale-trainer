@@ -1481,61 +1481,71 @@ input[type='range'] {
   color: var(--miss);
 }
 
-/* Second line: how the last note went, and how the session is going. Below
-   the heard note rather than beside it — one is what is happening now and the
-   other is the tally, and a single row of four readings is a paragraph. */
+/* Second line while playing: the total, and what the last note put on it.
+   Below the heard note rather than beside it — one is the note on screen and
+   the other is the session behind it. Two readings and no more: mid-phrase
+   there is one glance to spend, and everything else the score knows waits for
+   the pause summary below. */
 .mic-readout-score {
   flex-basis: 100%;
   display: flex;
   align-items: baseline;
   justify-content: center;
-  /* Four readings wrap onto a second row on a phone rather than squeezing. */
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.mic-readout-verdict-row {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-
-.mic-readout-verdict-row[data-hit='true'] {
-  color: var(--hit);
-}
-
-.mic-readout-verdict-row[data-hit='false'] {
-  color: var(--miss);
-}
-
-.mic-readout-response {
-  font-variant-numeric: tabular-nums;
-}
-
-/* The number that goes up: the one reading on this line worth a glance. */
-.mic-readout-points {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-/* Only there when the settings price a note off the flat rate, either way. */
-.mic-readout-multiplier {
+/* The number that goes up, and the one thing here sized to be read from a
+   music stand. It carries no label: the display face and the size say what it
+   is, and the width a caption would cost is width the note above it wants. */
+.mic-readout-total {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
-  opacity: 0.8;
 }
 
-/* Only there while it is the last note's, so it may be the loud one. */
-.mic-readout-bonus {
+/* What the last note was worth, in the app's own voice — it is the only thing
+   on the row that just changed, so it is the only thing allowed to be loud. */
+.mic-readout-delta {
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--hit);
+  color: var(--primary);
 }
 
-/* Read after the session rather than during it, so it yields the foreground. */
-.mic-readout-tally {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.8;
+/* Paused or stopped, in the slot the play row had. A summary is read standing
+   still, so it can afford a header and a figure per reading. */
+.mic-readout-summary {
+  flex-basis: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+}
+
+/* The session card's own tiles, laid out for however many there are: four
+   normally, three at the flat rate, one more when the clock has just paid a
+   practice milestone out. A fixed pair of columns would leave the odd tile
+   hanging half the time. */
+.mic-readout-stats {
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+}
+
+/* The one line here that asks for something back rather than reporting, so it
+   gets the accent the rest of the readout never spends. */
+.mic-readout-nudge {
+  margin: 0;
+  text-align: center;
+}
+
+/* Inline rather than a flex item beside the text: the line wraps to two on a
+   phone, and an arrow pinned to the left of a centred block reads as a bullet
+   for a list of one. */
+.mic-readout-nudge svg {
+  color: var(--accent);
+  margin-right: 0.4rem;
 }
 
 .mic-readout-none {

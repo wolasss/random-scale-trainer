@@ -44,7 +44,7 @@ import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
-import { MicReadout } from './components/MicReadout'
+import { MicReadout, type BoardStanding } from './components/MicReadout'
 import { NicknamePrompt } from './components/NicknamePrompt'
 import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
@@ -483,6 +483,24 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
+  // Whoever is top of the board, and how far off them this browser is — the
+  // line under the pause summary, and null wherever there is nothing true to
+  // say. Off a challenge there is no board at all; without a nickname there is
+  // no row of yours on it, and "your score just went up" would be a promise to
+  // a browser the server is not taking play from.
+  const leader = challenge.active && challenge.nickname !== null ? (challenge.scores[0] ?? null) : null
+  const boardStanding: BoardStanding | null =
+    leader === null
+      ? null
+      : leader.nickname === challenge.nickname
+        ? { leading: true }
+        : {
+            leading: false,
+            leader: leader.nickname,
+            gap:
+              leader.points - (challenge.scores.find((entry) => entry.nickname === challenge.nickname)?.points ?? 0),
+          }
+
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
   const micReadout = micEnabled ? (
@@ -491,15 +509,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       heard={mic.heard}
       spelling={settings.spelling}
       called={playback.snapshot.currentNote}
+      isPlaying={playback.isPlaying}
+      isPaused={playback.isPaused}
       score={{
         lastVerdict: scoring.lastVerdict,
         hits: scoring.tally.hits,
         scored: scoring.tally.scored,
         points: scoring.tally.points,
-        streak: scoring.tally.streak,
+        bestStreak: scoring.tally.bestStreak,
         bonuses: scoring.lastBonuses,
         multiplier: scoring.multiplier,
       }}
+      board={boardStanding}
     />
   ) : null
 
