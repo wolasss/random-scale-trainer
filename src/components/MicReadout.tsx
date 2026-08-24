@@ -1,8 +1,38 @@
-import { faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faArrowTrendUp, faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { FLAT_DISPLAY, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
 import type { MicStatus } from '../hooks/useMicPitch'
-import type { Bonus, BonusKind, NoteVerdict } from '../lib/scoring'
+import {
+  hitAward,
+  isPracticeMilestone,
+  type Bonus,
+  type NoteVerdict,
+  type PracticeMilestoneKind,
+} from '../lib/scoring'
+
+/**
+ * Where this browser stands on the shared board, or null off a challenge —
+ * which is the whole of "without ?challenge= in the URL there is no board line".
+ */
+export type BoardStanding = { leading: true } | { leading: false; leader: string; gap: number }
+
+/** How the session is going, or null when nothing is being scored. */
+type ScoreReading = {
+  lastVerdict: NoteVerdict | null
+  hits: number
+  scored: number
+  points: number
+  /** The longest run the session has managed, which a miss cannot take away. */
+  bestStreak: number
+  /**
+   * What the last note earned beyond the flat rate — or a practice milestone
+   * the session clock just earned, which belongs to no note but is banked in
+   * the same total and reported here beside whatever note was scored last.
+   */
+  bonuses: Bonus[]
+  /** What the settings are pricing a note at right now. 1 is the flat rate. */
+  multiplier: number
+}
 
 type MicReadoutProps = {
   status: MicStatus
@@ -10,36 +40,26 @@ type MicReadoutProps = {
   spelling: SpellingPreference
   /** The note being called, so a hit can be named the way it was asked for. */
   called: { pc: number; display: string } | null
-  /** How the session is going, or null when nothing is being scored. */
-  score: {
-    lastVerdict: NoteVerdict | null
-    hits: number
-    scored: number
-    points: number
-    streak: number
-    /**
-     * What the last note earned beyond the flat rate, named as it landed —
-     * or a practice milestone the session clock just earned, which belongs
-     * to no note but is shown here beside whatever note was scored last.
-     */
-    bonuses: Bonus[]
-    /** What the settings are pricing a note at right now. 1 is the flat rate. */
-    multiplier: number
-  } | null
+  /**
+   * Playback is running, which is what picks the in-play reading over the
+   * summary. Deliberately not `status`: the microphone closes a render after
+   * the transport stops it, and keying the swap off the mic would flash the
+   * play row over a session nobody is playing any more.
+   */
+  isPlaying: boolean
+  /** Paused rather than stopped — the difference between how it *is* going and
+   * how it *went*, and the only thing the two summaries disagree about. */
+  isPaused: boolean
+  score: ScoreReading | null
+  board?: BoardStanding | null
 }
 
-/** What each bonus is called on the line. One key per kind, and no more. */
-const BONUS_LABELS: Record<BonusKind, string> = {
-  streak: 'streak',
-  octaves: 'two octaves',
-  tempo: 'in time',
-  practice10: '10 min',
-  practice20: '20 min',
-  practice30: '30 min',
+/** What a milestone stat is called. One key per kind, and no more. */
+const MILESTONE_LABELS: Record<PracticeMilestoneKind, string> = {
+  practice10: '10 min played',
+  practice20: '20 min played',
+  practice30: '30 min played',
 }
-
-/** A run is only worth showing once it is one — a single note is not. */
-const STREAK_SHOWN_FROM = 2
 
 const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
   idle: 'Listening starts with playback.',
@@ -68,64 +88,71 @@ const STATUS_MESSAGES: Record<Exclude<MicStatus, 'listening'>, string> = {
  * green from the red. Nothing is judged during a count-in, when there is no
  * note on screen to be right or wrong about.
  *
- * Under it, when there is a score to report, the second line: whether the last
- * note called was actually played, the points the session has banked with the
- * run behind them, and the session's running accuracy beside it. That line
- * stays out until there is something to say — a mic that has been on for four
- * seconds has nothing yet, and "0/0" over an untouched session reads as a
- * failure rather than a beginning.
+ * Under it, the score — and what it says depends entirely on whether anyone is
+ * playing, because the two moments want opposite things from it.
  *
- * Points do not replace the accuracy: they are the number that goes up, and
- * `hits/scored` is the one that says how it is actually going. They sit on the
- * same line so a player reads both in one glance, and the bonus that just
- * landed is named beside them for exactly as long as it is the last note's.
- * A practice milestone is the same reading with no note behind it — earned by
- * the session clock crossing 10, 20 or 30 minutes rather than by anything
- * played — but shown and cleared exactly like any other bonus: beside
- * whatever note was scored last, gone with the next one. "two octaves" is
- * named as exactly that and never as two places on the neck:
- * the microphone hears pitch, and the same note in unison two strings apart is
- * one pitch that earns nothing.
+ * **Playing.** Three readings and no more: the heard note with its verdict, the
+ * session total, and what the last note put on it. Nothing else. A player
+ * mid-phrase has one glance to spend and the note on screen has first claim on
+ * it, so a row of five figures is a row that gets read as none. The total is
+ * the one thing sized to be read from a stand, and it is bare — the display
+ * face and the size say "score" without spending the width on the word, and a
+ * screen reader is told "896 points" instead, since it has no size to read it
+ * by. The delta beside it replaces the named bonus strings: "+26" is the whole
+ * of the news, where "+5 streak +15 two octaves" is a sentence to parse. It
+ * appears with the verdict and clears with the next call, which is exactly the
+ * lifecycle the bonuses it stands in for already had. The multiplier, the run
+ * and the accuracy are all *held back* rather than dropped — see below.
  *
- * The tally outlives the microphone. Stopping playback closes the mic, and a
- * stopped session is exactly when someone wants to read how it went, so the
- * count stays on the line the status message is on until the session is reset.
- * The verdict does not follow it there: it answers the note that was on screen
- * when it was played, and once the listening stops that question is closed.
- * The bonus beside the count does follow it there — a practice milestone is as
- * likely to land on the very update that stops the mic as on any other, and a
- * bonus already counted in the total it sits beside should not vanish from it.
+ * **Paused or stopped.** The tally outlives the microphone, and a session that
+ * has just stopped is precisely when someone wants to read how it went, so the
+ * slot the play row had becomes a summary: a header, then the readings that
+ * were too many to carry mid-phrase, one tile each in the session card's own
+ * stat grid. Standing still there is room to name every figure, which is why
+ * "×5" can be a best streak here and never on the play row. The price tile is
+ * out at exactly ×1 — a factor that changes no total is a tile that says
+ * nothing — and a practice milestone earns a tile of its own only when the
+ * clock has actually paid one out. That last part is what keeps a milestone
+ * landing on the very update that pauses playback: it is banked in the total
+ * beside it, so it must be visible somewhere in the same reading, and inside
+ * the summary is the only place that is not a stale play row.
  *
- * Every number on the score line is named: "N pts", "N in a row", and
- * "hits/scored · N%". None of it is a bare number beside a glyph — a player
- * who has not been told what a figure means reads it as part of the total
- * next to it. The one glyph on the line is the verdict's tick or cross; "×"
- * belongs to the difficulty multiplier and to nothing else, which is why a
- * streak — a count of notes, not a factor on points — is spelled out as "N in
- * a row" rather than "×N".
- *
- * The multiplier itself is only shown when it is doing something. At ×1 the
- * reading would say nothing and the row is narrow enough already, so it is left
- * out entirely rather than printed as a number that changes no total.
+ * A challenge adds one line under the grid, and only a challenge does. A pause
+ * is when the queued events flush, so "your score just went up on the board" is
+ * literally true at the moment it is printed rather than a promise about the
+ * next flush — which is the whole reason the line lives here and not on the
+ * play row.
  */
-export function MicReadout({ status, heard, spelling, called, score }: MicReadoutProps) {
+export function MicReadout({
+  status,
+  heard,
+  spelling,
+  called,
+  isPlaying,
+  isPaused,
+  score,
+  board = null,
+}: MicReadoutProps) {
+  // A session that has not scored a note yet is a session that is starting, not
+  // one that is going badly, so both readings wait for the first judged note.
+  const scored = score !== null && score.scored > 0
+  const reading = isPlaying ? (
+    scored ? (
+      <div className="mic-readout-score" data-testid="score-play">
+        <ScoreTotal points={score.points} />
+        <ScoreDelta points={lastDelta(score)} />
+      </div>
+    ) : null
+  ) : scored ? (
+    <ScoreSummary score={score} paused={isPaused} board={board} />
+  ) : null
+
   if (status !== 'listening') {
     return (
       <div className="mic-readout" data-testid="mic-readout" data-status={status}>
         <span className="mic-readout-label">Mic</span>
         <span className="mic-readout-message">{STATUS_MESSAGES[status]}</span>
-        {score !== null && score.scored > 0 ? (
-          <div className="mic-readout-score">
-            <span className="mic-readout-label">Score</span>
-            <ScorePoints points={score.points} streak={score.streak} />
-            {score.bonuses.length > 0 ? (
-              <span className="mic-readout-bonus" data-testid="score-bonus">
-                {score.bonuses.map((bonus) => `+${bonus.points} ${BONUS_LABELS[bonus.kind]}`).join(' ')}
-              </span>
-            ) : null}
-            <ScoreTally hits={score.hits} scored={score.scored} />
-          </div>
-        ) : null}
+        {reading}
       </div>
     )
   }
@@ -164,104 +191,128 @@ export function MicReadout({ status, heard, spelling, called, score }: MicReadou
         </span>
       )}
 
-      {score !== null && (score.lastVerdict !== null || score.scored > 0) ? (
-        <div className="mic-readout-score">
-          <span className="mic-readout-label">Score</span>
-
-          {score.lastVerdict !== null ? <ScoreResponse verdict={score.lastVerdict} /> : null}
-
-          {score.scored > 0 ? (
-            <>
-              <ScorePoints points={score.points} streak={score.streak} />
-              <ScoreMultiplier multiplier={score.multiplier} />
-              {score.bonuses.length > 0 ? (
-                <span className="mic-readout-bonus" data-testid="score-bonus">
-                  {score.bonuses.map((bonus) => `+${bonus.points} ${BONUS_LABELS[bonus.kind]}`).join(' ')}
-                </span>
-              ) : null}
-              <ScoreTally hits={score.hits} scored={score.scored} />
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      {reading}
     </div>
   )
 }
 
 /**
- * The number that goes up, and the run behind it. Both are one reading to a
- * screen reader — "120 points, 4 in a row" — because a streak is a count of
- * notes, not a factor on the points beside it, so it is spelled out rather
- * than shown as "×4". The glyph is reserved for the difficulty multiplier.
+ * What the last note put on the total: the flat rate its call was priced at,
+ * plus every bonus that landed on it, already scaled where it was built. A miss
+ * earns nothing, so it contributes only whatever the session clock paid out on
+ * the same update — a practice milestone belongs to no note, and it is banked
+ * in the total this stands beside either way.
+ *
+ * The price is the one the *last call* was made at rather than one carried on
+ * the verdict, because that is all the readout is given. The two are the same
+ * note for as long as the reading is about the note on screen, which is as long
+ * as anyone reads it; a tempo ramp between a hit and the next call can reprice
+ * a figure already shown, and a delta a couple of points out for one note span
+ * is not worth another field on the snapshot.
  */
-function ScorePoints({ points, streak }: { points: number; streak: number }) {
-  const inARow = streak >= STREAK_SHOWN_FROM
-
-  return (
-    <span
-      className="mic-readout-points"
-      data-testid="score-points"
-      role="img"
-      aria-label={inARow ? `${points} points, ${streak} in a row` : `${points} points`}
-    >
-      {points} pts{inARow ? ` · ${streak} in a row` : ''}
-    </span>
-  )
-}
+const lastDelta = (score: ScoreReading) =>
+  (score.lastVerdict?.hit === true ? hitAward(score.multiplier) : 0) +
+  score.bonuses.reduce((total, bonus) => total + bonus.points, 0)
 
 /** Two decimals at most: ×1.38, never ×1.3799999999999999. */
 const formatMultiplier = (multiplier: number) => String(Math.round(multiplier * 100) / 100)
 
 /**
- * What the settings are pricing a note at. Out of the line entirely at the flat
- * rate — the common case, and a row this narrow does not spend width on a
- * factor of one — but shown for a discount as readily as for a premium: a long
- * note span pays below ×1, and a player owed less has more reason to be told
- * than one owed more. Read out in words, since "×1.38" beside a points total is
- * exactly the bare number this line refuses to print anywhere else.
+ * The number that goes up, and the only thing on the play row sized to be read
+ * from a stand. Bare on screen and named to a screen reader — see the note on
+ * the component above.
  */
-function ScoreMultiplier({ multiplier }: { multiplier: number }) {
-  const reading = formatMultiplier(multiplier)
-  if (reading === '1') {
+function ScoreTotal({ points }: { points: number }) {
+  return (
+    <span className="mic-readout-total" data-testid="score-points" role="img" aria-label={`${points} points`}>
+      {points}
+    </span>
+  )
+}
+
+/** Out entirely for a note that earned nothing: "+0" is not news. */
+function ScoreDelta({ points }: { points: number }) {
+  if (points <= 0) {
     return null
   }
 
   return (
-    <span
-      className="mic-readout-multiplier"
-      data-testid="score-multiplier"
-      role="img"
-      aria-label={`${reading} times points`}
-    >
-      ×{reading}
+    <span className="mic-readout-delta" data-testid="score-delta" role="img" aria-label={`plus ${points} points`}>
+      +{points}
     </span>
   )
 }
 
 /**
- * Whether the last note called was actually played, named so it cannot be
- * mistaken for part of the score total beside it.
+ * How it is going, read standing still. Every tile names what it counts, so
+ * nothing here can be mistaken for part of the total beside it.
  */
-function ScoreResponse({ verdict }: { verdict: NoteVerdict }) {
+function ScoreSummary({
+  score,
+  paused,
+  board,
+}: {
+  score: ScoreReading
+  paused: boolean
+  board: BoardStanding | null
+}) {
+  const price = formatMultiplier(score.multiplier)
+  const milestones = score.bonuses.filter(
+    (bonus): bonus is Bonus & { kind: PracticeMilestoneKind } => isPracticeMilestone(bonus.kind),
+  )
+
   return (
-    <span
-      className="mic-readout-verdict-row"
-      data-testid="score-verdict"
-      data-hit={verdict.hit}
-      role="img"
-      aria-label={verdict.hit ? 'Played it' : 'Not played in time'}
-    >
-      <FontAwesomeIcon icon={verdict.hit ? faCheck : faXmark} aria-hidden="true" />
-      {verdict.hit ? null : <span className="mic-readout-response">missed</span>}
-    </span>
+    <div className="mic-readout-summary" data-testid="score-summary">
+      <span className="mic-readout-label">{paused ? 'Paused — how it’s going' : 'How it went'}</span>
+
+      <div className="session-stats mic-readout-stats">
+        <SummaryStat testId="score-points" value={String(score.points)} label="points" />
+        <SummaryStat
+          testId="score-tally"
+          value={`${Math.round((score.hits / score.scored) * 100)}%`}
+          label={`${score.hits} of ${score.scored} hit`}
+        />
+        <SummaryStat testId="score-streak" value={`×${score.bestStreak}`} label="best streak" />
+        {price === '1' ? null : <SummaryStat testId="score-multiplier" value={`×${price}`} label="note price" />}
+        {milestones.map((bonus) => (
+          <SummaryStat
+            key={bonus.kind}
+            testId="score-milestone"
+            value={`+${bonus.points}`}
+            label={MILESTONE_LABELS[bonus.kind]}
+          />
+        ))}
+      </div>
+
+      {board === null ? null : <BoardNudge board={board} />}
+    </div>
   )
 }
 
-/** Read after the session as often as during it, hence its own component. */
-function ScoreTally({ hits, scored }: { hits: number; scored: number }) {
+/** The session card's own tile, so the two readings of a session match. */
+function SummaryStat({ testId, value, label }: { testId: string; value: string; label: string }) {
   return (
-    <span className="mic-readout-tally" data-testid="score-tally">
-      {hits}/{scored} · {Math.round((hits / scored) * 100)}%
-    </span>
+    <div className="session-stat">
+      <span className="session-stat-value" data-testid={testId}>
+        {value}
+      </span>
+      <span className="session-stat-label">{label}</span>
+    </div>
+  )
+}
+
+/**
+ * The one line here that asks for something back rather than reporting. It is
+ * only ever printed on a pause or a stop, which is when the queued events have
+ * gone up — so the board it talks about is the board as it now stands.
+ */
+function BoardNudge({ board }: { board: BoardStanding }) {
+  return (
+    <p className="mic-readout-nudge" data-testid="score-nudge">
+      <FontAwesomeIcon icon={faArrowTrendUp} aria-hidden="true" />
+      {board.leading
+        ? 'Top of the board — hold it.'
+        : `${board.gap} pts behind ${board.leader} — your score just went up on the board.`}
+    </p>
   )
 }
