@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/wolasss/random-scale-trainer/compare/v1.22.2...v1.23.0) (2026-08-24)
+
+
+### Features
+
+* **routines:** edit a workout's blocks — retime, reorder and insert ([#157](https://github.com/wolasss/random-scale-trainer/issues/157)) ([0ded4b3](https://github.com/wolasss/random-scale-trainer/commit/0ded4b32d5c68a7d4dd4b30bfd38b31ba54b339b))
+
 ## [1.22.2](https://github.com/wolasss/random-scale-trainer/compare/v1.22.1...v1.22.2) (2026-08-24)
 
 
