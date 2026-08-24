@@ -2055,6 +2055,37 @@ input[type='range'] {
   border-color: var(--primary);
 }
 
+/* A thumb aimed at skip lands on unload and drops the running routine. The
+   strip has no padding to spend like the segment's negative margins do, so
+   these grow via an invisible overlay instead — up into the strip's own
+   padding-top, and only a few px down, because the play control sits right
+   below and a target that spilled onto it would trade one mis-tap for a
+   worse one. */
+@media (pointer: coarse) {
+  .routine-strip-skip,
+  .routine-strip-clear {
+    position: relative;
+  }
+
+  .routine-strip-skip::after,
+  .routine-strip-clear::after {
+    content: '';
+    position: absolute;
+    top: -15px;
+    bottom: -5px;
+  }
+
+  .routine-strip-skip::after {
+    left: -14px;
+    right: -6px;
+  }
+
+  .routine-strip-clear::after {
+    left: -6px;
+    right: -14px;
+  }
+}
+
 .routine-card {
   min-width: 0;
 }
@@ -3114,6 +3145,24 @@ button.practice-history-cell {
 .hint-dismiss:hover {
   color: var(--ink);
   border-color: var(--primary);
+}
+
+/* Same fingertip-target fix as the routine strip's skip/unload pair. Left is
+   held tight on purpose: in the update chip the reload button sits close by,
+   and reloading mid-session would kill the metronome. */
+@media (pointer: coarse) {
+  .hint-dismiss {
+    position: relative;
+  }
+
+  .hint-dismiss::after {
+    content: '';
+    position: absolute;
+    top: -9px;
+    bottom: -9px;
+    left: -4px;
+    right: -14px;
+  }
 }
 
 /* Never applied on its own — reloading mid-session would kill the metronome. */
