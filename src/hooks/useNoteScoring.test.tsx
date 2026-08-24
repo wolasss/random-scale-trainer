@@ -600,6 +600,35 @@ describe('useNoteScoring', () => {
       })
     })
 
+    it('pays a strike that anticipated a click through a stray detection', async () => {
+      // The same shape as the test above, with a neighbouring string left
+      // ringing after the note was banked. A player who keeps playing is owed
+      // the same 'in time' points as one who goes silent.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+      await act(async () => {
+        mic.emit(8, 11.05)
+      })
+      await act(async () => {
+        result.current.handleBeat(beat(11))
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally).toMatchObject({
+        scored: 1,
+        hits: 1,
+        points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
+      })
+    })
+
     it('pays nothing for the click that calls the next note', async () => {
       // The same shape as the test above, with the arriving beat calling a note
       // instead of falling under this one. That beat announces the next note;
