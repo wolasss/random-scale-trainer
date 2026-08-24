@@ -58,6 +58,24 @@ describe('nginx.conf', () => {
   })
 
   /**
+   * http.js's own socket timeouts and streaming body cap only ever see the
+   * fast loopback connection nginx makes to it — nginx is the client-facing
+   * listener, and with request buffering on (nginx's default) it reads a
+   * slow or oversized public body in full before those protections ever run.
+   * Streaming instead, and bounding the client-facing connection here too,
+   * is what makes them apply to the caller they were written for.
+   */
+  it('bounds a slow or oversized public caller itself, rather than only the upstream it proxies to', () => {
+    const location = NGINX.match(/location \/api\/ \{[\s\S]*?\n {2}\}/)?.[0]
+
+    expect(location).toBeDefined()
+    expect(location).toContain('proxy_request_buffering off')
+    expect(location).toContain('client_max_body_size 8k')
+    expect(NGINX).toContain('client_header_timeout')
+    expect(NGINX).toContain('client_body_timeout')
+  })
+
+  /**
    * The proxy names a port and the service binds one, and nothing at run time
    * reconciles them — so they are pinned on both sides and checked here. A
    * service that could be moved by the environment would only ever move out

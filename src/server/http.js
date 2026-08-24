@@ -20,6 +20,15 @@ import { handleRequest, writeSnapshot } from './scoreboard.js'
  */
 export const MAX_BODY_BYTES = 4096
 
+/**
+ * Socket timeouts, named rather than left at Node's defaults (which run to
+ * minutes). This process sits behind nginx serving small JSON — nothing
+ * legitimate needs longer than this to send its headers or its body.
+ */
+export const HEADERS_TIMEOUT_MS = 5_000
+export const REQUEST_TIMEOUT_MS = 10_000
+export const KEEP_ALIVE_TIMEOUT_MS = 5_000
+
 /** Addresses that mean "the proxy in front of us", not "the caller". */
 const LOOPBACK = /^(::1|::ffff:127\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+)$/
 
@@ -104,6 +113,17 @@ export const isCrossSitePost = (method, headers) => {
  * events decodes to a pair of replacement characters if each chunk is turned
  * into a string on its own.
  */
+/**
+ * Whether a caller has already declared, in their own headers, more than the
+ * cap — so the request can be refused before a single `data` event is read.
+ * `Number(undefined)` is `NaN` and `Number('')` is `0`; a missing or empty
+ * declaration falls through to the streaming cap in `readBody` instead.
+ */
+const declaresOversizedBody = (headers) => {
+  const declared = Number(headers['content-length'])
+  return Number.isFinite(declared) && declared > MAX_BODY_BYTES
+}
+
 const readBody = (request, response) =>
   new Promise((resolve) => {
     const chunks = []
@@ -130,8 +150,17 @@ const readBody = (request, response) =>
  * a restart loses it; `now` is injectable so a test can age a session out
  * without waiting ten minutes.
  */
-export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) =>
-  createServer(async (request, response) => {
+export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) => {
+  const server = createServer(async (request, response) => {
+    // Before isCrossSitePost, and long before readBody: a caller who declares
+    // more than the cap is refused on their own word, without a byte read.
+    if (request.method === 'POST' && declaresOversizedBody(request.headers)) {
+      response.writeHead(413, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: 'body too large' }))
+      request.destroy()
+      return
+    }
+
     // Before readBody: a forged POST is refused without its body ever being read.
     if (isCrossSitePost(request.method, request.headers)) {
       response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
@@ -167,3 +196,10 @@ export const createScoreboardServer = ({ store, dataPath = '', now = Date.now })
       writeSnapshot(dataPath, store)
     }
   })
+
+  server.headersTimeout = HEADERS_TIMEOUT_MS
+  server.requestTimeout = REQUEST_TIMEOUT_MS
+  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS
+
+  return server
+}
