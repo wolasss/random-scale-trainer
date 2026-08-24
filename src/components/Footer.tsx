@@ -1,9 +1,10 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart, faMoon, faMugHot, faSun } from '@fortawesome/free-solid-svg-icons'
+import { faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
 import { SKINS, SKIN_LABELS, type Skin } from '../lib/skins'
 import type { Theme } from './TopBar'
+import { ThemeToggle } from './ui/ThemeToggle'
 
 type FooterProps = {
   skin: Skin
@@ -38,16 +39,12 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           </select>
         </label>
         {theme && onToggleTheme ? (
-          <button
-            type="button"
-            className="theme-toggle footer-theme-toggle"
-            data-testid="footer-theme-toggle"
-            onClick={onToggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
+          <ThemeToggle
+            theme={theme}
+            onToggle={onToggleTheme}
+            className="footer-theme-toggle"
+            testId="footer-theme-toggle"
+          />
         ) : null}
         <a
           className="social-link"
