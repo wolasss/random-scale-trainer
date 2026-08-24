@@ -1,3 +1,10 @@
+## [1.23.1](https://github.com/wolasss/random-scale-trainer/compare/v1.23.0...v1.23.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **tempo:** keep the ramp target above the tempo when the tempo climbs past it ([#160](https://github.com/wolasss/random-scale-trainer/issues/160)) ([221227f](https://github.com/wolasss/random-scale-trainer/commit/221227f030064055d2ae2a9fd5d62640ae10e767))
+
 # [1.23.0](https://github.com/wolasss/random-scale-trainer/compare/v1.22.2...v1.23.0) (2026-08-24)
 
 
