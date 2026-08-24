@@ -20,8 +20,9 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 # The service and its launcher. nginx's own entrypoint runs everything in
 # /docker-entrypoint.d/ before the CMD below, so the run contract is unchanged:
-# still `docker run -p 8080:80`, still one process to stop.
-COPY src/server/ /opt/callnote/server/
+# still `docker run -p 8080:80`, still one process to stop. Modules are listed
+# one by one so the image ships no test sources.
+COPY src/server/http.js src/server/main.js src/server/scoreboard.js src/server/session-scoring.js /opt/callnote/server/
 COPY docker/50-scoreboard.sh /docker-entrypoint.d/50-scoreboard.sh
 RUN chmod +x /docker-entrypoint.d/50-scoreboard.sh && mkdir -p /var/lib/callnote
 
