@@ -65,11 +65,13 @@ describe('nginx.conf', () => {
     for (const block of LOCATIONS) {
       const name = block.split('\n')[0].trim()
       expect(block, `${name} is missing Content-Security-Policy`)
-        .toContain('add_header Content-Security-Policy')
+        .toMatch(/add_header Content-Security-Policy "[^"]*" always;/)
       expect(block, `${name} is missing X-Content-Type-Options`)
-        .toContain('add_header X-Content-Type-Options "nosniff"')
+        .toContain('add_header X-Content-Type-Options "nosniff" always;')
       expect(block, `${name} is missing Referrer-Policy`)
-        .toContain('add_header Referrer-Policy "strict-origin-when-cross-origin"')
+        .toContain('add_header Referrer-Policy "strict-origin-when-cross-origin" always;')
+      expect(block, `${name} is missing Permissions-Policy`)
+        .toMatch(/add_header Permissions-Policy "[^"]*" always;/)
     }
   })
 
