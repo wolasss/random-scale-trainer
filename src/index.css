@@ -3013,7 +3013,11 @@ button.practice-history-cell {
    tracks, so the readout drops to its own line rather than pulling the pair off
    centre and squeezing the play button. */
 @media (max-width: 767px) {
-  .transport-bar {
+  /* The zeroed variant carries two classes, so it must be named here too — a
+     bare .transport-bar override loses to it and the idle bar keeps the
+     desktop's three tracks, wedging the start button into the left one. */
+  .transport-bar,
+  .transport-bar.zeroed {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 0.7rem;
@@ -3329,6 +3333,10 @@ button.practice-history-cell {
   grid-area: mic;
   margin-top: 0;
   border-top: 0;
+  /* The stand's grid has no row gap, and dropping the browser margin above
+     left nothing below either — without this the line sits flush on the
+     transport. Mirrors the padding-top the base rule already gives it. */
+  padding-bottom: 0.75rem;
 }
 
 .stage > .scoreboard {
@@ -3535,6 +3543,18 @@ button.practice-history-cell {
 :root[data-stage] .beat-dot {
   width: 12px;
   height: 12px;
+}
+
+/* The 15px labels above cost the summary tiles their third column: three
+   abreast on a phone wraps every caption and strands the fourth tile alone on
+   the next row. Two abreast keeps each caption to a line, and an odd tile out
+   takes the whole row rather than hanging half of one. */
+:root[data-stage] .mic-readout-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root[data-stage] .mic-readout-stats .session-stat:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 /* --- the practice-setup sheet -------------------------------------------- */
