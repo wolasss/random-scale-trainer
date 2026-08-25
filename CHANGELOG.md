@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/wolasss/random-scale-trainer/compare/v1.25.0...v1.25.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **history:** give the practice history sheet a first-run empty state ([#177](https://github.com/wolasss/random-scale-trainer/issues/177)) ([8089fcc](https://github.com/wolasss/random-scale-trainer/commit/8089fcc12d3ff9001c1ebf06c1b6e9c97558d4f6))
+
 # [1.25.0](https://github.com/wolasss/random-scale-trainer/compare/v1.24.0...v1.25.0) (2026-08-24)
 
 
