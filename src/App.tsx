@@ -492,6 +492,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
+      hasPendingPractice={practiceHistory.hasPending}
     />
   )
 

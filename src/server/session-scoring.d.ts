@@ -48,6 +48,8 @@ export type SessionState = {
   lastNote: LastNote | null
   /** Which practice milestones this session has paid. Once each, ever. */
   milestones: string[]
+  /** Hits and misses together — what the milestone floor counts. */
+  judgedNotes: number
   completed: boolean
 }
 
@@ -102,6 +104,8 @@ export declare const TEMPO_MULTIPLIER_MAX: number
 export declare const MAX_DIFFICULTY_MULTIPLIER: number
 
 export declare const FASTEST_NOTE_INTERVAL_MS: number
+export declare const SLOWEST_NOTE_INTERVAL_MS: number
+export declare const MILESTONE_MIN_JUDGED_NOTES: Record<PracticeMilestoneKind, number>
 export declare const SESSION_IDLE_MS: number
 export declare const SESSION_MAX_MS: number
 export declare const MAX_EVENTS_PER_BATCH: number

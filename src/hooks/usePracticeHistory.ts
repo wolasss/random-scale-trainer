@@ -78,6 +78,12 @@ export function usePracticeHistory() {
     pendingNotesRef.current += takeRise(lastNotesRef, notesCalled)
   }, [])
 
+  /** Whether a commit right now would actually write something. */
+  const hasPending = useCallback(
+    () => Math.floor(pendingMsRef.current / 1000) > 0 || pendingNotesRef.current > 0,
+    [],
+  )
+
   // A tab closed mid-session still gets its seconds; pagehide is the only
   // unload event iOS Safari fires reliably.
   useEffect(() => {
@@ -98,5 +104,5 @@ export function usePracticeHistory() {
     }
   }, [commit])
 
-  return { history, persisted, trackElapsed, trackNotes, commit }
+  return { history, persisted, trackElapsed, trackNotes, commit, hasPending }
 }

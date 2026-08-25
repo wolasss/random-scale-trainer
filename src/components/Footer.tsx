@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
+import { faBug, faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
 import { SKINS, SKIN_LABELS, type Skin } from '../lib/skins'
+import { BugReportModal } from './BugReportModal'
 import type { Theme } from './TopBar'
 import { ThemeToggle } from './ui/ThemeToggle'
 
@@ -15,6 +17,10 @@ type FooterProps = {
 }
 
 export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps) {
+  // Kept here rather than lifted: the footer renders twice — once under the
+  // page and once inside the practice sheet — and both of them need it.
+  const [reporting, setReporting] = useState(false)
+
   return (
     <footer className="app-footer">
       <p>
@@ -46,6 +52,19 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
             testId="footer-theme-toggle"
           />
         ) : null}
+        {/* Icon-only, and shaped like the links beside it: the footer is one
+            line on a desktop and wraps to two on a phone, and a labelled
+            button here would cost it a third. */}
+        <button
+          type="button"
+          className="social-link bug-report-button"
+          onClick={() => setReporting(true)}
+          aria-label="Report a bug"
+          title="Report a bug"
+          data-testid="report-bug-button"
+        >
+          <FontAwesomeIcon icon={faBug} />
+        </button>
         <a
           className="social-link"
           href="https://github.com/wolasss/random-scale-trainer"
@@ -75,6 +94,8 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           <FontAwesomeIcon icon={faMugHot} /> Buy me a coffee
         </a>
       </div>
+
+      {reporting ? <BugReportModal version={version} onDismiss={() => setReporting(false)} /> : null}
     </footer>
   )
 }

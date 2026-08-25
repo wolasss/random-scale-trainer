@@ -25,7 +25,12 @@ const isOwnCache = (/** @type {string} */ name) =>
 const PRECACHE_URLS = __PRECACHE_MANIFEST__
 const PRECACHE_SET = new Set(PRECACHE_URLS)
 
-/** The webfont, the one thing the app fetches cross-origin. Cached on first use. */
+/**
+ * The webfont, the one cross-origin fetch this worker caches, on first use. The
+ * captcha on the bug-report form is cross-origin too and is deliberately not
+ * here: it is a live challenge, and the fetch handler below lets it straight
+ * through to the network.
+ */
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
 self.addEventListener('install', /** @type {EventListener} */ ((/** @type {ExtendableEvent} */ event) => {
@@ -34,9 +39,14 @@ self.addEventListener('install', /** @type {EventListener} */ ((/** @type {Exten
       const cache = await caches.open(CACHE_NAME)
       // Deliberately not cache.addAll: that rejects as a unit, so one asset
       // failing would leave the app with no offline shell at all. Each URL is
-      // added on its own and a miss is simply re-fetched later.
+      // added on its own and a miss is simply re-fetched later. cache: 'reload'
+      // forces the network so a new build cannot re-precache a week-old copy
+      // from the HTTP cache (nginx serves un-hashed public assets with a 7-day
+      // expiry).
       await Promise.all(
-        PRECACHE_URLS.map((/** @type {string} */ url) => cache.add(url).catch(() => undefined)),
+        PRECACHE_URLS.map((/** @type {string} */ url) =>
+          cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
+        ),
       )
       await /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (self).skipWaiting()
     })(),

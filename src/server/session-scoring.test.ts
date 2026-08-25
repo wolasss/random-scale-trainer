@@ -12,6 +12,7 @@ import {
   FRETBOARD_SHOWN_MULTIPLIER,
   MAX_DIFFICULTY_MULTIPLIER,
   MILESTONE_LEAD_MS,
+  MILESTONE_MIN_JUDGED_NOTES,
   MIXED_SPELLING_MULTIPLIER,
   PITCH_CLASS_COUNT,
   POOL_MULTIPLIERS,
@@ -33,6 +34,7 @@ import {
   POINTS_PER_HIT,
   SESSION_IDLE_MS,
   SESSION_MAX_MS,
+  SLOWEST_NOTE_INTERVAL_MS,
   STREAK_BONUS_FROM,
   STREAK_BONUS_MAX,
   STREAK_BONUS_STEP,
@@ -104,6 +106,29 @@ const later = (events: SessionEvent[]) => START + events[events.length - 1].at +
 
 const apply = (state: SessionState, events: SessionEvent[], now = later(events)) =>
   applySessionEvents(state, events, now)
+
+/**
+ * A session that has already judged `count` notes — misses, so no points and
+ * no streak muddy what a test asserts on top — folded in API-sized batches at
+ * the fastest legal spacing. What the milestone floor asks a session to show.
+ */
+const practised = (count: number): SessionState => {
+  let state = session()
+  while (state.nextSeq < count) {
+    const kinds = Array.from(
+      { length: Math.min(MAX_EVENTS_PER_BATCH, count - state.nextSeq) },
+      () => 'miss' as const,
+    )
+    const result = apply(state, notes(kinds, state.nextSeq))
+    if (!result.ok) {
+      throw new Error(`practised(${count}) fell over: ${result.reason}`)
+    }
+
+    state = result.session
+  }
+
+  return state
+}
 
 describe('the point rules the server owns', () => {
   /**
@@ -385,20 +410,31 @@ describe('applySessionEvents', () => {
    */
   it('pays a practice milestone flat, and only once', () => {
     const at10 = START + PRACTICE_MILESTONES.practice10.atMs
-    const played = apply(session(), notes(['hit']))
+    const floor = MILESTONE_MIN_JUDGED_NOTES.practice10
+    const played = apply(practised(floor - 1), notes(['hit'], floor - 1))
     expect(played.ok).toBe(true)
     if (!played.ok) {
       return
     }
 
-    const earned = apply(played.session, [{ seq: 1, kind: 'milestone', milestone: 'practice10', at: 0 }], at10)
+    const earned = apply(
+      played.session,
+      [{ seq: floor, kind: 'milestone', milestone: 'practice10', at: played.session.lastAt }],
+      at10,
+    )
     expect(earned.ok && earned.points).toBe(POINTS_PER_HIT + PRACTICE_MILESTONES.practice10.points)
     expect(earned.ok && earned.session.milestones).toEqual(['practice10'])
     if (!earned.ok) {
       return
     }
 
-    expect(apply(earned.session, [{ seq: 2, kind: 'milestone', milestone: 'practice10', at: 0 }], at10)).toEqual({
+    expect(
+      apply(
+        earned.session,
+        [{ seq: floor + 1, kind: 'milestone', milestone: 'practice10', at: earned.session.lastAt }],
+        at10,
+      ),
+    ).toEqual({
       ok: false,
       reason: 'invalid_event',
     })
@@ -412,6 +448,33 @@ describe('applySessionEvents', () => {
   })
 
   /**
+   * The other defence: a session left open gets old for free, so age alone
+   * cannot be the proof. N minutes of practice means playback ran for them,
+   * and playback at even its slowest pace judged a note every
+   * SLOWEST_NOTE_INTERVAL_MS — a session one note short of that floor is not
+   * one that sat through the practice it is claiming.
+   */
+  it('refuses a milestone from a session that never judged the notes to match', () => {
+    const at10 = START + PRACTICE_MILESTONES.practice10.atMs
+    const floor = MILESTONE_MIN_JUDGED_NOTES.practice10
+
+    const idle = apply(session(), [{ seq: 0, kind: 'milestone', milestone: 'practice10', at: 0 }], at10)
+    expect(idle).toEqual({ ok: false, reason: 'too_soon' })
+
+    const shy = practised(floor - 1)
+    const claim: SessionEvent[] = [{ seq: floor - 1, kind: 'milestone', milestone: 'practice10', at: shy.lastAt }]
+    expect(apply(shy, claim, at10)).toEqual({ ok: false, reason: 'too_soon' })
+  })
+
+  /** ...and the floor is the slowest pace the app itself can call notes at. */
+  it('floors each milestone at what the slowest pace must have judged', () => {
+    expect(SLOWEST_NOTE_INTERVAL_MS).toBe(Math.max(...CLIENT_SPANS) * Math.floor(60_000 / CLIENT_MIN_BPM))
+    expect(MILESTONE_MIN_JUDGED_NOTES.practice10).toBeGreaterThan(0)
+    expect(MILESTONE_MIN_JUDGED_NOTES.practice20).toBeGreaterThan(MILESTONE_MIN_JUDGED_NOTES.practice10)
+    expect(MILESTONE_MIN_JUDGED_NOTES.practice30).toBeGreaterThan(MILESTONE_MIN_JUDGED_NOTES.practice20)
+  })
+
+  /**
    * The two clocks are not the same one — the app's is practice time, this one
    * starts at the first note — so the boundary is deliberately generous. What
    * it must not do is refuse an honest player whose session opened a count-in
@@ -419,10 +482,12 @@ describe('applySessionEvents', () => {
    */
   it('allows the lead between the practice clock and the session', () => {
     const justInside = START + PRACTICE_MILESTONES.practice10.atMs - MILESTONE_LEAD_MS
-    const inside = apply(session(), [{ seq: 0, kind: 'milestone', milestone: 'practice10', at: 0 }], justInside)
+    const floor = MILESTONE_MIN_JUDGED_NOTES.practice10
+    const ready = practised(floor)
+    const claim: SessionEvent[] = [{ seq: floor, kind: 'milestone', milestone: 'practice10', at: ready.lastAt }]
 
-    expect(inside.ok).toBe(true)
-    expect(apply(session(), [{ seq: 0, kind: 'milestone', milestone: 'practice10', at: 0 }], justInside - 1)).toEqual({
+    expect(apply(ready, claim, justInside).ok).toBe(true)
+    expect(apply(ready, claim, justInside - 1)).toEqual({
       ok: false,
       reason: 'too_soon',
     })
@@ -442,14 +507,19 @@ describe('applySessionEvents', () => {
       pool: WHOLE_OCTAVE,
     }
     const multiplier = difficultyMultiplier(difficulty)
-    const hit = apply(session(), pricedNotes(['hit'], difficulty))
+    const floor = MILESTONE_MIN_JUDGED_NOTES.practice10
+    const hit = apply(practised(floor - 1), pricedNotes(['hit'], difficulty, floor - 1))
     expect(hit.ok).toBe(true)
     if (!hit.ok) {
       return
     }
 
     const at10 = START + PRACTICE_MILESTONES.practice10.atMs
-    const milestone = apply(hit.session, [{ seq: 1, kind: 'milestone', milestone: 'practice10', at: 0 }], at10)
+    const milestone = apply(
+      hit.session,
+      [{ seq: floor, kind: 'milestone', milestone: 'practice10', at: hit.session.lastAt }],
+      at10,
+    )
     expect(milestone.ok).toBe(true)
     if (!milestone.ok) {
       return
@@ -457,7 +527,11 @@ describe('applySessionEvents', () => {
 
     expect(milestone.session.streak).toBe(1)
 
-    const bonus = apply(milestone.session, [{ seq: 2, kind: 'bonus', bonus: 'octaves', at: 0 }], at10)
+    const bonus = apply(
+      milestone.session,
+      [{ seq: floor + 1, kind: 'bonus', bonus: 'octaves', at: milestone.session.lastAt }],
+      at10,
+    )
     expect(bonus.ok && bonus.points).toBe(
       Math.round(POINTS_PER_HIT * multiplier) +
         PRACTICE_MILESTONES.practice10.points +

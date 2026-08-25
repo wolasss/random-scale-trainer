@@ -87,6 +87,13 @@ const SELECTORS = {
   nicknameDismiss: By.css('[data-testid="nickname-dismiss"]'),
   micReadout: By.css('[data-testid="mic-readout"]'),
   scorePlay: By.css('[data-testid="score-play"]'),
+  reportBug: By.css('[data-testid="report-bug-button"]'),
+  bugReportModal: By.css('[data-testid="bug-report-modal"]'),
+  bugDescription: By.css('[data-testid="bug-description"]'),
+  bugSubmit: By.css('[data-testid="bug-submit"]'),
+  bugSent: By.css('[data-testid="bug-sent"]'),
+  bugUnavailable: By.css('[data-testid="bug-unavailable"]'),
+  bugCaptchaToken: By.css('[data-testid="bug-captcha"] input[name="cf-turnstile-response"]'),
 }
 
 /** Roots the layout guard measures against. */
@@ -269,6 +276,71 @@ export class TrainerPage {
       body === undefined ? null : JSON.stringify(body),
       token ?? null,
     )
+  }
+
+  // --- reporting a bug ---
+
+  /** Whether the footer offers the report button at all, at this width. */
+  async hasReportBugButton(): Promise<boolean> {
+    const found = await this.driver.findElements(SELECTORS.reportBug)
+
+    return found.length > 0 && (await found[0].isDisplayed())
+  }
+
+  async openBugReport(): Promise<void> {
+    await this.driver.findElement(SELECTORS.reportBug).click()
+    await this.driver.wait(until.elementLocated(SELECTORS.bugReportModal), 5_000)
+  }
+
+  async hasBugReportModal(): Promise<boolean> {
+    return (await this.driver.findElements(SELECTORS.bugReportModal)).length > 0
+  }
+
+  /**
+   * What the modal says when it cannot take a report — either the deployment
+   * has no keys or the widget script never arrived. '' when it can.
+   */
+  async getBugReportUnavailable(): Promise<string> {
+    const found = await this.driver.findElements(SELECTORS.bugUnavailable)
+
+    return found.length === 0 ? '' : found[0].getText()
+  }
+
+  /**
+   * Waits for the captcha to hand a token over, and answers false if it never
+   * does. Cloudflare's script is the one thing on this page that comes from
+   * another origin, and a runner with no egress will not have it.
+   *
+   * The token is read off the hidden field the widget writes rather than off an
+   * iframe: against the always-passes test key there is no challenge to show,
+   * so the widget renders no frame at all — only the field.
+   */
+  async waitForBugCaptcha(timeoutMs = 15_000): Promise<boolean> {
+    try {
+      await this.driver.wait(
+        async () => {
+          const found = await this.driver.findElements(SELECTORS.bugCaptchaToken)
+          return found.length > 0 && ((await found[0].getAttribute('value')) ?? '') !== ''
+        },
+        timeoutMs,
+        'the captcha never produced a token',
+        POLL_MS,
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async describeBug(text: string): Promise<void> {
+    await this.driver.findElement(SELECTORS.bugDescription).sendKeys(text)
+  }
+
+  /** Submits once the widget has handed a token over, then waits for the answer. */
+  async submitBugReport(timeoutMs = 20_000): Promise<void> {
+    await this.driver.wait(until.elementIsEnabled(this.driver.findElement(SELECTORS.bugSubmit)), timeoutMs)
+    await this.driver.findElement(SELECTORS.bugSubmit).click()
+    await this.driver.wait(until.elementLocated(SELECTORS.bugSent), timeoutMs)
   }
 
   async hasScoreboard(): Promise<boolean> {
@@ -529,13 +601,34 @@ export class TrainerPage {
     await this.driver.findElement(direction === 'up' ? SELECTORS.bpmUp : SELECTORS.bpmDown).click()
   }
 
-  async tapTempo(times: number, intervalMs: number): Promise<void> {
+  /**
+   * Taps the tap-tempo button `times` times, `intervalMs` apart, and returns the
+   * page-clock (performance.now()) timestamp the app saw for each tap. intervalMs
+   * is a floor, not the measured interval — the WebDriver round trip for each
+   * click() lands inside the sleep, so only these in-page timestamps say what
+   * tempo was actually tapped.
+   */
+  async tapTempo(times: number, intervalMs: number): Promise<number[]> {
+    await this.driver.executeScript(`
+      if (window.__tapTimes === undefined) {
+        window.__tapTimes = []
+        document.addEventListener('click', (event) => {
+          if (event.target.closest('[data-testid="tap-tempo"]') !== null) {
+            window.__tapTimes.push(performance.now())
+          }
+        }, true)
+      }
+      window.__tapTimes.length = 0
+    `)
+
     for (let index = 0; index < times; index++) {
       if (index > 0) {
         await this.sleep(intervalMs)
       }
       await this.driver.findElement(SELECTORS.tapTempo).click()
     }
+
+    return this.driver.executeScript<number[]>('return window.__tapTimes')
   }
 
   /** Clicks the note-every segmented option with the given beat count. */
@@ -636,6 +729,15 @@ export class TrainerPage {
    * so no control has focus — Space on a focused button would click that button
    * instead of reaching the window keydown handler.
    */
+  /**
+   * Escape, sent wherever focus already is. Unlike `pressBody` this moves no
+   * focus first: with a modal open the heading is behind the scrim, and
+   * clicking it would dismiss what is being tested.
+   */
+  async pressEscape(): Promise<void> {
+    await this.driver.actions().sendKeys(Key.ESCAPE).perform()
+  }
+
   async pressBody(...keys: string[]): Promise<void> {
     await this.driver.findElement(SELECTORS.heading).click()
     await this.driver.actions().sendKeys(...keys).perform()

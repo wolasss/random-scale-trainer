@@ -1,10 +1,10 @@
 import type { ComponentProps } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
-import { TempoCard } from './TempoCard'
+import { HOLD_REPEAT_DELAY_MS, HOLD_REPEAT_INTERVAL_MS, TempoCard } from './TempoCard'
 
 const renderCard = (overrides: Partial<ComponentProps<typeof TempoCard>> = {}) => {
   const spies = {
@@ -16,7 +16,7 @@ const renderCard = (overrides: Partial<ComponentProps<typeof TempoCard>> = {}) =
     onRampTargetNudge: vi.fn(),
   }
 
-  render(
+  const { unmount } = render(
     <TempoCard
       bpm={60}
       beatsPerNote={4}
@@ -34,7 +34,7 @@ const renderCard = (overrides: Partial<ComponentProps<typeof TempoCard>> = {}) =
     />,
   )
 
-  return spies
+  return { ...spies, unmount }
 }
 
 describe('TempoCard', () => {
@@ -145,5 +145,123 @@ describe('TempoCard', () => {
     renderCard({ rampEnabled: true, bpm, rampTarget })
 
     expect(screen.getByTestId('ramp-helper')).toHaveTextContent(`${rounds} rounds from ${bpm}, then it holds.`)
+  })
+
+  describe('hold to repeat', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('nudges once when the press is released before the delay', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS - 1)
+      fireEvent.pointerUp(button)
+      fireEvent.click(button)
+
+      expect(onNudge).toHaveBeenCalledTimes(1)
+      expect(onNudge).toHaveBeenCalledWith(1)
+
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 3)
+      expect(onNudge).toHaveBeenCalledTimes(1)
+    })
+
+    it('repeats while held and stops on release', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 3)
+
+      expect(onNudge).toHaveBeenCalledTimes(4)
+      expect(onNudge).toHaveBeenLastCalledWith(1)
+
+      fireEvent.pointerUp(button)
+      fireEvent.click(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 3)
+
+      expect(onNudge).toHaveBeenCalledTimes(4)
+    })
+
+    it('stops repeating on pointercancel without poisoning the next click', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 2)
+      expect(onNudge).toHaveBeenCalledTimes(3)
+
+      fireEvent.pointerCancel(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_INTERVAL_MS * 3)
+      expect(onNudge).toHaveBeenCalledTimes(3)
+
+      fireEvent.click(button)
+      expect(onNudge).toHaveBeenCalledTimes(4)
+    })
+
+    it('stops repeating on pointerleave without poisoning the next click', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 2)
+      expect(onNudge).toHaveBeenCalledTimes(3)
+
+      fireEvent.pointerLeave(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_INTERVAL_MS * 3)
+      expect(onNudge).toHaveBeenCalledTimes(3)
+
+      fireEvent.click(button)
+      expect(onNudge).toHaveBeenCalledTimes(4)
+    })
+
+    it('does not double-nudge when pointerleave follows pointerup, as on touch devices', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 3)
+      expect(onNudge).toHaveBeenCalledTimes(4)
+
+      fireEvent.pointerUp(button)
+      fireEvent.pointerLeave(button)
+      fireEvent.click(button)
+
+      expect(onNudge).toHaveBeenCalledTimes(4)
+    })
+
+    it('tears down the repeat timers on unmount', () => {
+      const { onNudge, unmount } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      unmount()
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 5)
+
+      expect(onNudge).not.toHaveBeenCalled()
+    })
+
+    it('repeats the ramp target stepper the same way', () => {
+      const { onRampTargetNudge } = renderCard({ rampEnabled: true })
+      const button = screen.getByTestId('ramp-target-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 2)
+
+      expect(onRampTargetNudge).toHaveBeenCalledTimes(3)
+      expect(onRampTargetNudge).toHaveBeenLastCalledWith(RAMP_TARGET_STEP)
+
+      fireEvent.pointerUp(button)
+      fireEvent.click(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_INTERVAL_MS * 3)
+
+      expect(onRampTargetNudge).toHaveBeenCalledTimes(3)
+    })
   })
 })

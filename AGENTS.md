@@ -31,7 +31,10 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
   service worker, and for the same reason — it runs outside the app bundle, under bare `node` in the
   container. **A nickname is owned**: claiming one issues a token the server keeps only a digest of,
   and every mutation carries it as `Authorization: Bearer`. The client never sends a total; it
-  streams events and the server adds them up. Tests are colocated TypeScript, including
+  streams events and the server adds them up. `bug-report.js` is the other route the same process
+  serves — the footer's "report a bug" form, with a Cloudflare Turnstile check and Mailgun delivery,
+  both injected so nothing in a test reaches the network, and both optional (unset keys make the
+  route answer `not_configured` and the app say so). Tests are colocated TypeScript, including
   `api.integration.test.ts` (a real socket) and `deploy.test.ts`, which reads `nginx.conf` and the
   `Dockerfile`.
 - `src/sw/` — service-worker source (`service-worker.js`) and its tests; built into `dist/sw.js` by the `callnote-service-worker` Vite plugin in `vite.config.ts` (never hand-edit `dist`).

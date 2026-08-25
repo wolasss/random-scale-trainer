@@ -546,10 +546,12 @@ h2 {
 
 /* A watermark of the real note: same slot and family, the muted foreground
    instead of the accent, no glow. It breathes — never the note-pop, never the
-   beat ring, so idle can't be mistaken for a running session. */
+   beat ring, so idle can't be mistaken for a running session. Runs smaller
+   than .hero-note: the caption and gap stacked above it must still clear the
+   220px line box, or "ready" sits flush against the readout's edge. */
 .hero-ghost-note {
   font-family: var(--font-display);
-  font-size: clamp(120px, 18vw, 200px);
+  font-size: clamp(104px, 16vw, 172px);
   font-weight: 700;
   line-height: 1;
   color: var(--ink-soft);
@@ -2066,6 +2068,99 @@ input[type='range'] {
   margin-top: 0.4rem;
 }
 
+/* --- Report a bug -------------------------------------------------------- */
+
+/* The same furniture as the nickname prompt — a question in the middle of the
+   screen — with room for a textarea and the captcha widget under it. */
+.bug-report {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(30rem, 100%);
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-y: auto;
+  padding: 1.3rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--bg-mid);
+  box-shadow: var(--shadow);
+}
+
+.bug-report-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.bug-report-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.bug-report-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.bug-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.bug-report-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.bug-report-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+/* Vertical only: the widget and the buttons below it have nowhere to go if a
+   drag makes the field wider than the dialog. */
+.bug-report-textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Cloudflare sizes its own iframe; this is only here to keep the layout from
+   jumping when it arrives, and to let it shrink on a narrow phone. */
+.bug-report-captcha {
+  min-height: 65px;
+  margin-top: 0.3rem;
+}
+
+.bug-report-captcha iframe {
+  max-width: 100%;
+}
+
+.bug-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
 /* --- Routine ------------------------------------------------------------- */
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
@@ -2932,6 +3027,15 @@ button.practice-history-cell {
   opacity: 1;
 }
 
+/* "Report a bug" opens a dialog rather than a page, so it is a button — this
+   is only what it takes for a button to sit in a row of anchors unnoticed. */
+.bug-report-button {
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
 .heart-icon {
   color: #ff6a7a;
 }
@@ -3348,9 +3452,11 @@ button.practice-history-cell {
 }
 
 /* On the stand the ghost fills the note's room and the caption stays a label —
-   the stage .hero-ready blow-up above must not win over the caption size. */
+   the stage .hero-ready blow-up above must not win over the caption size. A
+   step under .hero-note's 38vh: the caption and gap above the ghost must fit
+   inside the 40vh note line too. */
 :root[data-stage] .hero-ghost-note {
-  font-size: min(38vh, 46vw);
+  font-size: min(34vh, 46vw);
 }
 
 :root[data-stage] .hero-ready-caption {
