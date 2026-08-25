@@ -30,6 +30,12 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
   const accumulatedMsRef = useRef(0)
   const isRunningRef = useRef(false)
   const onTickRef = useRef(options.onTick)
+  /**
+   * The exact elapsed time as of the last tick, for callers that anchor
+   * against the clock right now (e.g. a routine block start) and cannot wait
+   * for `elapsedMs` to catch up to the second it was throttled down to.
+   */
+  const exactElapsedMsRef = useRef(0)
 
   useEffect(() => {
     onTickRef.current = options.onTick
@@ -69,6 +75,7 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
 
       const now = observeNow()
       const elapsed = accumulatedMsRef.current + (now - startedAtRef.current)
+      exactElapsedMsRef.current = elapsed
       // Every readout displays whole seconds, so a sub-second change would
       // re-render the whole app (this state lives in App.tsx) for nothing.
       setElapsedMs((prev) => (Math.floor(elapsed / 1000) === Math.floor(prev / 1000) ? prev : elapsed))
@@ -97,6 +104,7 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
       const now = observeNow()
       accumulatedMsRef.current += now - startedAtRef.current
       startedAtRef.current = null
+      exactElapsedMsRef.current = accumulatedMsRef.current
       setElapsedMs(accumulatedMsRef.current)
     }
 
@@ -117,11 +125,15 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
     isRunningRef.current = false
     startedAtRef.current = null
     accumulatedMsRef.current = 0
+    exactElapsedMsRef.current = 0
     setElapsedMs(0)
     setIsRunning(false)
 
     return cleared
   }
 
-  return { elapsedMs, isRunning, start, pause, reset }
+  /** The exact elapsed time right now, unthrottled — for anchoring an action against the clock. */
+  const getElapsedMs = () => exactElapsedMsRef.current
+
+  return { elapsedMs, isRunning, start, pause, reset, getElapsedMs }
 }
