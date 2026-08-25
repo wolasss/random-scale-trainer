@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { STORAGE_KEYS } from '../constants'
 import { readRaw, writeRaw } from '../lib/storage'
-import { isIos } from './useDisplayMode'
+import { isAndroid, isIos } from './useDisplayMode'
 
 /** Chromium's install event. Not in lib.dom, and not implemented anywhere else. */
 type BeforeInstallPromptEvent = Event & {
@@ -19,13 +19,31 @@ export type InstallPrompt = {
    */
   showIosHint: boolean
   dismissIosHint: () => void
+  /**
+   * The same dead end on Android, in the browsers that never fire the install
+   * event — Firefox, mostly. Installing there lives in the browser's own menu,
+   * so the hint points at that instead of the share sheet.
+   */
+  showAndroidHint: boolean
+  dismissAndroidHint: () => void
 }
 
-const hintDismissed = (): boolean => readRaw(STORAGE_KEYS.iosInstallHint) === 'dismissed'
+const hintDismissed = (key: string): boolean => readRaw(key) === 'dismissed'
+
+/**
+ * Whether this browser implements the install event at all — Chromium does,
+ * whether or not one has fired yet. The property test is what keeps the
+ * Android hint from flashing up in Chrome during the seconds before the real
+ * event arrives, and from showing on a site Chrome has decided not to offer.
+ */
+const supportsInstallEvent = (): boolean => typeof window !== 'undefined' && 'onbeforeinstallprompt' in window
 
 export function useInstallPrompt(standalone: boolean): InstallPrompt {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
-  const [iosHintDismissed, setIosHintDismissed] = useState(hintDismissed)
+  const [iosHintDismissed, setIosHintDismissed] = useState(() => hintDismissed(STORAGE_KEYS.iosInstallHint))
+  const [androidHintDismissed, setAndroidHintDismissed] = useState(() =>
+    hintDismissed(STORAGE_KEYS.androidInstallHint),
+  )
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -62,10 +80,17 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
     writeRaw(STORAGE_KEYS.iosInstallHint, 'dismissed')
   }, [])
 
+  const dismissAndroidHint = useCallback(() => {
+    setAndroidHintDismissed(true)
+    writeRaw(STORAGE_KEYS.androidInstallHint, 'dismissed')
+  }, [])
+
   return {
     canInstall: !standalone && deferred !== null,
     install,
     showIosHint: !standalone && isIos() && !iosHintDismissed,
     dismissIosHint,
+    showAndroidHint: !standalone && isAndroid() && !supportsInstallEvent() && !androidHintDismissed,
+    dismissAndroidHint,
   }
 }
