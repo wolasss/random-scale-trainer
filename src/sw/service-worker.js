@@ -34,9 +34,14 @@ self.addEventListener('install', /** @type {EventListener} */ ((/** @type {Exten
       const cache = await caches.open(CACHE_NAME)
       // Deliberately not cache.addAll: that rejects as a unit, so one asset
       // failing would leave the app with no offline shell at all. Each URL is
-      // added on its own and a miss is simply re-fetched later.
+      // added on its own and a miss is simply re-fetched later. cache: 'reload'
+      // forces the network so a new build cannot re-precache a week-old copy
+      // from the HTTP cache (nginx serves un-hashed public assets with a 7-day
+      // expiry).
       await Promise.all(
-        PRECACHE_URLS.map((/** @type {string} */ url) => cache.add(url).catch(() => undefined)),
+        PRECACHE_URLS.map((/** @type {string} */ url) =>
+          cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
+        ),
       )
       await /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (self).skipWaiting()
     })(),
