@@ -47,6 +47,7 @@ function useHoldRepeat(fire: () => void) {
   const delayTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const intervalTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const repeatedRef = useRef(false)
+  const pressedRef = useRef(false)
   const fireRef = useRef(fire)
   useEffect(() => {
     fireRef.current = fire
@@ -68,6 +69,7 @@ function useHoldRepeat(fire: () => void) {
   return {
     onPointerDown: () => {
       clearTimers()
+      pressedRef.current = true
       repeatedRef.current = false
       delayTimer.current = setTimeout(() => {
         repeatedRef.current = true
@@ -76,15 +78,22 @@ function useHoldRepeat(fire: () => void) {
       }, HOLD_REPEAT_DELAY_MS)
     },
     onPointerUp: () => {
+      pressedRef.current = false
       clearTimers()
     },
     onPointerCancel: () => {
+      pressedRef.current = false
       clearTimers()
       repeatedRef.current = false
     },
     onPointerLeave: () => {
       clearTimers()
-      repeatedRef.current = false
+      // Touch taps fire a compatibility pointerleave *after* pointerup, right before the
+      // trailing click — only a leave while still pressed (a real drag off the button)
+      // means no click is coming, so only then is it safe to drop the repeat marker.
+      if (pressedRef.current) {
+        repeatedRef.current = false
+      }
     },
     onClick: () => {
       if (repeatedRef.current) {

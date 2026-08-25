@@ -221,6 +221,21 @@ describe('TempoCard', () => {
       expect(onNudge).toHaveBeenCalledTimes(4)
     })
 
+    it('does not double-nudge when pointerleave follows pointerup, as on touch devices', () => {
+      const { onNudge } = renderCard()
+      const button = screen.getByTestId('bpm-up')
+
+      fireEvent.pointerDown(button)
+      vi.advanceTimersByTime(HOLD_REPEAT_DELAY_MS + HOLD_REPEAT_INTERVAL_MS * 3)
+      expect(onNudge).toHaveBeenCalledTimes(4)
+
+      fireEvent.pointerUp(button)
+      fireEvent.pointerLeave(button)
+      fireEvent.click(button)
+
+      expect(onNudge).toHaveBeenCalledTimes(4)
+    })
+
     it('tears down the repeat timers on unmount', () => {
       const { onNudge, unmount } = renderCard()
       const button = screen.getByTestId('bpm-up')
