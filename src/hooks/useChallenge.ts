@@ -12,6 +12,7 @@ import {
   type ScoreEvent,
   type SessionConfig,
 } from '../lib/scoreboard'
+import type { DifficultyInputs, PracticeMilestoneKind } from '../lib/scoring'
 import { readRaw, writeRaw } from '../lib/storage'
 import { STORAGE_KEYS } from '../constants'
 
@@ -26,7 +27,18 @@ export type JoinError = 'taken' | 'rate-limited' | 'error'
  * audio time in seconds of the note it is about — the app's own call, which is
  * the only timestamp with no response jitter in it.
  */
-export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+export type ScoredEvent =
+  /**
+   * A hit carries what its note was called under, which is what the server
+   * prices it by. Optional, and null is the same as absent: a hit that declares
+   * nothing is priced flat at both ends, which is what a beat carrying no
+   * settings produces.
+   */
+  | { kind: 'hit'; at: number; difficulty?: DifficultyInputs | null }
+  | { kind: 'miss'; at: number }
+  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+  /** The clock's own, which the server checks its own clock against. */
+  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
 
 export type Challenge = {
   /** The whole feature, in one boolean. False means none of it exists. */
@@ -75,12 +87,12 @@ export const SCOREBOARD_REFRESH_MS = 20_000
 
 /** What each way of being locked out says on the strip. */
 const NOTICES: Record<Exclude<ScoreboardFailure, 'error'>, string> = {
-  taken: 'That name is taken on this board.',
-  unauthorized: 'This browser does not own that name — the board is read-only here.',
-  expired: 'That scoring session expired. Press start to open a new one.',
+  taken: 'That name’s taken on this board — try another?',
+  unauthorized: 'Watching only — this name was claimed in another browser.',
+  expired: 'That run timed out. Press start and you’re back in.',
   'invalid-config': 'The board would not accept these practice settings.',
-  'rate-limited': 'Slow down a moment — the board is rate-limiting this browser.',
-  rejected: 'The board could not read that run. Scoring starts again from here.',
+  'rate-limited': 'Whoa — a little too fast. Give it a moment.',
+  rejected: 'The board couldn’t read that run. Scoring starts fresh from here.',
 }
 
 /** Said once, when a claim worked but this browser could not write it down. */
@@ -88,6 +100,22 @@ const UNSAVED_TOKEN_NOTICE = 'This browser could not save the name — it is you
 
 /** Challenge name → the nickname this browser owns on it, and its token. */
 type TokenMap = Record<string, { nickname: string; token: string }>
+
+/** Accepts only a well-formed `{nickname, token}`; everything else is junk. */
+const readEntry = (value: unknown): { nickname: string; token: string } | null => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+
+  const { nickname, token } = value as Partial<Record<'nickname' | 'token', unknown>>
+
+  return typeof nickname === 'string' &&
+    nicknameKey(nickname) !== null &&
+    typeof token === 'string' &&
+    token !== ''
+    ? { nickname, token }
+    : null
+}
 
 const readTokens = (): TokenMap => {
   const raw = readRaw(STORAGE_KEYS.challengeTokens)
@@ -97,8 +125,19 @@ const readTokens = (): TokenMap => {
 
   try {
     const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
 
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as TokenMap) : {}
+    const tokens: TokenMap = {}
+    for (const [challenge, value] of Object.entries(parsed)) {
+      const entry = readEntry(value)
+      if (entry !== null) {
+        tokens[challenge] = entry
+      }
+    }
+
+    return tokens
   } catch {
     return {}
   }
@@ -106,15 +145,8 @@ const readTokens = (): TokenMap => {
 
 /** This browser's claim on one challenge, or null if it holds none. */
 const readToken = (challenge: string) => {
-  const entry = readTokens()[challenge]
-
-  return entry !== undefined &&
-    typeof entry.nickname === 'string' &&
-    typeof entry.token === 'string' &&
-    entry.token !== '' &&
-    nicknameKey(entry.nickname) !== null
-    ? entry
-    : null
+  const tokens = readTokens()
+  return Object.hasOwn(tokens, challenge) ? tokens[challenge] : null
 }
 
 /** False when storage refused it — a token nothing wrote down is one reload old. */
@@ -145,10 +177,10 @@ const forgetToken = (challenge: string) => {
  *
  * Points are never computed here. `recordEvent` queues what the scoring hook
  * observed, `flushEvents` posts it in batches under the token, and the total
- * that comes back is the server's arithmetic. The local readout still shows the
- * player's own priced tally, which is a different number on purpose: the board
- * pays every note the same, so nobody can buy a place on it by declaring a hard
- * setup they never practised under.
+ * that comes back is the server's arithmetic. It is the *same* arithmetic as
+ * the readout's, run on the same inputs — a hit is queued with the settings its
+ * note was called under, and src/server/session-scoring.js prices it by them —
+ * so the board and the number under the play button are one figure and not two.
  */
 export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions = {}): Challenge {
   const [name] = useState(() =>
@@ -406,10 +438,16 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
       // far apart as the app called them.
       const fresh = sessionRef.current === null
       const session = (sessionRef.current ??= { id: null, startedAt: event.at, seq: 0 })
+      // Only what the kind actually carries: a hit's price, a bonus's kind, a
+      // milestone's, and nothing at all on a miss. The server rejects a field
+      // on a kind that has no use for one, and it is right to — an event
+      // nobody can price is one nobody should have sent.
       queueRef.current.push({
         seq: session.seq++,
         kind: event.kind,
         ...(event.kind === 'bonus' ? { bonus: event.bonus } : {}),
+        ...(event.kind === 'milestone' ? { milestone: event.milestone } : {}),
+        ...(event.kind === 'hit' && event.difficulty != null ? { difficulty: event.difficulty } : {}),
         at: Math.max(0, Math.round((event.at - session.startedAt) * 1000)),
       })
 

@@ -4,6 +4,7 @@ import {
   buildWindow,
   currentStreak,
   hasHistory,
+  practiceDayTitle,
   recentTotals,
   STREAK_MIN_SECONDS,
   type PracticeHistory,
@@ -20,14 +21,6 @@ type PracticeLogCardProps = {
   onImportBackup: (incoming: PracticeHistory) => boolean
   /** Injectable for tests; the card is otherwise pinned to the real calendar. */
   today?: Date
-}
-
-const barTitle = (minutes: number, sec: number) => {
-  if (sec === 0) {
-    return 'no practice'
-  }
-
-  return minutes === 0 ? 'under a minute' : `${minutes} min`
 }
 
 /**
@@ -111,9 +104,9 @@ export function PracticeLogCard({
               <div
                 className={bar.sec > 0 ? 'practice-log-bar' : 'practice-log-bar is-empty'}
                 style={bar.sec > 0 ? { height: `${(bar.ratio * 100).toFixed(2)}%` } : undefined}
-                title={barTitle(bar.minutes, bar.sec)}
+                title={practiceDayTitle(bar.minutes, bar.sec)}
                 role="img"
-                aria-label={`${bar.key}: ${barTitle(bar.minutes, bar.sec)}`}
+                aria-label={`${bar.key}: ${practiceDayTitle(bar.minutes, bar.sec)}`}
               />
             </div>
             <span className={bar.isToday ? 'practice-log-weekday is-today' : 'practice-log-weekday'}>

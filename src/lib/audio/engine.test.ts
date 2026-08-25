@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { allowConsole } from '../../test/consoleGuard'
 import { AudioEngine, NOTE_AUDIO_FILES } from './engine'
 
-// Every console.error spy below is scoped to the test that installs it: a spy
-// left in place is reused by the next vi.spyOn, so its call count would leak
-// into whichever test the shuffled order runs next.
+// The tests below make the engine report a failed download, which it does
+// through console.error. Each one opts into that with allowConsole(), which the
+// guard scopes to a single test, so nothing leaks into the test after it.
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -124,7 +125,7 @@ describe('AudioEngine.loadNoteBuffers', () => {
   })
 
   it('tolerates a failing note and keeps the rest', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errors = allowConsole('error')
     const fetchFn = vi.fn(async (path: string) => ({
       ok: !String(path).includes('c-sharp'),
       status: 404,
@@ -136,7 +137,7 @@ describe('AudioEngine.loadNoteBuffers', () => {
     await engine.loadNoteBuffers()
 
     expect(engine.hasBuffers()).toBe(true)
-    expect(errorSpy).toHaveBeenCalledTimes(1)
+    expect(errors.calls).toHaveLength(1)
   })
 
   it('is idempotent', async () => {
@@ -151,7 +152,7 @@ describe('AudioEngine.loadNoteBuffers', () => {
   })
 
   it('retries after a pass where every fetch failed', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    allowConsole('error')
     let online = false
     const fetchFn = vi.fn(async () => {
       if (!online) throw new Error('offline')
@@ -498,7 +499,7 @@ describe('AudioEngine speech fallback', () => {
       speech: { speak },
     })
 
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    allowConsole('error')
     await engine.ensureContext()
     await engine.loadNoteBuffers()
 
@@ -515,7 +516,7 @@ describe('AudioEngine speech fallback', () => {
       speech: { speak },
     })
 
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    allowConsole('error')
     await engine.ensureContext()
     await engine.loadNoteBuffers()
 
@@ -551,7 +552,7 @@ describe('AudioEngine speech fallback', () => {
       speech: null,
     })
 
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    allowConsole('error')
     await engine.ensureContext()
     await engine.loadNoteBuffers()
 
@@ -612,7 +613,7 @@ describe('AudioEngine cue bookkeeping', () => {
   })
 
   it('records a generous interval for the speech fallback', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    allowConsole('error')
     const failing = createFakeContext()
     const engine = new AudioEngine({
       contextFactory: () => asAudioContext(failing),

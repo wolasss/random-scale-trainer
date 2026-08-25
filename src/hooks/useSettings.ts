@@ -24,12 +24,22 @@ export type SettingsAction =
   | { type: 'setPool'; pool: readonly number[] }
   | { type: 'setSessionGoal'; minutes: SessionGoalMin }
 
+// A tempo raised past its ramp target strands the target below the tempo, so
+// this hands it a fresh goal — mirroring 'setRamp's own fresh-goal rule. The
+// comparison is strict: the ramp's own climb writes back through this same
+// action and lands exactly on the target, so `<=` would move the goalposts
+// every round and the ramp would never terminate.
+const withTempo = (state: Settings, bpm: number): Settings =>
+  state.speedRampMode && state.rampTargetBpm < bpm
+    ? { ...state, bpm, rampTargetBpm: defaultRampTarget(bpm) }
+    : { ...state, bpm }
+
 export const settingsReducer = (state: Settings, action: SettingsAction): Settings => {
   switch (action.type) {
     case 'setBpm':
-      return { ...state, bpm: clampBpm(action.bpm) }
+      return withTempo(state, clampBpm(action.bpm))
     case 'nudgeBpm':
-      return { ...state, bpm: clampBpm(state.bpm + action.delta) }
+      return withTempo(state, clampBpm(state.bpm + action.delta))
     case 'setBeatsPerNote':
       return { ...state, beatsPerNote: action.value }
     case 'toggle': {

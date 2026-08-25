@@ -1,3 +1,61 @@
+# [1.25.0](https://github.com/wolasss/random-scale-trainer/compare/v1.24.0...v1.25.0) (2026-08-24)
+
+
+### Features
+
+* **mic:** split the score readout into a play row and a pause summary ([#173](https://github.com/wolasss/random-scale-trainer/issues/173)) ([69a2037](https://github.com/wolasss/random-scale-trainer/commit/69a2037a5ac196a467e1cdf80e1757c17d529f2e))
+
+# [1.24.0](https://github.com/wolasss/random-scale-trainer/compare/v1.23.2...v1.24.0) (2026-08-24)
+
+
+### Features
+
+* **challenge:** read the shared board as a rail, and fold it on a phone ([#172](https://github.com/wolasss/random-scale-trainer/issues/172)) ([787acd7](https://github.com/wolasss/random-scale-trainer/commit/787acd7a2a9ff408b918a71d861996300450ab61))
+
+## [1.23.2](https://github.com/wolasss/random-scale-trainer/compare/v1.23.1...v1.23.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **challenge:** reject a malformed stored ownership token instead of crashing on the board ([#169](https://github.com/wolasss/random-scale-trainer/issues/169)) ([9466550](https://github.com/wolasss/random-scale-trainer/commit/9466550eab40264324bbd94bf9eb7e6b56bf6a99))
+
+## [1.23.1](https://github.com/wolasss/random-scale-trainer/compare/v1.23.0...v1.23.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **tempo:** keep the ramp target above the tempo when the tempo climbs past it ([#160](https://github.com/wolasss/random-scale-trainer/issues/160)) ([221227f](https://github.com/wolasss/random-scale-trainer/commit/221227f030064055d2ae2a9fd5d62640ae10e767))
+
+# [1.23.0](https://github.com/wolasss/random-scale-trainer/compare/v1.22.2...v1.23.0) (2026-08-24)
+
+
+### Features
+
+* **routines:** edit a workout's blocks — retime, reorder and insert ([#157](https://github.com/wolasss/random-scale-trainer/issues/157)) ([0ded4b3](https://github.com/wolasss/random-scale-trainer/commit/0ded4b32d5c68a7d4dd4b30bfd38b31ba54b339b))
+
+## [1.22.2](https://github.com/wolasss/random-scale-trainer/compare/v1.22.1...v1.22.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* **routines:** name a block after the key it drills instead of calling five presets 'custom' ([#163](https://github.com/wolasss/random-scale-trainer/issues/163)) ([59a2f51](https://github.com/wolasss/random-scale-trainer/commit/59a2f51228775be8960a4080036fbfe78b6a7aa5))
+* **scoreboard:** write the snapshot atomically so a torn file can't reset every nickname's ownership ([#164](https://github.com/wolasss/random-scale-trainer/issues/164)) ([24d995b](https://github.com/wolasss/random-scale-trainer/commit/24d995b301b241b6662bf853caf21e24a5d51ada))
+* **scoring:** keep the strike time after a hit so the in-time bonus survives a stray detection ([#161](https://github.com/wolasss/random-scale-trainer/issues/161)) ([73481a5](https://github.com/wolasss/random-scale-trainer/commit/73481a5573023dbfdda8248ec1eb3f9f34ab659f))
+
+## [1.22.1](https://github.com/wolasss/random-scale-trainer/compare/v1.22.0...v1.22.1) (2026-08-22)
+
+
+### Bug Fixes
+
+* **api:** refuse cross-site POSTs to the scoreboard endpoints ([#147](https://github.com/wolasss/random-scale-trainer/issues/147)) ([6e75767](https://github.com/wolasss/random-scale-trainer/commit/6e75767d483b5f46a051b60445de4131d067d250))
+
+# [1.22.0](https://github.com/wolasss/random-scale-trainer/compare/v1.21.0...v1.22.0) (2026-08-21)
+
+
+### Features
+
+* **scoring:** price the shared board by the same difficulty as the readout ([#143](https://github.com/wolasss/random-scale-trainer/issues/143)) ([066f2fb](https://github.com/wolasss/random-scale-trainer/commit/066f2fb98d1daf545739f043d0a5863df43f36bb))
+
 # [1.21.0](https://github.com/wolasss/random-scale-trainer/compare/v1.20.0...v1.21.0) (2026-08-21)
 
 

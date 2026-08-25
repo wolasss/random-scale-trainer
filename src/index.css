@@ -343,21 +343,6 @@ button {
   opacity: 0.7;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  padding: 0.34rem 0.66rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--accent);
-  background: rgba(255, 211, 110, 0.13);
-  border: 1px solid rgba(255, 211, 110, 0.35);
-}
-
 .theme-toggle {
   border: 1px solid var(--panel-border);
   border-radius: 999px;
@@ -457,13 +442,6 @@ h2 {
   margin: 0;
   max-width: 58ch;
   font-size: 1rem;
-}
-
-.hero-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: 1rem;
 }
 
 .chip {
@@ -839,13 +817,6 @@ h2 {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--control-border);
   margin-bottom: 1.15rem;
-}
-
-.target-time-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
 }
 
 input[type='range'] {
@@ -1252,12 +1223,6 @@ input[type='range'] {
   color: var(--ink-soft);
 }
 
-.target-time-info {
-  margin-top: 0.7rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--control-border);
-}
-
 .target-time {
   font-size: 1.16rem;
   font-weight: 700;
@@ -1588,61 +1553,71 @@ input[type='range'] {
   color: var(--miss);
 }
 
-/* Second line: how the last note went, and how the session is going. Below
-   the heard note rather than beside it — one is what is happening now and the
-   other is the tally, and a single row of four readings is a paragraph. */
+/* Second line while playing: the total, and what the last note put on it.
+   Below the heard note rather than beside it — one is the note on screen and
+   the other is the session behind it. Two readings and no more: mid-phrase
+   there is one glance to spend, and everything else the score knows waits for
+   the pause summary below. */
 .mic-readout-score {
   flex-basis: 100%;
   display: flex;
   align-items: baseline;
   justify-content: center;
-  /* Four readings wrap onto a second row on a phone rather than squeezing. */
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.mic-readout-verdict-row {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-
-.mic-readout-verdict-row[data-hit='true'] {
-  color: var(--hit);
-}
-
-.mic-readout-verdict-row[data-hit='false'] {
-  color: var(--miss);
-}
-
-.mic-readout-response {
-  font-variant-numeric: tabular-nums;
-}
-
-/* The number that goes up: the one reading on this line worth a glance. */
-.mic-readout-points {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-/* Only there when the settings price a note off the flat rate, either way. */
-.mic-readout-multiplier {
+/* The number that goes up, and the one thing here sized to be read from a
+   music stand. It carries no label: the display face and the size say what it
+   is, and the width a caption would cost is width the note above it wants. */
+.mic-readout-total {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
-  opacity: 0.8;
 }
 
-/* Only there while it is the last note's, so it may be the loud one. */
-.mic-readout-bonus {
+/* What the last note was worth, in the app's own voice — it is the only thing
+   on the row that just changed, so it is the only thing allowed to be loud. */
+.mic-readout-delta {
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--hit);
+  color: var(--primary);
 }
 
-/* Read after the session rather than during it, so it yields the foreground. */
-.mic-readout-tally {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.8;
+/* Paused or stopped, in the slot the play row had. A summary is read standing
+   still, so it can afford a header and a figure per reading. */
+.mic-readout-summary {
+  flex-basis: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+}
+
+/* The session card's own tiles, laid out for however many there are: four
+   normally, three at the flat rate, one more when the clock has just paid a
+   practice milestone out. A fixed pair of columns would leave the odd tile
+   hanging half the time. */
+.mic-readout-stats {
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+}
+
+/* The one line here that asks for something back rather than reporting, so it
+   gets the accent the rest of the readout never spends. */
+.mic-readout-nudge {
+  margin: 0;
+  text-align: center;
+}
+
+/* Inline rather than a flex item beside the text: the line wraps to two on a
+   phone, and an arrow pinned to the left of a centred block reads as a bullet
+   for a list of one. */
+.mic-readout-nudge svg {
+  color: var(--accent);
+  margin-right: 0.4rem;
 }
 
 .mic-readout-none {
@@ -1656,46 +1631,159 @@ input[type='range'] {
 
 /* --- Shared challenge: the scoreboard and the nickname prompt ------------- */
 
-/* Same weight and the same divider as the mic readout above it, and for the
-   same reason: this is a glance between phrases, not the thing being read from
-   across the room. Only ever on the page with '?challenge=' in the URL. */
-.scoreboard {
+/*
+  One board, two readings, and App picks between them from the viewport — see
+  SCOREBOARD_RAIL_QUERY. The rail is a column of the practice stage; the fold is
+  a line above the play button and a sheet behind it. Neither exists on a page
+  without '?challenge=' in its URL.
+*/
+
+/* The stage grows a second track for the rail, divided by a hairline rather
+   than boxed into a card of its own — the neck's treatment, for the neck's
+   reason: the board is part of the playing view, not a widget beside it. */
+.practice-stage:has(> .scoreboard-rail),
+.practice-stage:has(> .scoreboard-handle) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  /* Column gap only. The stack in the left track carries its own top margins,
+     and a row gap would space out a rhythm that is already right. */
+  gap: 0 24px;
+}
+
+/* Folded away, the rail is the width of its handle and nothing more. */
+.practice-stage:has(> .scoreboard-handle) {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.practice-stage-main {
+  min-width: 0;
+}
+
+/* Below this the hero and the neck cannot share what the rail has left them,
+   so the neck goes under the note exactly as it does on a narrow page. */
+@media (max-width: 1279px) {
+  .practice-stage:has(> .scoreboard-rail) .practice-stage-view.with-neck {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .practice-stage:has(> .scoreboard-rail) .practice-stage-neck {
+    padding-left: 0;
+    padding-top: 1.2rem;
+    border-left: 0;
+    border-top: 1px solid var(--panel-border);
+  }
+}
+
+.scoreboard-rail {
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.8rem;
-  margin-top: 0.9rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--control-border);
-  font-size: 0.82rem;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+  padding-left: 22px;
+  border-left: 1px solid var(--panel-border);
+  font-size: 13px;
   color: var(--ink-soft);
 }
 
-.scoreboard-label {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.68rem;
-  opacity: 0.7;
+.scoreboard-rail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 
-/* Ten names on one row on a desktop, wrapping to as many as it takes on a
-   phone. A vertical list would cost the note the room it is called in. */
+/* The challenge name, wherever it appears: a label rather than a heading, so a
+   board never competes with the note it sits beside. */
+.scoreboard-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.scoreboard-live {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+/* A board quietly refetching itself every twenty seconds looks exactly like one
+   that has stopped. The pulse is the only thing that says which. */
+.scoreboard-live-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hit);
+  animation: scoreboard-pulse 2s ease-in-out infinite;
+}
+
+@keyframes scoreboard-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* A steady dot still says "live"; a blinking one somebody asked not to see is
+   just a distraction two feet from the note they are reading. */
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard-live-dot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Ghost, and small: hiding the board is a thing you do once, so it should be
+   findable rather than prominent. */
+.scoreboard-hide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* Pushed to the far edge, away from the two things that are actually read. */
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+/* A column now, not a row: the rail has the height for ten names and none of
+   the width the old strip spread them across. */
 .scoreboard-list {
   display: flex;
-  align-items: baseline;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.9rem;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .scoreboard-entry {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
   align-items: baseline;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  padding: 3px 6px;
+  /* Transparent rather than absent, so your own row gaining a border does not
+     move every row under it by a pixel. */
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .scoreboard-rank {
@@ -1704,7 +1792,13 @@ input[type='range'] {
 }
 
 .scoreboard-nickname {
-  max-width: 10rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.scoreboard-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1716,14 +1810,30 @@ input[type='range'] {
   color: var(--ink);
 }
 
-/* Your own row is marked where it stands rather than moved to the top — a board
-   that reorders itself to keep you in sight is not a board. */
-.scoreboard-entry[data-you='true'] .scoreboard-nickname,
+/* Your own row is filled in where it stands rather than moved to the top — a
+   board that reorders itself to keep you in sight is not a board. Filled, not
+   merely recoloured: on a list of ten names a tinted row is found at a glance
+   and a differently-coloured one has to be searched for. */
+.scoreboard-entry[data-you='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.scoreboard-entry[data-you='true'] .scoreboard-name,
 .scoreboard-entry[data-you='true'] .scoreboard-points {
-  color: var(--accent);
+  color: var(--primary);
+}
+
+.scoreboard-you-tag {
+  flex: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 9px;
+  color: var(--primary);
 }
 
 .scoreboard-empty {
+  margin: 0;
   opacity: 0.7;
 }
 
@@ -1731,8 +1841,134 @@ input[type='range'] {
    not own, a rate limit. It sits beside the board rather than over it: the top
    ten is still worth reading when your own row has stopped moving. */
 .scoreboard-notice {
+  margin: 0;
   opacity: 0.75;
   font-style: italic;
+}
+
+/* The one line that is about you rather than about everybody, pinned to the
+   foot of the rail under a hairline of its own. */
+.scoreboard-nudge {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin: auto 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--control-border);
+  line-height: 1.4;
+}
+
+.scoreboard-nudge-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+/* --- the rail, folded away ------------------------------------------------ */
+
+/* Rotated rather than abbreviated: which challenge you are on and where you
+   stand on it are the two things still worth a sliver of the stage once the
+   board itself is not. One tap brings the rail back. */
+.scoreboard-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 44px;
+  padding: 0.85rem 0;
+  border: 1px solid var(--button-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+  color: var(--ink-soft);
+  /* Which turns the flex row above into a top-to-bottom stack: in a vertical
+     writing mode the inline axis runs down the handle. */
+  writing-mode: vertical-rl;
+  cursor: pointer;
+}
+
+.scoreboard-handle-standing {
+  font-weight: 600;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+/* --- the fold: a phone has no column to give ----------------------------- */
+
+.scoreboard-fold {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+/* One tappable line of board. Everything on it is what you would have looked at
+   the rail for: that it is live, which challenge, where you stand, and who is
+   next up the list. */
+.scoreboard-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--button-border);
+  border-radius: 14px;
+  background: var(--button-bg);
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scoreboard-summary-you {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+.scoreboard-summary-leader {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rendered even when there is nobody above you: this is what holds the chevron
+   against the right-hand edge, and a target that moves with the board is one
+   nobody can hit twice. */
+.scoreboard-summary-next {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreboard-summary-chevron {
+  flex: none;
+  opacity: 0.7;
+}
+
+/* The rest of the board, in the practice sheet's own furniture — same grip,
+   same surface, same corners, so it reads as the drawer the setup opens in. */
+.scoreboard-sheet {
+  max-height: 76vh;
+  max-height: 76dvh;
+}
+
+.scoreboard-sheet-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  font-size: 1rem;
+}
+
+.scoreboard-sheet-body {
+  gap: 0.7rem;
+  font-size: 13px;
+  color: var(--ink-soft);
 }
 
 /* The prompt reuses the practice sheet's scrim and layer; it is a question
@@ -1766,6 +2002,19 @@ input[type='range'] {
   color: var(--ink-soft);
   font-size: 0.88rem;
   line-height: 1.45;
+}
+
+/* The microphone line, in the accent the readout's own warnings use: a
+   permission dialog is about to appear, and it should not be the first anybody
+   hears of it. */
+.nickname-prompt-mic {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 /* An inline answer to a claim that was refused, in the accent rather than a red
@@ -2098,6 +2347,8 @@ input[type='range'] {
   gap: 0.2rem;
   align-content: start;
   min-width: 0;
+  /* Width comes from the duration alone (flex-grow), never from the content. */
+  flex-basis: 0;
   padding: 0.7rem 0.75rem;
   border-radius: 16px;
   border: 1px solid var(--control-border);
@@ -2167,6 +2418,43 @@ input[type='range'] {
   opacity: 1;
 }
 
+/* Reorder, insert and retime, as buttons rather than a drag handle: a handle is
+   reachable by neither keyboard nor thumb. They wrap because a narrow segment —
+   the 25-second exam — cannot hold five of them on one line. */
+.routine-segment-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.routine-segment-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 8px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  transition: opacity 140ms var(--ease-out);
+}
+
+.routine-segment-control:hover:not(:disabled) {
+  opacity: 1;
+}
+
+/* An end block cannot move further out, and a block already at the step cannot
+   be shortened by it — the button stays put and reads as unavailable. */
+.routine-segment-control:disabled {
+  opacity: 0.3;
+}
+
 /* A delete this small is a miss waiting to happen on a phone. Both buttons get
    the 44px fingertip target the segmented control already gets; the segment's
    negative margins spend the segment's own padding on the target instead of
@@ -2186,6 +2474,11 @@ input[type='range'] {
     min-width: 44px;
     min-height: 44px;
     margin: -0.7rem -0.75rem -0.2rem 0;
+  }
+
+  .routine-segment-control {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -2723,6 +3016,18 @@ button.practice-history-cell {
     grid-template-columns: repeat(4, minmax(48px, 1fr));
   }
 
+  /* A five-block workout drawn to scale gives each segment a fifth of a phone —
+     too narrow to read, let alone to edit in. Stacked, every block is full
+     width and its controls are a comfortable row; the proportional drawing is a
+     desktop luxury, and the bar inside each segment still tells the length. */
+  .routine-timeline {
+    flex-wrap: wrap;
+  }
+
+  .routine-segment {
+    flex-basis: 100%;
+  }
+
   .note-pool-heading {
     flex-direction: column;
   }
@@ -2730,11 +3035,6 @@ button.practice-history-cell {
   .note-pool-heading .preset-select {
     max-width: 100%;
     width: 100%;
-  }
-
-  .target-time-info {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   /* The stepper, the readout and the tap button only just fit a phone at the
@@ -3002,7 +3302,6 @@ button.practice-history-cell {
 .stage > .scoreboard {
   grid-area: board;
   margin-top: 0;
-  border-top: 0;
 }
 
 .stage-hero {
@@ -3179,6 +3478,9 @@ button.practice-history-cell {
 :root[data-stage] .playback-message,
 :root[data-stage] .routine-strip,
 :root[data-stage] .routine-strip-status,
+:root[data-stage] .scoreboard-summary,
+:root[data-stage] .scoreboard-sheet-body,
+:root[data-stage] .scoreboard-entry,
 :root[data-stage] .switch-subtitle,
 :root[data-stage] .control-subtitle,
 :root[data-stage] .range-hints,
@@ -3189,6 +3491,7 @@ button.practice-history-cell {
 :root[data-stage] .routine-chip-meta,
 :root[data-stage] .routine-segment-meta,
 :root[data-stage] .routine-segment-time,
+:root[data-stage] .routine-segment-control,
 :root[data-stage] .routine-status,
 :root[data-stage] .practice-log-footer,
 :root[data-stage] .practice-log-weekday {

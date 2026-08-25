@@ -20,6 +20,15 @@ import { handleRequest, writeSnapshot } from './scoreboard.js'
  */
 export const MAX_BODY_BYTES = 4096
 
+/**
+ * Socket timeouts, named rather than left at Node's defaults (which run to
+ * minutes). This process sits behind nginx serving small JSON — nothing
+ * legitimate needs longer than this to send its headers or its body.
+ */
+export const HEADERS_TIMEOUT_MS = 5_000
+export const REQUEST_TIMEOUT_MS = 10_000
+export const KEEP_ALIVE_TIMEOUT_MS = 5_000
+
 /** Addresses that mean "the proxy in front of us", not "the caller". */
 const LOOPBACK = /^(::1|::ffff:127\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+)$/
 
@@ -47,6 +56,56 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
 }
 
 /**
+ * Whether a request is a cross-site POST, and so a forgery (CWE-352).
+ *
+ * Nothing here sends CORS headers, so a cross-origin `fetch` that needs a
+ * preflight is stopped by the browser on its own. What is *not* stopped is the
+ * CORS "simple request": a form-shaped POST with `Content-Type: text/plain`
+ * goes out without a preflight, carrying whatever the victim's browser would
+ * carry, and `…/nickname` needs no Authorization to succeed. That is a page
+ * anywhere squatting names on somebody else's board and burning their claim
+ * quota, so both halves of the loophole are refused at the edge:
+ *
+ * - a `Sec-Fetch-Site` the browser attached that is not same-origin/same-site;
+ * - a Content-Type that is not `application/json`, declared or missing, which
+ *   is exactly the shape that skips the preflight the missing CORS headers
+ *   would fail. Missing counts because `fetch` sends no Content-Type at all for
+ *   a body built from a `Blob` or a typed array with no MIME type — still valid
+ *   JSON on the wire, still a simple request, and the way a forgery would dodge
+ *   a check that only read a declared type.
+ *
+ * The Sec-Fetch-Site rule is *present-and-allowed*, not present-and-non-empty:
+ * an absent header is allowed, so `curl` and the container's own checks still
+ * work, but a header that is there must pass — an empty value is not an allowed
+ * one. A POST with no body at all is likewise left alone: there is nothing for
+ * it to declare, and it is the shape a bodyless `…/finish` takes.
+ */
+export const isCrossSitePost = (method, headers) => {
+  if (method !== 'POST') {
+    return false
+  }
+
+  // Node lowercases header names, and so does the Connect middleware in
+  // vite.config.ts that shares this rule.
+  const site = headers['sec-fetch-site']
+  if (typeof site === 'string' && site !== 'same-origin' && site !== 'same-site') {
+    return true
+  }
+
+  const type = headers['content-type']
+  if (typeof type === 'string') {
+    return type.split(';')[0].trim().toLowerCase() !== 'application/json'
+  }
+
+  // Nothing declared, so the only question left is whether there is a body to
+  // declare. `Content-Length: 0` — what a bodyless POST carries — is not one.
+  const length = headers['content-length']
+  const declared = typeof length === 'string' ? length.trim() : ''
+
+  return typeof headers['transfer-encoding'] === 'string' || (declared !== '' && declared !== '0')
+}
+
+/**
  * The body, capped — or null if the caller went over and the socket was cut.
  *
  * The chunks are kept as bytes and decoded once at the end: a nickname is text
@@ -54,6 +113,17 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
  * events decodes to a pair of replacement characters if each chunk is turned
  * into a string on its own.
  */
+/**
+ * Whether a caller has already declared, in their own headers, more than the
+ * cap — so the request can be refused before a single `data` event is read.
+ * `Number(undefined)` is `NaN` and `Number('')` is `0`; a missing or empty
+ * declaration falls through to the streaming cap in `readBody` instead.
+ */
+const declaresOversizedBody = (headers) => {
+  const declared = Number(headers['content-length'])
+  return Number.isFinite(declared) && declared > MAX_BODY_BYTES
+}
+
 const readBody = (request, response) =>
   new Promise((resolve) => {
     const chunks = []
@@ -80,8 +150,25 @@ const readBody = (request, response) =>
  * a restart loses it; `now` is injectable so a test can age a session out
  * without waiting ten minutes.
  */
-export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) =>
-  createServer(async (request, response) => {
+export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) => {
+  const server = createServer(async (request, response) => {
+    // Before isCrossSitePost, and long before readBody: a caller who declares
+    // more than the cap is refused on their own word, without a byte read.
+    if (request.method === 'POST' && declaresOversizedBody(request.headers)) {
+      response.writeHead(413, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: 'body too large' }))
+      request.destroy()
+      return
+    }
+
+    // Before readBody: a forged POST is refused without its body ever being read.
+    if (isCrossSitePost(request.method, request.headers)) {
+      response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      response.end(JSON.stringify({ error: 'cross_site' }))
+      request.destroy()
+      return
+    }
+
     const body = request.method === 'POST' ? await readBody(request, response) : ''
     if (body === null) {
       return
@@ -109,3 +196,10 @@ export const createScoreboardServer = ({ store, dataPath = '', now = Date.now })
       writeSnapshot(dataPath, store)
     }
   })
+
+  server.headersTimeout = HEADERS_TIMEOUT_MS
+  server.requestTimeout = REQUEST_TIMEOUT_MS
+  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS
+
+  return server
+}

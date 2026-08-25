@@ -58,7 +58,12 @@ export type PoolKey =
   | 'A'
   | 'E'
   | 'F'
+  | 'Bb'
+  | 'Eb'
   | 'Am'
+  | 'Em'
+  | 'Dm'
+  | 'Ablues'
   | 'custom'
 
 export type RoutineAccidental = 'flats' | 'sharps' | 'mixed'
@@ -83,7 +88,12 @@ const PRESET_BY_POOL_KEY: Record<Exclude<PoolKey, 'custom'>, PresetId> = {
   A: 'a-major',
   E: 'e-major',
   F: 'f-major',
+  Bb: 'b-flat-major',
+  Eb: 'e-flat-major',
   Am: 'a-minor-pentatonic',
+  Em: 'e-minor-pentatonic',
+  Dm: 'd-minor-pentatonic',
+  Ablues: 'a-minor-blues',
 }
 
 const POOL_LABELS: Record<PoolKey, string> = {
@@ -96,7 +106,12 @@ const POOL_LABELS: Record<PoolKey, string> = {
   A: 'A major',
   E: 'E major',
   F: 'F major',
+  Bb: 'B♭ major',
+  Eb: 'E♭ major',
   Am: 'A minor pent.',
+  Em: 'E minor pent.',
+  Dm: 'D minor pent.',
+  Ablues: 'A minor blues',
   custom: 'custom',
 }
 
@@ -464,18 +479,80 @@ export const parseRoutines = (raw: string): Routine[] | undefined => {
   return routines
 }
 
+/** How far one tap of the duration controls moves a block's clock. */
+export const BLOCK_STEP_SECONDS = 30
+
 /**
- * Appends a block from the current controls. A single open-ended block gains a
- * duration on the way, otherwise the sequence could never advance past it —
- * that one click is what turns a saved setup into a workout.
+ * Inserts a block built from the current controls at `index`, so a warm-up can
+ * be put in front of a workout rather than only behind it. A single open-ended
+ * block gains a duration on the way, otherwise the sequence could never advance
+ * past it — that one click is what turns a saved setup into a workout.
  */
-export const withAppendedBlock = (routine: Routine, settings: BlockSettings): Routine => {
+export const withInsertedBlock = (routine: Routine, index: number, settings: BlockSettings): Routine => {
   const existing =
     routine.blocks.length === 1 && routine.blocks[0].dur === null
       ? [{ ...routine.blocks[0], dur: DEFAULT_BLOCK_SECONDS }]
       : routine.blocks
 
-  return { ...routine, blocks: [...existing, blockFromSettings(settings, DEFAULT_BLOCK_SECONDS)] }
+  const at = Math.max(0, Math.min(existing.length, Math.round(index)))
+  const blocks = [...existing]
+  blocks.splice(at, 0, blockFromSettings(settings, DEFAULT_BLOCK_SECONDS))
+
+  return { ...routine, blocks }
+}
+
+/** Appending is inserting at the end — one arithmetic, so the two cannot drift. */
+export const withAppendedBlock = (routine: Routine, settings: BlockSettings): Routine =>
+  withInsertedBlock(routine, routine.blocks.length, settings)
+
+/**
+ * Swaps a block with the neighbour `delta` away, which is reordering stated as
+ * something a button can do. Returns the routine untouched at either end, so a
+ * caller can test identity the way it does for a refused removal.
+ */
+export const withMovedBlock = (routine: Routine, index: number, delta: -1 | 1): Routine => {
+  const target = index + delta
+  if (!routine.blocks[index] || !routine.blocks[target]) {
+    return routine
+  }
+
+  const blocks = [...routine.blocks]
+  blocks[index] = routine.blocks[target]
+  blocks[target] = routine.blocks[index]
+
+  return { ...routine, blocks }
+}
+
+/**
+ * Retimes one block. No ceiling and no floor beyond the parser's own rule —
+ * positive, finite, whole seconds — because a clamp here would disagree with
+ * what `parseBlock` already accepts and silently truncate a stored block the
+ * first time somebody trimmed thirty seconds off it.
+ *
+ * `dur: null` is refused for anything but a lone block: an untimed block inside
+ * a sequence stalls the routine on it forever, and `normalizeBlocks` would
+ * simply delete it. Refusing is the honest answer to a control that can only
+ * ever be offered when there is one block to offer it for.
+ */
+export const withBlockDuration = (routine: Routine, index: number, dur: number | null): Routine => {
+  const block = routine.blocks[index]
+  if (!block) {
+    return routine
+  }
+
+  if (dur === null) {
+    return block.dur === null || routine.blocks.length > 1 ? routine : { ...routine, blocks: [{ ...block, dur: null }] }
+  }
+
+  const rounded = Math.round(dur)
+  if (!Number.isFinite(dur) || rounded <= 0 || rounded === block.dur) {
+    return routine
+  }
+
+  return {
+    ...routine,
+    blocks: routine.blocks.map((entry, position) => (position === index ? { ...entry, dur: rounded } : entry)),
+  }
 }
 
 /** Whatever is left keeps its own duration, down to a single timed block. */

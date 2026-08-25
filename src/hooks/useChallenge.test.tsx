@@ -238,7 +238,15 @@ describe('on a challenge', () => {
   })
 
   it('ignores a token map that has been edited into nonsense', () => {
-    for (const raw of ['not json', '[]', '{"demo":{"nickname":"ada"}}', '{"demo":{"token":""}}']) {
+    for (const raw of [
+      'not json',
+      '[]',
+      '{"demo":{"nickname":"ada"}}',
+      '{"demo":{"token":""}}',
+      '{"demo":null}',
+      '{"demo":"ada"}',
+      `{"demo":{"nickname":5,"token":"${TOKEN}"}}`,
+    ]) {
       window.localStorage.setItem(STORAGE_KEYS.challengeTokens, raw)
       const { result, unmount } = render({ search: '?challenge=demo', fetchImpl: service() })
 
@@ -246,6 +254,31 @@ describe('on a challenge', () => {
       expect(result.current.needsNickname).toBe(true)
       unmount()
     }
+  })
+
+  it('drops the junk it read rather than writing it back beside a good token', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.challengeTokens,
+      JSON.stringify({ demo: null, stale: 'nope', other: { nickname: 5, token: TOKEN } }),
+    )
+
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    expect(result.current.needsNickname).toBe(true)
+    expect(result.current.nickname).toBeNull()
+
+    act(() => result.current.join('Ada'))
+    await waitFor(() => expect(result.current.nickname).toBe('Ada'))
+
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({
+      demo: { nickname: 'Ada', token: TOKEN },
+    })
+  })
+
+  it('does not mistake an inherited object property for a stored token', () => {
+    const { result } = render({ search: '?challenge=constructor', fetchImpl: service() })
+
+    expect(result.current.nickname).toBeNull()
+    expect(result.current.needsNickname).toBe(true)
   })
 
   it('refuses a name that normalises away', () => {
@@ -277,6 +310,43 @@ describe('scoring through a session', () => {
 
     return rendered
   }
+
+  /**
+   * The price of a note goes up with the note that earned it, and with nothing
+   * else: a miss is worth nothing at any difficulty, and a bonus is paid at the
+   * price of the note it landed on, which the server has from that note's hit.
+   */
+  it('sends what a hit was called under, and puts no price on anything else', async () => {
+    const fetchImpl = service()
+    const { result } = await joined(fetchImpl)
+    const difficulty = {
+      spelling: 'mixed' as const,
+      showFretboard: false,
+      bpm: 96,
+      beatsPerNote: 4,
+      pool: [0, 1, 2],
+    }
+
+    act(() => {
+      result.current.recordEvent({ kind: 'hit', at: 10, difficulty })
+      result.current.recordEvent({ kind: 'bonus', bonus: 'tempo', at: 10 })
+      result.current.recordEvent({ kind: 'miss', at: 11 })
+      // A note the beat carried no settings for: priced flat at both ends, and
+      // the field is left off rather than sent as a null nobody can price.
+      result.current.recordEvent({ kind: 'hit', at: 12, difficulty: null })
+      // The clock's own, which carries neither a price nor a bonus kind.
+      result.current.recordEvent({ kind: 'milestone', milestone: 'practice10', at: 12 })
+    })
+    await act(async () => result.current.flushEvents())
+
+    expect(bodyOf(fetchImpl, 2).events).toEqual([
+      { seq: 0, kind: 'hit', at: 0, difficulty },
+      { seq: 1, kind: 'bonus', bonus: 'tempo', at: 0 },
+      { seq: 2, kind: 'miss', at: 1000 },
+      { seq: 3, kind: 'hit', at: 2000 },
+      { seq: 4, kind: 'milestone', milestone: 'practice10', at: 2000 },
+    ])
+  })
 
   /** The acceptance case, from this side: no total is ever posted. */
   it('never sends a points total — only what happened, and when', async () => {
@@ -401,7 +471,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('expired')
+    expect(result.current.notice).toContain('timed out')
     // Nothing is retried, and the board is still readable.
     const before = fetchImpl.mock.calls.length
     act(() => result.current.recordEvent(hit()))
@@ -420,7 +490,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('read-only')
+    expect(result.current.notice).toContain('Watching only')
     // A token the server does not recognise is not a credential, and keeping it
     // would leave this browser retrying it with no way back to a name.
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.challengeTokens) ?? '{}')).toEqual({})
@@ -449,7 +519,7 @@ describe('scoring through a session', () => {
 
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
-    expect(result.current.notice).toContain('starts again')
+    expect(result.current.notice).toContain('starts fresh')
 
     // The next note opens a fresh session and scores through it normally.
     act(() => result.current.recordEvent(hit()))
@@ -506,7 +576,7 @@ describe('scoring through a session', () => {
     act(() => result.current.recordEvent(hit()))
     await act(async () => result.current.flushEvents())
 
-    expect(result.current.notice).toContain('Slow down')
+    expect(result.current.notice).toContain('too fast')
   })
 
   /**

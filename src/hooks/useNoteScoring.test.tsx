@@ -13,7 +13,9 @@ import {
   type DifficultyInputs,
 } from '../lib/scoring'
 import { DEFAULT_BPM } from '../constants'
+import { PITCH_CLASSES } from '../lib/notes'
 import type { HeardPitch } from './useMicPitch'
+import { allowConsole } from '../test/consoleGuard'
 import { useNoteScoring, type UseNoteScoringOptions } from './useNoteScoring'
 
 /** A stand-in for useMicPitch: a stable subscribe and a way to push frames. */
@@ -44,11 +46,23 @@ const createFakeEngine = (cueEnd: number | null = null) => ({
  * Mixed sharps and flats with the fretboard map put away, at the default
  * tempo: ×1.38, which is what a note called under it is priced at.
  */
-const HARD: DifficultyInputs = { spelling: 'mixed', showFretboard: false, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+const HARD: DifficultyInputs = {
+  spelling: 'mixed',
+  showFretboard: false,
+  bpm: DEFAULT_BPM,
+  beatsPerNote: 4,
+  pool: [...PITCH_CLASSES],
+}
 const HARD_MULTIPLIER = difficultyMultiplier(HARD)
 
 /** The same session with the map back on screen and one spelling: the flat rate. */
-const EASY: DifficultyInputs = { spelling: 'sharp', showFretboard: true, bpm: DEFAULT_BPM, beatsPerNote: 4 }
+const EASY: DifficultyInputs = {
+  spelling: 'sharp',
+  showFretboard: true,
+  bpm: DEFAULT_BPM,
+  beatsPerNote: 4,
+  pool: [...PITCH_CLASSES],
+}
 
 /**
  * A beat that calls a note. `pc` omitted is a mid-span beat, which carries no
@@ -126,7 +140,7 @@ describe('useNoteScoring', () => {
     // switched on for the length of this test, React complains about any of
     // them, which is precisely what a beat must not cause.
     withActWarnings()
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errors = allowConsole('error')
     const { result } = setup()
 
     await act(async () => {
@@ -141,7 +155,7 @@ describe('useNoteScoring', () => {
     expect(result.current.tally).toBe(before)
     expect(result.current.lastVerdict).toBeNull()
     // An update escaping the callback would have React complaining about act().
-    expect(consoleError).not.toHaveBeenCalled()
+    expect(errors.calls).toEqual([])
 
     await settle()
 
@@ -587,6 +601,35 @@ describe('useNoteScoring', () => {
       })
     })
 
+    it('pays a strike that anticipated a click through a stray detection', async () => {
+      // The same shape as the test above, with a neighbouring string left
+      // ringing after the note was banked. A player who keeps playing is owed
+      // the same 'in time' points as one who goes silent.
+      const { result, mic } = setup()
+
+      await act(async () => {
+        result.current.handleBeat(beat(10, 3))
+        result.current.handleBeat(beat(10.5))
+      })
+      await act(async () => {
+        mic.emit(3, 10.95)
+        mic.emit(3, 11)
+      })
+      await act(async () => {
+        mic.emit(8, 11.05)
+      })
+      await act(async () => {
+        result.current.handleBeat(beat(11))
+      })
+
+      expect(result.current.lastBonuses).toEqual([TEMPO_BONUS])
+      expect(result.current.tally).toMatchObject({
+        scored: 1,
+        hits: 1,
+        points: POINTS_PER_HIT + TEMPO_BONUS_POINTS,
+      })
+    })
+
     it('pays nothing for the click that calls the next note', async () => {
       // The same shape as the test above, with the arriving beat calling a note
       // instead of falling under this one. That beat announces the next note;
@@ -986,11 +1029,66 @@ describe('useNoteScoring', () => {
 
 /**
  * What the shared board is built from. The local tally prices every note by how
- * hard the settings made it; these events say only *what happened*, and the
- * server does its own arithmetic on them — which is the whole reason a browser
- * can no longer put a number of its choosing on a board.
+ * hard the settings made it; these events say what happened and what the note
+ * was called under, and the server does its own arithmetic on them — which is
+ * the whole reason a browser can no longer put a number of its choosing on a
+ * board, and the reason the two numbers can still agree.
  */
 describe('reporting what landed', () => {
+  it('reports what a hit was called under, so it can be repriced', async () => {
+    const onScored = vi.fn()
+    const { result, mic } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3, HARD))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2)
+      mic.emit(3, 10.25)
+    })
+
+    expect(onScored).toHaveBeenCalledWith({ kind: 'hit', at: 10, difficulty: HARD })
+    // And the tally moved by what those very settings price a hit at.
+    expect(result.current.tally.points).toBe(hitAward(HARD_MULTIPLIER))
+  })
+
+  /**
+   * A milestone belongs to the clock rather than to a note, so it has no call of
+   * its own to be stamped with. It rides the latest one, which keeps the run in
+   * order for whoever is re-deriving it: every note after it was called later.
+   */
+  it('reports a practice milestone against the last note called', async () => {
+    const onScored = vi.fn()
+    const { result, rerender, initialProps } = setup({ onScored })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3, HARD))
+    })
+    await settle()
+    onScored.mockClear()
+
+    await act(async () => {
+      rerender({ ...initialProps, sessionElapsedMs: PRACTICE_MILESTONES[0].atMs })
+    })
+
+    expect(onScored).toHaveBeenCalledWith({ kind: 'milestone', milestone: 'practice10', at: 10 })
+    // Paid flat: no note's price applies to a bonus no note earned.
+    expect(result.current.tally.points).toBe(PRACTICE_MILESTONES[0].points)
+  })
+
+  /** Before any note there is no run for it to belong to, and no session either. */
+  it('reports no milestone when nothing has been called yet', async () => {
+    const onScored = vi.fn()
+    const { result, rerender, initialProps } = setup({ onScored })
+
+    await act(async () => {
+      rerender({ ...initialProps, sessionElapsedMs: PRACTICE_MILESTONES[0].atMs })
+    })
+
+    expect(onScored).not.toHaveBeenCalled()
+    // Credited to the player all the same — it is the report that waits.
+    expect(result.current.tally.points).toBe(PRACTICE_MILESTONES[0].points)
+  })
   it('reports a hit as it is banked, and nothing for the streak', async () => {
     const onScored = vi.fn()
     const { result, mic } = setup({ onScored })
@@ -1008,9 +1106,9 @@ describe('reporting what landed', () => {
     // Three hits and no streak event: whoever is counting can count a run.
     // Stamped with the call each one answered, not the frame that confirmed it.
     expect(onScored.mock.calls.map(([event]) => event)).toEqual([
-      { kind: 'hit', at: 10 },
-      { kind: 'hit', at: 11 },
-      { kind: 'hit', at: 12 },
+      { kind: 'hit', at: 10, difficulty: null },
+      { kind: 'hit', at: 11, difficulty: null },
+      { kind: 'hit', at: 12, difficulty: null },
     ])
     expect(result.current.tally.points).toBe(POINTS_PER_HIT * 3 + 5)
   })
@@ -1047,7 +1145,7 @@ describe('reporting what landed', () => {
     })
 
     expect(onScored.mock.calls.map(([event]) => event)).toEqual([
-      { kind: 'hit', at: 10 },
+      { kind: 'hit', at: 10, difficulty: null },
       { kind: 'bonus', bonus: 'octaves', at: 10 },
     ])
     expect(result.current.tally.points).toBe(POINTS_PER_HIT + OCTAVES_BONUS_POINTS)

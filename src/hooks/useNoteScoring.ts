@@ -8,6 +8,7 @@ import {
   difficultyMultiplier,
   EMPTY_TALLY,
   hitAward,
+  isPracticeMilestone,
   judgeDetection,
   octavesBonus,
   openWindow,
@@ -17,6 +18,8 @@ import {
   tempoBonus,
   type Bonus,
   type BonusKind,
+  type DifficultyInputs,
+  type PracticeMilestoneKind,
   type NoteVerdict,
   type NoteWindow,
   type Tally,
@@ -74,6 +77,15 @@ type ScoringStore = {
   pendingBeats: BeatEvent[]
   /** The last few clicks that sounded, oldest first: the beat grid. */
   beatTimes: number[]
+  /**
+   * The call the last note was made on, which is what a practice milestone is
+   * stamped with. A milestone belongs to the clock rather than to a note, so it
+   * has no time of its own to report — and hanging it on the latest call is
+   * what keeps the reported run in order, since every note after it is called
+   * later still. Zero until a note has been called, and a milestone before that
+   * is not reported at all: there is no run for it to belong to yet.
+   */
+  lastCallAt: number
   /** The session-elapsed total, plus `rebase`'s offset, already priced. */
   milestoneSeenMs: number
   /** What `rebase` has added to `sessionElapsedMs` to keep the total continuous. */
@@ -93,6 +105,7 @@ const createStore = (): ScoringStore => ({
   snapshot: EMPTY_SNAPSHOT,
   pendingBeats: [],
   beatTimes: [],
+  lastCallAt: 0,
   milestoneSeenMs: 0,
   milestoneOffsetMs: 0,
   milestonesPaid: new Set(),
@@ -111,7 +124,12 @@ const createStore = (): ScoringStore => ({
  * ordinary playing as two notes closer together than the app can possibly call
  * them. The call is the one timestamp with no jitter in it at all.
  */
-export type ScoredEvent = { kind: 'hit' | 'miss'; at: number } | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+export type ScoredEvent =
+  /** A hit carries what it was called under, because that is what prices it. */
+  | { kind: 'hit'; at: number; difficulty: DifficultyInputs | null }
+  | { kind: 'miss'; at: number }
+  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
 
 export type UseNoteScoringOptions = {
   engine: ScoringEngine
@@ -127,6 +145,11 @@ export type UseNoteScoringOptions = {
    * the same note, and a miss when a window closes unanswered. The streak is
    * left out because whoever is counting can count a run themselves — the
    * shared board does, from these very events, which is the point of them.
+   *
+   * A hit also carries what its note was *called* under, so the same board can
+   * price it exactly as the readout does. Only the hit does: a miss is worth
+   * nothing at any price, and a bonus is paid at the price of the note it
+   * landed on, which whoever is counting has had since that note's hit.
    *
    * Ref-only, like `onBeat`: it is called from inside the microtask flush, and
    * anything it does must not re-enter React from there.
@@ -319,10 +342,11 @@ export function useNoteScoring({
       // the beat was scheduled up to a look-ahead before it surfaced. A beat
       // carrying none of them — an older event shape, or a test one — is priced
       // flat rather than guessed at.
-      const multiplier = event.difficulty === undefined ? 1 : difficultyMultiplier(event.difficulty)
-      store.multiplier = multiplier
+      const price = event.difficulty ?? 1
+      store.multiplier = typeof price === 'number' ? price : difficultyMultiplier(price)
+      store.lastCallAt = event.time
       store.open = activeRef.current
-        ? openWindow(called.pc, event.time, engineRef.current.getCueEndForBeat(event.time), multiplier)
+        ? openWindow(called.pc, event.time, engineRef.current.getCueEndForBeat(event.time), price)
         : null
     }
 
@@ -428,11 +452,13 @@ export function useNoteScoring({
         // The hit first, then the bonuses that landed with it — the order the
         // tally moved in, which is the order whoever is re-deriving it needs.
         // All of them stamped with the note's own call, so a run of notes is
-        // reported at the spacing the app actually called them at. Only the two
-        // kinds a note is worth more for go up: the streak is re-derived from
-        // the hits themselves, and a practice milestone is the clock's rather
-        // than any note's, so neither is a note's to report.
-        scoredRef.current?.({ kind: 'hit', at: previous.beatTime })
+        // reported at the spacing the app actually called them at, and the hit
+        // carries the settings that priced it so the same run reprices to the
+        // same total. Only the two kinds a note is worth more for go up: the
+        // streak is re-derived from the hits themselves, and a practice
+        // milestone is the clock's rather than any note's, so neither is a
+        // note's to report.
+        scoredRef.current?.({ kind: 'hit', at: previous.beatTime, difficulty: previous.difficulty })
         for (const bonus of landed) {
           if (bonus.kind === 'octaves' || bonus.kind === 'tempo') {
             scoredRef.current?.({ kind: 'bonus', bonus: bonus.kind, at: previous.beatTime })
@@ -473,6 +499,10 @@ export function useNoteScoring({
         store.milestonesPaid.add(bonus.kind)
         store.tally = applyBonus(store.tally, bonus)
         store.lastBonuses = [...store.lastBonuses, bonus]
+        if (store.lastCallAt > 0 && isPracticeMilestone(bonus.kind)) {
+          scoredRef.current?.({ kind: 'milestone', milestone: bonus.kind, at: store.lastCallAt })
+        }
+
         changed = true
       }
 
@@ -509,6 +539,7 @@ export function useNoteScoring({
     store.open = null
     store.pendingBeats = []
     store.beatTimes = []
+    store.lastCallAt = 0
     store.tally = EMPTY_TALLY
     store.lastVerdict = null
     store.lastBonuses = NO_BONUSES

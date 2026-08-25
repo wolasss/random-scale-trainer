@@ -72,6 +72,9 @@ const start = async () => {
   })
 }
 
+/** The one control, pressed again: the same button is the pause. */
+const pause = start
+
 const advance = async (ms: number) => {
   await act(async () => {
     vi.advanceTimersByTime(ms)
@@ -263,8 +266,8 @@ describe('listening for the player', () => {
     play(calledPitchClass())
     await advance(NOTE_MS)
 
-    expect(screen.queryByTestId('score-verdict')).toBeNull()
-    expect(screen.queryByTestId('score-tally')).toBeNull()
+    expect(screen.queryByTestId('score-play')).toBeNull()
+    expect(screen.queryByTestId('score-points')).toBeNull()
   })
 
   it('scores the note that was played while it is still the note on screen', async () => {
@@ -276,24 +279,53 @@ describe('listening for the player', () => {
 
     await start()
     // Nothing to report before a note has been judged.
-    expect(screen.queryByTestId('score-tally')).toBeNull()
+    expect(screen.queryByTestId('score-play')).toBeNull()
 
     // The first note goes by unplayed, so the second one is called with a miss
     // already on the board — which is what makes the hit below visible as a
     // change rather than as a first reading.
     await advance(INTO_A_NOTE_MS)
-    expect(screen.getByTestId('score-tally')).toHaveTextContent('0/1')
+    expect(screen.getByTestId('score-points')).toHaveTextContent('0')
+    expect(screen.queryByTestId('score-delta')).toBeNull()
 
     const called = screen.getByTestId('current-note').textContent
     play(calledPitchClass())
     // Enough for the window to open past the cue and for two frames to confirm.
     await advance(300)
 
-    // The verdict is about the note still being called, not the one before it.
+    // The reading is about the note still being called, not the one before it.
     expect(screen.getByTestId('current-note')).toHaveTextContent(called!)
-    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'true')
-    expect(screen.getByTestId('score-tally')).toHaveTextContent('1/2')
+    expect(screen.getByTestId('heard-note')).toHaveAttribute('data-match', 'true')
+
+    // One note has scored, so what it earned is the whole of the total beside
+    // it — whatever the settings priced this pool and tempo at.
+    const total = screen.getByTestId('score-points').textContent
+    expect(Number(total)).toBeGreaterThan(0)
+    expect(screen.getByTestId('score-delta')).toHaveTextContent(`+${total}`)
+  })
+
+  /** Three readings while playing, and the accuracy is not one of them. */
+  it('keeps the session accuracy off the row until there is a pause to read it in', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+    play(calledPitchClass())
+    await advance(300)
+
+    expect(screen.queryByTestId('score-tally')).toBeNull()
+    expect(screen.queryByTestId('score-summary')).toBeNull()
+
+    await pause()
+
+    expect(screen.queryByTestId('score-play')).toBeNull()
+    expect(screen.getByTestId('score-summary')).toHaveTextContent('Paused — how it’s going')
     expect(screen.getByTestId('score-tally')).toHaveTextContent('50%')
+    expect(screen.getByTestId('score-summary')).toHaveTextContent('1 of 2 hit')
   })
 
   it('floats a point off each hit and nothing off a miss', async () => {
@@ -306,7 +338,7 @@ describe('listening for the player', () => {
     await start()
     // The first note goes by unplayed: a miss cheers for nothing.
     await advance(INTO_A_NOTE_MS)
-    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'false')
+    expect(screen.queryByTestId('score-delta')).toBeNull()
     expect(screen.queryAllByTestId('hit-bubble')).toHaveLength(0)
 
     play(calledPitchClass())
@@ -337,9 +369,34 @@ describe('listening for the player', () => {
     // One whole note span with the guitar silent, and into the next call.
     await advance(INTO_A_NOTE_MS)
 
-    expect(screen.getByTestId('score-verdict')).toHaveAttribute('data-hit', 'false')
-    expect(screen.getByTestId('score-verdict')).toHaveTextContent('missed')
-    expect(screen.getByTestId('score-tally')).toHaveTextContent('0/1')
+    // A miss earns nothing, so the play row has nothing to add beside the
+    // total — it is the pause that says how many notes went by unanswered.
+    expect(screen.getByTestId('score-points')).toHaveTextContent('0')
+    expect(screen.queryByTestId('score-delta')).toBeNull()
+
+    await pause()
+
+    expect(screen.getByTestId('score-tally')).toHaveTextContent('0%')
+    expect(screen.getByTestId('score-summary')).toHaveTextContent('0 of 1 hit')
+  })
+
+  /**
+   * Off a challenge there is no board, so the summary has nothing to nudge
+   * about — the whole feature stays invisible to everybody not invited to one.
+   */
+  it('leaves the board line out of a summary with no challenge behind it', async () => {
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    window.localStorage.setItem('fretboard-note-pool', '3')
+    window.localStorage.setItem('fretboard-count-in', 'false')
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    render(<App />)
+
+    await start()
+    await advance(INTO_A_NOTE_MS)
+    await pause()
+
+    expect(screen.getByTestId('score-summary')).not.toBeNull()
+    expect(screen.queryByTestId('score-nudge')).toBeNull()
   })
 
   it('holds the note it heard until the next one is called', async () => {

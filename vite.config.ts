@@ -4,7 +4,7 @@ import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { clientIdentity } from './src/server/http.js'
+import { clientIdentity, isCrossSitePost } from './src/server/http.js'
 import { API_PREFIX, createStore, handleRequest } from './src/server/scoreboard.js'
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url))
@@ -117,6 +117,15 @@ const scoreboardApiPlugin = (): Plugin => {
     const { pathname } = new URL(request.url ?? '/', 'http://localhost')
     if (!pathname.startsWith(API_PREFIX)) {
       next()
+      return
+    }
+
+    // The same cross-site refusal the container applies, from the same module,
+    // so dev and preview behave like production rather than like a copy of it.
+    if (isCrossSitePost(request.method, request.headers)) {
+      response.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      response.end(JSON.stringify({ error: 'cross_site' }))
+      request.destroy()
       return
     }
 

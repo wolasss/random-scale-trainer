@@ -357,12 +357,24 @@ describe('look-ahead scheduling', () => {
 
     harness.advanceTo(1.1)
     const surfaced = harness.beats.find((beat) => Math.abs(beat.time - 1.05) < 1e-6)
-    expect(surfaced?.difficulty).toEqual({ spelling: 'sharp', showFretboard: true, bpm: 60, beatsPerNote: 1 })
+    expect(surfaced?.difficulty).toEqual({
+      spelling: 'sharp',
+      showFretboard: true,
+      bpm: 60,
+      beatsPerNote: 1,
+      pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    })
 
     // The beat after it is scheduled after the change, so it is priced at it.
     harness.advanceTo(2.1)
     const priced = harness.beats.filter((beat) => beat.difficulty !== undefined).at(-1)
-    expect(priced?.difficulty).toEqual({ spelling: 'flat', showFretboard: true, bpm: 120, beatsPerNote: 2 })
+    expect(priced?.difficulty).toEqual({
+      spelling: 'flat',
+      showFretboard: true,
+      bpm: 120,
+      beatsPerNote: 2,
+      pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    })
   })
 
   it('prices a note at the tempo it was called at, not the ramp step under it', async () => {
