@@ -1,3 +1,10 @@
+## [1.26.1](https://github.com/wolasss/random-scale-trainer/compare/v1.26.0...v1.26.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **hero:** keep the idle ready caption clear of the note line edge ([#183](https://github.com/wolasss/random-scale-trainer/issues/183)) ([7f8ac14](https://github.com/wolasss/random-scale-trainer/commit/7f8ac14046c657a93a3dbf03ab0083c7e05bfca8))
+
 # [1.26.0](https://github.com/wolasss/random-scale-trainer/compare/v1.25.2...v1.26.0) (2026-08-25)
 
 
