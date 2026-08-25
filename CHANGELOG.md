@@ -1,3 +1,10 @@
+## [1.25.2](https://github.com/wolasss/random-scale-trainer/compare/v1.25.1...v1.25.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **scoreboard:** cap what a board response may put on screen before rendering it ([#170](https://github.com/wolasss/random-scale-trainer/issues/170)) ([ade467d](https://github.com/wolasss/random-scale-trainer/commit/ade467d39401ad55e388a30e6edf82e42f05bf12))
+
 ## [1.25.1](https://github.com/wolasss/random-scale-trainer/compare/v1.25.0...v1.25.1) (2026-08-25)
 
 
