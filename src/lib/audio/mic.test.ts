@@ -65,13 +65,13 @@ describe('isMicSupported', () => {
 })
 
 describe('requestMicStream', () => {
-  it('asks for audio with the speaker bleed turned down', async () => {
+  it('asks for raw audio, with every voice-call nicety switched off', async () => {
     const { stream } = createFakeStream()
     const getUserMedia = vi.fn(async () => stream)
 
     await expect(requestMicStream(getUserMedia)).resolves.toBe(stream)
     expect(getUserMedia).toHaveBeenCalledWith({
-      audio: { echoCancellation: true, noiseSuppression: true },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     })
   })
 
