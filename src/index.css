@@ -546,10 +546,12 @@ h2 {
 
 /* A watermark of the real note: same slot and family, the muted foreground
    instead of the accent, no glow. It breathes — never the note-pop, never the
-   beat ring, so idle can't be mistaken for a running session. */
+   beat ring, so idle can't be mistaken for a running session. Runs smaller
+   than .hero-note: the caption and gap stacked above it must still clear the
+   220px line box, or "ready" sits flush against the readout's edge. */
 .hero-ghost-note {
   font-family: var(--font-display);
-  font-size: clamp(120px, 18vw, 200px);
+  font-size: clamp(104px, 16vw, 172px);
   font-weight: 700;
   line-height: 1;
   color: var(--ink-soft);
@@ -3268,9 +3270,11 @@ button.practice-history-cell {
 }
 
 /* On the stand the ghost fills the note's room and the caption stays a label —
-   the stage .hero-ready blow-up above must not win over the caption size. */
+   the stage .hero-ready blow-up above must not win over the caption size. A
+   step under .hero-note's 38vh: the caption and gap above the ghost must fit
+   inside the 40vh note line too. */
 :root[data-stage] .hero-ghost-note {
-  font-size: min(38vh, 46vw);
+  font-size: min(34vh, 46vw);
 }
 
 :root[data-stage] .hero-ready-caption {
