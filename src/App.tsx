@@ -175,7 +175,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       // otherwise only catch it on the next render.
       scoringRef.current?.creditElapsedMs(pausedAtMs)
       // Every pause and stop banks what has been played, so a session only
-      // ever loses the seconds since the last ten-second write.
+      // ever loses the seconds since the last ten-second write. The slice
+      // between the last tick and the stop goes in first: the log is read
+      // straight after this, by a recap reporting the clock's own exact
+      // reading, and a day a second short of it would be a day that disagrees
+      // with the session printed above it.
+      practiceHistory.trackElapsed(pausedAtMs)
       practiceHistory.commit()
       // ...and the same moment sends what has been played up to the shared
       // board, if there is one. A no-op off a challenge, and a no-op again with
@@ -262,6 +267,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
    * every render. The peak rides along with it: a tempo the user nudged, or the
    * ramp climbed to, is only ever seen as the settings of some render in
    * between, so it has to be folded in as it goes rather than looked up after.
+   * It is the session clock that says when that counts, not playback: the
+   * buffers loading and the count-in are already "playing" while the clock is
+   * still at zero, and a tempo dialled back down before the first note was
+   * never a tempo anything was practised at.
    *
    * A ref rather than state — nothing here is rendered until the edge below
    * turns it into a recap, and re-rendering the app once a beat to keep a
@@ -269,7 +278,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
    */
   const recapSourceRef = useRef<SessionSummary | null>(null)
   useEffect(() => {
-    if (playback.isPlaying) {
+    if (sessionTimer.isRunning) {
       peakBpmRef.current = Math.max(peakBpmRef.current, settings.bpm)
     }
 

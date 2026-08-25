@@ -101,6 +101,23 @@ describe('the session recap', () => {
     expect(screen.getByTestId('recap-day')).toHaveTextContent('Today: 1 min · 1-day streak')
   })
 
+  it('banks the seconds since the last tick into the day it reports', async () => {
+    render(<App />)
+    // Two halves either side of a pause, the second crossing the minute
+    // somewhere between two of the clock's two-hundred-millisecond ticks. The
+    // day the recap places the session against is only a practice day if the
+    // stop banked that last slice too.
+    await practiceFor(30_050)
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await advance(30_000)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+
+    expect(text('recap-time')).toBe(text('timer'))
+    expect(screen.getByTestId('recap-day')).toHaveTextContent('Today: 1 min · 1-day streak')
+  })
+
   it('says a tempo that never moved once, and both ends of one that did', async () => {
     render(<App />)
     await practiceFor(40_000)
@@ -127,6 +144,24 @@ describe('the session recap', () => {
     fireEvent.click(screen.getByTestId('play-toggle'))
 
     expect(screen.getByTestId('recap-tempo')).toHaveTextContent('72')
+    expect(screen.getByTestId('session-recap')).toHaveTextContent('BPM held')
+  })
+
+  it('leaves a tempo dialled back before the first note out of the peak', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    // Far enough in for the buffers to be loaded and the count-in to be
+    // running, and nowhere near the first note: the session clock is still at
+    // zero, so nothing here has been practised at any tempo yet.
+    await advance(300)
+
+    for (let click = 0; click < 4; click += 1) {
+      fireEvent.click(screen.getByTestId('bpm-down'))
+    }
+    await advance(4 * (60_000 / 68) + 300 + 61_000)
+    fireEvent.click(screen.getByTestId('play-toggle'))
+
+    expect(screen.getByTestId('recap-tempo')).toHaveTextContent('68')
     expect(screen.getByTestId('session-recap')).toHaveTextContent('BPM held')
   })
 
