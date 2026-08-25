@@ -3023,12 +3023,17 @@ button.practice-history-cell {
     gap: 0.7rem;
   }
 
-  /* The buttons keep a row of their own above it. */
+  /* The buttons keep a stack of their own above it, one width between them:
+     wrapping left each at its text's width, and a reset narrower than the play
+     button over it read as a different kind of control rather than a lesser
+     one. Stretching a column is what makes them equal by construction — the
+     cap keeps a near-768px viewport from inflating them to banner width. */
   .transport-actions {
     display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.9rem;
+    width: min(100%, 340px);
   }
 
   .transport-actions,
@@ -3202,6 +3207,25 @@ button.practice-history-cell {
 
 .ios-install-hint strong {
   color: var(--ink);
+}
+
+/* The Share step as a live button: the emphasised word it stands in for, with
+   an underline to say it can be tapped. */
+.hint-share {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 140ms var(--ease-out);
+}
+
+.hint-share:hover {
+  color: var(--primary);
 }
 
 .hint-dismiss {
