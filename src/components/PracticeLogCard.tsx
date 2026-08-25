@@ -19,6 +19,8 @@ type PracticeLogCardProps = {
   /** Both handed to the history view; see App for why they go through it. */
   getBackup: () => string
   onImportBackup: (incoming: PracticeHistory) => boolean
+  /** Handed straight to the history view — see PracticeHistoryView. */
+  hasPendingPractice?: () => boolean
   /** Injectable for tests; the card is otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -35,6 +37,7 @@ export function PracticeLogCard({
   onClear,
   getBackup,
   onImportBackup,
+  hasPendingPractice,
   today,
 }: PracticeLogCardProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -142,6 +145,7 @@ export function PracticeLogCard({
         onClose={() => setHistoryOpen(false)}
         getBackup={getBackup}
         onImport={onImportBackup}
+        hasPendingPractice={hasPendingPractice}
       />
     </section>
   )

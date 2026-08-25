@@ -361,4 +361,48 @@ describe('PracticeHistoryView', () => {
     await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
+
+  describe('with an empty log', () => {
+    it('says nothing is logged yet instead of a page of zeros', () => {
+      renderView({ history: { days: {} } })
+
+      expect(screen.getByTestId('history-empty')).toHaveTextContent('A minute of practice fills in today’s square')
+      expect(screen.queryByTestId('history-streak')).toBeNull()
+      expect(screen.queryByTestId('history-totals')).toBeNull()
+      expect(screen.queryByTestId('history-day')).toBeNull()
+      expect(document.querySelectorAll('.practice-history-month')).toHaveLength(0)
+    })
+
+    it('disables Export backup, with nothing to export', () => {
+      const { props } = renderView({ history: { days: {} } })
+
+      const exportButton = screen.getByTestId('history-export')
+      expect(exportButton).toBeDisabled()
+      expect(exportButton.getAttribute('title')).toMatch(/nothing to export/i)
+
+      fireEvent.click(exportButton)
+      expect(props.getBackup).not.toHaveBeenCalled()
+    })
+
+    it('keeps Import backup live — restoring into an empty log is the first-run case', () => {
+      const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+      renderView({ history: { days: {} } })
+
+      const importButton = screen.getByTestId('history-import')
+      expect(importButton).not.toBeDisabled()
+      fireEvent.click(importButton)
+
+      expect(click).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps Export live when practice is still only pending, not yet committed', () => {
+      const { props } = renderView({ history: { days: {} }, hasPendingPractice: () => true })
+
+      const exportButton = screen.getByTestId('history-export')
+      expect(exportButton).not.toBeDisabled()
+
+      fireEvent.click(exportButton)
+      expect(props.getBackup).toHaveBeenCalledTimes(1)
+    })
+  })
 })
