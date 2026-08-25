@@ -28,7 +28,7 @@ export function IosInstallHint({ onDismiss }: IosInstallHintProps) {
     <p className="ios-install-hint" data-testid="ios-install-hint">
       <FontAwesomeIcon icon={faArrowUpFromBracket} aria-hidden="true" />
       <span>
-        Add to your home screen: <strong>Share</strong> → <strong>Add to Home Screen</strong>.
+        Add as an app to your home screen: <strong>Share</strong> → <strong>Add to Home Screen</strong>.
       </span>
       <button type="button" className="hint-dismiss" onClick={onDismiss} aria-label="Dismiss install hint">
         <FontAwesomeIcon icon={faXmark} />
