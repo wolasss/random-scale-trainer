@@ -1,3 +1,21 @@
+# [1.26.0](https://github.com/wolasss/random-scale-trainer/compare/v1.25.2...v1.26.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* **sw:** precache each asset from the network instead of the browser's 7-day HTTP cache ([#180](https://github.com/wolasss/random-scale-trainer/issues/180)) ([ea02712](https://github.com/wolasss/random-scale-trainer/commit/ea027120996cddc02bba4ff5dfacf5736b558681))
+
+
+### Features
+
+* **challenge:** size the board for a large virtual class and harden scoring ([#179](https://github.com/wolasss/random-scale-trainer/issues/179)) ([a1038f3](https://github.com/wolasss/random-scale-trainer/commit/a1038f345f4eb3b147ee0b2b589ebafaff1ed662))
+* **tempo:** hold the BPM steppers to sweep the tempo instead of tapping ([#182](https://github.com/wolasss/random-scale-trainer/issues/182)) ([d8e3927](https://github.com/wolasss/random-scale-trainer/commit/d8e39275147f9395e219c8be4cb7300b2a276b27))
+
+
+### Performance Improvements
+
+* **pitch:** make the NSDF energy term O(1) per lag with a prefix sum of squares ([#181](https://github.com/wolasss/random-scale-trainer/issues/181)) ([0e6a891](https://github.com/wolasss/random-scale-trainer/commit/0e6a891971a74fcc8e049e464f3d11e6ea205503))
+
 ## [1.25.2](https://github.com/wolasss/random-scale-trainer/compare/v1.25.1...v1.25.2) (2026-08-25)
 
 
