@@ -1,3 +1,10 @@
+## [1.27.3](https://github.com/wolasss/random-scale-trainer/compare/v1.27.2...v1.27.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mic:** capture raw audio instead of a voice-processed stream ([#189](https://github.com/wolasss/random-scale-trainer/issues/189)) ([7fac36b](https://github.com/wolasss/random-scale-trainer/commit/7fac36b127b326bf8a185495e0f5daaf053b2f41))
+
 ## [1.27.2](https://github.com/wolasss/random-scale-trainer/compare/v1.27.1...v1.27.2) (2026-08-25)
 
 
