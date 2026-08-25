@@ -1557,6 +1557,42 @@ input[type='range'] {
   color: var(--accent);
 }
 
+/* --- Session recap: what you just practised ------------------------------ */
+
+/*
+  The reading a stopped session leaves behind, in the same register as the mic
+  readout above it: a hairline off the transport rather than a card of its own,
+  because it is a footnote to the session, not a second panel. Never a modal —
+  it sits in the flow, so there is nothing here to trap focus in and nothing to
+  dismiss but the Done button that starts the next session.
+*/
+.session-recap {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--control-border);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.session-recap-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* Laid out for however narrow it gets: four tiles on a desktop row, two on a
+   phone, and never one hanging on a line of its own. */
+.session-recap-stats {
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+}
+
+.session-recap-line {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
 /* --- Shared challenge: the scoreboard and the nickname prompt ------------- */
 
 /*
@@ -3171,13 +3207,27 @@ button.practice-history-cell {
   overflow: hidden;
 }
 
+/*
+  Every row the stand can grow, named once and reserved always. The mic
+  readout, the scoreboard fold and the session recap each come and go on their
+  own, and an unnamed child would be dropped into an implicit row and clipped
+  by .stage-shell's overflow — so all four are in the template from the start.
+  There is no row gap here, so a row nobody occupies collapses to nothing and
+  the layout is exactly what it was before that row existed. (This used to be a
+  set of :has() rules, one per combination; a fourth thing that can appear made
+  that eight rules across two orientations, all to say what an empty auto row
+  already says.)
+*/
 .stage {
   position: relative;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto auto auto;
   grid-template-areas:
     'note'
-    'foot';
+    'mic'
+    'board'
+    'foot'
+    'recap';
   height: 100%;
   /* viewport-fit=cover handed us the whole screen; hand the insets back. */
   padding:
@@ -3185,40 +3235,6 @@ button.practice-history-cell {
     calc(env(safe-area-inset-right, 0px) + 1rem)
     0
     calc(env(safe-area-inset-left, 0px) + 1rem);
-}
-
-/* The mic readout is the only thing that ever joins the stand's two rows, and
-   only when the setting is on — so the row it needs is opened by its presence
-   rather than reserved for it. A browser without :has() drops the rule and the
-   line lands under the transport instead of above it, which is a placement, not
-   a break. */
-.stage:has(.mic-readout) {
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'note'
-    'mic'
-    'foot';
-}
-
-/* The scoreboard opens its own row the same way, and the two of them together
-   open both — which is why the pair needs a rule of its own rather than a
-   second one that would simply overwrite the first. An unnamed child would be
-   dropped into an implicit row and clipped by .stage-shell's overflow. */
-.stage:has(.scoreboard) {
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  grid-template-areas:
-    'note'
-    'board'
-    'foot';
-}
-
-.stage:has(.mic-readout):has(.scoreboard) {
-  grid-template-rows: minmax(0, 1fr) auto auto auto;
-  grid-template-areas:
-    'note'
-    'mic'
-    'board'
-    'foot';
 }
 
 .stage > .mic-readout {
@@ -3230,6 +3246,21 @@ button.practice-history-cell {
 .stage > .scoreboard {
   grid-area: board;
   margin-top: 0;
+}
+
+/* Below the transport rather than above it: the note keeps the top of the
+   screen even after a session ends, and the recap is the one thing here that
+   can outgrow its row — so it scrolls inside itself rather than pushing the
+   play button off a phone. */
+.stage > .session-recap {
+  grid-area: recap;
+  margin-top: 0;
+  border-top: 0;
+  max-height: 38vh;
+  overflow-y: auto;
+  /* It is the last row when it is there at all, so it takes over the clearance
+     the transport keeps for the home indicator. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.9rem);
 }
 
 .stage-hero {
@@ -3352,35 +3383,18 @@ button.practice-history-cell {
 /* --- landscape: the stand's natural orientation --------------------------- */
 
 @media (orientation: landscape) {
+  /* The same reserved rows as portrait, with the neck's column running the
+     whole height beside them. */
   :root[data-stage] .stage {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto auto auto;
     grid-template-areas:
       'note side'
-      'foot side';
+      'mic side'
+      'board side'
+      'foot side'
+      'recap side';
     column-gap: 1rem;
-  }
-
-  /* Same rows, opened the same way — the neck keeps the column beside it. */
-  :root[data-stage] .stage:has(.mic-readout) {
-    grid-template-areas:
-      'note side'
-      'mic side'
-      'foot side';
-  }
-
-  :root[data-stage] .stage:has(.scoreboard) {
-    grid-template-areas:
-      'note side'
-      'board side'
-      'foot side';
-  }
-
-  :root[data-stage] .stage:has(.mic-readout):has(.scoreboard) {
-    grid-template-areas:
-      'note side'
-      'mic side'
-      'board side'
-      'foot side';
   }
 
   /* Height is the scarce axis here, and the neck beside it is doing the work
@@ -3414,6 +3428,7 @@ button.practice-history-cell {
 :root[data-stage] .range-hints,
 :root[data-stage] .panel-heading p,
 :root[data-stage] .session-stat-label,
+:root[data-stage] .session-recap-line,
 :root[data-stage] .session-goal-label,
 :root[data-stage] .session-goal-reached,
 :root[data-stage] .routine-chip-meta,

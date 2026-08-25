@@ -45,6 +45,7 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
+import { SessionRecap } from './components/SessionRecap'
 import { NicknamePrompt } from './components/NicknamePrompt'
 import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
@@ -72,6 +73,7 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
+import { describeSetup, readDayStanding, summarizeSession, type SessionSummary } from './lib/session'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
 
 type AppProps = {
@@ -118,11 +120,36 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // Declared above playback because the transport's pause is what banks a score.
   const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
 
+  // What the session that just stopped was, or null with none to report. Held
+  // here rather than derived, because it is a reading of a moment that has
+  // passed: the counters behind it go back to zero on the next start.
+  const [recap, setRecap] = useState<SessionSummary | null>(null)
+  // The tempo the current run opened on, the highest it ever reached, and the
+  // edge detector that turns the three into a recap — all refs, because none of
+  // them is anything to re-render for on its own.
+  const startBpmRef = useRef<number | null>(null)
+  const peakBpmRef = useRef(0)
+  const wasPlayingRef = useRef(false)
+  // Which goal has already ended a session, so a goal reached mid-run stops it
+  // once. The goal itself rather than a flag: picking a different one is a new
+  // finish line, and it re-arms this by simply not matching.
+  const goalStoppedRef = useRef<number | null>(null)
+
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
     onTick: (elapsedMs) => {
       routineRef.current?.tick(elapsedMs)
       practiceHistory.trackElapsed(elapsedMs)
+
+      // The goal ends the session, on the one clock the goal is measured
+      // against. No chime — this is a session finishing the way a routine
+      // finishes, and a second Start runs on past it, which is what keeps the
+      // twenty- and thirty-minute scoring milestones reachable.
+      const goalMs = settings.sessionGoalMin * 60_000
+      if (elapsedMs >= goalMs && goalStoppedRef.current !== goalMs) {
+        goalStoppedRef.current = goalMs
+        playbackRef.current?.stop(PLAYBACK_MESSAGES.goalReached(settings.sessionGoalMin))
+      }
     },
   })
   const beatPulse = useBeatPulse()
@@ -135,7 +162,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
     // own doing, never the user drifting off one.
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
-    onSessionStart: sessionTimer.start,
+    onSessionStart: () => {
+      // `??=`, so a run resumed after a pause keeps the tempo it opened on
+      // rather than adopting whatever the stepper says on the way back in.
+      startBpmRef.current ??= settings.bpm
+      sessionTimer.start()
+    },
     onSessionPause: () => {
       const pausedAtMs = sessionTimer.pause()
       // A practice milestone crossed by this very elapsed update is credited
@@ -225,6 +257,66 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     scoringRef.current = scoring
   })
 
+  /*
+   * What the session would read as if it stopped right now, kept current on
+   * every render. The peak rides along with it: a tempo the user nudged, or the
+   * ramp climbed to, is only ever seen as the settings of some render in
+   * between, so it has to be folded in as it goes rather than looked up after.
+   *
+   * A ref rather than state — nothing here is rendered until the edge below
+   * turns it into a recap, and re-rendering the app once a beat to keep a
+   * summary nobody is reading up to date would be a cost for nothing.
+   */
+  const recapSourceRef = useRef<SessionSummary | null>(null)
+  useEffect(() => {
+    if (playback.isPlaying) {
+      peakBpmRef.current = Math.max(peakBpmRef.current, settings.bpm)
+    }
+
+    recapSourceRef.current = {
+      elapsedMs: sessionTimer.elapsedMs,
+      notesCalled: playback.snapshot.notesCalled,
+      cyclesCompleted: playback.snapshot.cyclesCompleted,
+      startBpm: startBpmRef.current ?? settings.bpm,
+      endBpm: settings.bpm,
+      peakBpm: peakBpmRef.current,
+      setup: describeSetup({
+        routineName: routine.selected?.name ?? null,
+        pool: settings.pool,
+        saved: savedPresets,
+      }),
+    }
+  })
+
+  /*
+   * The recap itself, taken on the falling edge of playback rather than inside
+   * `onSessionPause`. The machine calls that handler *before* its final emit,
+   * so a summary taken there would be short the closing round the stop itself
+   * adds; by the time this runs, the clock, the snapshot and the settings are
+   * one committed state — and the effect above, declared first, has already
+   * written that state down. One edge covers every ending there is: a hand on
+   * pause, a run reaching its last note, a workout running out, the app left in
+   * a pocket, and the goal.
+   *
+   * `wasPlayingRef` is what keeps the mount pass quiet — an app that opens
+   * stopped has not just stopped.
+   */
+  useEffect(() => {
+    if (playback.isPlaying) {
+      wasPlayingRef.current = true
+      return
+    }
+
+    if (!wasPlayingRef.current) {
+      return
+    }
+
+    wasPlayingRef.current = false
+    // Null below the minute, which is what makes Reset silent: it puts the
+    // clock back to zero in the same batch as it stops playback.
+    setRecap(recapSourceRef.current === null ? null : summarizeSession(recapSourceRef.current))
+  }, [playback.isPlaying])
+
   /**
    * Every settings change made by hand goes through here, so the routine can
    * tell the user's edits apart from its own block changes.
@@ -295,6 +387,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       routine.restart()
     }
 
+    // Whatever the last session was, it is not what is on screen any more.
+    setRecap(null)
+
     // Practice has begun, so the setup below is no longer a page of questions
     // in front of the thing you came for. It stays out from here on.
     setSetupRevealed(true)
@@ -305,6 +400,13 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     playback.reset()
     sessionTimer.reset()
     routine.reset()
+    // Everything the recap was about goes back with the session: the reading
+    // itself, the tempo the run opened on and the highest it reached, and the
+    // goal, which a clock back at zero puts ahead of the session again.
+    setRecap(null)
+    startBpmRef.current = null
+    peakBpmRef.current = 0
+    goalStoppedRef.current = null
     // The score is a property of the session, so it goes back with it — on the
     // shared board too, or a fresh local tally would go on feeding the server
     // session the old one opened.
@@ -326,6 +428,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // same rebase keeps 20 and 30 minutes arriving on schedule instead of a
     // clock that just went back to zero stranding them.
     scoring.rebase(cleared)
+    // The goal is measured off this clock too, so a clock put back to zero puts
+    // the finish line ahead of the session again.
+    goalStoppedRef.current = null
     // reset() stops the ticking; without this the clock would sit at 00:00
     // while the notes kept coming.
     if (playback.isPlaying) {
@@ -556,6 +661,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const scoreboardRail = boardLayout === 'rail' ? scoreboard : null
   const scoreboardFold = boardLayout === 'rail' ? null : scoreboard
 
+  // What the session that just ended was, under the transport in whichever
+  // reading is on. Done *is* the fresh start: it runs the same reset the
+  // transport's own button does, so the play control behind it goes back to
+  // reading Start rather than Resume. The day it is placed against is read
+  // straight out of the log, which is current at this point because the pause
+  // committed it in the same batch as the stop.
+  const sessionRecap =
+    recap === null ? null : (
+      <SessionRecap summary={recap} day={readDayStanding(practiceHistory.history)} onDismiss={resetSession} />
+    )
+
   const updateChip = serviceWorker.updateReady ? (
     <UpdateChip onReload={serviceWorker.applyUpdate} onDismiss={serviceWorker.dismissUpdate} />
   ) : null
@@ -597,6 +713,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             goalMin={settings.sessionGoalMin}
             strip={routineStrip}
           />
+
+          {sessionRecap}
         </main>
 
         <PracticeSheet open={setupOpen} onClose={() => setSetupOpen(false)}>
@@ -624,6 +742,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
    * microphone heard, then the routine, then the board's own line, then the
    * transport. The fold sits directly above the play control on purpose — it
    * is the last thing a thumb passes on the way to starting a run.
+   *
+   * The recap comes after all of it, because it is about a session that has
+   * already stopped: nothing above it has to move for a reading of the past.
    */
   const practiceStack = (
     <>
@@ -657,6 +778,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         elapsedMs={sessionTimer.elapsedMs}
         goalMin={settings.sessionGoalMin}
       />
+
+      {sessionRecap}
     </>
   )
 
