@@ -529,13 +529,34 @@ export class TrainerPage {
     await this.driver.findElement(direction === 'up' ? SELECTORS.bpmUp : SELECTORS.bpmDown).click()
   }
 
-  async tapTempo(times: number, intervalMs: number): Promise<void> {
+  /**
+   * Taps the tap-tempo button `times` times, `intervalMs` apart, and returns the
+   * page-clock (performance.now()) timestamp the app saw for each tap. intervalMs
+   * is a floor, not the measured interval — the WebDriver round trip for each
+   * click() lands inside the sleep, so only these in-page timestamps say what
+   * tempo was actually tapped.
+   */
+  async tapTempo(times: number, intervalMs: number): Promise<number[]> {
+    await this.driver.executeScript(`
+      if (window.__tapTimes === undefined) {
+        window.__tapTimes = []
+        document.addEventListener('click', (event) => {
+          if (event.target.closest('[data-testid="tap-tempo"]') !== null) {
+            window.__tapTimes.push(performance.now())
+          }
+        }, true)
+      }
+      window.__tapTimes.length = 0
+    `)
+
     for (let index = 0; index < times; index++) {
       if (index > 0) {
         await this.sleep(intervalMs)
       }
       await this.driver.findElement(SELECTORS.tapTempo).click()
     }
+
+    return this.driver.executeScript<number[]>('return window.__tapTimes')
   }
 
   /** Clicks the note-every segmented option with the given beat count. */
