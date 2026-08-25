@@ -217,9 +217,9 @@ export class AudioEngine {
   }
 
   /**
-   * The context itself, for anything that has to share this clock — the
-   * microphone's analyser, whose detections are only comparable with beat times
-   * because both are read off here. Null until the first gesture opens it.
+   * The context itself. Null until the first gesture opens it, which is what
+   * the microphone waits on before opening a capture — the capture analyses on
+   * a context of its own where it can (see mic.ts), and falls back to this one.
    */
   getContext(): AudioContext | null {
     return this.context
