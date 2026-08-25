@@ -56,6 +56,7 @@ import { usePersistentState } from './hooks/usePersistentState'
 import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
+import { useCorrectPluckFeedback } from './hooks/useCorrectPluckFeedback'
 import { useNoteScoring } from './hooks/useNoteScoring'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
@@ -209,6 +210,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // is worth, from the events themselves, and there is no board here to tell.
     onScored: challenge.recordEvent,
     sessionElapsedMs: sessionTimer.elapsedMs,
+  })
+
+  // The first acknowledgement is scorer-owned, so an unconfirmed microphone
+  // frame can never look like success. A distinct second physical pluck may
+  // still get visual feedback without adding another hit to the tally.
+  const hitPulses = useCorrectPluckFeedback({
+    subscribe: mic.subscribeSamples,
+    subscribeConfirmedHit: scoring.subscribeToHits,
+    active: micEnabled && mic.status === 'listening',
+    callId: playback.snapshot.currentNote === null ? null : playback.snapshot.notesCalled,
+    pitchClass: playback.snapshot.currentNote?.pc ?? null,
   })
 
   const routine = useRoutine({
@@ -572,6 +584,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             beatsPerNote={settings.beatsPerNote}
             poolSize={settings.pool.length}
             ringRef={beatPulse.ringRef}
+            hitPulses={hitPulses}
             message={heroMessage}
             idlePreview={idlePreview}
           />
@@ -634,6 +647,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           beatsPerNote={settings.beatsPerNote}
           poolSize={settings.pool.length}
           ringRef={beatPulse.ringRef}
+          hitPulses={hitPulses}
           message={heroMessage}
           idlePreview={idlePreview}
         />

@@ -606,6 +606,86 @@ h2 {
   border-width: 3px;
 }
 
+/* A confirmed note throws one small score bubble past the glyph. It occupies
+   the note's existing layer, so even a stack of quick hits cannot move or
+   intercept anything around it. Three lanes keep consecutive hits legible. */
+.hit-bubbles {
+  position: absolute;
+  inset: 0;
+  contain: layout style;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.hit-bubble {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  min-width: 2.8rem;
+  min-height: 2.8rem;
+  place-items: center;
+  padding: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--hit) 58%, var(--panel-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hit) 16%, var(--card));
+  color: var(--hit);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  animation: hit-bubble-rise 680ms cubic-bezier(0.16, 0.78, 0.22, 1) both;
+}
+
+.hit-bubble-lane-0 {
+  margin-left: 2rem;
+}
+
+.hit-bubble-lane-1 {
+  margin-left: -5rem;
+}
+
+.hit-bubble-lane-2 {
+  margin-left: 4.8rem;
+}
+
+@keyframes hit-bubble-rise {
+  from {
+    opacity: 1;
+    transform: translate3d(-50%, 0.2rem, 0);
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(-50%, -4.2rem, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hit-bubble {
+    animation-name: hit-bubble-fade;
+    animation-duration: 260ms;
+    animation-delay: 0ms;
+  }
+}
+
+@keyframes hit-bubble-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes beat-ring {
   from {
     transform: scale(0.55);

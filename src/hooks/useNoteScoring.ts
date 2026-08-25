@@ -94,6 +94,7 @@ type ScoringStore = {
   milestonesPaid: Set<BonusKind>
   flushQueued: boolean
   listeners: Set<() => void>
+  hitListeners: Set<() => void>
 }
 
 const createStore = (): ScoringStore => ({
@@ -111,6 +112,7 @@ const createStore = (): ScoringStore => ({
   milestonesPaid: new Set(),
   flushQueued: false,
   listeners: new Set(),
+  hitListeners: new Set(),
 })
 
 /**
@@ -433,6 +435,9 @@ export function useNoteScoring({
         // that went into `points`, so a scaled streak cannot print as `+5` when
         // more than five points landed.
         store.lastVerdict = verdict
+        for (const listener of store.hitListeners) {
+          listener()
+        }
         const tempo = previous.candidateAt === null ? null : tempoBonus(previous.candidateAt, store.beatTimes)
 
         let paid = judged
@@ -577,6 +582,18 @@ export function useNoteScoring({
     [getStore],
   )
 
+  const subscribeToHits = useCallback(
+    (listener: () => void) => {
+      const { hitListeners } = getStore()
+      hitListeners.add(listener)
+
+      return () => {
+        hitListeners.delete(listener)
+      }
+    },
+    [getStore],
+  )
+
   const snapshot = useSyncExternalStore(
     subscribeToStore,
     useCallback(() => getStore().snapshot, [getStore]),
@@ -591,5 +608,6 @@ export function useNoteScoring({
     reset,
     rebase,
     creditElapsedMs,
+    subscribeToHits,
   }
 }

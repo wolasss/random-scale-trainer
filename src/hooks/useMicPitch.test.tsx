@@ -126,6 +126,7 @@ describe('useMicPitch', () => {
     expect(events[0].octave).toBe(3)
     expect(events[0].audioTime).toBe(40.5)
     expect(events[0].clarity).toBeGreaterThan(0.9)
+    expect(events[0].level).toBeGreaterThan(0.3)
     expect(result.current.heard?.pitchClass).toBe(9)
   })
 
