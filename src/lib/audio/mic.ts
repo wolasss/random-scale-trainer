@@ -90,9 +90,28 @@ export const createMicCapture = (context: AudioContext, stream: MediaStream): Mi
   analyser.smoothingTimeConstant = 0
   source.connect(analyser)
 
+  // Opening the microphone is what flips iOS's audio session from playback
+  // over to play-and-record, and Safari answers that flip by parking the
+  // context in a nonstandard 'interrupted' state — every cue silent and every
+  // frame here a row of zeros, on the very tap that granted the permission.
+  // Resuming is permitted once the interruption has been delivered, so the
+  // context gets a nudge now (the flip may have landed while the permission
+  // prompt was up) and on every state change while the capture is open. A
+  // refusal means the interruption is still in force; the statechange it ends
+  // with tries again.
+  const resumeIfParked = () => {
+    const state = context.state as string
+    if (state !== 'running' && state !== 'closed') {
+      void context.resume().catch(() => undefined)
+    }
+  }
+  context.addEventListener('statechange', resumeIfParked)
+  resumeIfParked()
+
   return {
     readFrame: (target) => analyser.getFloatTimeDomainData(target),
     release: () => {
+      context.removeEventListener('statechange', resumeIfParked)
       source.disconnect()
       analyser.disconnect()
       releaseMicStream(stream)

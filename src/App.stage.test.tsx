@@ -165,6 +165,8 @@ describe('the stand reading', () => {
   })
 
   it('keeps the neck beside the note in landscape and in the sheet in portrait', () => {
+    // The map defaults to hidden; this test is about where it lives when shown.
+    window.localStorage.setItem('fretboard-show-neck', 'true')
     installMatchMedia(PHONE_LANDSCAPE)
     const landscape = render(<App />)
 

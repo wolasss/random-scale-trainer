@@ -425,20 +425,23 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
   })
 
-  it('the fretboard card can be hidden and the choice persists', () => {
+  it('the fretboard card can be shown and the choice persists', () => {
     render(<App />)
 
+    // Hidden out of the box: the map is an aid you reach for, not the default.
+    expect(screen.queryByTestId('fretboard')).toBeNull()
+
+    fireEvent.click(document.getElementById('show-fretboard')!)
     expect(screen.getByTestId('fretboard')).toBeInTheDocument()
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
 
     fireEvent.click(document.getElementById('show-fretboard')!)
     expect(screen.queryByTestId('fretboard')).toBeNull()
-    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
-
-    fireEvent.click(document.getElementById('show-fretboard')!)
-    expect(screen.getByTestId('fretboard')).toBeInTheDocument()
   })
 
   it('keeps the neck in the practice stage and pairs the setup cards two up', () => {
+    // The map defaults to hidden; this test is about where it lives when shown.
+    window.localStorage.setItem('fretboard-show-neck', 'true')
     render(<App />)
 
     // The neck answers the question the note asks, so the two share one card.
@@ -482,6 +485,7 @@ describe('App integration', () => {
     // Pool of one note (pc 4, E) makes the called note deterministic. E lives
     // at: open + 12th on both e strings, B-5, G-9, D-2, A-7 → 8 dots.
     window.localStorage.setItem('fretboard-note-pool', '4')
+    window.localStorage.setItem('fretboard-show-neck', 'true')
     render(<App />)
 
     expect(screen.queryAllByTestId('fret-dot')).toHaveLength(0)

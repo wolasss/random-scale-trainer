@@ -13,7 +13,7 @@ const createFakeStream = () => {
   return { tracks, stream: { getTracks: () => tracks } as unknown as MediaStream }
 }
 
-const createFakeContext = () => {
+const createFakeContext = (state = 'running') => {
   const source = { connect: vi.fn(), disconnect: vi.fn() }
   const analyser = {
     fftSize: 0,
@@ -22,13 +22,27 @@ const createFakeContext = () => {
     connect: vi.fn(),
     disconnect: vi.fn(),
   }
+  const listeners = new Set<() => void>()
   const context = {
+    state,
+    resume: vi.fn(async () => {
+      context.state = 'running'
+    }),
+    addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
     createMediaStreamSource: vi.fn(() => source),
     createAnalyser: vi.fn(() => analyser),
     destination: {},
   }
+  /** What a browser does when the context's state flips: set it, then notify. */
+  const changeState = (next: string) => {
+    context.state = next
+    for (const listener of [...listeners]) {
+      listener()
+    }
+  }
 
-  return { context: context as unknown as AudioContext, source, analyser, raw: context }
+  return { context: context as unknown as AudioContext, source, analyser, raw: context, changeState }
 }
 
 afterEach(() => {
@@ -131,6 +145,48 @@ describe('createMicCapture', () => {
 
     expect(analyser.connect).not.toHaveBeenCalled()
     expect(raw.destination).toBeDefined()
+  })
+
+  it('resumes a context that iOS interrupted while the permission prompt was up', () => {
+    // Safari's nonstandard state for an audio-session change — the very thing
+    // opening the microphone causes on iOS.
+    const { context, raw } = createFakeContext('interrupted')
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a running context alone but answers a later interruption', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+    expect(raw.resume).not.toHaveBeenCalled()
+
+    changeState('interrupted')
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('never tries to resume a closed context — resume() cannot help it', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+    changeState('closed')
+
+    expect(raw.resume).not.toHaveBeenCalled()
+  })
+
+  it('stops watching the context once released', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream).release()
+    changeState('interrupted')
+
+    expect(raw.resume).not.toHaveBeenCalled()
   })
 
   it('stops the tracks on release, not just the nodes', () => {
