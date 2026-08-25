@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/wolasss/random-scale-trainer/compare/v1.26.1...v1.27.0) (2026-08-25)
+
+
+### Features
+
+* **footer:** report a bug from the app, behind a captcha ([#185](https://github.com/wolasss/random-scale-trainer/issues/185)) ([4822d7d](https://github.com/wolasss/random-scale-trainer/commit/4822d7d358827596ae2ca7b9fae5d4d45beb8839))
+
 ## [1.26.1](https://github.com/wolasss/random-scale-trainer/compare/v1.26.0...v1.26.1) (2026-08-25)
 
 
