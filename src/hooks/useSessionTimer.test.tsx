@@ -226,4 +226,35 @@ describe('useSessionTimer', () => {
 
     expect(result.current.elapsedMs).toBeGreaterThanOrEqual(5 * 60_000)
   })
+
+  it('does not re-render on every 200ms tick, only when the displayed second changes', () => {
+    let renders = 0
+    const onTick = vi.fn()
+    const { result } = renderHook(() => {
+      renders += 1
+      return useSessionTimer({ onTick })
+    })
+
+    act(() => {
+      result.current.start()
+    })
+    const rendersAfterStart = renders
+
+    for (let i = 0; i < 15; i += 1) {
+      act(() => {
+        vi.advanceTimersByTime(200)
+      })
+    }
+
+    expect(onTick).toHaveBeenCalledTimes(15)
+    const lastTickMs = onTick.mock.calls[onTick.mock.calls.length - 1][0]
+    expect(lastTickMs).toBeGreaterThanOrEqual(2_800)
+    expect(lastTickMs).toBeLessThanOrEqual(3_200)
+
+    // 3 whole-second changes across 15 ticks, each forcing a render; React's
+    // same-value bailout also renders once more right after each real change
+    // before it can bail again, so 6 (not 3) is the true floor here — a huge
+    // cut from the unthrottled 15.
+    expect(renders - rendersAfterStart).toBeLessThanOrEqual(6)
+  })
 })

@@ -69,7 +69,9 @@ export function useSessionTimer(options: UseSessionTimerOptions = {}) {
 
       const now = observeNow()
       const elapsed = accumulatedMsRef.current + (now - startedAtRef.current)
-      setElapsedMs(elapsed)
+      // Every readout displays whole seconds, so a sub-second change would
+      // re-render the whole app (this state lives in App.tsx) for nothing.
+      setElapsedMs((prev) => (Math.floor(elapsed / 1000) === Math.floor(prev / 1000) ? prev : elapsed))
       onTickRef.current?.(elapsed)
     }, TICK_MS)
 
