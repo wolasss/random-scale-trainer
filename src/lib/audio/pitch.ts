@@ -103,12 +103,17 @@ const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag
 export function detectPitch(frame: Float32Array, sampleRate: number): PitchReading | null {
   const size = frame.length
 
-  let sumOfSquares = 0
+  // Running sum of squares: prefix[k] is the energy in frame[0..k-1]. One pass
+  // buys both the silence gate and every window energy the NSDF loop below
+  // needs, which is what keeps that loop O(1) per lag in its energy term.
+  // Float64 because a Float32 prefix would round each partial sum.
+  const prefix = new Float64Array(size + 1)
   for (let index = 0; index < size; index += 1) {
-    sumOfSquares += frame[index] * frame[index]
+    prefix[index + 1] = prefix[index] + frame[index] * frame[index]
   }
 
-  if (Math.sqrt(sumOfSquares / size) < SILENCE_RMS) {
+  const total = prefix[size]
+  if (Math.sqrt(total / size) < SILENCE_RMS) {
     return null
   }
 
@@ -123,14 +128,14 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
   const nsdf = new Float32Array(maxLag + 1)
   for (let lag = minLag; lag <= maxLag; lag += 1) {
     let correlation = 0
-    let energy = 0
     for (let index = 0; index < size - lag; index += 1) {
-      const left = frame[index]
-      const right = frame[index + lag]
-      correlation += left * right
-      energy += left * left + right * right
+      correlation += frame[index] * frame[index + lag]
     }
 
+    // The same two windows the loop walked: frame[0..size-lag-1] on the left,
+    // frame[lag..size-1] on the right, read off the prefix sum instead of
+    // re-added sample by sample.
+    const energy = prefix[size - lag] + (total - prefix[lag])
     nsdf[lag] = energy > 0 ? (2 * correlation) / energy : 0
   }
 
