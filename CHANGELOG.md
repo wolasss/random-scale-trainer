@@ -1,3 +1,10 @@
+## [1.27.2](https://github.com/wolasss/random-scale-trainer/compare/v1.27.1...v1.27.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mobile:** unwedge the idle start button and give the stand's mic row and stats room ([#187](https://github.com/wolasss/random-scale-trainer/issues/187)) ([b29abee](https://github.com/wolasss/random-scale-trainer/commit/b29abeecf5d05cb472fc938280369b7fe4cbe8e4))
+
 ## [1.27.1](https://github.com/wolasss/random-scale-trainer/compare/v1.27.0...v1.27.1) (2026-08-25)
 
 
