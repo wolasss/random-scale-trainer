@@ -33,6 +33,10 @@ vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
     context = {
       sampleRate: 44100,
+      state: 'running',
+      async resume() {},
+      addEventListener() {},
+      removeEventListener() {},
       createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
       createAnalyser: () => ({
         fftSize: 0,

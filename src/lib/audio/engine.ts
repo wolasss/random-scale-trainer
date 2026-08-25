@@ -188,7 +188,13 @@ export class AudioEngine {
     this.unlockMediaSession()
 
     if (this.context) {
-      if (this.context.state === 'suspended') {
+      // 'suspended' is the spec's word for a context that needs a nudge, but
+      // Safari also parks one in a nonstandard 'interrupted' state when the
+      // audio session changes underneath it — a phone call, or the microphone
+      // opening and flipping iOS over to play-and-record. Anything short of
+      // running gets the same resume, except closed, which resume() cannot fix.
+      const state = this.context.state as string
+      if (state !== 'running' && state !== 'closed') {
         await this.context.resume()
       }
 

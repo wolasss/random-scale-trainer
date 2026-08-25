@@ -25,6 +25,10 @@ const createFakeContext = (frequency = 220) => {
   }
   const context = {
     sampleRate: SAMPLE_RATE,
+    state: 'running',
+    resume: vi.fn(async () => {}),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
     createAnalyser: vi.fn(() => analyser),
   }
