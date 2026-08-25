@@ -208,9 +208,10 @@ describe('practice log', () => {
 
   it('banks the seconds in flight before writing a backup out', async () => {
     render(<App />)
-    // Under one flush interval, so the pending seconds are still only in memory.
-    await practiceFor(6_000)
-    expect(stored()).toBeNull()
+    // Past one flush interval, so Export is live, with more seconds still only in memory.
+    await practiceFor(16_000)
+    const banked = stored()?.days[today()]?.sec ?? 0
+    expect(banked).toBeLessThan(15)
 
     const blobs: Blob[] = []
     const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
@@ -231,7 +232,7 @@ describe('practice log', () => {
 
       expect(blobs).toHaveLength(1)
       // A backup taken mid-session has to include the session taking it.
-      expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(5)
+      expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(15)
     } finally {
       click.mockRestore()
       if (createDescriptor === undefined) {

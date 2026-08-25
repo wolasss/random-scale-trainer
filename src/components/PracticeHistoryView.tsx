@@ -8,6 +8,7 @@ import {
   buildMonths,
   currentStreak,
   dayKey,
+  hasHistory,
   isBackupFileType,
   MAX_BACKUP_BYTES,
   parseBackup,
@@ -79,6 +80,7 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   }
 
   const now = today ?? new Date()
+  const populated = hasHistory(history)
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
   const months = buildMonths(history, now)
@@ -168,74 +170,82 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
         </div>
 
         <div className="sheet-body">
-          <div className="practice-history-summary">
-            <span className="practice-history-streak" data-testid="history-streak">
-              {streak} {streak === 1 ? 'day' : 'days'} in a row
-            </span>
-            {best > 0 ? (
-              <span className="practice-history-best" data-testid="history-best">
-                best {best}
-              </span>
-            ) : null}
-            <span className="practice-history-totals" data-testid="history-totals">
-              {entries.length} days practised · {Math.round(totalSec / 60)} min · {totalNotes} notes
-            </span>
-          </div>
+          {populated ? (
+            <>
+              <div className="practice-history-summary">
+                <span className="practice-history-streak" data-testid="history-streak">
+                  {streak} {streak === 1 ? 'day' : 'days'} in a row
+                </span>
+                {best > 0 ? (
+                  <span className="practice-history-best" data-testid="history-best">
+                    best {best}
+                  </span>
+                ) : null}
+                <span className="practice-history-totals" data-testid="history-totals">
+                  {entries.length} days practised · {Math.round(totalSec / 60)} min · {totalNotes} notes
+                </span>
+              </div>
 
-          <div className="practice-history-months">
-            {months.map((month) => (
-              <section className="practice-history-month" key={month.key}>
-                <div className="practice-history-month-head">
-                  <h3 className="practice-history-month-name">{month.label}</h3>
-                  <span className="practice-history-month-total">{month.totalMinutes} min</span>
-                </div>
+              <div className="practice-history-months">
+                {months.map((month) => (
+                  <section className="practice-history-month" key={month.key}>
+                    <div className="practice-history-month-head">
+                      <h3 className="practice-history-month-name">{month.label}</h3>
+                      <span className="practice-history-month-total">{month.totalMinutes} min</span>
+                    </div>
 
-                <div className="practice-history-weekdays" aria-hidden="true">
-                  {WEEKDAY_INITIALS.map((initial, index) => (
-                    <span key={index}>{initial}</span>
-                  ))}
-                </div>
+                    <div className="practice-history-weekdays" aria-hidden="true">
+                      {WEEKDAY_INITIALS.map((initial, index) => (
+                        <span key={index}>{initial}</span>
+                      ))}
+                    </div>
 
-                <div className="practice-history-grid">
-                  {month.cells.map((cell, index) => {
-                    if (cell === null) {
-                      return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
-                    }
+                    <div className="practice-history-grid">
+                      {month.cells.map((cell, index) => {
+                        if (cell === null) {
+                          return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
+                        }
 
-                    const label = `${cell.key}: ${practiceDayTitle(cell.minutes, cell.sec)}`
-                    const className = [
-                      `practice-history-cell is-l${cell.level}`,
-                      cell.isToday ? 'is-today' : '',
-                      cell.isFuture ? 'is-future' : '',
-                      !cell.isFuture && cell.key === selectedDay ? 'is-selected' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')
+                        const label = `${cell.key}: ${practiceDayTitle(cell.minutes, cell.sec)}`
+                        const className = [
+                          `practice-history-cell is-l${cell.level}`,
+                          cell.isToday ? 'is-today' : '',
+                          cell.isFuture ? 'is-future' : '',
+                          !cell.isFuture && cell.key === selectedDay ? 'is-selected' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
 
-                    // A day the calendar hasn't reached has nothing to read out,
-                    // so it stays a picture rather than becoming a tab stop.
-                    return cell.isFuture ? (
-                      <span key={cell.key} className={className} role="img" title={label} aria-label={label} />
-                    ) : (
-                      <button
-                        key={cell.key}
-                        type="button"
-                        className={className}
-                        title={label}
-                        aria-label={label}
-                        aria-pressed={cell.key === selectedDay}
-                        onClick={() => setSelectedKey(cell.key)}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+                        // A day the calendar hasn't reached has nothing to read out,
+                        // so it stays a picture rather than becoming a tab stop.
+                        return cell.isFuture ? (
+                          <span key={cell.key} className={className} role="img" title={label} aria-label={label} />
+                        ) : (
+                          <button
+                            key={cell.key}
+                            type="button"
+                            className={className}
+                            title={label}
+                            aria-label={label}
+                            aria-pressed={cell.key === selectedDay}
+                            onClick={() => setSelectedKey(cell.key)}
+                          />
+                        )
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
 
-          <p className="practice-history-day" data-testid="history-day">
-            {selectedDay} · {practiceDayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
-          </p>
+              <p className="practice-history-day" data-testid="history-day">
+                {selectedDay} · {practiceDayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
+              </p>
+            </>
+          ) : (
+            <p className="practice-history-backup-note" data-testid="history-empty">
+              Nothing logged yet. A minute of practice fills in today’s square.
+            </p>
+          )}
 
           <div className="practice-history-backup">
             <p className="practice-history-backup-note">
@@ -244,7 +254,14 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
             </p>
 
             <div className="practice-history-actions">
-              <button type="button" className="ghost-button" onClick={handleExport} data-testid="history-export">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={handleExport}
+                disabled={!populated}
+                title={populated ? undefined : 'Nothing to export yet — practise for a minute first'}
+                data-testid="history-export"
+              >
                 Export backup
               </button>
               <button
