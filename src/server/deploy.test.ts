@@ -20,6 +20,12 @@ const DOCKERFILE = read('Dockerfile')
 const ENTRYPOINT = read('docker/50-scoreboard.sh')
 const MAIN = read('src/server/main.js')
 
+// Same reasoning as the Permissions-Policy tests below: add_header does not
+// merge, so every location that declares one has to repeat the whole set.
+// This sweep generalises that check to any location added later.
+const LOCATIONS = (NGINX.match(/^ {2}location [^\n]*\{[\s\S]*?\n {2}\}/gm) ?? [])
+  .filter((block) => block.includes('add_header'))
+
 const RUNTIME = DOCKERFILE.match(/^FROM [^\n]*\bAS runtime\b[\s\S]*$/m)?.[0] ?? ''
 const SERVER_COPIES = (RUNTIME.match(/^COPY .*$/gm) ?? [])
   .filter((line) => line.includes('/opt/callnote/server'))
@@ -49,6 +55,33 @@ describe('nginx.conf', () => {
     for (const policy of NGINX.match(/add_header Permissions-Policy "[^"]*"/g) ?? []) {
       expect(policy).toContain('camera=()')
       expect(policy).toContain('geolocation=()')
+    }
+  })
+
+  it('repeats the whole security-header set in every location that declares one', () => {
+    // A guard so a broken regex can't silently pass by matching nothing.
+    expect(LOCATIONS.length).toBeGreaterThanOrEqual(5)
+
+    for (const block of LOCATIONS) {
+      const name = block.split('\n')[0].trim()
+      expect(block, `${name} is missing Content-Security-Policy`)
+        .toContain('add_header Content-Security-Policy')
+      expect(block, `${name} is missing X-Content-Type-Options`)
+        .toContain('add_header X-Content-Type-Options "nosniff"')
+      expect(block, `${name} is missing Referrer-Policy`)
+        .toContain('add_header Referrer-Policy "strict-origin-when-cross-origin"')
+    }
+  })
+
+  it('spells out the CSP directives that don’t fall back to default-src', () => {
+    const policies = NGINX.match(/add_header Content-Security-Policy "[^"]*"/g) ?? []
+
+    expect(policies.length).toBeGreaterThan(0)
+    for (const policy of policies) {
+      expect(policy).toContain("default-src 'self'")
+      expect(policy).toContain("base-uri 'self'")
+      expect(policy).toContain("form-action 'self'")
+      expect(policy).toContain("frame-ancestors 'none'")
     }
   })
 
