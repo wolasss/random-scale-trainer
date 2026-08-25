@@ -1,3 +1,10 @@
+## [1.27.1](https://github.com/wolasss/random-scale-trainer/compare/v1.27.0...v1.27.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mic:** resume the context iOS parks when the microphone opens ([#186](https://github.com/wolasss/random-scale-trainer/issues/186)) ([28002c4](https://github.com/wolasss/random-scale-trainer/commit/28002c4c1d6c66c7d81e84b394202bfbdb2421f2))
+
 # [1.27.0](https://github.com/wolasss/random-scale-trainer/compare/v1.26.1...v1.27.0) (2026-08-25)
 
 
