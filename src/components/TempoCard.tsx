@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import type { BeatsPerNote } from '../hooks/useSettings'
@@ -39,6 +39,63 @@ const rampHelper = (bpm: number, target: number) => {
   return `${rounds} ${rounds === 1 ? 'round' : 'rounds'} from ${bpm}, then it holds.`
 }
 
+export const HOLD_REPEAT_DELAY_MS = 400
+export const HOLD_REPEAT_INTERVAL_MS = 80
+
+/** Repeats `fire` while the pointer holds a button down, so a nudge button can sweep instead of tapping. */
+function useHoldRepeat(fire: () => void) {
+  const delayTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intervalTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const repeatedRef = useRef(false)
+  const fireRef = useRef(fire)
+  useEffect(() => {
+    fireRef.current = fire
+  }, [fire])
+
+  const clearTimers = () => {
+    if (delayTimer.current !== null) {
+      clearTimeout(delayTimer.current)
+      delayTimer.current = null
+    }
+    if (intervalTimer.current !== null) {
+      clearInterval(intervalTimer.current)
+      intervalTimer.current = null
+    }
+  }
+
+  useEffect(() => clearTimers, [])
+
+  return {
+    onPointerDown: () => {
+      clearTimers()
+      repeatedRef.current = false
+      delayTimer.current = setTimeout(() => {
+        repeatedRef.current = true
+        fireRef.current()
+        intervalTimer.current = setInterval(() => fireRef.current(), HOLD_REPEAT_INTERVAL_MS)
+      }, HOLD_REPEAT_DELAY_MS)
+    },
+    onPointerUp: () => {
+      clearTimers()
+    },
+    onPointerCancel: () => {
+      clearTimers()
+      repeatedRef.current = false
+    },
+    onPointerLeave: () => {
+      clearTimers()
+      repeatedRef.current = false
+    },
+    onClick: () => {
+      if (repeatedRef.current) {
+        repeatedRef.current = false
+        return
+      }
+      fire()
+    },
+  }
+}
+
 type TempoStepperProps = {
   /** Base for the three control test ids: `${testId}-down`, `-value` and `-up`. */
   testId: string
@@ -53,6 +110,9 @@ type TempoStepperProps = {
 
 /** The minus/readout/plus row, shared by the tempo and the ramp target. */
 function TempoStepper({ testId, value, step, decrementLabel, incrementLabel, onNudge, children }: TempoStepperProps) {
+  const decrement = useHoldRepeat(() => onNudge(-step))
+  const increment = useHoldRepeat(() => onNudge(step))
+
   return (
     <div className="tempo-readout-row">
       <button
@@ -60,7 +120,7 @@ function TempoStepper({ testId, value, step, decrementLabel, incrementLabel, onN
         className="ghost-button stepper-button"
         data-testid={`${testId}-down`}
         aria-label={decrementLabel}
-        onClick={() => onNudge(-step)}
+        {...decrement}
       >
         −
       </button>
@@ -73,7 +133,7 @@ function TempoStepper({ testId, value, step, decrementLabel, incrementLabel, onN
         className="ghost-button stepper-button"
         data-testid={`${testId}-up`}
         aria-label={incrementLabel}
-        onClick={() => onNudge(step)}
+        {...increment}
       >
         +
       </button>
