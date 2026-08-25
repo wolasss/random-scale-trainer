@@ -289,7 +289,12 @@ describe('the Mailgun sender', () => {
     expect(url).toBe(`${MAILGUN_API_BASE}/mg.example.com/messages`)
     expect(init.headers.Authorization).toBe(`Basic ${Buffer.from('api:key-123').toString('base64')}`)
 
-    const form = new URLSearchParams(init.body as string)
+    // multipart, which is what Mailgun's /messages takes — and no Content-Type
+    // of our own, so fetch can put its boundary in one.
+    const form = init.body as FormData
+    expect(form).toBeInstanceOf(FormData)
+    expect(init.headers['Content-Type']).toBeUndefined()
+
     expect(form.get('to')).toBe('inbox@example.com')
     expect(form.get('from')).toBe('callnote bug reports <bugs@mg.example.com>')
     expect(form.get('subject')).toBe('[callnote] bug report (v1.26.1)')
@@ -305,7 +310,7 @@ describe('the Mailgun sender', () => {
     await send({ ...report, email: '', version: '' })
 
     const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
-    const form = new URLSearchParams(init.body as string)
+    const form = init.body as FormData
     expect(form.get('to')).toBe('bugs@mg.example.com')
     expect(form.get('subject')).toBe('[callnote] bug report')
     expect(form.has('h:Reply-To')).toBe(false)
@@ -331,6 +336,26 @@ describe('the Mailgun sender', () => {
 
     const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(String(url)).not.toContain('key-123')
-    expect(String(init.body)).not.toContain('key-123')
+
+    for (const [, value] of init.body as FormData) {
+      expect(String(value)).not.toContain('key-123')
+    }
+  })
+
+  it('posts to whichever region the deployment names, so an EU domain is reachable', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true })) as unknown as typeof fetch
+    const send = createMailgunSender(
+      {
+        MAILGUN_API_KEY: 'k',
+        MAILGUN_DOMAIN: 'mg.example.com',
+        MAILGUN_API_BASE: 'https://api.eu.mailgun.net/v3/',
+      },
+      fetchImpl,
+    )!
+
+    await send(report)
+
+    const [url] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toBe('https://api.eu.mailgun.net/v3/mg.example.com/messages')
   })
 })

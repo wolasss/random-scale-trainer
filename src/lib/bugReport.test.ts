@@ -107,6 +107,29 @@ describe('loading the widget script', () => {
     expect(await rejected).toBe('rejected')
   })
 
+  it('tries again with a fresh script once the first one has failed', async () => {
+    const failing = loadTurnstile(document)
+    const first = failing.then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+
+    document.getElementById('cf-turnstile-script')!.dispatchEvent(new Event('error'))
+    await settle()
+    expect(await first).toBe('rejected')
+
+    // The dead script is gone, so reopening the modal after the connection
+    // comes back gets a script that can still answer rather than a silent hang.
+    const api = { render: vi.fn(), reset: vi.fn(), remove: vi.fn() }
+    const retry = loadTurnstile(document)
+    const script = document.getElementById('cf-turnstile-script')
+    expect(script).not.toBeNull()
+    ;(window as unknown as { turnstile?: TurnstileApi }).turnstile = api
+    script!.dispatchEvent(new Event('load'))
+
+    expect(await retry).toBe(api)
+  })
+
   it('rejects rather than hangs when the script loads without its global', async () => {
     const pending = loadTurnstile(document)
     const settled = pending.then(

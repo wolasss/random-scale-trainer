@@ -52,6 +52,12 @@ export const MAX_LIMIT_BUCKETS = 1_000
 const SWEEP_BUDGET = 50
 
 export const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
+
+/**
+ * Mailgun's US region. Accounts created in the EU live behind a different host
+ * and are invisible from this one, so `MAILGUN_API_BASE` overrides it — set it
+ * to https://api.eu.mailgun.net/v3 for an EU domain.
+ */
 export const MAILGUN_API_BASE = 'https://api.mailgun.net/v3'
 
 /** Loose on purpose: this is a "did you mean to type an address" check, not a proof. */
@@ -291,6 +297,9 @@ export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
     return null
   }
 
+  const base = typeof env.MAILGUN_API_BASE === 'string' && env.MAILGUN_API_BASE.trim() !== ''
+    ? env.MAILGUN_API_BASE.trim().replace(/\/+$/, '')
+    : MAILGUN_API_BASE
   const from = typeof env.BUG_REPORT_FROM === 'string' && env.BUG_REPORT_FROM !== ''
     ? env.BUG_REPORT_FROM
     : `callnote bug reports <bugs@${domain}>`
@@ -299,12 +308,13 @@ export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
 
   return async (report) => {
     try {
-      const form = new URLSearchParams({
-        from,
-        to,
-        subject: `[callnote] bug report${report.version === '' ? '' : ` (v${report.version})`}`,
-        text: formatReport(report),
-      })
+      // multipart, which is what /messages takes; fetch writes the boundary
+      // into the Content-Type itself, so this must not name one.
+      const form = new FormData()
+      form.set('from', from)
+      form.set('to', to)
+      form.set('subject', `[callnote] bug report${report.version === '' ? '' : ` (v${report.version})`}`)
+      form.set('text', formatReport(report))
 
       // Reply-To rather than From: the report has to come from the domain that
       // is allowed to send, and still be answerable in one click.
@@ -312,10 +322,10 @@ export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
         form.set('h:Reply-To', report.email)
       }
 
-      const response = await fetchImpl(`${MAILGUN_API_BASE}/${encodeURIComponent(domain)}/messages`, {
+      const response = await fetchImpl(`${base}/${encodeURIComponent(domain)}/messages`, {
         method: 'POST',
-        headers: { Authorization: authorization, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString(),
+        headers: { Authorization: authorization },
+        body: form,
       })
 
       return response.ok === true

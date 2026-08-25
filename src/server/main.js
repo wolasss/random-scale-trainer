@@ -21,6 +21,7 @@
  *   TURNSTILE_SECRET_KEY  the half that never leaves this process
  *   MAILGUN_API_KEY       likewise
  *   MAILGUN_DOMAIN        the Mailgun sending domain
+ *   MAILGUN_API_BASE      optional; the EU region needs api.eu.mailgun.net
  *   BUG_REPORT_TO/FROM    optional; default to bugs@$MAILGUN_DOMAIN
  */
 import { createBugReportHandler, createMailgunSender, createTurnstileVerifier } from './bug-report.js'

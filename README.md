@@ -236,6 +236,7 @@ switched on for this build.** Everything else keeps working; nothing about the a
 | `TURNSTILE_SECRET_KEY` | The other half. Read once, in this process, and used only to verify a token server-side. |
 | `MAILGUN_API_KEY` | Mailgun's HTTP API key. Never logged, never echoed, never sent anywhere but the `Authorization` header. |
 | `MAILGUN_DOMAIN` | The Mailgun sending domain. |
+| `MAILGUN_API_BASE` | Optional; defaults to `https://api.mailgun.net/v3`. An EU-region account needs `https://api.eu.mailgun.net/v3` — the US host cannot see an EU domain. |
 | `BUG_REPORT_TO` | Optional; defaults to `bugs@$MAILGUN_DOMAIN`. |
 | `BUG_REPORT_FROM` | Optional; defaults to `callnote bug reports <bugs@$MAILGUN_DOMAIN>`. |
 

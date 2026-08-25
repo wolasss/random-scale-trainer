@@ -150,10 +150,25 @@ export const loadTurnstile = (doc: Document = document): Promise<TurnstileApi> =
       resolve(api)
     }
 
+    // A script that failed takes itself back out of the document, because its
+    // error event has already fired: leaving it there would mean the next open
+    // attaches listeners to an element that will never speak again, and the
+    // form would stay disabled long after the connection came back.
+    const listen = (element: Element) => {
+      element.addEventListener('load', ready, { once: true })
+      element.addEventListener(
+        'error',
+        () => {
+          element.remove()
+          reject(new Error('turnstile failed to load'))
+        },
+        { once: true },
+      )
+    }
+
     const already = doc.getElementById(TURNSTILE_SCRIPT_ID)
     if (already !== null) {
-      already.addEventListener('load', ready, { once: true })
-      already.addEventListener('error', () => reject(new Error('turnstile failed to load')), { once: true })
+      listen(already)
       return
     }
 
@@ -162,7 +177,6 @@ export const loadTurnstile = (doc: Document = document): Promise<TurnstileApi> =
     script.src = TURNSTILE_SCRIPT_URL
     script.async = true
     script.defer = true
-    script.addEventListener('load', ready, { once: true })
-    script.addEventListener('error', () => reject(new Error('turnstile failed to load')), { once: true })
+    listen(script)
     doc.head.appendChild(script)
   })
