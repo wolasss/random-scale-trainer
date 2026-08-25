@@ -25,7 +25,12 @@ const isOwnCache = (/** @type {string} */ name) =>
 const PRECACHE_URLS = __PRECACHE_MANIFEST__
 const PRECACHE_SET = new Set(PRECACHE_URLS)
 
-/** The webfont, the one thing the app fetches cross-origin. Cached on first use. */
+/**
+ * The webfont, the one cross-origin fetch this worker caches, on first use. The
+ * captcha on the bug-report form is cross-origin too and is deliberately not
+ * here: it is a live challenge, and the fetch handler below lets it straight
+ * through to the network.
+ */
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
 self.addEventListener('install', /** @type {EventListener} */ ((/** @type {ExtendableEvent} */ event) => {
