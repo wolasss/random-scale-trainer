@@ -21,6 +21,7 @@ interface FakeRequest {
   method: string
   url: string
   mode?: string
+  cache?: string
 }
 
 interface FakeResponse {
@@ -44,8 +45,10 @@ interface FakeEvent {
 interface FakeCache {
   /** Every URL install tried, whether or not the add went through. */
   attempted: string[]
+  /** The raw argument handed to add(), so a test can inspect a Request's init. */
+  added: CacheKey[]
   entries: Map<string, FakeResponse>
-  add: (url: string) => Promise<void>
+  add: (key: CacheKey) => Promise<void>
   match: (key: CacheKey) => Promise<FakeResponse | undefined>
   put: (key: CacheKey, response: FakeResponse) => Promise<void>
 }
@@ -67,12 +70,16 @@ const keyOf = (key: CacheKey) => (typeof key === 'string' ? key : key.url)
 const makeCache = (failingAdd?: string): FakeCache => {
   const entries = new Map<string, FakeResponse>()
   const attempted: string[] = []
+  const added: CacheKey[] = []
 
   return {
     attempted,
+    added,
     entries,
-    add: async (url) => {
+    add: async (key) => {
+      const url = keyOf(key)
       attempted.push(url)
+      added.push(key)
       if (url === failingAdd) {
         throw new Error(`failed to fetch ${url}`)
       }
@@ -126,7 +133,17 @@ const makeWorker = ({
     delete: async (name: string) => caches.delete(name),
   }
 
-  new Function('self', 'caches', 'fetch', source)(fakeSelf, fakeCaches, fetch)
+  class FakeRequestCtor implements FakeRequest {
+    method = 'GET'
+    url: string
+    cache?: string
+    constructor(url: string, init?: { cache?: string }) {
+      this.url = url
+      this.cache = init?.cache
+    }
+  }
+
+  new Function('self', 'caches', 'fetch', 'Request', source)(fakeSelf, fakeCaches, fetch, FakeRequestCtor)
 
   const dispatch = (type: string, request?: FakeRequest) => {
     const captured: { waited?: Promise<unknown>; responded?: Promise<unknown> } = {}
@@ -180,6 +197,19 @@ describe('install', () => {
     expect(cache.attempted).toEqual(PRECACHE_URLS)
     expect([...cache.entries.keys()]).toEqual(['/index.html', '/icon.png'])
     expect(worker.skipWaiting).toHaveBeenCalled()
+  })
+
+  it('precaches each URL past the HTTP cache with a reload request', async () => {
+    const worker = makeWorker()
+
+    await worker.dispatch('install').waited
+
+    const cache = currentCache(worker)
+    expect(cache.added).toHaveLength(PRECACHE_URLS.length)
+    cache.added.forEach((key, index) => {
+      expect(typeof key).not.toBe('string')
+      expect(key).toMatchObject({ url: PRECACHE_URLS[index], cache: 'reload' })
+    })
   })
 })
 
