@@ -8,14 +8,19 @@
 export const MIC_FRAME_SIZE = 2048
 
 /**
- * Echo cancellation is on because the app is playing the very note it is
- * listening for, out of the same device's speaker. It is a second line of
- * defence, never the only one: the cue intervals the engine records are what
- * actually keep the app from hearing itself, since a phone on a table with no
- * echo canceller worth the name is a normal way to practise.
+ * Raw capture, with every voice-call nicety switched off. All three of these
+ * are built for speech, and an instrument is exactly what they are built to
+ * remove: the noise suppressor hears a decaying string as background hum and
+ * gates it, automatic gain pumps the level under the detector's RMS floor, and
+ * echo cancellation is what pulls iOS onto its voice-processing route — which
+ * also ducks the app's own cues, and in the home-screen app strips a pluck
+ * down to one stray frame where the scoring needs a sustained pair. The app
+ * hearing itself is not this constraint's job and never really was: the cue
+ * intervals the engine records are what keep the microphone deaf to the app's
+ * own voice, and they work the same over a raw stream.
  */
 export const MIC_CONSTRAINTS: MediaStreamConstraints = {
-  audio: { echoCancellation: true, noiseSuppression: true },
+  audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
 }
 
 export type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<MediaStream>
