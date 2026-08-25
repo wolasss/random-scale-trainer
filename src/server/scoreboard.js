@@ -69,9 +69,12 @@ export const MAX_NEW_CHALLENGES_PER_HOUR = 30
 
 /**
  * How many owners a challenge may hold who have never scored. Squatting names
- * would otherwise consume the MAX_ENTRIES slots the people playing need.
+ * would otherwise consume the MAX_ENTRIES slots the people playing need. Sized
+ * for the app's real audience — a virtual class of hundreds joining in the
+ * minutes before anybody has played a note — so nearly the whole board may be
+ * claimed-but-unscored at once; MAX_ENTRIES stays the harder ceiling above it.
  */
-export const MAX_UNSCORED_OWNERS = 25
+export const MAX_UNSCORED_OWNERS = 400
 
 /** ...and a claim nobody ever scored under is swept after a day. A scored one never is. */
 export const UNUSED_OWNER_TTL_MS = 24 * 60 * 60_000
@@ -85,7 +88,12 @@ export const UNUSED_OWNER_TTL_MS = 24 * 60 * 60_000
 export const CLAIM_LIMIT = { limit: 10, windowMs: 60_000 }
 export const SESSION_LIMIT = { limit: 10, windowMs: 60_000 }
 export const EVENTS_LIMIT = { limit: 120, windowMs: 60_000 }
-export const CHALLENGE_CLAIM_LIMIT = { limit: 20, windowMs: 60 * 60_000 }
+/**
+ * Sized so a whole virtual class can join one board inside the first hour —
+ * and every attempt spends a token, a collision on a taken name included, so
+ * the headroom above the class size is not spare, it is what the retries cost.
+ */
+export const CHALLENGE_CLAIM_LIMIT = { limit: 400, windowMs: 60 * 60_000 }
 
 /** A ceiling on the bookkeeping itself, so the buckets cannot become the leak. */
 export const MAX_LIMIT_BUCKETS = 5_000

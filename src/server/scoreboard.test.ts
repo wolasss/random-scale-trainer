@@ -633,8 +633,11 @@ describe('quotas', () => {
   /** And when there is more expiring than one sweep can carry, it picks up where it left off. */
   it('resumes at the board the last sweep stopped on', () => {
     const store = createStore()
+    // What is under test is the cursor, so the count is pinned: three boards
+    // of twenty-five overflow one sweep's budget by a board and a bit. The
+    // MAX_UNSCORED_OWNERS cap is a separate rule, and far past the budget.
     for (let board = 0; board < 3; board += 1) {
-      for (let index = 0; index < MAX_UNSCORED_OWNERS; index += 1) {
+      for (let index = 0; index < 25; index += 1) {
         claimNickname(store, `busy ${board}`, `squat ${index}`, NOW)
       }
     }
