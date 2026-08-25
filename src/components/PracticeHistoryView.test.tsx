@@ -394,5 +394,15 @@ describe('PracticeHistoryView', () => {
 
       expect(click).toHaveBeenCalledTimes(1)
     })
+
+    it('keeps Export live when practice is still only pending, not yet committed', () => {
+      const { props } = renderView({ history: { days: {} }, hasPendingPractice: () => true })
+
+      const exportButton = screen.getByTestId('history-export')
+      expect(exportButton).not.toBeDisabled()
+
+      fireEvent.click(exportButton)
+      expect(props.getBackup).toHaveBeenCalledTimes(1)
+    })
   })
 })

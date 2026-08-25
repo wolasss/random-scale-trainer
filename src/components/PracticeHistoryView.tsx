@@ -25,6 +25,12 @@ type PracticeHistoryViewProps = {
   getBackup: () => string
   /** Answers whether the merged log was actually stored — see App. */
   onImport: (incoming: PracticeHistory) => boolean
+  /**
+   * True if a commit right now would bank something — see App. Keeps Export
+   * live through the first ten seconds of a first-ever session, when
+   * `history` is still empty but there is practice waiting in refs.
+   */
+  hasPendingPractice?: () => boolean
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -52,7 +58,15 @@ const RESTORE_BLOCKED_ERROR =
  * of this has something to lose, and a log kept in one browser's storage is one
  * cleared cache from gone.
  */
-export function PracticeHistoryView({ open, history, onClose, getBackup, onImport, today }: PracticeHistoryViewProps) {
+export function PracticeHistoryView({
+  open,
+  history,
+  onClose,
+  getBackup,
+  onImport,
+  hasPendingPractice,
+  today,
+}: PracticeHistoryViewProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
@@ -81,6 +95,10 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
 
   const now = today ?? new Date()
   const populated = hasHistory(history)
+  // A brand-new session hasn't hit its first automatic flush yet, so `history`
+  // reads empty even though there is practice waiting to be banked — Export
+  // stays live for it rather than only for what has already been committed.
+  const canExport = populated || (hasPendingPractice?.() ?? false)
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
   const months = buildMonths(history, now)
@@ -258,8 +276,8 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
                 type="button"
                 className="ghost-button"
                 onClick={handleExport}
-                disabled={!populated}
-                title={populated ? undefined : 'Nothing to export yet — practise for a minute first'}
+                disabled={!canExport}
+                title={canExport ? undefined : 'Nothing to export yet — practise for a minute first'}
                 data-testid="history-export"
               >
                 Export backup

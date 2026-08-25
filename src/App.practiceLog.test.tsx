@@ -208,10 +208,9 @@ describe('practice log', () => {
 
   it('banks the seconds in flight before writing a backup out', async () => {
     render(<App />)
-    // Past one flush interval, so Export is live, with more seconds still only in memory.
-    await practiceFor(16_000)
-    const banked = stored()?.days[today()]?.sec ?? 0
-    expect(banked).toBeLessThan(15)
+    // Under one flush interval, so nothing is committed yet — only pending refs.
+    await practiceFor(6_000)
+    expect(stored()).toBeNull()
 
     const blobs: Blob[] = []
     const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
@@ -228,11 +227,14 @@ describe('practice log', () => {
 
     try {
       fireEvent.click(screen.getByTestId('practice-log-history'))
-      fireEvent.click(screen.getByTestId('history-export'))
+      const exportButton = screen.getByTestId('history-export')
+      // Nothing is on the board yet, but a session is running — Export stays live.
+      expect(exportButton).not.toBeDisabled()
+      fireEvent.click(exportButton)
 
       expect(blobs).toHaveLength(1)
       // A backup taken mid-session has to include the session taking it.
-      expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(15)
+      expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(5)
     } finally {
       click.mockRestore()
       if (createDescriptor === undefined) {
