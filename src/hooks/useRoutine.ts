@@ -340,13 +340,13 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     replaceSelected(next)
 
     if (index > runtime.blockIndex) {
-      commit({ ...runtime, finished: false })
+      commit({ ...runtime })
       return
     }
 
     if (index < runtime.blockIndex) {
       // The active block only shifted position; it keeps running on its clock.
-      commit({ ...runtime, blockIndex: runtime.blockIndex - 1, finished: false })
+      commit({ ...runtime, blockIndex: runtime.blockIndex - 1 })
       return
     }
 

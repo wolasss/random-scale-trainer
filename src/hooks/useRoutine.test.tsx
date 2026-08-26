@@ -697,6 +697,34 @@ describe('editing a finished routine', () => {
     expect(view.result.current.finished).toBe(true)
   })
 
+  it('stays finished when an earlier block is deleted', () => {
+    const { view } = renderFinished()
+
+    act(() => {
+      view.result.current.removeBlock(0)
+    })
+
+    expect(view.result.current.finished).toBe(true)
+    expect(view.result.current.blockIndex).toBe(1)
+  })
+
+  it('stays finished when a block past the finish line is deleted', () => {
+    const { view } = renderFinished()
+
+    act(() => {
+      view.result.current.insertBlock(3)
+    })
+    expect(view.result.current.finished).toBe(true)
+    expect(view.result.current.blockIndex).toBe(2)
+
+    act(() => {
+      view.result.current.removeBlock(3)
+    })
+
+    expect(view.result.current.finished).toBe(true)
+    expect(view.result.current.blockIndex).toBe(2)
+  })
+
   it('runs the edited order from the top when it is restarted', () => {
     const { view, dispatch, applied } = renderFinished()
 
