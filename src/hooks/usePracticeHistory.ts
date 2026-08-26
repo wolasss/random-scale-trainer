@@ -60,6 +60,13 @@ export function usePracticeHistory() {
     // minutes back out of existence. Only the pending rise is this tab's to add;
     // everything else is whichever copy is further along. A blocked or empty read
     // comes back empty, so the merge doubles as the in-memory fallback.
+    //
+    // Read and write are one synchronous block, so the only way two tabs can
+    // still collide is by running it in genuine parallel microseconds apart, at a
+    // cost of up to one flush. Closing that would mean holding a cross-tab lock,
+    // and the locks a browser offers are async: the pagehide flush below would
+    // never get one before the page went away, trading a rare lost flush for a
+    // reliable one.
     const baseline = mergeHistories(readHistory(), historyRef.current)
     const next = addPractice(baseline, dayKey(new Date()), sec, notes)
     historyRef.current = next
