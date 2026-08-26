@@ -215,6 +215,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     settings,
     dispatch,
     sessionElapsedMs: sessionTimer.elapsedMs,
+    getSessionElapsedMs: sessionTimer.getElapsedMs,
     isPlaying: playback.isPlaying,
     onFinish: useCallback(() => playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete), []),
   })
