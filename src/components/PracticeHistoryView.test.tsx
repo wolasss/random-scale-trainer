@@ -351,6 +351,21 @@ describe('PracticeHistoryView', () => {
     expect(props.onImport).not.toHaveBeenCalled()
   })
 
+  it('says so and changes nothing when the file cannot be read', async () => {
+    const { props } = renderView()
+    const file = fileOf('{}')
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(async () => {
+        throw new DOMException('The file could not be read.', 'NotReadableError')
+      }),
+    })
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    expect(props.onImport).not.toHaveBeenCalled()
+  })
+
   it('still imports a backup the system has no type for', async () => {
     const { props } = renderView()
 
