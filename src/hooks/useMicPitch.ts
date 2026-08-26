@@ -3,6 +3,7 @@ import {
   createMicCapture,
   isMicSupported,
   MIC_FRAME_SIZE,
+  onMicStreamEnded,
   releaseMicStream,
   requestMicStream,
   type MicCapture,
@@ -118,6 +119,20 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
     let cancelled = false
     let capture: MicCapture | null = null
     let pollId: number | undefined
+    let unwatch: (() => void) | undefined
+    let reacquired = false
+
+    const teardown = () => {
+      if (pollId !== undefined) {
+        window.clearInterval(pollId)
+        pollId = undefined
+      }
+
+      unwatch?.()
+      unwatch = undefined
+      capture?.release()
+      capture = null
+    }
 
     const poll = (frame: PcmFrame, sampleRate: number) => {
       if (capture === null) {
@@ -185,6 +200,20 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       }
 
       capture = createMicCapture(context, stream)
+      unwatch = onMicStreamEnded(stream, () => {
+        if (cancelled) {
+          return
+        }
+
+        teardown()
+        if (reacquired) {
+          setStatus('denied')
+          return
+        }
+
+        reacquired = true
+        void open()
+      })
       const frame = new Float32Array(MIC_FRAME_SIZE)
       const { sampleRate } = context
       setStatus('listening')
@@ -195,12 +224,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
 
     return () => {
       cancelled = true
-      if (pollId !== undefined) {
-        window.clearInterval(pollId)
-      }
-
-      capture?.release()
-      capture = null
+      teardown()
     }
   }, [active])
 

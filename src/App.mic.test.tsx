@@ -201,7 +201,7 @@ describe('listening for the player', () => {
     // would put a stretch with no note called in the middle of the test.
     window.localStorage.setItem('fretboard-count-in', 'false')
     vi.spyOn(Math, 'random').mockReturnValue(0.9)
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -219,7 +219,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -243,7 +243,7 @@ describe('listening for the player', () => {
   it('clears the reading through the count-in between rounds', async () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -262,7 +262,7 @@ describe('listening for the player', () => {
   })
 
   it('scores nothing anywhere while the setting is off', async () => {
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -278,7 +278,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -313,7 +313,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -336,7 +336,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -362,7 +362,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
@@ -377,7 +377,7 @@ describe('listening for the player', () => {
     window.localStorage.setItem('fretboard-mic-listen', 'true')
     window.localStorage.setItem('fretboard-note-pool', '3')
     window.localStorage.setItem('fretboard-count-in', 'false')
-    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+    installGetUserMedia(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
     render(<App />)
 
     await start()
