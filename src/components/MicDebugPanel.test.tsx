@@ -14,6 +14,7 @@ const INFO: MicDebugInfo = {
   frames: 41,
   detections: 3,
   lastRms: 0.01,
+  gateFloor: 0.001,
   lastClarity: 0.97,
   lastFrequency: 196.4,
   lastWithinCue: false,
@@ -46,7 +47,7 @@ describe('MicDebugPanel', () => {
     // browser ignored the raw-capture constraints.
     expect(panel).toHaveTextContent('ec on · ns off · agc ? · track 48000 Hz')
     expect(panel).toHaveTextContent('app ctx: 44100 Hz running · cap ctx: 48000 Hz interrupted (own)')
-    expect(panel).toHaveTextContent('level: -40.0 dB · frames: 41 · detections: 3')
+    expect(panel).toHaveTextContent('level: -40.0 dB · floor: -60.0 dB · frames: 41 · detections: 3')
     expect(panel).toHaveTextContent('196.4 Hz · clarity 0.97')
   })
 })

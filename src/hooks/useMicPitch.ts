@@ -9,7 +9,7 @@ import {
   type MicCaptureDiagnostics,
   type PcmFrame,
 } from '../lib/audio/mic'
-import { detectPitch, frequencyToPitch } from '../lib/audio/pitch'
+import { createSilenceGate, detectPitch, frequencyToPitch } from '../lib/audio/pitch'
 
 /** How often a frame is pulled off the analyser and run through the detector. */
 export const MIC_POLL_MS = 50
@@ -49,6 +49,8 @@ export type MicDebugInfo = MicCaptureDiagnostics & {
   detections: number
   /** RMS of the newest frame — the level the silence gate judges. */
   lastRms: number
+  /** The gate's current room-noise estimate — what `lastRms` is judged against. */
+  gateFloor: number
   lastClarity: number | null
   lastFrequency: number | null
   lastWithinCue: boolean
@@ -114,6 +116,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
     frames: 0,
     detections: 0,
     lastRms: 0,
+    gateFloor: 0,
     lastClarity: null as number | null,
     lastFrequency: null as number | null,
     lastWithinCue: false,
@@ -162,6 +165,8 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
     let cancelled = false
     let capture: MicCapture | null = null
     let pollId: number | undefined
+    // Fresh per capture: a new microphone is a new room to measure.
+    const gate = createSilenceGate()
 
     const poll = (frame: PcmFrame, sampleRate: number) => {
       if (capture === null) {
@@ -174,17 +179,22 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       capture.keepAlive()
 
       capture.readFrame(frame)
-      const detected = detectPitch(frame, sampleRate)
-      const audioTime = engineRef.current.getCurrentTime()
-
-      const debug = debugRef.current
       let sumOfSquares = 0
       for (let index = 0; index < frame.length; index += 1) {
         sumOfSquares += frame[index] * frame[index]
       }
+      const rms = Math.sqrt(sumOfSquares / frame.length)
 
+      // The cutoff is this capture's own, measured off its room rather than
+      // assumed: an iPhone's raw microphone runs so quiet that every absolute
+      // floor ever tried has eaten real playing.
+      const detected = detectPitch(frame, sampleRate, gate.observe(rms))
+      const audioTime = engineRef.current.getCurrentTime()
+
+      const debug = debugRef.current
       debug.frames += 1
-      debug.lastRms = Math.sqrt(sumOfSquares / frame.length)
+      debug.lastRms = rms
+      debug.gateFloor = gate.floor()
       debug.lastWithinCue = engineRef.current.isWithinCue(audioTime)
       if (detected !== null) {
         debug.detections += 1
@@ -258,6 +268,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         frames: 0,
         detections: 0,
         lastRms: 0,
+        gateFloor: 0,
         lastClarity: null,
         lastFrequency: null,
         lastWithinCue: false,
