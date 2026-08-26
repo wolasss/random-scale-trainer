@@ -32,12 +32,36 @@ export type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<Medi
  */
 export type PcmFrame = Float32Array<ArrayBuffer>
 
+/**
+ * What the capture can say about itself, for the on-device debug overlay: the
+ * settings the browser *actually applied* — on iOS the honest answer to
+ * whether the raw-capture constraints were honoured or quietly ignored — and
+ * the live state of both contexts.
+ */
+export type MicCaptureDiagnostics = {
+  trackSettings: MediaTrackSettings
+  appContextState: string
+  appContextRate: number
+  captureContextState: string
+  captureContextRate: number
+  /** Whether the analyser sits on a context of the capture's own. */
+  ownContext: boolean
+}
+
 /** A live microphone, reduced to what the detector loop needs. */
 export type MicCapture = {
   /** Samples-per-second of the frames `readFrame` fills. */
   sampleRate: number
   /** Fills `target` with the newest frame of samples. */
   readFrame(target: PcmFrame): void
+  /**
+   * Re-nudges any parked context. Called from the poll loop, because the
+   * statechange watcher has a blind spot: a context that *starts* parked and
+   * has its first resume() refused never fires a statechange to retry on.
+   */
+  keepAlive(): void
+  /** The live state of the plumbing — see MicCaptureDiagnostics. */
+  diagnostics(): MicCaptureDiagnostics
   /** Disconnects the nodes AND stops the tracks — the indicator must go dark. */
   release(): void
 }
@@ -125,21 +149,21 @@ const createCaptureContext = (): AudioContext | null => {
  * once the interruption has been delivered, so the context gets a nudge now
  * (the flip may have landed while the permission prompt was up) and on every
  * state change for as long as the watcher stands. A refusal means the
- * interruption is still in force; the statechange it ends with tries again.
- *
- * Returns the unwatch.
+ * interruption is still in force; the statechange it ends with tries again —
+ * and because a refusal with no state change fires no event at all, the
+ * returned nudge is also called from the capture's poll loop.
  */
-const watchAndResume = (context: AudioContext): (() => void) => {
-  const resumeIfParked = () => {
+const watchAndResume = (context: AudioContext): { nudge: () => void; unwatch: () => void } => {
+  const nudge = () => {
     const state = context.state as string
     if (state !== 'running' && state !== 'closed') {
       void context.resume().catch(() => undefined)
     }
   }
-  context.addEventListener('statechange', resumeIfParked)
-  resumeIfParked()
+  context.addEventListener('statechange', nudge)
+  nudge()
 
-  return () => context.removeEventListener('statechange', resumeIfParked)
+  return { nudge, unwatch: () => context.removeEventListener('statechange', nudge) }
 }
 
 /**
@@ -162,17 +186,31 @@ export const createMicCapture = (appContext: AudioContext, stream: MediaStream):
   analyser.smoothingTimeConstant = 0
   source.connect(analyser)
 
-  const unwatchers = [watchAndResume(appContext)]
+  const watchers = [watchAndResume(appContext)]
   if (own !== null) {
-    unwatchers.push(watchAndResume(own))
+    watchers.push(watchAndResume(own))
   }
 
   return {
     sampleRate: context.sampleRate,
     readFrame: (target) => analyser.getFloatTimeDomainData(target),
+    keepAlive: () => {
+      for (const watcher of watchers) {
+        watcher.nudge()
+      }
+    },
+    diagnostics: () => ({
+      trackSettings:
+        typeof stream.getAudioTracks === 'function' ? (stream.getAudioTracks()[0]?.getSettings() ?? {}) : {},
+      appContextState: appContext.state,
+      appContextRate: appContext.sampleRate,
+      captureContextState: context.state,
+      captureContextRate: context.sampleRate,
+      ownContext: own !== null,
+    }),
     release: () => {
-      for (const unwatch of unwatchers) {
-        unwatch()
+      for (const watcher of watchers) {
+        watcher.unwatch()
       }
 
       source.disconnect()

@@ -3248,6 +3248,24 @@ button.practice-history-cell {
   border-color: var(--primary);
 }
 
+/* The ?micdebug overlay: fixed over everything, unstyled by the skins, and
+   deliberately plain — it exists to be read off a screenshot. */
+.mic-debug-panel {
+  position: fixed;
+  top: max(env(safe-area-inset-top, 0px), 0.5rem);
+  left: 0.5rem;
+  right: 0.5rem;
+  z-index: 99;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #7fffbf;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
 /* Never applied on its own — reloading mid-session would kill the metronome. */
 .update-chip {
   position: fixed;

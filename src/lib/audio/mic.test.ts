@@ -9,8 +9,13 @@ import {
 } from './mic'
 
 const createFakeStream = () => {
-  const tracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
-  return { tracks, stream: { getTracks: () => tracks } as unknown as MediaStream }
+  const settings = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: 48000 }
+  const tracks = [{ stop: vi.fn(), getSettings: () => settings }, { stop: vi.fn(), getSettings: () => settings }]
+  return {
+    tracks,
+    settings,
+    stream: { getTracks: () => tracks, getAudioTracks: () => tracks } as unknown as MediaStream,
+  }
 }
 
 const createFakeContext = (state = 'running') => {
@@ -181,6 +186,31 @@ describe('createMicCapture', () => {
     changeState('closed')
 
     expect(raw.resume).not.toHaveBeenCalled()
+  })
+
+  it('re-nudges a context stuck parked without ever firing a statechange', () => {
+    const { context, raw } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    const capture = createMicCapture(context, stream)
+    // Parked silently: the state moved but no event fired — iOS refusing the
+    // first resume of a context created mid-session-flip looks exactly so.
+    raw.state = 'suspended'
+
+    capture.keepAlive()
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the applied track settings and both contexts', () => {
+    const { context, raw } = createFakeContext()
+    const { stream, settings } = createFakeStream()
+
+    const report = createMicCapture(context, stream).diagnostics()
+
+    expect(report.trackSettings).toEqual(settings)
+    expect(report.appContextRate).toBe(raw.sampleRate)
+    expect(report.captureContextState).toBe('running')
+    expect(report.ownContext).toBe(false)
   })
 
   it('stops watching the context once released', () => {
