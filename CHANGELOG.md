@@ -1,3 +1,10 @@
+## [1.28.2](https://github.com/wolasss/random-scale-trainer/compare/v1.28.1...v1.28.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **history:** surface the import error when a backup file cannot be read ([#196](https://github.com/wolasss/random-scale-trainer/issues/196)) ([4ce4e1f](https://github.com/wolasss/random-scale-trainer/commit/4ce4e1f343afca45b91361044ae314aa7167cd6e))
+
 ## [1.28.1](https://github.com/wolasss/random-scale-trainer/compare/v1.28.0...v1.28.1) (2026-08-26)
 
 
