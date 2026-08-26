@@ -140,7 +140,19 @@ export function PracticeHistoryView({
       return
     }
 
-    const parsed = parseBackup(await file.text())
+    // The picked file can still fail to read if it was moved, changed, or
+    // made unreadable in the gap between picking it and this await (Chromium
+    // surfaces that as NotReadableError) — without a guard here that rejection
+    // would escape as an unhandled promise rejection and leave no error on screen.
+    let contents: string
+    try {
+      contents = await file.text()
+    } catch {
+      setImportError(IMPORT_ERROR)
+      return
+    }
+
+    const parsed = parseBackup(contents)
     if (parsed === null) {
       setImportError(IMPORT_ERROR)
       return
