@@ -273,6 +273,74 @@ describe('usePracticeHistory', () => {
     expect(secOn(today())).toBe(30)
   })
 
+  /** What a second tab flushing behind this one's back leaves in the store. */
+  const foreignLog = (sec: number, notes = 0) => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.practiceLog,
+      JSON.stringify({ days: { [today()]: { sec, notes } } }),
+    )
+  }
+
+  it('folds its pending seconds onto whatever the store holds at flush time', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(6_000)
+    })
+
+    // The other tab flushed after this one read the store at mount.
+    foreignLog(50, 2)
+    pagehide()
+
+    expect(stored()?.days[today()]).toEqual({ sec: 56, notes: 2 })
+    // Not just written through — the card in front of the user shows the merge.
+    expect(result.current.history.days[today()]).toEqual({ sec: 56, notes: 2 })
+  })
+
+  it('keeps the seconds both tabs committed when they flush in turn', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(HISTORY_FLUSH_MS)
+    })
+
+    expect(secOn(today())).toBe(10)
+
+    // The other tab folded its own 15 seconds onto that same 10 and wrote back.
+    foreignLog(25)
+
+    act(() => {
+      result.current.trackElapsed(HISTORY_FLUSH_MS + 5_000)
+    })
+    pagehide()
+
+    expect(secOn(today())).toBe(30)
+  })
+
+  it('keeps the day it has counted when the read comes back blocked', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    act(() => {
+      result.current.trackElapsed(HISTORY_FLUSH_MS)
+    })
+
+    expect(secOn(today())).toBe(10)
+
+    const restore = withBlockedStorage()
+    try {
+      act(() => {
+        result.current.trackElapsed(HISTORY_FLUSH_MS * 2 + 1_000)
+      })
+
+      expect(result.current.persisted).toBe(false)
+      // A read that failed reads as an empty log; it must not reset the day to
+      // the seconds this flush happened to be carrying.
+      expect(result.current.history.days[today()]?.sec).toBe(21)
+    } finally {
+      restore()
+    }
+  })
+
   it('credits seconds banked after midnight to the new day', () => {
     vi.setSystemTime(new Date('2026-06-15T23:59:40'))
     const { result } = renderHook(() => usePracticeHistory())
