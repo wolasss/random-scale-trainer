@@ -9,11 +9,19 @@ import {
   requestMicStream,
 } from './mic'
 
+const FAKE_TRACK_SETTINGS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  sampleRate: 48000,
+}
+
 /** A track that remembers its 'ended' listeners, so a test can fire them. */
 const createFakeTrack = () => {
   const listeners = new Set<() => void>()
   return {
     stop: vi.fn(),
+    getSettings: () => FAKE_TRACK_SETTINGS,
     addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
     removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
     fireEnded: () => {
@@ -26,7 +34,11 @@ const createFakeTrack = () => {
 
 const createFakeStream = () => {
   const tracks = [createFakeTrack(), createFakeTrack()]
-  return { tracks, stream: { getTracks: () => tracks } as unknown as MediaStream }
+  return {
+    tracks,
+    settings: FAKE_TRACK_SETTINGS,
+    stream: { getTracks: () => tracks, getAudioTracks: () => tracks } as unknown as MediaStream,
+  }
 }
 
 const createFakeContext = (state = 'running') => {
@@ -41,8 +53,12 @@ const createFakeContext = (state = 'running') => {
   const listeners = new Set<() => void>()
   const context = {
     state,
+    sampleRate: 44100,
     resume: vi.fn(async () => {
       context.state = 'running'
+    }),
+    close: vi.fn(async () => {
+      context.state = 'closed'
     }),
     addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
     removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
@@ -195,6 +211,31 @@ describe('createMicCapture', () => {
     expect(raw.resume).not.toHaveBeenCalled()
   })
 
+  it('re-nudges a context stuck parked without ever firing a statechange', () => {
+    const { context, raw } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    const capture = createMicCapture(context, stream)
+    // Parked silently: the state moved but no event fired — iOS refusing the
+    // first resume of a context created mid-session-flip looks exactly so.
+    raw.state = 'suspended'
+
+    capture.keepAlive()
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the applied track settings and both contexts', () => {
+    const { context, raw } = createFakeContext()
+    const { stream, settings } = createFakeStream()
+
+    const report = createMicCapture(context, stream).diagnostics()
+
+    expect(report.trackSettings).toEqual(settings)
+    expect(report.appContextRate).toBe(raw.sampleRate)
+    expect(report.captureContextState).toBe('running')
+    expect(report.ownContext).toBe(false)
+  })
+
   it('stops watching the context once released', () => {
     const { context, raw, changeState } = createFakeContext()
     const { stream } = createFakeStream()
@@ -218,6 +259,95 @@ describe('createMicCapture', () => {
     for (const track of tracks) {
       expect(track.stop).toHaveBeenCalled()
     }
+  })
+})
+
+describe('createMicCapture with a context of its own', () => {
+  /**
+   * Stands in for a browser where `new AudioContext()` works — the fakes above
+   * cover the fallback, since jsdom has no constructor at all. The instance
+   * reuses the fake-context shape so the same assertions read off it.
+   */
+  const stubAudioContext = () => {
+    const created: ReturnType<typeof createFakeContext>[] = []
+    vi.stubGlobal(
+      'AudioContext',
+      function (this: unknown) {
+        const own = createFakeContext()
+        own.raw.sampleRate = 48000
+        created.push(own)
+        return own.context
+      },
+    )
+
+    return created
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('analyses on its own context, born under the record route', () => {
+    const created = stubAudioContext()
+    const { context: appContext, raw: appRaw } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    const capture = createMicCapture(appContext, stream)
+
+    expect(created).toHaveLength(1)
+    const own = created[0]
+    // The graph hangs off the capture's context; the app's is left alone.
+    expect(own.raw.createMediaStreamSource).toHaveBeenCalledWith(stream)
+    expect(appRaw.createMediaStreamSource).not.toHaveBeenCalled()
+    // ...and the detector must be told the rate the frames actually carry.
+    expect(capture.sampleRate).toBe(48000)
+  })
+
+  it('watches both contexts — the cues must survive the session flip too', () => {
+    const created = stubAudioContext()
+    const { context: appContext, raw: appRaw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(appContext, stream)
+
+    changeState('interrupted')
+    expect(appRaw.resume).toHaveBeenCalledTimes(1)
+
+    created[0].changeState('interrupted')
+    expect(created[0].raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes its own context on release and leaves the app’s open', () => {
+    const created = stubAudioContext()
+    const { context: appContext, raw: appRaw, changeState } = createFakeContext()
+    const { stream, tracks } = createFakeStream()
+
+    createMicCapture(appContext, stream).release()
+
+    expect(created[0].raw.close).toHaveBeenCalledTimes(1)
+    expect(appRaw.close).not.toHaveBeenCalled()
+    for (const track of tracks) {
+      expect(track.stop).toHaveBeenCalled()
+    }
+
+    // Released means unwatched, on both.
+    changeState('interrupted')
+    created[0].changeState('interrupted')
+    expect(appRaw.resume).not.toHaveBeenCalled()
+    expect(created[0].raw.resume).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the app’s context when the constructor throws', () => {
+    vi.stubGlobal('AudioContext', function () {
+      throw new Error('context limit')
+    })
+    const { context: appContext, raw: appRaw } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    const capture = createMicCapture(appContext, stream)
+
+    expect(appRaw.createMediaStreamSource).toHaveBeenCalledWith(stream)
+    expect(capture.sampleRate).toBe(44100)
   })
 })
 

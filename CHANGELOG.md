@@ -1,3 +1,30 @@
+## [1.28.1](https://github.com/wolasss/random-scale-trainer/compare/v1.28.0...v1.28.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **mic:** gate silence against the room the capture measures, not a constant ([#195](https://github.com/wolasss/random-scale-trainer/issues/195)) ([fca54e2](https://github.com/wolasss/random-scale-trainer/commit/fca54e2292d0b49c16b4b41790e02d8b0a670728))
+
+# [1.28.0](https://github.com/wolasss/random-scale-trainer/compare/v1.27.4...v1.28.0) (2026-08-26)
+
+
+### Features
+
+* **mic:** an on-device debug overlay, and a poll-loop resume retry ([#194](https://github.com/wolasss/random-scale-trainer/issues/194)) ([5b91137](https://github.com/wolasss/random-scale-trainer/commit/5b91137af452f96314117ca0d42932034bb804ec))
+
+## [1.27.4](https://github.com/wolasss/random-scale-trainer/compare/v1.27.3...v1.27.4) (2026-08-26)
+
+
+### Bug Fixes
+
+* **history:** commit the practice log onto freshly read storage so a second open tab cannot erase logged minutes ([#191](https://github.com/wolasss/random-scale-trainer/issues/191)) ([db77572](https://github.com/wolasss/random-scale-trainer/commit/db775721f7fb96b09c88c130c0a74fdbc60e5253))
+* **mic:** analyse on a capture-born context, and lower the silence floor ([#190](https://github.com/wolasss/random-scale-trainer/issues/190)) ([f67df32](https://github.com/wolasss/random-scale-trainer/commit/f67df329e93e69b4b7031da9fbd5de965b9e3b41))
+
+
+### Performance Improvements
+
+* **timer:** stop the 200 ms session tick from re-rendering the whole app ([#188](https://github.com/wolasss/random-scale-trainer/issues/188)) ([37c028a](https://github.com/wolasss/random-scale-trainer/commit/37c028a2e1b107cfc919b7c817fa299f561c83eb))
+
 ## [1.27.3](https://github.com/wolasss/random-scale-trainer/compare/v1.27.2...v1.27.3) (2026-08-25)
 
 

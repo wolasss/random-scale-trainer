@@ -22,8 +22,59 @@
 export const MIN_PITCH_HZ = 70
 export const MAX_PITCH_HZ = 1000
 
-/** Below this RMS the frame is room tone, and correlating it only finds noise. */
-export const SILENCE_RMS = 0.01
+/**
+ * The default silence cutoff, for a caller with no better idea of its input's
+ * level. It is only a default: absolute numbers here have already failed twice,
+ * because what "quiet" means depends entirely on the capture — an iPhone's raw
+ * microphone, with no automatic gain, put its *room* at −70 dB and a played
+ * note under −50 dB, beneath every absolute floor tried. A live capture should
+ * gate relative to its own measured room instead — see `createSilenceGate`.
+ * Noise rejection is not the cutoff's job at any level: room tone is
+ * aperiodic, and the clarity gate below is what turns it away.
+ */
+export const SILENCE_RMS = 0.003
+
+/**
+ * The gate's rock bottom, well under any real room's floor: frames down here
+ * are digital silence — a muted track, a parked context — and correlating
+ * quantisation noise would only invent notes out of it.
+ */
+export const SILENCE_RMS_MIN = 0.0001
+
+/** How far over the measured room a frame must stand to be worth analysing —
+ * ×2.5 is 8 dB, enough that room tone never clears its own bar, little enough
+ * that a raw capture's genuinely faint plucks still do. */
+export const SILENCE_ABOVE_FLOOR = 2.5
+
+/** How fast the room estimate drifts back up per frame after a quiet spell —
+ * 0.5% per 50 ms poll, so a held note lifts it by barely a quarter over its
+ * own two seconds, while one quiet frame between notes snaps it back down. */
+const FLOOR_DRIFT_PER_FRAME = 1.005
+
+/**
+ * A running estimate of the capture's own noise floor, fed every frame. The
+ * estimate falls instantly to the quietest thing it has seen and climbs back
+ * only by the slow drift, so silence between notes keeps it honest and a long
+ * sustain cannot talk it up into eating the next note.
+ */
+export type SilenceGate = {
+  /** Feeds one frame's RMS; returns the cutoff `detectPitch` should gate on. */
+  observe(rms: number): number
+  /** The current room estimate, for the debug overlay. */
+  floor(): number
+}
+
+export const createSilenceGate = (): SilenceGate => {
+  let floor = SILENCE_RMS_MIN
+
+  return {
+    observe: (rms) => {
+      floor = Math.min(Math.max(rms, SILENCE_RMS_MIN), floor * FLOOR_DRIFT_PER_FRAME)
+      return Math.max(SILENCE_RMS_MIN, floor * SILENCE_ABOVE_FLOOR)
+    },
+    floor: () => floor,
+  }
+}
 
 /**
  * How periodic a frame has to be before it is called a note. Deliberately
@@ -99,8 +150,12 @@ const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag
 /**
  * The pitch of one frame of samples, or null when there isn't one — silence,
  * noise, a chord, or anything else the gates above reject.
+ *
+ * `silenceRms` is the level below which the frame is not worth correlating; a
+ * live capture passes what its `SilenceGate` returned for this frame, anything
+ * else gets the absolute default.
  */
-export function detectPitch(frame: Float32Array, sampleRate: number): PitchReading | null {
+export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms: number = SILENCE_RMS): PitchReading | null {
   const size = frame.length
 
   // Running sum of squares: prefix[k] is the energy in frame[0..k-1]. One pass
@@ -113,7 +168,7 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
   }
 
   const total = prefix[size]
-  if (Math.sqrt(total / size) < SILENCE_RMS) {
+  if (Math.sqrt(total / size) < silenceRms) {
     return null
   }
 

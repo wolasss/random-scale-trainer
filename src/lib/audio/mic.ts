@@ -32,10 +32,36 @@ export type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<Medi
  */
 export type PcmFrame = Float32Array<ArrayBuffer>
 
-/** A live microphone, reduced to the two things the detector loop needs. */
+/**
+ * What the capture can say about itself, for the on-device debug overlay: the
+ * settings the browser *actually applied* — on iOS the honest answer to
+ * whether the raw-capture constraints were honoured or quietly ignored — and
+ * the live state of both contexts.
+ */
+export type MicCaptureDiagnostics = {
+  trackSettings: MediaTrackSettings
+  appContextState: string
+  appContextRate: number
+  captureContextState: string
+  captureContextRate: number
+  /** Whether the analyser sits on a context of the capture's own. */
+  ownContext: boolean
+}
+
+/** A live microphone, reduced to what the detector loop needs. */
 export type MicCapture = {
+  /** Samples-per-second of the frames `readFrame` fills. */
+  sampleRate: number
   /** Fills `target` with the newest frame of samples. */
   readFrame(target: PcmFrame): void
+  /**
+   * Re-nudges any parked context. Called from the poll loop, because the
+   * statechange watcher has a blind spot: a context that *starts* parked and
+   * has its first resume() refused never fires a statechange to retry on.
+   */
+  keepAlive(): void
+  /** The live state of the plumbing — see MicCaptureDiagnostics. */
+  diagnostics(): MicCaptureDiagnostics
   /** Disconnects the nodes AND stops the tracks — the indicator must go dark. */
   release(): void
 }
@@ -102,12 +128,77 @@ export const primeMicPermission = async (getUserMedia?: GetUserMedia): Promise<b
   }
 }
 
+type AudioContextWindow = Window & { webkitAudioContext?: typeof AudioContext }
+
 /**
- * Wires a stream into an analyser on the app's own AudioContext, so the frames
- * it hands out are timestamped on the same clock the beats are scheduled with.
- * Deliberately not connected to the destination: that is a feedback loop.
+ * A context of the capture's own, opened while the microphone session is live
+ * so it is born at the record route's native sample rate. Analysing off the
+ * app's existing context looks tidier — one context, one clock — but iOS moves
+ * the hardware rate when the microphone opens, and Safari's MediaStreamSource
+ * delivers silence into a context whose rate no longer matches the track's.
+ * The shared clock was never load-bearing here: frames carry no time of their
+ * own, and whoever polls them stamps them off the engine.
+ *
+ * Null where no context can be built — the app's own context is the fallback,
+ * and the only context a test environment has.
  */
-export const createMicCapture = (context: AudioContext, stream: MediaStream): MicCapture => {
+const createCaptureContext = (): AudioContext | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const AudioContextClass = window.AudioContext ?? (window as AudioContextWindow).webkitAudioContext
+  if (!AudioContextClass) {
+    return null
+  }
+
+  try {
+    return new AudioContextClass()
+  } catch {
+    // The browser's context limit; the fallback shares the app's instead.
+    return null
+  }
+}
+
+/**
+ * Opening the microphone is what flips iOS's audio session from playback over
+ * to play-and-record, and Safari answers that flip by parking a running
+ * context in a nonstandard 'interrupted' state — every cue silent and every
+ * frame here a row of zeros, on the very tap that granted the permission. A
+ * freshly created context can start parked the same way. Resuming is permitted
+ * once the interruption has been delivered, so the context gets a nudge now
+ * (the flip may have landed while the permission prompt was up) and on every
+ * state change for as long as the watcher stands. A refusal means the
+ * interruption is still in force; the statechange it ends with tries again —
+ * and because a refusal with no state change fires no event at all, the
+ * returned nudge is also called from the capture's poll loop.
+ */
+const watchAndResume = (context: AudioContext): { nudge: () => void; unwatch: () => void } => {
+  const nudge = () => {
+    const state = context.state as string
+    if (state !== 'running' && state !== 'closed') {
+      void context.resume().catch(() => undefined)
+    }
+  }
+  context.addEventListener('statechange', nudge)
+  nudge()
+
+  return { nudge, unwatch: () => context.removeEventListener('statechange', nudge) }
+}
+
+/**
+ * Wires a stream into an analyser. The analyser hangs off a context of the
+ * capture's own where one can be built — see `createCaptureContext` — and off
+ * the app's context otherwise. Deliberately not connected to the destination:
+ * that is a feedback loop.
+ *
+ * The app's context is watched either way: the session flip that opening the
+ * microphone causes is exactly what parks it, and it must keep sounding the
+ * cues while the capture is open.
+ */
+export const createMicCapture = (appContext: AudioContext, stream: MediaStream): MicCapture => {
+  const own = createCaptureContext()
+  const context = own ?? appContext
   const source = context.createMediaStreamSource(stream)
   const analyser = context.createAnalyser()
   analyser.fftSize = MIC_FRAME_SIZE
@@ -115,30 +206,40 @@ export const createMicCapture = (context: AudioContext, stream: MediaStream): Mi
   analyser.smoothingTimeConstant = 0
   source.connect(analyser)
 
-  // Opening the microphone is what flips iOS's audio session from playback
-  // over to play-and-record, and Safari answers that flip by parking the
-  // context in a nonstandard 'interrupted' state — every cue silent and every
-  // frame here a row of zeros, on the very tap that granted the permission.
-  // Resuming is permitted once the interruption has been delivered, so the
-  // context gets a nudge now (the flip may have landed while the permission
-  // prompt was up) and on every state change while the capture is open. A
-  // refusal means the interruption is still in force; the statechange it ends
-  // with tries again.
-  const resumeIfParked = () => {
-    const state = context.state as string
-    if (state !== 'running' && state !== 'closed') {
-      void context.resume().catch(() => undefined)
-    }
+  const watchers = [watchAndResume(appContext)]
+  if (own !== null) {
+    watchers.push(watchAndResume(own))
   }
-  context.addEventListener('statechange', resumeIfParked)
-  resumeIfParked()
 
   return {
+    sampleRate: context.sampleRate,
     readFrame: (target) => analyser.getFloatTimeDomainData(target),
+    keepAlive: () => {
+      for (const watcher of watchers) {
+        watcher.nudge()
+      }
+    },
+    diagnostics: () => ({
+      trackSettings:
+        typeof stream.getAudioTracks === 'function' ? (stream.getAudioTracks()[0]?.getSettings() ?? {}) : {},
+      appContextState: appContext.state,
+      appContextRate: appContext.sampleRate,
+      captureContextState: context.state,
+      captureContextRate: context.sampleRate,
+      ownContext: own !== null,
+    }),
     release: () => {
-      context.removeEventListener('statechange', resumeIfParked)
+      for (const watcher of watchers) {
+        watcher.unwatch()
+      }
+
       source.disconnect()
       analyser.disconnect()
+      // The capture's context dies with it; the app's goes on playing cues.
+      if (own !== null) {
+        void own.close().catch(() => undefined)
+      }
+
       releaseMicStream(stream)
     },
   }

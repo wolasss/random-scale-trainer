@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { CLARITY_THRESHOLD, detectPitch, frequencyToPitch } from './pitch'
+import {
+  CLARITY_THRESHOLD,
+  createSilenceGate,
+  detectPitch,
+  frequencyToPitch,
+  SILENCE_ABOVE_FLOOR,
+  SILENCE_RMS_MIN,
+} from './pitch'
 
 const SAMPLE_RATE = 44100
 const FRAME_SIZE = 2048
@@ -122,5 +129,78 @@ describe('frequencyToPitch', () => {
 
     expect(pitch.pitchClass).toBe(10)
     expect(pitch.cents).toBeCloseTo(-40, 1)
+  })
+})
+
+describe('createSilenceGate', () => {
+  // The measured reality this gate exists for: an iPhone's raw microphone put
+  // the room at −70 dB and a pluck under −50 dB — both below every absolute
+  // floor tried, yet 12 dB apart from each other.
+  const ROOM = 0.0003
+  const PLUCK = 0.0015
+
+  it('lets a faint pluck clear a fainter room', () => {
+    const gate = createSilenceGate()
+    // Long enough for the slow drift to settle on the room from below.
+    for (let frame = 0; frame < 400; frame += 1) {
+      gate.observe(ROOM)
+    }
+
+    const cutoff = gate.observe(PLUCK)
+    expect(cutoff).toBeLessThan(PLUCK)
+    // ...while the room itself never clears its own bar.
+    expect(cutoff).toBeGreaterThan(ROOM)
+  })
+
+  it('lets the first frame through — a capture must not open deaf', () => {
+    const gate = createSilenceGate()
+    expect(gate.observe(0.5)).toBeLessThan(0.5)
+  })
+
+  it('snaps the floor back down after one quiet frame', () => {
+    const gate = createSilenceGate()
+    // Sustained sound long enough to drift the floor well above the room...
+    for (let frame = 0; frame < 400; frame += 1) {
+      gate.observe(PLUCK)
+    }
+    expect(gate.floor()).toBeGreaterThan(ROOM)
+
+    // ...and one frame of the room between notes takes it straight back.
+    gate.observe(ROOM)
+    expect(gate.floor()).toBe(ROOM)
+  })
+
+  it('drifts up slowly enough that a held note cannot eat the next one', () => {
+    const gate = createSilenceGate()
+    // A settled room, then two seconds of sustained playing at the poll rate...
+    for (let frame = 0; frame < 400; frame += 1) {
+      gate.observe(ROOM)
+    }
+    let cutoff = 0
+    for (let frame = 0; frame < 40; frame += 1) {
+      cutoff = gate.observe(PLUCK)
+    }
+
+    // ...and the same pluck still clears the cutoff.
+    expect(cutoff).toBeLessThan(PLUCK)
+  })
+
+  it('never reports digital silence as a floor to stand on', () => {
+    const gate = createSilenceGate()
+    expect(gate.observe(0)).toBe(SILENCE_RMS_MIN * SILENCE_ABOVE_FLOOR)
+    expect(gate.floor()).toBe(SILENCE_RMS_MIN)
+  })
+})
+
+describe('detectPitch with a gate-supplied cutoff', () => {
+  it('hears a note an absolute floor would have eaten', () => {
+    // The iPhone pluck: −56 dB, clean. The default cutoff calls it silence;
+    // the cutoff a gate returns over a −70 dB room does not.
+    const faint = sine(196, 0.0022)
+
+    expect(detectPitch(faint, SAMPLE_RATE)).toBeNull()
+    const reading = detectPitch(faint, SAMPLE_RATE, 0.0003 * SILENCE_ABOVE_FLOOR)
+    expect(reading).not.toBeNull()
+    expect(reading!.frequency).toBeCloseTo(196, 0)
   })
 })
