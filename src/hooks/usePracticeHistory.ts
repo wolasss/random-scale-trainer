@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
-import { addPractice, dayKey, HISTORY_FLUSH_MS, readHistory, writeHistory, type PracticeHistory } from '../lib/history'
+import {
+  addPractice,
+  dayKey,
+  HISTORY_FLUSH_MS,
+  mergeHistories,
+  readHistory,
+  writeHistory,
+  type PracticeHistory,
+} from '../lib/history'
 
 /**
  * Reads a monotonic counter against its last value and returns how far it rose.
@@ -46,7 +54,14 @@ export function usePracticeHistory() {
     pendingMsRef.current -= sec * 1000
     pendingNotesRef.current = 0
 
-    const next = addPractice(historyRef.current, dayKey(new Date()), sec, notes)
+    // Onto what is in the store *now*, not onto the copy read at mount: the
+    // installed app and a browser tab can both be open, and folding this tab's
+    // seconds onto a baseline from an hour ago would write the other tab's
+    // minutes back out of existence. Only the pending rise is this tab's to add;
+    // everything else is whichever copy is further along. A blocked or empty read
+    // comes back empty, so the merge doubles as the in-memory fallback.
+    const baseline = mergeHistories(readHistory(), historyRef.current)
+    const next = addPractice(baseline, dayKey(new Date()), sec, notes)
     historyRef.current = next
     // In memory either way: a store that refuses the write is a reason to say
     // so, not a reason to stop counting the session in front of the user.
