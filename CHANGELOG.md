@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/wolasss/random-scale-trainer/compare/v1.27.4...v1.28.0) (2026-08-26)
+
+
+### Features
+
+* **mic:** an on-device debug overlay, and a poll-loop resume retry ([#194](https://github.com/wolasss/random-scale-trainer/issues/194)) ([5b91137](https://github.com/wolasss/random-scale-trainer/commit/5b91137af452f96314117ca0d42932034bb804ec))
+
 ## [1.27.4](https://github.com/wolasss/random-scale-trainer/compare/v1.27.3...v1.27.4) (2026-08-26)
 
 
