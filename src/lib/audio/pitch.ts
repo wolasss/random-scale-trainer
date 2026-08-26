@@ -22,8 +22,15 @@
 export const MIN_PITCH_HZ = 70
 export const MAX_PITCH_HZ = 1000
 
-/** Below this RMS the frame is room tone, and correlating it only finds noise. */
-export const SILENCE_RMS = 0.01
+/**
+ * Below this RMS the frame is treated as true silence and skipped. The floor
+ * sits low because the capture is raw: without automatic gain a phone's
+ * microphone puts a played note far below where a processed voice stream
+ * would, and a floor tuned to the latter reads real playing as nothing. Noise
+ * rejection is not this number's job — room tone at any level is aperiodic,
+ * and the clarity gate below is what turns it away.
+ */
+export const SILENCE_RMS = 0.003
 
 /**
  * How periodic a frame has to be before it is called a note. Deliberately

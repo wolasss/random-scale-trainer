@@ -186,7 +186,9 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
 
       capture = createMicCapture(context, stream)
       const frame = new Float32Array(MIC_FRAME_SIZE)
-      const { sampleRate } = context
+      // The capture's own rate, which is not always the app context's: on iOS
+      // the record route runs at its own one, and the analyser sits there.
+      const { sampleRate } = capture
       setStatus('listening')
       pollId = window.setInterval(() => poll(frame, sampleRate), MIC_POLL_MS)
     }
