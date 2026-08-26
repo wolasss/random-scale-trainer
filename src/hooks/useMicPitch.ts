@@ -6,6 +6,7 @@ import {
   releaseMicStream,
   requestMicStream,
   type MicCapture,
+  type MicCaptureDiagnostics,
   type PcmFrame,
 } from '../lib/audio/mic'
 import { detectPitch, frequencyToPitch } from '../lib/audio/pitch'
@@ -34,6 +35,24 @@ export type HeardPitch = {
 }
 
 export type HeardPitchListener = (heard: HeardPitch) => void
+
+/**
+ * Everything the ?micdebug overlay prints: the capture's own report plus what
+ * the detector has been seeing. Nothing here re-renders React — the overlay
+ * polls it on a clock of its own.
+ */
+export type MicDebugInfo = MicCaptureDiagnostics & {
+  sampleRate: number
+  /** Frames pulled since the capture opened. */
+  frames: number
+  /** Frames the detector called a note, cue-suppressed ones included. */
+  detections: number
+  /** RMS of the newest frame — the level the silence gate judges. */
+  lastRms: number
+  lastClarity: number | null
+  lastFrequency: number | null
+  lastWithinCue: boolean
+}
 
 /**
  * The slice of AudioEngine the microphone needs. Narrow on purpose: a fake in a
@@ -90,6 +109,31 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
   const listenersRef = useRef<Set<HeardPitchListener> | null>(null)
   listenersRef.current ??= new Set()
 
+  /** What the poll has seen lately; read only by `getDebugInfo`. */
+  const debugRef = useRef({
+    frames: 0,
+    detections: 0,
+    lastRms: 0,
+    lastClarity: null as number | null,
+    lastFrequency: null as number | null,
+    lastWithinCue: false,
+  })
+  const captureRef = useRef<{ capture: MicCapture; sampleRate: number } | null>(null)
+
+  /**
+   * A live report for the ?micdebug overlay, or null while no capture is open.
+   * Ref-backed on purpose: the overlay polls this on its own clock, and the
+   * twenty-times-a-second poll loop must not be re-rendering React.
+   */
+  const getDebugInfo = useCallback((): MicDebugInfo | null => {
+    const open = captureRef.current
+    if (open === null) {
+      return null
+    }
+
+    return { ...open.capture.diagnostics(), sampleRate: open.sampleRate, ...debugRef.current }
+  }, [])
+
   /** Stable, so a subscriber can bind once — this is what scoring hangs off. */
   const subscribe = useCallback((listener: HeardPitchListener) => {
     const listeners = listenersRef.current
@@ -124,9 +168,29 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         return
       }
 
+      // The statechange watchers cover a context that changes state; this
+      // covers one that stays parked with its first resume refused — iOS can
+      // do that to a context created while its audio session is mid-flip.
+      capture.keepAlive()
+
       capture.readFrame(frame)
       const detected = detectPitch(frame, sampleRate)
       const audioTime = engineRef.current.getCurrentTime()
+
+      const debug = debugRef.current
+      let sumOfSquares = 0
+      for (let index = 0; index < frame.length; index += 1) {
+        sumOfSquares += frame[index] * frame[index]
+      }
+
+      debug.frames += 1
+      debug.lastRms = Math.sqrt(sumOfSquares / frame.length)
+      debug.lastWithinCue = engineRef.current.isWithinCue(audioTime)
+      if (detected !== null) {
+        debug.detections += 1
+        debug.lastClarity = detected.clarity
+        debug.lastFrequency = detected.frequency
+      }
 
       // The app plays the called note out of the same speaker the microphone is
       // pointed at, so clarity alone can never tell the cue from the player.
@@ -189,6 +253,15 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       // The capture's own rate, which is not always the app context's: on iOS
       // the record route runs at its own one, and the analyser sits there.
       const { sampleRate } = capture
+      captureRef.current = { capture, sampleRate }
+      debugRef.current = {
+        frames: 0,
+        detections: 0,
+        lastRms: 0,
+        lastClarity: null,
+        lastFrequency: null,
+        lastWithinCue: false,
+      }
       setStatus('listening')
       pollId = window.setInterval(() => poll(frame, sampleRate), MIC_POLL_MS)
     }
@@ -201,6 +274,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         window.clearInterval(pollId)
       }
 
+      captureRef.current = null
       capture?.release()
       capture = null
     }
@@ -210,5 +284,5 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
   // the last call is gone in the same render that puts the new call on screen.
   const heard = callId !== null && reading?.callId === callId ? reading.heard : null
 
-  return { status, heard, subscribe }
+  return { status, heard, subscribe, getDebugInfo }
 }
