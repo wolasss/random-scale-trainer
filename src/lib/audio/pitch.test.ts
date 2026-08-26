@@ -67,6 +67,26 @@ describe('detectPitch', () => {
     expect(reading!.frequency).toBeLessThan(240)
   })
 
+  /**
+   * The other half of the same trap, at the top of the range: above ~750 Hz the
+   * fundamental's own first-period lobe is already positive at the shortest lag
+   * searched, so a detector that treats "positive at minLag" as leftover
+   * zero-lag lobe walks straight past the real peak and lands on the 2T
+   * subharmonic — an octave low.
+   */
+  it.each([
+    ['G5', 784],
+    ['the 24th fret B', 988],
+    ['just under the ceiling', 995],
+  ])('names a %s sine without dropping it an octave', (_label, frequency) => {
+    const reading = detectPitch(sine(frequency), SAMPLE_RATE)
+
+    expect(reading).not.toBeNull()
+    // Named first so a failure reads as the octave fold it is, not as a near miss.
+    expect(reading!.frequency).toBeGreaterThan(frequency * 0.75)
+    expect(reading!.frequency).toBeCloseTo(frequency, 0)
+  })
+
   it('hears nothing in silence', () => {
     expect(detectPitch(new Float32Array(FRAME_SIZE), SAMPLE_RATE)).toBeNull()
   })

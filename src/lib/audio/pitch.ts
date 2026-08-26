@@ -99,9 +99,12 @@ export type PitchReading = {
 
 /** Positive-region maxima, ascending by lag — one per lobe, not per wiggle. */
 const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): number[] => {
-  let lag = minLag
-  // The lobe around zero lag is the signal correlating with itself; whatever is
-  // left of it at minLag is not a period and has to be walked past first.
+  let lag = 1
+  // The lobe around zero lag is the signal correlating with itself, and it has
+  // to be walked past first — from lag 1 to where it actually ends, never from
+  // minLag. Above ~750 Hz the fundamental's own first-period lobe is already
+  // positive at minLag, so treating that as zero-lag remnant would walk right
+  // over the true peak and leave the 2T subharmonic as the tallest.
   while (lag <= maxLag && nsdf[lag] > 0) {
     lag += 1
   }
@@ -127,15 +130,23 @@ const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): numb
       lag += 1
     }
 
-    peaks.push(peak)
+    // A lobe peaking under minLag is a period shorter than the search floor:
+    // dropped so the ceiling still bounds what can be named, which is what
+    // keeps an out-of-range whistle reading as its in-range subharmonic.
+    if (peak >= minLag) {
+      peaks.push(peak)
+    }
   }
 
   return peaks
 }
 
 /** Sub-sample peak position from the three samples around it — worth ~4 cents. */
-const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag: number): number => {
-  if (lag <= minLag || lag >= maxLag) {
+const interpolatePeak = (nsdf: Float32Array, lag: number, maxLag: number): number => {
+  // Only that both neighbours exist — a peak sitting exactly on minLag is the
+  // top of the range, and refusing to interpolate there rounds it to a lag it
+  // never had, over the ceiling and rejected.
+  if (lag <= 1 || lag >= maxLag) {
     return lag
   }
 
@@ -181,7 +192,9 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
   }
 
   const nsdf = new Float32Array(maxLag + 1)
-  for (let lag = minLag; lag <= maxLag; lag += 1) {
+  // From lag 1, not from minLag: the lobe walk below needs the zero-lag lobe's
+  // real extent rather than a guess at where it has ended by minLag.
+  for (let lag = 1; lag <= maxLag; lag += 1) {
     let correlation = 0
     for (let index = 0; index < size - lag; index += 1) {
       correlation += frame[index] * frame[index + lag]
@@ -214,7 +227,7 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
     return null
   }
 
-  const frequency = sampleRate / interpolatePeak(nsdf, chosen, minLag, maxLag)
+  const frequency = sampleRate / interpolatePeak(nsdf, chosen, maxLag)
   if (!Number.isFinite(frequency) || frequency < MIN_PITCH_HZ || frequency > MAX_PITCH_HZ) {
     return null
   }
