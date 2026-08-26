@@ -36,14 +36,19 @@ export const micFrameSizeFor = (sampleRate: number): number => {
 }
 
 /**
- * Echo cancellation is on because the app is playing the very note it is
- * listening for, out of the same device's speaker. It is a second line of
- * defence, never the only one: the cue intervals the engine records are what
- * actually keep the app from hearing itself, since a phone on a table with no
- * echo canceller worth the name is a normal way to practise.
+ * Raw capture, with every voice-call nicety switched off. All three of these
+ * are built for speech, and an instrument is exactly what they are built to
+ * remove: the noise suppressor hears a decaying string as background hum and
+ * gates it, automatic gain pumps the level under the detector's RMS floor, and
+ * echo cancellation is what pulls iOS onto its voice-processing route — which
+ * also ducks the app's own cues, and in the home-screen app strips a pluck
+ * down to one stray frame where the scoring needs a sustained pair. The app
+ * hearing itself is not this constraint's job and never really was: the cue
+ * intervals the engine records are what keep the microphone deaf to the app's
+ * own voice, and they work the same over a raw stream.
  */
 export const MIC_CONSTRAINTS: MediaStreamConstraints = {
-  audio: { echoCancellation: true, noiseSuppression: true },
+  audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
 }
 
 export type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<MediaStream>
@@ -126,10 +131,29 @@ export const createMicCapture = (context: AudioContext, stream: MediaStream): Mi
   analyser.smoothingTimeConstant = 0
   source.connect(analyser)
 
+  // Opening the microphone is what flips iOS's audio session from playback
+  // over to play-and-record, and Safari answers that flip by parking the
+  // context in a nonstandard 'interrupted' state — every cue silent and every
+  // frame here a row of zeros, on the very tap that granted the permission.
+  // Resuming is permitted once the interruption has been delivered, so the
+  // context gets a nudge now (the flip may have landed while the permission
+  // prompt was up) and on every state change while the capture is open. A
+  // refusal means the interruption is still in force; the statechange it ends
+  // with tries again.
+  const resumeIfParked = () => {
+    const state = context.state as string
+    if (state !== 'running' && state !== 'closed') {
+      void context.resume().catch(() => undefined)
+    }
+  }
+  context.addEventListener('statechange', resumeIfParked)
+  resumeIfParked()
+
   return {
     frameSize,
     readFrame: (target) => analyser.getFloatTimeDomainData(target),
     release: () => {
+      context.removeEventListener('statechange', resumeIfParked)
       source.disconnect()
       analyser.disconnect()
       releaseMicStream(stream)

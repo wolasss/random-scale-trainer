@@ -85,6 +85,16 @@ const INACTIVE_SCORES: ScoreEntry[] = []
  */
 export const SCOREBOARD_REFRESH_MS = 20_000
 
+/**
+ * How long a rate-limited flush waits before trying again. A 429 is
+ * congestion, not a verdict on the run — the events are fine, the server just
+ * asked for a moment — so unlike every other refusal it must not cost the
+ * queue. The buckets it answers for refill on a minute window; a few seconds
+ * is late enough to matter against one and early enough that a run's points
+ * land while its player is still looking at the board.
+ */
+export const RATE_LIMIT_RETRY_MS = 5_000
+
 /** What each way of being locked out says on the strip. */
 const NOTICES: Record<Exclude<ScoreboardFailure, 'error'>, string> = {
   taken: 'That name’s taken on this board — try another?',
@@ -215,6 +225,10 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
   const sessionRef = useRef<{ id: string | null; startedAt: number; seq: number } | null>(null)
   /** The flush in flight, so a second caller joins it rather than racing it. */
   const drainRef = useRef<Promise<void> | null>(null)
+  /** The retry a rate-limited flush booked, so only ever one is pending. */
+  const retryRef = useRef<number | null>(null)
+  /** The current drain, for that retry to call — a timer outlives any closure. */
+  const drainSelfRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   // Every request is stamped with the number it was issued as, and only the
   // newest one is ever shown. Requests overlap in ordinary use — a poll under a
@@ -364,6 +378,19 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
       return drainRef.current
     }
 
+    // Says why nothing is moving, and books one retry. `drainSelfRef` rather
+    // than `drain` itself: by the time the timer fires this closure's render is
+    // long gone, and the retry belongs to whatever the flush is by then.
+    const backOff = () => {
+      setNotice(NOTICES['rate-limited'])
+      if (retryRef.current === null) {
+        retryRef.current = window.setTimeout(() => {
+          retryRef.current = null
+          void drainSelfRef.current()
+        }, RATE_LIMIT_RETRY_MS)
+      }
+    }
+
     const run = async () => {
       while (queueRef.current.length > 0) {
         const pending = sessionRef.current
@@ -381,9 +408,12 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
             fetchImpl: fetchRef.current,
           })
           if (opened.outcome !== 'ok') {
-            // As below: a blip keeps what is queued for the next attempt, and
-            // only a refusal the server actually made ends the session.
-            if (opened.outcome !== 'error') {
+            // As below: a blip keeps what is queued for the next attempt, a
+            // rate limit keeps it *and* books the retry itself, and only a
+            // refusal the server actually meant ends the session.
+            if (opened.outcome === 'rate-limited') {
+              backOff()
+            } else if (opened.outcome !== 'error') {
               surrender(opened.outcome)
             }
 
@@ -397,12 +427,17 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
         const issue = ++issuedRef.current
         const sent = await sendScoreEvents(name, pending.id, holder.token, batch, { fetchImpl: fetchRef.current })
         if (sent.outcome !== 'ok') {
-          // A network blip keeps the queue and tries again next time; anything
-          // the server actually refused ends the session. `rejected` is the
-          // important half of that: the batch failed rules that do not change,
-          // so retrying it would stall every event after it for ever. The
+          // A network blip keeps the queue and tries again next time, and a
+          // rate limit does the same with the retry already booked — the
+          // batch is fine, the server only asked for a moment, and a class
+          // arriving at once must not cost anybody their run. Anything else
+          // the server refused ends the session. `rejected` is the important
+          // half of that: the batch failed rules that do not change, so
+          // retrying it would stall every event after it for ever. The
           // session is abandoned instead and the next note opens a new one.
-          if (sent.outcome !== 'error') {
+          if (sent.outcome === 'rate-limited') {
+            backOff()
+          } else if (sent.outcome !== 'error') {
             surrender(sent.outcome)
           }
 
@@ -421,6 +456,22 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
 
     return drainRef.current
   }, [active, name, surrender])
+
+  useEffect(() => {
+    drainSelfRef.current = drain
+  }, [drain])
+
+  // A pending retry must not outlive the page it was booked on: after unmount
+  // it would flush into a tree that is gone.
+  useEffect(
+    () => () => {
+      if (retryRef.current !== null) {
+        window.clearTimeout(retryRef.current)
+        retryRef.current = null
+      }
+    },
+    [],
+  )
 
   const flushEvents = useCallback(() => {
     void drain()

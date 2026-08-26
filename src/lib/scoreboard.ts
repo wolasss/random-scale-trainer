@@ -23,6 +23,7 @@
  * worth saying and one useless one.
  */
 import type { BeatsPerNote } from '../constants'
+import { MAX_NICKNAME_LENGTH } from './challenge'
 import type { DifficultyInputs, PracticeMilestoneKind } from './scoring'
 
 export type ScoreEntry = {
@@ -35,6 +36,9 @@ export const SCOREBOARD_ENDPOINT = '/api/scoreboard'
 
 /** The most events one request may carry; mirrors the server's own cap. */
 export const MAX_EVENTS_PER_BATCH = 20
+
+/** The most rows a board may show; mirrors the server's own TOP_LIMIT. */
+export const MAX_BOARD_ENTRIES = 10
 
 export type ScoreboardRequestOptions = {
   signal?: AbortSignal
@@ -95,6 +99,8 @@ const endpointFor = (challenge: string) => `${SCOREBOARD_ENDPOINT}/${encodeURICo
 /**
  * Anything that isn't a well-formed entry is dropped rather than rendered: this
  * is the one place in the app where the data came from somebody else's browser.
+ * The list and each nickname are bounded to what the protocol allows, so a
+ * hostile board host cannot decide what the strip renders.
  */
 const parseScores = (payload: unknown): ScoreEntry[] | null => {
   if (payload === null || typeof payload !== 'object') {
@@ -106,17 +112,23 @@ const parseScores = (payload: unknown): ScoreEntry[] | null => {
     return null
   }
 
-  return scores.flatMap((entry): ScoreEntry[] => {
-    if (entry === null || typeof entry !== 'object') {
-      return []
-    }
+  return scores
+    .flatMap((entry): ScoreEntry[] => {
+      if (entry === null || typeof entry !== 'object') {
+        return []
+      }
 
-    const { nickname, points } = entry as { nickname?: unknown; points?: unknown }
+      const { nickname, points } = entry as { nickname?: unknown; points?: unknown }
 
-    return typeof nickname === 'string' && nickname !== '' && typeof points === 'number' && Number.isFinite(points)
-      ? [{ nickname, points }]
-      : []
-  })
+      return typeof nickname === 'string' &&
+        nickname !== '' &&
+        nickname.length <= MAX_NICKNAME_LENGTH &&
+        typeof points === 'number' &&
+        Number.isFinite(points)
+        ? [{ nickname, points }]
+        : []
+    })
+    .slice(0, MAX_BOARD_ENTRIES)
 }
 
 const readScores = async (response: Response): Promise<ScoreEntry[] | null> => {

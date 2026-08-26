@@ -319,9 +319,10 @@ describe('Routines', () => {
     fireEvent.click(screen.getByTestId('session-goal').querySelector('[data-value="5"]')!)
     fireEvent.click(document.getElementById('show-fretboard')!)
 
-    // Both settings really did change — the routine simply does not care.
+    // Both settings really did change — the routine simply does not care. The
+    // map defaults to hidden, so the toggle brings it out.
     expect(screen.getByTestId('session-goal').querySelector('[aria-checked="true"]')).toHaveTextContent('5 min')
-    expect(screen.queryByTestId('fretboard')).toBeNull()
+    expect(screen.getByTestId('fretboard')).toBeInTheDocument()
 
     expect(screen.queryByTestId('routine-empty')).toBeNull()
     expect(chip('seed-warmup-naturals').className).toContain('selected')

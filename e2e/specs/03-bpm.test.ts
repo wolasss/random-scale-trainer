@@ -3,6 +3,10 @@ import assert from 'node:assert/strict'
 import { STORAGE_KEYS } from '../pages/trainer.page.ts'
 import { useTrainerSession } from '../session.ts'
 
+// Exact values from src/lib/tapTempo.ts — update here if they change.
+const TAP_RESET_MS = 2500
+const MIN_TAP_INTERVAL_MS = 100
+
 describe('BPM slider', () => {
   const page = useTrainerSession()
 
@@ -44,11 +48,27 @@ describe('BPM slider', () => {
   })
 
   it('tap tempo averages the tapped interval into the BPM', async () => {
-    // ~300ms taps → nominally 200 BPM; WebDriver click latency skews slow,
-    // so assert a generous band rather than an exact value.
-    await page().tapTempo(5, 300)
+    const taps = await page().tapTempo(5, 300)
+    assert.equal(taps.length, 5)
+
+    const gaps = taps.slice(1).map((time, index) => time - taps[index])
+    for (const gap of gaps) {
+      assert.ok(
+        gap >= MIN_TAP_INTERVAL_MS && gap <= TAP_RESET_MS,
+        `tap gap of ${gap}ms falls outside [${MIN_TAP_INTERVAL_MS}, ${TAP_RESET_MS}]ms — the app would have ` +
+          `${gap < MIN_TAP_INTERVAL_MS ? 'dropped this tap as a double-fire' : 'reset the tap buffer on this gap'}`,
+      )
+    }
+
+    const meanGapMs = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length
+    const expectedBpm = Math.min(240, Math.max(30, Math.round(60000 / meanGapMs)))
     const bpm = await page().getBpm()
-    assert.ok(bpm >= 120 && bpm <= 240, `expected tapped BPM in 120-240, got ${bpm}`)
+    // ±2 covers rounding plus the sub-ms gap between the capture listener and
+    // React's onClick firing within the same dispatch.
+    assert.ok(
+      Math.abs(bpm - expectedBpm) <= 2,
+      `expected BPM near ${expectedBpm} (mean gap ${meanGapMs.toFixed(1)}ms), got ${bpm}`,
+    )
   })
 
   it('persists the chosen BPM across a reload', async () => {

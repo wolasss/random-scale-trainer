@@ -34,7 +34,7 @@ import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
-import { InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
+import { AndroidInstallHint, InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
 import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
 import { FretboardCard } from './components/FretboardCard'
@@ -519,6 +519,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
+      hasPendingPractice={practiceHistory.hasPending}
     />
   )
 
@@ -726,6 +727,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}
+        {installPrompt.showAndroidHint ? <AndroidInstallHint onDismiss={installPrompt.dismissAndroidHint} /> : null}
 
         {/* The practice stage: everything you look at with the guitar in your
             hands, in one full-width card. The neck sits beside the note rather

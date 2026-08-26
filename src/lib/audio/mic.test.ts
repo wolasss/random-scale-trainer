@@ -13,7 +13,7 @@ const createFakeStream = () => {
   return { tracks, stream: { getTracks: () => tracks } as unknown as MediaStream }
 }
 
-const createFakeContext = (sampleRate = 44100) => {
+const createFakeContext = (state = 'running', sampleRate = 44100) => {
   const source = { connect: vi.fn(), disconnect: vi.fn() }
   const analyser = {
     fftSize: 0,
@@ -22,14 +22,28 @@ const createFakeContext = (sampleRate = 44100) => {
     connect: vi.fn(),
     disconnect: vi.fn(),
   }
+  const listeners = new Set<() => void>()
   const context = {
+    state,
     sampleRate,
+    resume: vi.fn(async () => {
+      context.state = 'running'
+    }),
+    addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
     createMediaStreamSource: vi.fn(() => source),
     createAnalyser: vi.fn(() => analyser),
     destination: {},
   }
+  /** What a browser does when the context's state flips: set it, then notify. */
+  const changeState = (next: string) => {
+    context.state = next
+    for (const listener of [...listeners]) {
+      listener()
+    }
+  }
 
-  return { context: context as unknown as AudioContext, source, analyser, raw: context }
+  return { context: context as unknown as AudioContext, source, analyser, raw: context, changeState }
 }
 
 afterEach(() => {
@@ -52,13 +66,13 @@ describe('isMicSupported', () => {
 })
 
 describe('requestMicStream', () => {
-  it('asks for audio with the speaker bleed turned down', async () => {
+  it('asks for raw audio, with every voice-call nicety switched off', async () => {
     const { stream } = createFakeStream()
     const getUserMedia = vi.fn(async () => stream)
 
     await expect(requestMicStream(getUserMedia)).resolves.toBe(stream)
     expect(getUserMedia).toHaveBeenCalledWith({
-      audio: { echoCancellation: true, noiseSuppression: true },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     })
   })
 
@@ -131,7 +145,7 @@ describe('createMicCapture', () => {
    * the 6th string as silence.
    */
   it('lengthens the frame for a context that runs fast', () => {
-    const { context, analyser } = createFakeContext(96000)
+    const { context, analyser } = createFakeContext('running', 96000)
     const { stream } = createFakeStream()
 
     const capture = createMicCapture(context, stream)
@@ -149,6 +163,48 @@ describe('createMicCapture', () => {
 
     expect(analyser.connect).not.toHaveBeenCalled()
     expect(raw.destination).toBeDefined()
+  })
+
+  it('resumes a context that iOS interrupted while the permission prompt was up', () => {
+    // Safari's nonstandard state for an audio-session change — the very thing
+    // opening the microphone causes on iOS.
+    const { context, raw } = createFakeContext('interrupted')
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a running context alone but answers a later interruption', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+    expect(raw.resume).not.toHaveBeenCalled()
+
+    changeState('interrupted')
+    expect(raw.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('never tries to resume a closed context — resume() cannot help it', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream)
+    changeState('closed')
+
+    expect(raw.resume).not.toHaveBeenCalled()
+  })
+
+  it('stops watching the context once released', () => {
+    const { context, raw, changeState } = createFakeContext()
+    const { stream } = createFakeStream()
+
+    createMicCapture(context, stream).release()
+    changeState('interrupted')
+
+    expect(raw.resume).not.toHaveBeenCalled()
   })
 
   it('stops the tracks on release, not just the nodes', () => {

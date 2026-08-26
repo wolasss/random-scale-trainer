@@ -38,7 +38,7 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         label="Listen for my playing"
         subtitle={
           micSupported
-            ? 'Hear what you play through the mic, live on the stage.'
+            ? 'The mic verifies each note you play, with instant feedback.'
             : 'This browser has no microphone to listen with.'
         }
         checked={settings.micEnabled && micSupported}

@@ -28,6 +28,11 @@ vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
     context = {
       sampleRate: 44100,
+      // The capture watches this for the state iOS parks a context in.
+      state: 'running',
+      async resume() {},
+      addEventListener() {},
+      removeEventListener() {},
       createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
       createAnalyser: () => ({
         fftSize: 0,

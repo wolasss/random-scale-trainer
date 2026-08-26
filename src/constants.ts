@@ -145,6 +145,10 @@ export const STORAGE_KEYS = {
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.
   iosInstallHint: 'fretboard-ios-install-hint',
+  // Same contract as the iOS hint, for the Android browsers that never fire an
+  // install event — the two are dismissed separately only because nobody is
+  // ever shown both.
+  androidInstallHint: 'fretboard-android-install-hint',
 } as const
 
 /**

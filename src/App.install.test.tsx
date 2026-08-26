@@ -37,6 +37,7 @@ const setUserAgent = (userAgent: string) => {
 }
 
 const SAFARI_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1'
+const FIREFOX_ANDROID = 'Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0'
 
 /** Stands in for navigator.serviceWorker, which jsdom does not implement. */
 const installContainer = (initiallyControlled: boolean) => {
@@ -117,6 +118,32 @@ describe('the iOS install hint', () => {
     expect(screen.queryByTestId('install-button')).toBeNull()
   })
 
+  it('keeps Share as plain words where the browser cannot share from script', () => {
+    // jsdom has no navigator.share, which stands in for any such browser: the
+    // printed route through the toolbar is all the hint has to offer there.
+    render(<App />)
+
+    expect(screen.queryByTestId('ios-share-button')).toBeNull()
+    expect(screen.getByTestId('ios-install-hint')).toHaveTextContent('Share → Add to Home Screen')
+  })
+
+  it('opens the share sheet on this page when Share is tapped', () => {
+    const share = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share })
+    try {
+      render(<App />)
+
+      fireEvent.click(screen.getByTestId('ios-share-button'))
+
+      expect(share).toHaveBeenCalledWith({ title: document.title, url: window.location.href })
+      // Sharing is a step of the instructions, not a way of finishing with
+      // them — the hint stays for the tap the sheet asks for next.
+      expect(screen.getByTestId('ios-install-hint')).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(navigator, 'share')
+    }
+  })
+
   it('is not shown anywhere else', () => {
     Reflect.deleteProperty(navigator, 'userAgent')
     render(<App />)
@@ -136,6 +163,48 @@ describe('the iOS install hint', () => {
     render(<App />)
 
     expect(screen.queryByTestId('ios-install-hint')).toBeNull()
+  })
+})
+
+describe('the Android install hint', () => {
+  beforeEach(() => {
+    setUserAgent(FIREFOX_ANDROID)
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'userAgent')
+    Reflect.deleteProperty(window, 'onbeforeinstallprompt')
+  })
+
+  it('points at the browser menu where no install event will ever fire', () => {
+    // jsdom has no onbeforeinstallprompt, exactly like Firefox on Android.
+    render(<App />)
+
+    expect(screen.getByTestId('android-install-hint')).toBeInTheDocument()
+    expect(screen.getByTestId('android-install-hint')).toHaveTextContent('browser menu → Add to Home screen')
+    expect(screen.queryByTestId('ios-install-hint')).toBeNull()
+  })
+
+  it('stays away in a browser that implements the install event', () => {
+    // Chromium exposes the handler property from the first moment, well before
+    // any event fires — the hint must not flash up while the real one loads.
+    Object.defineProperty(window, 'onbeforeinstallprompt', { configurable: true, value: null })
+    render(<App />)
+
+    expect(screen.queryByTestId('android-install-hint')).toBeNull()
+  })
+
+  it('stays gone once it has been dismissed', () => {
+    const { unmount } = render(<App />)
+
+    fireEvent.click(screen.getByLabelText('Dismiss install hint'))
+    expect(screen.queryByTestId('android-install-hint')).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEYS.androidInstallHint)).toBe('dismissed')
+
+    unmount()
+    render(<App />)
+
+    expect(screen.queryByTestId('android-install-hint')).toBeNull()
   })
 })
 

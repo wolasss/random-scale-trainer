@@ -36,8 +36,16 @@ export const createFakeMicContext = (frequency: number, sampleRate = FAKE_SAMPLE
     disconnect: vi.fn(),
   }
 
+  const listeners = new Set<() => void>()
   const context = {
     sampleRate,
+    // A capture watches the context for the 'interrupted' state iOS parks it in.
+    state: 'running',
+    resume: vi.fn(async () => {
+      context.state = 'running'
+    }),
+    addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
     createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
     createAnalyser: vi.fn(() => analyser),
   }

@@ -22,7 +22,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # /docker-entrypoint.d/ before the CMD below, so the run contract is unchanged:
 # still `docker run -p 8080:80`, still one process to stop. Modules are listed
 # one by one so the image ships no test sources.
-COPY src/server/http.js src/server/main.js src/server/scoreboard.js src/server/session-scoring.js /opt/callnote/server/
+COPY src/server/bug-report.js src/server/http.js src/server/main.js src/server/scoreboard.js src/server/session-scoring.js /opt/callnote/server/
 COPY docker/50-scoreboard.sh /docker-entrypoint.d/50-scoreboard.sh
 RUN chmod +x /docker-entrypoint.d/50-scoreboard.sh && mkdir -p /var/lib/callnote
 
