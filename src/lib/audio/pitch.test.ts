@@ -20,6 +20,14 @@ const sine = (frequency: number, amplitude = 0.5) =>
 const sawtooth = (frequency: number, amplitude = 0.4) =>
   fill((index) => amplitude * (2 * (((index * frequency) / SAMPLE_RATE) % 1) - 1))
 
+/** A note with one partial loud enough to pass for a note of its own. */
+const withPartial = (fundamental: number, partial: number, amplitude = 0.5) =>
+  fill(
+    (index) =>
+      amplitude * Math.sin((2 * Math.PI * fundamental * index) / SAMPLE_RATE) +
+      amplitude * Math.sin((2 * Math.PI * partial * index) / SAMPLE_RATE),
+  )
+
 /** Seeded so the "noise is not a note" case can never flake. */
 const mulberry32 = (seed: number) => () => {
   seed = (seed + 0x6d2b79f5) | 0
@@ -85,6 +93,24 @@ describe('detectPitch', () => {
     // Named first so a failure reads as the octave fold it is, not as a near miss.
     expect(reading!.frequency).toBeGreaterThan(frequency * 0.75)
     expect(reading!.frequency).toBeCloseTo(frequency, 0)
+  })
+
+  /**
+   * The same trap read the other way round: a low note whose upper partial
+   * lands above 750 Hz scores nearly as high at that partial's short lag, and
+   * the shortest-tied rule would hand the reading to it — a G2 called as a B5.
+   * The partial's score is the giveaway: it has decayed by twice the lag, where
+   * a real period's has not.
+   */
+  it.each([
+    ['G2', 98, 980],
+    ['D3', 147, 882],
+  ])('follows a %s under a partial loud enough to pass for a note', (_label, fundamental, partial) => {
+    const reading = detectPitch(withPartial(fundamental, partial), SAMPLE_RATE)
+
+    expect(reading).not.toBeNull()
+    expect(reading!.frequency).toBeLessThan(fundamental * 1.5)
+    expect(reading!.frequency).toBeCloseTo(fundamental, 0)
   })
 
   it('hears nothing in silence', () => {
