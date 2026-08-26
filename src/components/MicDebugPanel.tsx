@@ -50,7 +50,8 @@ export function MicDebugPanel({ status, getDebugInfo }: MicDebugPanelProps) {
             {info.ownContext ? ' (own)' : ' (shared)'}
           </div>
           <div>
-            level: {formatDb(info.lastRms)} · frames: {info.frames} · detections: {info.detections}
+            level: {formatDb(info.lastRms)} · floor: {formatDb(info.gateFloor)} · frames: {info.frames} · detections:{' '}
+            {info.detections}
             {info.lastWithinCue ? ' · in cue' : ''}
           </div>
           <div>
