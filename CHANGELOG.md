@@ -1,3 +1,10 @@
+## [1.28.1](https://github.com/wolasss/random-scale-trainer/compare/v1.28.0...v1.28.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **mic:** gate silence against the room the capture measures, not a constant ([#195](https://github.com/wolasss/random-scale-trainer/issues/195)) ([fca54e2](https://github.com/wolasss/random-scale-trainer/commit/fca54e2292d0b49c16b4b41790e02d8b0a670728))
+
 # [1.28.0](https://github.com/wolasss/random-scale-trainer/compare/v1.27.4...v1.28.0) (2026-08-26)
 
 
