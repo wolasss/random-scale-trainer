@@ -208,7 +208,7 @@ describe('practice log', () => {
 
   it('banks the seconds in flight before writing a backup out', async () => {
     render(<App />)
-    // Under one flush interval, so the pending seconds are still only in memory.
+    // Under one flush interval, so nothing is committed yet — only pending refs.
     await practiceFor(6_000)
     expect(stored()).toBeNull()
 
@@ -227,7 +227,10 @@ describe('practice log', () => {
 
     try {
       fireEvent.click(screen.getByTestId('practice-log-history'))
-      fireEvent.click(screen.getByTestId('history-export'))
+      const exportButton = screen.getByTestId('history-export')
+      // Nothing is on the board yet, but a session is running — Export stays live.
+      expect(exportButton).not.toBeDisabled()
+      fireEvent.click(exportButton)
 
       expect(blobs).toHaveLength(1)
       // A backup taken mid-session has to include the session taking it.

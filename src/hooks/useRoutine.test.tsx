@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
 import { matchPreset } from '../lib/presets'
@@ -49,7 +49,18 @@ const WORKOUT: Routine = {
 /** The routine against a live settings reducer, so applied blocks really land. */
 const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPlaying = true) => {
   const [settings, dispatch] = useReducer(settingsReducer, null, baseSettings)
-  const routine = useRoutine({ settings, dispatch, sessionElapsedMs, isPlaying, onFinish })
+  const sessionElapsedMsRef = useRef(sessionElapsedMs)
+  useEffect(() => {
+    sessionElapsedMsRef.current = sessionElapsedMs
+  })
+  const routine = useRoutine({
+    settings,
+    dispatch,
+    sessionElapsedMs,
+    getSessionElapsedMs: () => sessionElapsedMsRef.current,
+    isPlaying,
+    onFinish,
+  })
 
   return { settings, dispatch, routine }
 }
@@ -123,8 +134,20 @@ const renderClock = () => {
   const dispatch = vi.fn<(action: SettingsAction) => void>()
   const onFinish = vi.fn()
   const view = renderHook(
-    ({ sessionElapsedMs }) =>
-      useRoutine({ settings: STATIC_SETTINGS, dispatch, sessionElapsedMs, isPlaying: true, onFinish }),
+    ({ sessionElapsedMs }) => {
+      const sessionElapsedMsRef = useRef(sessionElapsedMs)
+      useEffect(() => {
+        sessionElapsedMsRef.current = sessionElapsedMs
+      })
+      return useRoutine({
+        settings: STATIC_SETTINGS,
+        dispatch,
+        sessionElapsedMs,
+        getSessionElapsedMs: () => sessionElapsedMsRef.current,
+        isPlaying: true,
+        onFinish,
+      })
+    },
     { initialProps: { sessionElapsedMs: 0 } },
   )
 
@@ -516,8 +539,20 @@ describe('setBlockDuration', () => {
 
     const onFinish = vi.fn()
     const view = renderHook(
-      ({ sessionElapsedMs }) =>
-        useRoutine({ settings: STATIC_SETTINGS, dispatch: vi.fn(), sessionElapsedMs, isPlaying: true, onFinish }),
+      ({ sessionElapsedMs }) => {
+        const sessionElapsedMsRef = useRef(sessionElapsedMs)
+        useEffect(() => {
+          sessionElapsedMsRef.current = sessionElapsedMs
+        })
+        return useRoutine({
+          settings: STATIC_SETTINGS,
+          dispatch: vi.fn(),
+          sessionElapsedMs,
+          getSessionElapsedMs: () => sessionElapsedMsRef.current,
+          isPlaying: true,
+          onFinish,
+        })
+      },
       { initialProps: { sessionElapsedMs: 0 } },
     )
 

@@ -546,10 +546,12 @@ h2 {
 
 /* A watermark of the real note: same slot and family, the muted foreground
    instead of the accent, no glow. It breathes — never the note-pop, never the
-   beat ring, so idle can't be mistaken for a running session. */
+   beat ring, so idle can't be mistaken for a running session. Runs smaller
+   than .hero-note: the caption and gap stacked above it must still clear the
+   220px line box, or "ready" sits flush against the readout's edge. */
 .hero-ghost-note {
   font-family: var(--font-display);
-  font-size: clamp(120px, 18vw, 200px);
+  font-size: clamp(104px, 16vw, 172px);
   font-weight: 700;
   line-height: 1;
   color: var(--ink-soft);
@@ -1986,6 +1988,99 @@ input[type='range'] {
   margin-top: 0.4rem;
 }
 
+/* --- Report a bug -------------------------------------------------------- */
+
+/* The same furniture as the nickname prompt — a question in the middle of the
+   screen — with room for a textarea and the captcha widget under it. */
+.bug-report {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(30rem, 100%);
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-y: auto;
+  padding: 1.3rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--bg-mid);
+  box-shadow: var(--shadow);
+}
+
+.bug-report-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.bug-report-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.bug-report-error {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.bug-report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.bug-report-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.bug-report-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--button-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+/* Vertical only: the widget and the buttons below it have nowhere to go if a
+   drag makes the field wider than the dialog. */
+.bug-report-textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Cloudflare sizes its own iframe; this is only here to keep the layout from
+   jumping when it arrives, and to let it shrink on a narrow phone. */
+.bug-report-captcha {
+  min-height: 65px;
+  margin-top: 0.3rem;
+}
+
+.bug-report-captcha iframe {
+  max-width: 100%;
+}
+
+.bug-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
 /* --- Routine ------------------------------------------------------------- */
 
 /* The strip rides the hero's lower edge, just above the transport row, so a
@@ -2894,6 +2989,15 @@ button.practice-history-cell {
   opacity: 1;
 }
 
+/* "Report a bug" opens a dialog rather than a page, so it is a button — this
+   is only what it takes for a button to sit in a row of anchors unnoticed. */
+.bug-report-button {
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
 .heart-icon {
   color: #ff6a7a;
 }
@@ -2951,18 +3055,27 @@ button.practice-history-cell {
    tracks, so the readout drops to its own line rather than pulling the pair off
    centre and squeezing the play button. */
 @media (max-width: 767px) {
-  .transport-bar {
+  /* The zeroed variant carries two classes, so it must be named here too — a
+     bare .transport-bar override loses to it and the idle bar keeps the
+     desktop's three tracks, wedging the start button into the left one. */
+  .transport-bar,
+  .transport-bar.zeroed {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 0.7rem;
   }
 
-  /* The buttons keep a row of their own above it. */
+  /* The buttons keep a stack of their own above it, one width between them:
+     wrapping left each at its text's width, and a reset narrower than the play
+     button over it read as a different kind of control rather than a lesser
+     one. Stretching a column is what makes them equal by construction — the
+     cap keeps a near-768px viewport from inflating them to banner width. */
   .transport-actions {
     display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.9rem;
+    width: min(100%, 340px);
   }
 
   .transport-actions,
@@ -3138,6 +3251,25 @@ button.practice-history-cell {
   color: var(--ink);
 }
 
+/* The Share step as a live button: the emphasised word it stands in for, with
+   an underline to say it can be tapped. */
+.hint-share {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 140ms var(--ease-out);
+}
+
+.hint-share:hover {
+  color: var(--primary);
+}
+
 .hint-dismiss {
   flex: none;
   width: 28px;
@@ -3174,6 +3306,24 @@ button.practice-history-cell {
     left: -4px;
     right: -14px;
   }
+}
+
+/* The ?micdebug overlay: fixed over everything, unstyled by the skins, and
+   deliberately plain — it exists to be read off a screenshot. */
+.mic-debug-panel {
+  position: fixed;
+  top: max(env(safe-area-inset-top, 0px), 0.5rem);
+  left: 0.5rem;
+  right: 0.5rem;
+  z-index: 99;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #7fffbf;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
 }
 
 /* Never applied on its own — reloading mid-session would kill the metronome. */
@@ -3285,6 +3435,10 @@ button.practice-history-cell {
   grid-area: mic;
   margin-top: 0;
   border-top: 0;
+  /* The stand's grid has no row gap, and dropping the browser margin above
+     left nothing below either — without this the line sits flush on the
+     transport. Mirrors the padding-top the base rule already gives it. */
+  padding-bottom: 0.75rem;
 }
 
 .stage > .scoreboard {
@@ -3328,9 +3482,11 @@ button.practice-history-cell {
 }
 
 /* On the stand the ghost fills the note's room and the caption stays a label —
-   the stage .hero-ready blow-up above must not win over the caption size. */
+   the stage .hero-ready blow-up above must not win over the caption size. A
+   step under .hero-note's 38vh: the caption and gap above the ghost must fit
+   inside the 40vh note line too. */
 :root[data-stage] .hero-ghost-note {
-  font-size: min(38vh, 46vw);
+  font-size: min(34vh, 46vw);
 }
 
 :root[data-stage] .hero-ready-caption {
@@ -3489,6 +3645,18 @@ button.practice-history-cell {
 :root[data-stage] .beat-dot {
   width: 12px;
   height: 12px;
+}
+
+/* The 15px labels above cost the summary tiles their third column: three
+   abreast on a phone wraps every caption and strands the fourth tile alone on
+   the next row. Two abreast keeps each caption to a line, and an odd tile out
+   takes the whole row rather than hanging half of one. */
+:root[data-stage] .mic-readout-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:root[data-stage] .mic-readout-stats .session-stat:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 /* --- the practice-setup sheet -------------------------------------------- */

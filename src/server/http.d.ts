@@ -4,6 +4,7 @@
  * integration test imports it from TypeScript.
  */
 import type { Server } from 'node:http'
+import type { BugReportHandler } from './bug-report.js'
 import type { ScoreStore } from './scoreboard.js'
 
 export type ScoreboardServerOptions = {
@@ -12,6 +13,8 @@ export type ScoreboardServerOptions = {
   dataPath?: string
   /** Injectable clock, so a test can age a session out without waiting. */
   now?: () => number
+  /** The bug-report route, if this deployment has one; null leaves /api/bug-report a 404. */
+  bugReport?: BugReportHandler | null
 }
 
 export declare const MAX_BODY_BYTES: number

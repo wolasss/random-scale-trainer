@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
+import { MAX_NICKNAME_LENGTH } from './challenge'
 import {
   claimNickname,
   fetchTopScores,
   finishScoringSession,
+  MAX_BOARD_ENTRIES,
   SCOREBOARD_ENDPOINT,
   sendScoreEvents,
   startScoringSession,
@@ -104,6 +106,35 @@ describe('fetchTopScores', () => {
       { nickname: 'ada', points: 300 },
       { nickname: 'eve', points: 5 },
     ])
+  })
+
+  it('keeps a normal top ten whole', async () => {
+    const scores = Array.from({ length: MAX_BOARD_ENTRIES }, (_, i) => ({ nickname: `p${i}`, points: 100 - i }))
+    const fetchImpl = fetchReturning({ scores })
+
+    await expect(fetchTopScores('demo', { fetchImpl })).resolves.toEqual(scores)
+  })
+
+  /**
+   * The over-long name comes first so a slice-only bound would hide it and let
+   * an unbounded nickname length pass unnoticed.
+   */
+  it('is bounded no matter what the board host answers', async () => {
+    const boundary = { nickname: 'b'.repeat(MAX_NICKNAME_LENGTH), points: 999 }
+    const overLong = { nickname: 'x'.repeat(MAX_NICKNAME_LENGTH + 1), points: 1000 }
+    const fillers = Array.from({ length: 10_000 }, (_, i) => ({ nickname: `f${i}`, points: i }))
+
+    const fetchImpl = fetchReturning({ scores: [overLong, boundary, ...fillers] })
+
+    const result = await fetchTopScores('demo', { fetchImpl })
+
+    expect(result).toHaveLength(MAX_BOARD_ENTRIES)
+    expect(result?.[0]).toEqual(boundary)
+    expect(result?.slice(1)).toEqual(fillers.slice(0, MAX_BOARD_ENTRIES - 1))
+    for (const entry of result ?? []) {
+      expect(entry.nickname.length).toBeLessThanOrEqual(MAX_NICKNAME_LENGTH)
+      expect(entry.nickname).not.toBe(overLong.nickname.slice(0, MAX_NICKNAME_LENGTH))
+    }
   })
 })
 
