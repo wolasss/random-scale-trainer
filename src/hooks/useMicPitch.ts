@@ -212,6 +212,9 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         }
 
         reacquired = true
+        // The mic is gone until the reacquire settles: leaving 'listening' up
+        // would keep scoring live against a stream that no longer exists.
+        setStatus('idle')
         void open()
       })
       const frame = new Float32Array(MIC_FRAME_SIZE)
