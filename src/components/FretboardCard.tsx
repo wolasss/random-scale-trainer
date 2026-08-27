@@ -60,7 +60,10 @@ export function FretboardCard({ currentPc, currentDisplay }: FretboardCardProps)
         <p>{hint}</p>
       </div>
 
-      <div className="fretboard-scroll">
+      {/* The neck overflows its card on phone widths and nothing inside it is
+          focusable, so the scroller itself is the tab stop that reaches frets
+          10–12 with the arrow keys. */}
+      <div className="fretboard-scroll" tabIndex={0} role="group" aria-label="Fretboard map, scrolls sideways">
         <div className="fretboard" data-testid="fretboard" role="img" aria-label={label}>
           {STRING_MIDI.map((midi, stringIndex) => (
             <div className="fret-row" key={midi}>
