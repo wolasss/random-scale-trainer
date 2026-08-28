@@ -1011,6 +1011,12 @@ input[type='range'] {
   mask-image: linear-gradient(to right, #000 calc(100% - var(--neck-fade)), transparent);
 }
 
+/* The mask paints to the border box, so the global :focus-visible ring — drawn
+   2px outside it — would be clipped away completely. Tuck it just inside. */
+.fretboard-scroll:focus-visible {
+  outline-offset: -2px;
+}
+
 /* The cue every narrow viewport gets, with or without scroll-driven animation.
    The board stops fitting its card around 460px of viewport; 480px overshoots
    so no phone width is missed, at the cost of a softened edge in a thin band
