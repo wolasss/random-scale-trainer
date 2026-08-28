@@ -1,3 +1,12 @@
+## [1.28.4](https://github.com/wolasss/random-scale-trainer/compare/v1.28.3...v1.28.4) (2026-08-28)
+
+
+### Bug Fixes
+
+* **a11y:** give the routine strip's skip/unload and hint dismiss buttons a fingertip target on touch screens ([#174](https://github.com/wolasss/random-scale-trainer/issues/174)) ([9feb7f6](https://github.com/wolasss/random-scale-trainer/commit/9feb7f624e9d82ff945a42171faa5362b6cd5cec))
+* **mic:** recover when the microphone stream dies mid-practice ([#193](https://github.com/wolasss/random-scale-trainer/issues/193)) ([461cd41](https://github.com/wolasss/random-scale-trainer/commit/461cd41b9d331bee15cd8939d384e1674954a748))
+* **routines:** keep a finished workout restartable after deleting an earlier block ([#199](https://github.com/wolasss/random-scale-trainer/issues/199)) ([d585f6a](https://github.com/wolasss/random-scale-trainer/commit/d585f6afc4ed07afe95c4d0adf99ecb6a6f6a5fd))
+
 ## [1.28.3](https://github.com/wolasss/random-scale-trainer/compare/v1.28.2...v1.28.3) (2026-08-28)
 
 
