@@ -1,3 +1,10 @@
+## [1.28.5](https://github.com/wolasss/random-scale-trainer/compare/v1.28.4...v1.28.5) (2026-08-28)
+
+
+### Bug Fixes
+
+* **pitch:** stop the detector reading notes above ~750 Hz an octave low ([#198](https://github.com/wolasss/random-scale-trainer/issues/198)) ([b0d3289](https://github.com/wolasss/random-scale-trainer/commit/b0d3289b35f1790d802f309832290bb37f602657))
+
 ## [1.28.4](https://github.com/wolasss/random-scale-trainer/compare/v1.28.3...v1.28.4) (2026-08-28)
 
 
