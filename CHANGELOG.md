@@ -1,3 +1,10 @@
+## [1.28.3](https://github.com/wolasss/random-scale-trainer/compare/v1.28.2...v1.28.3) (2026-08-28)
+
+
+### Bug Fixes
+
+* **a11y:** let the keyboard scroll the fretboard neck when it overflows ([#200](https://github.com/wolasss/random-scale-trainer/issues/200)) ([8663560](https://github.com/wolasss/random-scale-trainer/commit/86635608fd8f56fef7685294b50ca1866a2a2a9e))
+
 ## [1.28.2](https://github.com/wolasss/random-scale-trainer/compare/v1.28.1...v1.28.2) (2026-08-26)
 
 
