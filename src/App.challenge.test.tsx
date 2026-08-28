@@ -101,7 +101,7 @@ const owning = (challenge = 'demo', nickname = 'ada') => {
 }
 
 const installGetUserMedia = () => {
-  const getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream)
+  const getUserMedia = vi.fn(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream)
   Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } })
 
   return getUserMedia

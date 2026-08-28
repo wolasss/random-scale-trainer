@@ -81,6 +81,26 @@ export const releaseMicStream = (stream: MediaStream): void => {
 }
 
 /**
+ * Fires `onEnded` if any track on the stream dies mid-session: an unplugged
+ * USB interface, a Bluetooth mic dropping out, or the OS revoking the
+ * permission. By spec `track.stop()` does not fire `'ended'`, so the app's own
+ * teardown never triggers this — only the device disappearing out from under
+ * it does. Returns the unsubscriber.
+ */
+export const onMicStreamEnded = (stream: MediaStream, onEnded: () => void): (() => void) => {
+  const tracks = stream.getTracks()
+  for (const track of tracks) {
+    track.addEventListener('ended', onEnded)
+  }
+
+  return () => {
+    for (const track of tracks) {
+      track.removeEventListener('ended', onEnded)
+    }
+  }
+}
+
+/**
  * Asks for the microphone and hands it straight back, purely to get the
  * browser's permission prompt out of the way.
  *

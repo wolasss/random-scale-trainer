@@ -3,6 +3,7 @@ import {
   createMicCapture,
   isMicSupported,
   MIC_FRAME_SIZE,
+  onMicStreamEnded,
   releaseMicStream,
   requestMicStream,
   type MicCapture,
@@ -165,8 +166,24 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
     let cancelled = false
     let capture: MicCapture | null = null
     let pollId: number | undefined
-    // Fresh per capture: a new microphone is a new room to measure.
-    const gate = createSilenceGate()
+    let unwatch: (() => void) | undefined
+    let reacquired = false
+    // Fresh per capture, reacquires included: a new microphone is a new room
+    // to measure — `open` replaces it alongside the capture it belongs to.
+    let gate = createSilenceGate()
+
+    const teardown = () => {
+      if (pollId !== undefined) {
+        window.clearInterval(pollId)
+        pollId = undefined
+      }
+
+      unwatch?.()
+      unwatch = undefined
+      captureRef.current = null
+      capture?.release()
+      capture = null
+    }
 
     const poll = (frame: PcmFrame, sampleRate: number) => {
       if (capture === null) {
@@ -259,11 +276,29 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       }
 
       capture = createMicCapture(context, stream)
+      unwatch = onMicStreamEnded(stream, () => {
+        if (cancelled) {
+          return
+        }
+
+        teardown()
+        if (reacquired) {
+          setStatus('denied')
+          return
+        }
+
+        reacquired = true
+        // The mic is gone until the reacquire settles: leaving 'listening' up
+        // would keep scoring live against a stream that no longer exists.
+        setStatus('idle')
+        void open()
+      })
       const frame = new Float32Array(MIC_FRAME_SIZE)
       // The capture's own rate, which is not always the app context's: on iOS
       // the record route runs at its own one, and the analyser sits there.
       const { sampleRate } = capture
       captureRef.current = { capture, sampleRate }
+      gate = createSilenceGate()
       debugRef.current = {
         frames: 0,
         detections: 0,
@@ -281,13 +316,7 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
 
     return () => {
       cancelled = true
-      if (pollId !== undefined) {
-        window.clearInterval(pollId)
-      }
-
-      captureRef.current = null
-      capture?.release()
-      capture = null
+      teardown()
     }
   }, [active])
 

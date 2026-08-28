@@ -3,17 +3,40 @@ import {
   createMicCapture,
   isMicSupported,
   MIC_FRAME_SIZE,
+  onMicStreamEnded,
   primeMicPermission,
   releaseMicStream,
   requestMicStream,
 } from './mic'
 
+const FAKE_TRACK_SETTINGS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  sampleRate: 48000,
+}
+
+/** A track that remembers its 'ended' listeners, so a test can fire them. */
+const createFakeTrack = () => {
+  const listeners = new Set<() => void>()
+  return {
+    stop: vi.fn(),
+    getSettings: () => FAKE_TRACK_SETTINGS,
+    addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
+    fireEnded: () => {
+      for (const listener of [...listeners]) {
+        listener()
+      }
+    },
+  }
+}
+
 const createFakeStream = () => {
-  const settings = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: 48000 }
-  const tracks = [{ stop: vi.fn(), getSettings: () => settings }, { stop: vi.fn(), getSettings: () => settings }]
+  const tracks = [createFakeTrack(), createFakeTrack()]
   return {
     tracks,
-    settings,
+    settings: FAKE_TRACK_SETTINGS,
     stream: { getTracks: () => tracks, getAudioTracks: () => tracks } as unknown as MediaStream,
   }
 }
@@ -337,5 +360,30 @@ describe('releaseMicStream', () => {
     for (const track of tracks) {
       expect(track.stop).toHaveBeenCalledTimes(1)
     }
+  })
+})
+
+describe('onMicStreamEnded', () => {
+  it('fires when any track on the stream ends', () => {
+    const { stream, tracks } = createFakeStream()
+    const onEnded = vi.fn()
+
+    onMicStreamEnded(stream, onEnded)
+    tracks[0].fireEnded()
+
+    expect(onEnded).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops listening on every track once unsubscribed', () => {
+    const { stream, tracks } = createFakeStream()
+    const onEnded = vi.fn()
+
+    const unsubscribe = onMicStreamEnded(stream, onEnded)
+    unsubscribe()
+    for (const track of tracks) {
+      track.fireEnded()
+    }
+
+    expect(onEnded).not.toHaveBeenCalled()
   })
 })

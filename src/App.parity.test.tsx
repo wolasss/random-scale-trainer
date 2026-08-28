@@ -168,7 +168,7 @@ beforeEach(() => {
   window.history.replaceState({}, '', `/?challenge=${CHALLENGE}`)
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
-    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream) },
+    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream) },
   })
 })
 
