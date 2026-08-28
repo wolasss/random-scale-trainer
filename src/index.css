@@ -2156,6 +2156,48 @@ input[type='range'] {
   border-color: var(--primary);
 }
 
+/* A thumb aimed at skip lands on unload and drops the running routine. The
+   strip has no padding to spend like the segment's negative margins do, so
+   these grow via an invisible overlay instead — up into the strip's own
+   padding-top, and only a few px down, because the play control sits right
+   below and a target that spilled onto it would trade one mis-tap for a
+   worse one. */
+@media (pointer: coarse) {
+  .routine-strip-skip,
+  .routine-strip-clear {
+    position: relative;
+  }
+
+  .routine-strip-skip::after,
+  .routine-strip-clear::after {
+    content: '';
+    position: absolute;
+    top: -15px;
+    bottom: -5px;
+  }
+
+  .routine-strip-skip::after {
+    left: -14px;
+    right: -6px;
+  }
+
+  .routine-strip-clear::after {
+    left: -6px;
+    right: -14px;
+  }
+
+  /* In stage mode the strip's own top padding shrinks to 0.6rem (see
+     .stage-foot .routine-strip below), and when a challenge scoreboard is
+     showing its tappable summary sits flush against that edge with no gap —
+     the base -15px overhang would reach past the strip's own box and into it.
+     Keep the overlay inside the smaller budget so a tap there still lands on
+     the scoreboard. */
+  .stage-foot .routine-strip-skip::after,
+  .stage-foot .routine-strip-clear::after {
+    top: -9px;
+  }
+}
+
 .routine-card {
   min-width: 0;
 }
@@ -3252,6 +3294,24 @@ button.practice-history-cell {
 .hint-dismiss:hover {
   color: var(--ink);
   border-color: var(--primary);
+}
+
+/* Same fingertip-target fix as the routine strip's skip/unload pair. Left is
+   held tight on purpose: in the update chip the reload button sits close by,
+   and reloading mid-session would kill the metronome. */
+@media (pointer: coarse) {
+  .hint-dismiss {
+    position: relative;
+  }
+
+  .hint-dismiss::after {
+    content: '';
+    position: absolute;
+    top: -9px;
+    bottom: -9px;
+    left: -4px;
+    right: -14px;
+  }
 }
 
 /* The ?micdebug overlay: fixed over everything, unstyled by the skins, and
