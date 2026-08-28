@@ -91,6 +91,19 @@ export const CLARITY_THRESHOLD = 0.9
  */
 const OCTAVE_TIE_FRACTION = 0.9
 
+/**
+ * The other half of that trap, upside down. A low note with a strong partial
+ * above ~750 Hz scores highly at the partial's own short lag too, close enough
+ * to tie with the fundamental and win on lag — a harmonic-rich G2 read as a B5.
+ * What separates the two is what happens at twice the lag: a real period
+ * repeats there just as strongly, while a partial's score has fallen away by
+ * then, because the note underneath it has decorrelated. This is how much of
+ * its own score a peak has to keep at 2T to be believed as a period; loose
+ * enough that a decaying pluck, whose longer windows always score a little
+ * lower, still clears it.
+ */
+const PERIOD_ECHO_FRACTION = 0.9
+
 export type PitchReading = {
   frequency: number
   /** The NSDF peak: 1 is perfectly periodic, 0 is not periodic at all. */
@@ -99,9 +112,12 @@ export type PitchReading = {
 
 /** Positive-region maxima, ascending by lag — one per lobe, not per wiggle. */
 const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): number[] => {
-  let lag = minLag
-  // The lobe around zero lag is the signal correlating with itself; whatever is
-  // left of it at minLag is not a period and has to be walked past first.
+  let lag = 1
+  // The lobe around zero lag is the signal correlating with itself, and it has
+  // to be walked past first — from lag 1 to where it actually ends, never from
+  // minLag. Above ~750 Hz the fundamental's own first-period lobe is already
+  // positive at minLag, so treating that as zero-lag remnant would walk right
+  // over the true peak and leave the 2T subharmonic as the tallest.
   while (lag <= maxLag && nsdf[lag] > 0) {
     lag += 1
   }
@@ -127,15 +143,40 @@ const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): numb
       lag += 1
     }
 
-    peaks.push(peak)
+    // A lobe peaking under minLag is a period shorter than the search floor:
+    // dropped so the ceiling still bounds what can be named, which is what
+    // keeps an out-of-range whistle reading as its in-range subharmonic.
+    if (peak >= minLag) {
+      peaks.push(peak)
+    }
   }
 
   return peaks
 }
 
+/** Whether the period a peak claims is still there one period later. */
+const echoesAtTwiceTheLag = (nsdf: Float32Array, lag: number, maxLag: number): boolean => {
+  const echo = 2 * lag
+  // Nothing to check against: a low note's 2T is past the half-frame limit the
+  // search stops at, so the peak is taken at its word — which is safe, because
+  // a lag that long is nobody's upper partial.
+  if (echo + 1 > maxLag) {
+    return true
+  }
+
+  // The neighbours count as well: a period of 44.3 samples peaks at lag 44 and
+  // then at 89, not at 88.
+  const support = Math.max(nsdf[echo - 1], nsdf[echo], nsdf[echo + 1])
+
+  return support >= nsdf[lag] * PERIOD_ECHO_FRACTION
+}
+
 /** Sub-sample peak position from the three samples around it — worth ~4 cents. */
-const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag: number): number => {
-  if (lag <= minLag || lag >= maxLag) {
+const interpolatePeak = (nsdf: Float32Array, lag: number, maxLag: number): number => {
+  // Only that both neighbours exist — a peak sitting exactly on minLag is the
+  // top of the range, and refusing to interpolate there rounds it to a lag it
+  // never had, over the ceiling and rejected.
+  if (lag <= 1 || lag >= maxLag) {
     return lag
   }
 
@@ -181,7 +222,9 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
   }
 
   const nsdf = new Float32Array(maxLag + 1)
-  for (let lag = minLag; lag <= maxLag; lag += 1) {
+  // From lag 1, not from minLag: the lobe walk below needs the zero-lag lobe's
+  // real extent rather than a guess at where it has ended by minLag.
+  for (let lag = 1; lag <= maxLag; lag += 1) {
     let correlation = 0
     for (let index = 0; index < size - lag; index += 1) {
       correlation += frame[index] * frame[index + lag]
@@ -207,14 +250,19 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
   }
 
   const tieCutoff = nsdf[best] * OCTAVE_TIE_FRACTION
-  const chosen = peaks.find((peak) => nsdf[peak] >= tieCutoff) ?? best
+  const tied = peaks.filter((peak) => nsdf[peak] >= tieCutoff)
+  // Shortest lag among the tied peaks, but only among those whose period is
+  // still there at 2T: without that, a partial tied with the note carrying it
+  // wins on lag alone. If none of them echo, the shortest still wins — the
+  // octave rule is the older reading of the two.
+  const chosen = tied.find((peak) => echoesAtTwiceTheLag(nsdf, peak, maxLag)) ?? tied[0] ?? best
 
   const clarity = Math.min(1, nsdf[chosen])
   if (clarity < CLARITY_THRESHOLD) {
     return null
   }
 
-  const frequency = sampleRate / interpolatePeak(nsdf, chosen, minLag, maxLag)
+  const frequency = sampleRate / interpolatePeak(nsdf, chosen, maxLag)
   if (!Number.isFinite(frequency) || frequency < MIN_PITCH_HZ || frequency > MAX_PITCH_HZ) {
     return null
   }
