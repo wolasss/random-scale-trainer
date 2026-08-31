@@ -134,13 +134,50 @@ describe('useWakeLock', () => {
     renderHook(() => useWakeLock(true))
     await act(async () => {})
 
+    // A notification shade or a call banner can take the lock away without the
+    // page ever leaving the screen, and nothing else would ask for it back.
     act(() => sentinels[0].dropFromOs())
+    await act(async () => {})
+
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not re-take a lock dropped while the page is hidden', async () => {
+    const { request, sentinels } = installWakeLock()
+    renderHook(() => useWakeLock(true))
+    await act(async () => {})
+
+    // Backgrounding drops the lock by design; asking for it back there would
+    // only be refused.
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    })
+    act(() => sentinels[0].dropFromOs())
+    await act(async () => {})
+
+    expect(request).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops re-taking once the cap is reached, and re-arms on the way back', async () => {
+    const { request, sentinels } = installWakeLock()
+    renderHook(() => useWakeLock(true))
+
+    // A browser that hands back a lock and drops it again immediately must not
+    // spin for the rest of the session.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await act(async () => {})
+      act(() => sentinels[sentinels.length - 1].dropFromOs())
+    }
+    await act(async () => {})
+
+    expect(request).toHaveBeenCalledTimes(4)
 
     setVisibility('hidden')
     setVisibility('visible')
     await act(async () => {})
 
-    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(5)
   })
 
   it('releases the lock when the component goes away', async () => {
