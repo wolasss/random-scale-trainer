@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Connect, type Plugin } from 'vite'
+import { defineConfig, type Connect, type Plugin, type Rollup } from 'vite'
 import react from '@vitejs/plugin-react'
 import {
   BUG_REPORT_MAX_BODY_BYTES,
@@ -36,17 +36,18 @@ const listFilesRecursively = (dir: string): string[] =>
  *
  * The list has to be built here rather than written by hand because the bundle
  * filenames are content-hashed. The version covers the worker source, the list
- * itself, and the *contents* of everything under public/ — those files keep
- * their names when they are edited, so hashing the names alone would leave an
- * edited note clip, icon or manifest invisible to installed clients. Nothing
- * time- or machine-dependent goes into the digest, so a build that changes
- * nothing produces the same version, and any build that changes an asset
- * invalidates the old cache exactly once.
+ * itself, the *contents* of everything under public/ — those files keep their
+ * names when they are edited, so hashing the names alone would leave an edited
+ * note clip, icon or manifest invisible to installed clients — and the shell
+ * revision from `deriveShellRevision`. Nothing time- or machine-dependent goes
+ * into the digest, so a build that changes nothing produces the same version,
+ * and any build that changes an asset invalidates the old cache exactly once.
  */
 export const deriveServiceWorker = (
   workerSource: string,
   bundledFileNames: string[],
   publicDir: string,
+  shellRevision: string,
 ): { precache: string[]; version: string } => {
   const publicFiles = listFilesRecursively(publicDir)
     .map((file) => ({
@@ -73,13 +74,39 @@ export const deriveServiceWorker = (
     .update(workerSource)
     .update(precache.join('\n'))
     .update(publicFiles.map((file) => `${file.url} ${file.digest}`).join('\n'))
+    .update(shellRevision)
     .digest('hex')
     .slice(0, 12)
 
   return { precache, version }
 }
 
+/**
+ * A digest of the shell exactly as a client receives it: the emitted
+ * index.html, and the response headers nginx sets on it.
+ *
+ * Both belong in the cache version because a precached navigation is answered
+ * from the cache and nowhere else (`revalidateOnHit` false in the worker), and
+ * what the Cache API stores is the whole Response — headers included. So an
+ * installed client keeps replaying the Content-Security-Policy that was in
+ * force when it installed. Neither half moves a bundle filename: a shell whose
+ * only edit is a <meta> tag, or a policy tightened in nginx.conf alone, would
+ * otherwise leave the worker byte-identical and every returning client on the
+ * old shell under the old headers indefinitely.
+ *
+ * Only the `add_header` lines are read, not the whole file: those are the part
+ * of nginx.conf that ends up frozen in the cache, and proxy or timeout edits
+ * have no business making every client re-download the precache.
+ */
+export const deriveShellRevision = (builtHtml: string, nginxConf: string): string =>
+  createHash('sha256')
+    .update(builtHtml)
+    .update('\n')
+    .update((nginxConf.match(/^[^\S\n]*add_header .*$/gm) ?? []).join('\n'))
+    .digest('hex')
+
 const INDEX_SOURCE = resolve(ROOT, 'index.html')
+const NGINX_SOURCE = resolve(ROOT, 'nginx.conf')
 
 /**
  * Every piece of JavaScript the shell carries inline, in the two forms a CSP
@@ -134,6 +161,16 @@ export const assertInlineExecutablesMatch = (sourceHtml: string, builtHtml: stri
   }
 }
 
+/** The shell as this build emitted it, read back out of the bundle. */
+const emittedShell = (bundle: Rollup.OutputBundle): string => {
+  const emitted = bundle['index.html']
+  if (emitted === undefined || emitted.type !== 'asset') {
+    throw new Error('the build emitted no index.html')
+  }
+
+  return typeof emitted.source === 'string' ? emitted.source : Buffer.from(emitted.source).toString('utf8')
+}
+
 /**
  * Emits dist/sw.js from src/sw/service-worker.js with its precache list and
  * cache version filled in.
@@ -146,7 +183,12 @@ const serviceWorkerPlugin = (): Plugin => ({
   enforce: 'post',
   generateBundle(_options, bundle) {
     const source = readFileSync(SW_SOURCE, 'utf8')
-    const { precache, version } = deriveServiceWorker(source, Object.keys(bundle), PUBLIC_DIR)
+    const { precache, version } = deriveServiceWorker(
+      source,
+      Object.keys(bundle),
+      PUBLIC_DIR,
+      deriveShellRevision(emittedShell(bundle), readFileSync(NGINX_SOURCE, 'utf8')),
+    )
 
     this.emitFile({
       type: 'asset',
@@ -173,14 +215,7 @@ const inlineScriptGuardPlugin = (): Plugin => ({
   // bundle by the time this reads it.
   enforce: 'post',
   generateBundle(_options, bundle) {
-    const emitted = bundle['index.html']
-    if (emitted === undefined || emitted.type !== 'asset') {
-      throw new Error('the build emitted no index.html to check the CSP script hashes against')
-    }
-
-    const builtHtml =
-      typeof emitted.source === 'string' ? emitted.source : Buffer.from(emitted.source).toString('utf8')
-    assertInlineExecutablesMatch(readFileSync(INDEX_SOURCE, 'utf8'), builtHtml)
+    assertInlineExecutablesMatch(readFileSync(INDEX_SOURCE, 'utf8'), emittedShell(bundle))
   },
 })
 
