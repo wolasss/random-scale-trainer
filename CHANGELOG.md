@@ -1,3 +1,10 @@
+## [1.28.6](https://github.com/wolasss/random-scale-trainer/compare/v1.28.5...v1.28.6) (2026-08-31)
+
+
+### Bug Fixes
+
+* **wakelock:** re-take a screen lock the system drops while practice is still running ([#201](https://github.com/wolasss/random-scale-trainer/issues/201)) ([71f46b8](https://github.com/wolasss/random-scale-trainer/commit/71f46b8c336ca4a6fc9e74d3b3d935ee83fc18cd))
+
 ## [1.28.5](https://github.com/wolasss/random-scale-trainer/compare/v1.28.4...v1.28.5) (2026-08-28)
 
 
