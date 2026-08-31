@@ -79,6 +79,61 @@ export const deriveServiceWorker = (
   return { precache, version }
 }
 
+const INDEX_SOURCE = resolve(ROOT, 'index.html')
+
+/**
+ * Every piece of JavaScript the shell carries inline, in the two forms a CSP
+ * treats separately: `<script>` bodies, which a `'sha256-…'` source admits, and
+ * `on*` attribute values, which one only admits alongside `'unsafe-hashes'`.
+ *
+ * nginx.conf's script-src names a hash of each of these instead of
+ * `'unsafe-inline'`, so this is the list those hashes are computed from —
+ * deploy.test.ts recomputes them, and inlineScriptGuardPlugin re-extracts them
+ * from the built dist/index.html so a build-time rewrite can't slip past.
+ */
+export const extractInlineExecutables = (html: string): { scripts: string[]; handlers: string[] } => {
+  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+    // A tag with src= runs an external file and is covered by `'self'`; its own
+    // body is dead weight the browser ignores. Anything else — including a
+    // future type="module" block — is inline and needs a hash.
+    .filter((match) => !/\bsrc\s*=/i.test(match[1]))
+    .map((match) => match[2])
+
+  const handlers = [...html.matchAll(/\son[a-z0-9]+\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)]
+    .map((match) => match[1] ?? match[2] ?? match[3])
+
+  for (const handler of handlers) {
+    // The browser hashes the *decoded* attribute value, so an entity would make
+    // the raw bytes read here differ from what the CSP is checked against.
+    // None exist today; decoding one correctly is a job for the day one does.
+    if (handler.includes('&')) {
+      throw new Error(`inline handler "${handler}" contains an HTML entity, which its CSP hash could not match`)
+    }
+  }
+
+  return { scripts, handlers }
+}
+
+/**
+ * Fails a build whose emitted index.html no longer carries the source's inline
+ * scripts byte for byte — at which point the hashes in nginx.conf name code the
+ * browser is not being served, and the shell's bootstrap is refused.
+ */
+export const assertInlineExecutablesMatch = (sourceHtml: string, builtHtml: string): void => {
+  const source = extractInlineExecutables(sourceHtml)
+  const built = extractInlineExecutables(builtHtml)
+
+  for (const kind of ['scripts', 'handlers'] as const) {
+    if (JSON.stringify(source[kind]) !== JSON.stringify(built[kind])) {
+      throw new Error(
+        `the build rewrote the shell's inline ${kind}, so the 'sha256-…' sources in nginx.conf no longer match.\n` +
+          `  index.html: ${JSON.stringify(source[kind], null, 2)}\n` +
+          `  dist/index.html: ${JSON.stringify(built[kind], null, 2)}`,
+      )
+    }
+  }
+}
+
 /**
  * Emits dist/sw.js from src/sw/service-worker.js with its precache list and
  * cache version filled in.
@@ -100,6 +155,32 @@ const serviceWorkerPlugin = (): Plugin => ({
         .replace('__CACHE_VERSION__', version)
         .replace('__PRECACHE_MANIFEST__', JSON.stringify(precache, null, 2)),
     })
+  },
+})
+
+/**
+ * Holds the built shell to the inline scripts nginx.conf has hashed.
+ *
+ * The claim is about dist, so no vitest run can make it: `npm run check` runs
+ * the suite before the build, and there is no dist to read on a clean checkout.
+ * Asserting it here instead means every build — CI's, the container's, and the
+ * one behind the e2e run — is the check.
+ */
+const inlineScriptGuardPlugin = (): Plugin => ({
+  name: 'callnote-inline-script-guard',
+  apply: 'build',
+  // Same reason as the worker plugin: the emitted index.html has to be in the
+  // bundle by the time this reads it.
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    const emitted = bundle['index.html']
+    if (emitted === undefined || emitted.type !== 'asset') {
+      throw new Error('the build emitted no index.html to check the CSP script hashes against')
+    }
+
+    const builtHtml =
+      typeof emitted.source === 'string' ? emitted.source : Buffer.from(emitted.source).toString('utf8')
+    assertInlineExecutablesMatch(readFileSync(INDEX_SOURCE, 'utf8'), builtHtml)
   },
 })
 
@@ -221,7 +302,7 @@ const scoreboardApiPlugin = (): Plugin => {
 }
 
 export default defineConfig({
-  plugins: [react(), serviceWorkerPlugin(), scoreboardApiPlugin()],
+  plugins: [react(), serviceWorkerPlugin(), inlineScriptGuardPlugin(), scoreboardApiPlugin()],
   server: {
     // The dev server is shared the same way the preview server is — through a
     // tailnet proxy — so it takes the same guests.
