@@ -66,6 +66,19 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 /** Turnstile wants an address in `remoteip` or nothing; a proxy label is neither. */
 const IP_SHAPE = /^[0-9a-fA-F.:]+$/
 
+/**
+ * Same as the scoreboard's: strips every control and format character. Applied
+ * to `version`, which becomes part of Mailgun's subject line — a bare `\r`
+ * there is a header-injection shape, not a version number.
+ */
+const CONTROL_CHARS = /[\p{Cc}\p{Cf}]/gu
+
+/** As above, but keeps tab and newline: a description is legitimately multi-line. */
+const DESCRIPTION_CONTROL_CHARS = /(?![\t\n])[\p{Cc}\p{Cf}]/gu
+
+/** A stalled Turnstile or Mailgun must not pin a request handler indefinitely. */
+const OUTBOUND_TIMEOUT_MS = 10_000
+
 /** A token bucket over a bounded map; the scoreboard's, kept local to this module. */
 const takeToken = (buckets, key, { limit, windowMs }, now) => {
   const bucket = buckets.get(key)
@@ -128,7 +141,7 @@ export const parseReport = (raw) => {
     return null
   }
 
-  const text = description.trim()
+  const text = description.replace(DESCRIPTION_CONTROL_CHARS, '').trim()
   if (text === '' || text.length > MAX_DESCRIPTION_LENGTH) {
     return null
   }
@@ -152,7 +165,7 @@ export const parseReport = (raw) => {
       return null
     }
 
-    reportedVersion = version.trim()
+    reportedVersion = version.replace(CONTROL_CHARS, '').trim()
   }
 
   return { description: text, email: contact, version: reportedVersion, token }
@@ -256,6 +269,7 @@ export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form.toString(),
+        signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
       })
 
       if (response.ok !== true) {
@@ -326,6 +340,7 @@ export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
         method: 'POST',
         headers: { Authorization: authorization },
         body: form,
+        signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS),
       })
 
       return response.ok === true
