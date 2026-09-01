@@ -34,7 +34,8 @@ import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
-import { InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
+import { AndroidInstallHint, InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
+import { MicDebugPanel } from './components/MicDebugPanel'
 import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
 import { FretboardCard } from './components/FretboardCard'
@@ -252,6 +253,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     settings,
     dispatch,
     sessionElapsedMs: sessionTimer.elapsedMs,
+    getSessionElapsedMs: sessionTimer.getElapsedMs,
     isPlaying: playback.isPlaying,
     onFinish: useCallback(() => playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete), []),
   })
@@ -594,6 +596,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
+      hasPendingPractice={practiceHistory.hasPending}
     />
   )
 
@@ -614,6 +617,14 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             gap:
               leader.points - (challenge.scores.find((entry) => entry.nickname === challenge.nickname)?.points ?? 0),
           }
+
+  // A diagnostic, not a feature: ?micdebug puts the capture's own report on
+  // screen, because the iOS microphone pipeline has repeatedly behaved in ways
+  // only a real handset can reveal — this is how that handset reports back.
+  const micDebug =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('micdebug') ? (
+      <MicDebugPanel status={mic.status} getDebugInfo={mic.getDebugInfo} />
+    ) : null
 
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
@@ -803,6 +814,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}
+        {installPrompt.showAndroidHint ? <AndroidInstallHint onDismiss={installPrompt.dismissAndroidHint} /> : null}
+        {micDebug}
 
         {/* The practice stage: everything you look at with the guitar in your
             hands, in one full-width card. The neck sits beside the note rather

@@ -11,6 +11,7 @@
  * that once.
  */
 import { createServer } from 'node:http'
+import { BUG_REPORT_MAX_BODY_BYTES, BUG_REPORT_PREFIX } from './bug-report.js'
 import { handleRequest, writeSnapshot } from './scoreboard.js'
 
 /**
@@ -119,19 +120,19 @@ export const isCrossSitePost = (method, headers) => {
  * `Number(undefined)` is `NaN` and `Number('')` is `0`; a missing or empty
  * declaration falls through to the streaming cap in `readBody` instead.
  */
-const declaresOversizedBody = (headers) => {
+const declaresOversizedBody = (headers, cap) => {
   const declared = Number(headers['content-length'])
-  return Number.isFinite(declared) && declared > MAX_BODY_BYTES
+  return Number.isFinite(declared) && declared > cap
 }
 
-const readBody = (request, response) =>
+const readBody = (request, response, cap) =>
   new Promise((resolve) => {
     const chunks = []
     let bytes = 0
 
     request.on('data', (chunk) => {
       bytes += chunk.length
-      if (bytes > MAX_BODY_BYTES) {
+      if (bytes > cap) {
         response.writeHead(413, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify({ error: 'body too large' }))
         request.destroy()
@@ -145,16 +146,29 @@ const readBody = (request, response) =>
     request.on('error', () => resolve(null))
   })
 
+/** Whether a path belongs to the bug-report route rather than the scoreboard. */
+const isBugReportPath = (pathname) =>
+  pathname === BUG_REPORT_PREFIX || pathname.startsWith(`${BUG_REPORT_PREFIX}/`)
+
 /**
  * A server over one store. `dataPath` of '' keeps the board in memory only, and
  * a restart loses it; `now` is injectable so a test can age a session out
  * without waiting ten minutes.
+ *
+ * `bugReport`, when given, is the handler from bug-report.js. It is routed
+ * *before* the scoreboard's own router, which reads the first path segment as a
+ * challenge name and would otherwise open a board called "bug-report".
  */
-export const createScoreboardServer = ({ store, dataPath = '', now = Date.now }) => {
+export const createScoreboardServer = ({ store, dataPath = '', now = Date.now, bugReport = null }) => {
   const server = createServer(async (request, response) => {
+    const { pathname } = new URL(request.url ?? '/', 'http://localhost')
+    // A report carries a captcha token that is a couple of kilobytes on its
+    // own, so that route reads to its own cap; the scoreboard keeps 4096.
+    const cap = bugReport !== null && isBugReportPath(pathname) ? BUG_REPORT_MAX_BODY_BYTES : MAX_BODY_BYTES
+
     // Before isCrossSitePost, and long before readBody: a caller who declares
     // more than the cap is refused on their own word, without a byte read.
-    if (request.method === 'POST' && declaresOversizedBody(request.headers)) {
+    if (request.method === 'POST' && declaresOversizedBody(request.headers, cap)) {
       response.writeHead(413, { 'Content-Type': 'application/json' })
       response.end(JSON.stringify({ error: 'body too large' }))
       request.destroy()
@@ -169,20 +183,32 @@ export const createScoreboardServer = ({ store, dataPath = '', now = Date.now })
       return
     }
 
-    const body = request.method === 'POST' ? await readBody(request, response) : ''
+    const body = request.method === 'POST' ? await readBody(request, response, cap) : ''
     if (body === null) {
       return
     }
 
-    const { pathname } = new URL(request.url ?? '/', 'http://localhost')
-    const answer = handleRequest(store, {
-      method: request.method ?? 'GET',
-      pathname,
-      body,
-      headers: { authorization: request.headers.authorization },
-      client: clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for']),
-      now: now(),
-    })
+    const client = clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for'])
+    let answer
+    if (bugReport !== null && isBugReportPath(pathname)) {
+      // The handler is written not to reject, and this is the belt to that
+      // brace: a rejection escaping here would take the process — and the live
+      // board with it — over a mail provider having a bad minute.
+      try {
+        answer = await bugReport({ method: request.method ?? 'GET', pathname, body, client, now: now() })
+      } catch {
+        answer = { status: 502, json: { error: 'send_failed' } }
+      }
+    } else {
+      answer = handleRequest(store, {
+        method: request.method ?? 'GET',
+        pathname,
+        body,
+        headers: { authorization: request.headers.authorization },
+        client,
+        now: now(),
+      })
+    }
 
     // A board is live data, and the one thing above it that caches — the service
     // worker — is told to leave /api/ alone for the same reason.

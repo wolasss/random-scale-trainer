@@ -35,10 +35,15 @@ const renderView = (overrides: Partial<Parameters<typeof PracticeHistoryView>[0]
  * end and the file is read back out of the blob it was handed.
  */
 const captureDownload = () => {
-  const captured: { blob: Blob | null; name: string | null } = { blob: null, name: null }
+  const captured: { blob: Blob | null; name: string | null; connected: boolean | null } = {
+    blob: null,
+    name: null,
+    connected: null,
+  }
   const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
   const revokeDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
   const revoked: string[] = []
+  let revokedAtClick: string[] = []
 
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
@@ -57,6 +62,8 @@ const captureDownload = () => {
 
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
     captured.name = this.download
+    captured.connected = this.isConnected
+    revokedAtClick = [...revoked]
   })
 
   const restore = () => {
@@ -73,7 +80,7 @@ const captureDownload = () => {
     }
   }
 
-  return { captured, revoked, restore }
+  return { captured, revoked, get revokedAtClick() { return revokedAtClick }, restore }
 }
 
 const fileOf = (contents: string) => new File([contents], 'backup.json', { type: 'application/json' })
@@ -280,6 +287,7 @@ describe('PracticeHistoryView', () => {
 
   it('downloads whatever the backup handler gives it, under a dated name', async () => {
     const download = captureDownload()
+    vi.useFakeTimers()
 
     try {
       const { props } = renderView()
@@ -287,10 +295,83 @@ describe('PracticeHistoryView', () => {
 
       expect(props.getBackup).toHaveBeenCalledTimes(1)
       expect(download.captured.name).toBe('callnote-practice-log-2026-02-14.json')
-      expect(await download.captured.blob?.text()).toBe('BACKUP-FILE-TEXT')
+      expect(download.captured.connected).toBe(true)
+      // The anchor is removed straight after the click, and the URL isn't
+      // revoked until after — revoking mid-click could cancel a download
+      // that has just started.
+      expect(download.revokedAtClick).toEqual([])
+      expect(document.querySelector('a')).toBeNull()
+
+      vi.runAllTimers()
       expect(download.revoked).toEqual(['blob:practice-log'])
+
+      vi.useRealTimers()
+      expect(await download.captured.blob?.text()).toBe('BACKUP-FILE-TEXT')
+      expect(screen.queryByTestId('history-export-error')).toBeNull()
     } finally {
+      vi.useRealTimers()
       download.restore()
+    }
+  })
+
+  it("says so instead of throwing when the browser refuses the object URL", () => {
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new DOMException('Blob URLs are not available.', 'SecurityError')
+      },
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+
+    try {
+      renderView()
+      fireEvent.click(screen.getByTestId('history-export'))
+
+      expect(screen.getByTestId('history-export-error')).toHaveTextContent('refused it')
+      expect(click).not.toHaveBeenCalled()
+      expect(document.querySelector('a')).toBeNull()
+    } finally {
+      click.mockRestore()
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
+    }
+  })
+
+  it('clears a stale export error once a retry gets through', () => {
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new DOMException('Blob URLs are not available.', 'SecurityError')
+      },
+    })
+
+    try {
+      renderView()
+      fireEvent.click(screen.getByTestId('history-export'))
+      expect(screen.getByTestId('history-export-error')).toBeInTheDocument()
+
+      // The throwing stub is replaced by a working one, standing in for the
+      // browser starting to cooperate on a second try.
+      const download = captureDownload()
+      try {
+        fireEvent.click(screen.getByTestId('history-export'))
+        expect(screen.queryByTestId('history-export-error')).toBeNull()
+      } finally {
+        download.restore()
+      }
+    } finally {
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
     }
   })
 
@@ -325,8 +406,59 @@ describe('PracticeHistoryView', () => {
 
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
 
-    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    const error = await screen.findByTestId('history-import-error')
+    expect(error).toHaveTextContent('nothing was changed')
+    expect(error).toHaveAttribute('role', 'alert')
     expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('forgets a failed import the next time it is opened', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
+    await screen.findByTestId('history-import-error')
+
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    rerender(<PracticeHistoryView {...props} />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
+  it('does not let a read still in flight when the sheet closes repaint the error on reopen', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    let resolveText: (value: string) => void = () => {}
+    const file = fileOf('{"days":{}}')
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(() => new Promise<string>((resolve) => (resolveText = resolve))),
+    })
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    // Closed before the read resolves — the cleanup clears the (still empty) error.
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    resolveText('{"days":{}}')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    rerender(<PracticeHistoryView {...props} open />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
   it('refuses a file past the size ceiling without reading it', async () => {
@@ -351,6 +483,21 @@ describe('PracticeHistoryView', () => {
     expect(props.onImport).not.toHaveBeenCalled()
   })
 
+  it('says so and changes nothing when the file cannot be read', async () => {
+    const { props } = renderView()
+    const file = fileOf('{}')
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(async () => {
+        throw new DOMException('The file could not be read.', 'NotReadableError')
+      }),
+    })
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    expect(props.onImport).not.toHaveBeenCalled()
+  })
+
   it('still imports a backup the system has no type for', async () => {
     const { props } = renderView()
 
@@ -360,5 +507,49 @@ describe('PracticeHistoryView', () => {
 
     await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
+  describe('with an empty log', () => {
+    it('says nothing is logged yet instead of a page of zeros', () => {
+      renderView({ history: { days: {} } })
+
+      expect(screen.getByTestId('history-empty')).toHaveTextContent('A minute of practice fills in today’s square')
+      expect(screen.queryByTestId('history-streak')).toBeNull()
+      expect(screen.queryByTestId('history-totals')).toBeNull()
+      expect(screen.queryByTestId('history-day')).toBeNull()
+      expect(document.querySelectorAll('.practice-history-month')).toHaveLength(0)
+    })
+
+    it('disables Export backup, with nothing to export', () => {
+      const { props } = renderView({ history: { days: {} } })
+
+      const exportButton = screen.getByTestId('history-export')
+      expect(exportButton).toBeDisabled()
+      expect(exportButton.getAttribute('title')).toMatch(/nothing to export/i)
+
+      fireEvent.click(exportButton)
+      expect(props.getBackup).not.toHaveBeenCalled()
+    })
+
+    it('keeps Import backup live — restoring into an empty log is the first-run case', () => {
+      const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {})
+      renderView({ history: { days: {} } })
+
+      const importButton = screen.getByTestId('history-import')
+      expect(importButton).not.toBeDisabled()
+      fireEvent.click(importButton)
+
+      expect(click).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps Export live when practice is still only pending, not yet committed', () => {
+      const { props } = renderView({ history: { days: {} }, hasPendingPractice: () => true })
+
+      const exportButton = screen.getByTestId('history-export')
+      expect(exportButton).not.toBeDisabled()
+
+      fireEvent.click(exportButton)
+      expect(props.getBackup).toHaveBeenCalledTimes(1)
+    })
   })
 })

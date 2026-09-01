@@ -80,6 +80,29 @@ describe('AudioEngine.ensureContext', () => {
     expect(context.resume).toHaveBeenCalledTimes(2)
   })
 
+  it("resumes Safari's nonstandard 'interrupted' state on reuse", async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+
+    await engine.ensureContext()
+    // What iOS does to the context when the audio session flips under it —
+    // opening the microphone is the everyday way that happens.
+    context.state = 'interrupted' as AudioContextState
+    await engine.ensureContext()
+    expect(context.resume).toHaveBeenCalledTimes(2)
+    expect(context.state).toBe('running')
+  })
+
+  it('leaves a closed context alone — resume() cannot help it', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+
+    await engine.ensureContext()
+    context.state = 'closed'
+    await engine.ensureContext()
+    expect(context.resume).toHaveBeenCalledTimes(1)
+  })
+
   it('returns null when no context can be created', async () => {
     const engine = new AudioEngine({ contextFactory: () => null })
     await expect(engine.ensureContext()).resolves.toBeNull()

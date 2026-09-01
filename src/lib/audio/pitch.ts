@@ -22,8 +22,59 @@
 export const MIN_PITCH_HZ = 70
 export const MAX_PITCH_HZ = 1000
 
-/** Below this RMS the frame is room tone, and correlating it only finds noise. */
-export const SILENCE_RMS = 0.01
+/**
+ * The default silence cutoff, for a caller with no better idea of its input's
+ * level. It is only a default: absolute numbers here have already failed twice,
+ * because what "quiet" means depends entirely on the capture — an iPhone's raw
+ * microphone, with no automatic gain, put its *room* at −70 dB and a played
+ * note under −50 dB, beneath every absolute floor tried. A live capture should
+ * gate relative to its own measured room instead — see `createSilenceGate`.
+ * Noise rejection is not the cutoff's job at any level: room tone is
+ * aperiodic, and the clarity gate below is what turns it away.
+ */
+export const SILENCE_RMS = 0.003
+
+/**
+ * The gate's rock bottom, well under any real room's floor: frames down here
+ * are digital silence — a muted track, a parked context — and correlating
+ * quantisation noise would only invent notes out of it.
+ */
+export const SILENCE_RMS_MIN = 0.0001
+
+/** How far over the measured room a frame must stand to be worth analysing —
+ * ×2.5 is 8 dB, enough that room tone never clears its own bar, little enough
+ * that a raw capture's genuinely faint plucks still do. */
+export const SILENCE_ABOVE_FLOOR = 2.5
+
+/** How fast the room estimate drifts back up per frame after a quiet spell —
+ * 0.5% per 50 ms poll, so a held note lifts it by barely a quarter over its
+ * own two seconds, while one quiet frame between notes snaps it back down. */
+const FLOOR_DRIFT_PER_FRAME = 1.005
+
+/**
+ * A running estimate of the capture's own noise floor, fed every frame. The
+ * estimate falls instantly to the quietest thing it has seen and climbs back
+ * only by the slow drift, so silence between notes keeps it honest and a long
+ * sustain cannot talk it up into eating the next note.
+ */
+export type SilenceGate = {
+  /** Feeds one frame's RMS; returns the cutoff `detectPitch` should gate on. */
+  observe(rms: number): number
+  /** The current room estimate, for the debug overlay. */
+  floor(): number
+}
+
+export const createSilenceGate = (): SilenceGate => {
+  let floor = SILENCE_RMS_MIN
+
+  return {
+    observe: (rms) => {
+      floor = Math.min(Math.max(rms, SILENCE_RMS_MIN), floor * FLOOR_DRIFT_PER_FRAME)
+      return Math.max(SILENCE_RMS_MIN, floor * SILENCE_ABOVE_FLOOR)
+    },
+    floor: () => floor,
+  }
+}
 
 /**
  * How periodic a frame has to be before it is called a note. Deliberately
@@ -40,6 +91,19 @@ export const CLARITY_THRESHOLD = 0.9
  */
 const OCTAVE_TIE_FRACTION = 0.9
 
+/**
+ * The other half of that trap, upside down. A low note with a strong partial
+ * above ~750 Hz scores highly at the partial's own short lag too, close enough
+ * to tie with the fundamental and win on lag — a harmonic-rich G2 read as a B5.
+ * What separates the two is what happens at twice the lag: a real period
+ * repeats there just as strongly, while a partial's score has fallen away by
+ * then, because the note underneath it has decorrelated. This is how much of
+ * its own score a peak has to keep at 2T to be believed as a period; loose
+ * enough that a decaying pluck, whose longer windows always score a little
+ * lower, still clears it.
+ */
+const PERIOD_ECHO_FRACTION = 0.9
+
 export type PitchReading = {
   frequency: number
   /** The NSDF peak: 1 is perfectly periodic, 0 is not periodic at all. */
@@ -48,9 +112,12 @@ export type PitchReading = {
 
 /** Positive-region maxima, ascending by lag — one per lobe, not per wiggle. */
 const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): number[] => {
-  let lag = minLag
-  // The lobe around zero lag is the signal correlating with itself; whatever is
-  // left of it at minLag is not a period and has to be walked past first.
+  let lag = 1
+  // The lobe around zero lag is the signal correlating with itself, and it has
+  // to be walked past first — from lag 1 to where it actually ends, never from
+  // minLag. Above ~750 Hz the fundamental's own first-period lobe is already
+  // positive at minLag, so treating that as zero-lag remnant would walk right
+  // over the true peak and leave the 2T subharmonic as the tallest.
   while (lag <= maxLag && nsdf[lag] > 0) {
     lag += 1
   }
@@ -76,15 +143,40 @@ const findKeyMaxima = (nsdf: Float32Array, minLag: number, maxLag: number): numb
       lag += 1
     }
 
-    peaks.push(peak)
+    // A lobe peaking under minLag is a period shorter than the search floor:
+    // dropped so the ceiling still bounds what can be named, which is what
+    // keeps an out-of-range whistle reading as its in-range subharmonic.
+    if (peak >= minLag) {
+      peaks.push(peak)
+    }
   }
 
   return peaks
 }
 
+/** Whether the period a peak claims is still there one period later. */
+const echoesAtTwiceTheLag = (nsdf: Float32Array, lag: number, maxLag: number): boolean => {
+  const echo = 2 * lag
+  // Nothing to check against: a low note's 2T is past the half-frame limit the
+  // search stops at, so the peak is taken at its word — which is safe, because
+  // a lag that long is nobody's upper partial.
+  if (echo + 1 > maxLag) {
+    return true
+  }
+
+  // The neighbours count as well: a period of 44.3 samples peaks at lag 44 and
+  // then at 89, not at 88.
+  const support = Math.max(nsdf[echo - 1], nsdf[echo], nsdf[echo + 1])
+
+  return support >= nsdf[lag] * PERIOD_ECHO_FRACTION
+}
+
 /** Sub-sample peak position from the three samples around it — worth ~4 cents. */
-const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag: number): number => {
-  if (lag <= minLag || lag >= maxLag) {
+const interpolatePeak = (nsdf: Float32Array, lag: number, maxLag: number): number => {
+  // Only that both neighbours exist — a peak sitting exactly on minLag is the
+  // top of the range, and refusing to interpolate there rounds it to a lag it
+  // never had, over the ceiling and rejected.
+  if (lag <= 1 || lag >= maxLag) {
     return lag
   }
 
@@ -99,16 +191,25 @@ const interpolatePeak = (nsdf: Float32Array, lag: number, minLag: number, maxLag
 /**
  * The pitch of one frame of samples, or null when there isn't one — silence,
  * noise, a chord, or anything else the gates above reject.
+ *
+ * `silenceRms` is the level below which the frame is not worth correlating; a
+ * live capture passes what its `SilenceGate` returned for this frame, anything
+ * else gets the absolute default.
  */
-export function detectPitch(frame: Float32Array, sampleRate: number): PitchReading | null {
+export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms: number = SILENCE_RMS): PitchReading | null {
   const size = frame.length
 
-  let sumOfSquares = 0
+  // Running sum of squares: prefix[k] is the energy in frame[0..k-1]. One pass
+  // buys both the silence gate and every window energy the NSDF loop below
+  // needs, which is what keeps that loop O(1) per lag in its energy term.
+  // Float64 because a Float32 prefix would round each partial sum.
+  const prefix = new Float64Array(size + 1)
   for (let index = 0; index < size; index += 1) {
-    sumOfSquares += frame[index] * frame[index]
+    prefix[index + 1] = prefix[index] + frame[index] * frame[index]
   }
 
-  if (Math.sqrt(sumOfSquares / size) < SILENCE_RMS) {
+  const total = prefix[size]
+  if (Math.sqrt(total / size) < silenceRms) {
     return null
   }
 
@@ -121,16 +222,18 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
   }
 
   const nsdf = new Float32Array(maxLag + 1)
-  for (let lag = minLag; lag <= maxLag; lag += 1) {
+  // From lag 1, not from minLag: the lobe walk below needs the zero-lag lobe's
+  // real extent rather than a guess at where it has ended by minLag.
+  for (let lag = 1; lag <= maxLag; lag += 1) {
     let correlation = 0
-    let energy = 0
     for (let index = 0; index < size - lag; index += 1) {
-      const left = frame[index]
-      const right = frame[index + lag]
-      correlation += left * right
-      energy += left * left + right * right
+      correlation += frame[index] * frame[index + lag]
     }
 
+    // The same two windows the loop walked: frame[0..size-lag-1] on the left,
+    // frame[lag..size-1] on the right, read off the prefix sum instead of
+    // re-added sample by sample.
+    const energy = prefix[size - lag] + (total - prefix[lag])
     nsdf[lag] = energy > 0 ? (2 * correlation) / energy : 0
   }
 
@@ -147,14 +250,19 @@ export function detectPitch(frame: Float32Array, sampleRate: number): PitchReadi
   }
 
   const tieCutoff = nsdf[best] * OCTAVE_TIE_FRACTION
-  const chosen = peaks.find((peak) => nsdf[peak] >= tieCutoff) ?? best
+  const tied = peaks.filter((peak) => nsdf[peak] >= tieCutoff)
+  // Shortest lag among the tied peaks, but only among those whose period is
+  // still there at 2T: without that, a partial tied with the note carrying it
+  // wins on lag alone. If none of them echo, the shortest still wins — the
+  // octave rule is the older reading of the two.
+  const chosen = tied.find((peak) => echoesAtTwiceTheLag(nsdf, peak, maxLag)) ?? tied[0] ?? best
 
   const clarity = Math.min(1, nsdf[chosen])
   if (clarity < CLARITY_THRESHOLD) {
     return null
   }
 
-  const frequency = sampleRate / interpolatePeak(nsdf, chosen, minLag, maxLag)
+  const frequency = sampleRate / interpolatePeak(nsdf, chosen, maxLag)
   if (!Number.isFinite(frequency) || frequency < MIN_PITCH_HZ || frequency > MAX_PITCH_HZ) {
     return null
   }

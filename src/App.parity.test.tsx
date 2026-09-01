@@ -33,6 +33,10 @@ vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
     context = {
       sampleRate: 44100,
+      state: 'running',
+      async resume() {},
+      addEventListener() {},
+      removeEventListener() {},
       createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
       createAnalyser: () => ({
         fftSize: 0,
@@ -168,7 +172,7 @@ beforeEach(() => {
   window.history.replaceState({}, '', `/?challenge=${CHALLENGE}`)
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
-    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream) },
+    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream) },
   })
 })
 

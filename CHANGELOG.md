@@ -1,3 +1,145 @@
+## [1.28.7](https://github.com/wolasss/random-scale-trainer/compare/v1.28.6...v1.28.7) (2026-09-01)
+
+
+### Bug Fixes
+
+* **challenge:** time-bound scoreboard requests so a stalled network can't wedge the join ([#210](https://github.com/wolasss/random-scale-trainer/issues/210)) ([dc02614](https://github.com/wolasss/random-scale-trainer/commit/dc02614492a6550c906040aa1efd29b61fd9a61c))
+* **history:** clear a stale import error when the sheet closes and announce it via role="alert" ([#204](https://github.com/wolasss/random-scale-trainer/issues/204)) ([9bb575a](https://github.com/wolasss/random-scale-trainer/commit/9bb575a11715cb020ab365ae39497704fde7d4ea))
+* **history:** make exporting a practice-log backup survive a browser that refuses the download ([#206](https://github.com/wolasss/random-scale-trainer/issues/206)) ([dddd0e0](https://github.com/wolasss/random-scale-trainer/commit/dddd0e0a5d15d71d1e54435c58d76aa875db3b33))
+* **shortcuts:** stop Space and R reaching the transport from behind an open sheet ([#209](https://github.com/wolasss/random-scale-trainer/issues/209)) ([e3e472c](https://github.com/wolasss/random-scale-trainer/commit/e3e472c622862afe176da7c4237539bf634b4b71))
+* strip control characters from bug reports and time-bound outbound calls ([#203](https://github.com/wolasss/random-scale-trainer/issues/203)) ([7ee4b05](https://github.com/wolasss/random-scale-trainer/commit/7ee4b05af307b649270a53c8fd3799f4f980bf0f))
+
+## [1.28.6](https://github.com/wolasss/random-scale-trainer/compare/v1.28.5...v1.28.6) (2026-08-31)
+
+
+### Bug Fixes
+
+* **wakelock:** re-take a screen lock the system drops while practice is still running ([#201](https://github.com/wolasss/random-scale-trainer/issues/201)) ([71f46b8](https://github.com/wolasss/random-scale-trainer/commit/71f46b8c336ca4a6fc9e74d3b3d935ee83fc18cd))
+
+## [1.28.5](https://github.com/wolasss/random-scale-trainer/compare/v1.28.4...v1.28.5) (2026-08-28)
+
+
+### Bug Fixes
+
+* **pitch:** stop the detector reading notes above ~750 Hz an octave low ([#198](https://github.com/wolasss/random-scale-trainer/issues/198)) ([b0d3289](https://github.com/wolasss/random-scale-trainer/commit/b0d3289b35f1790d802f309832290bb37f602657))
+
+## [1.28.4](https://github.com/wolasss/random-scale-trainer/compare/v1.28.3...v1.28.4) (2026-08-28)
+
+
+### Bug Fixes
+
+* **a11y:** give the routine strip's skip/unload and hint dismiss buttons a fingertip target on touch screens ([#174](https://github.com/wolasss/random-scale-trainer/issues/174)) ([9feb7f6](https://github.com/wolasss/random-scale-trainer/commit/9feb7f624e9d82ff945a42171faa5362b6cd5cec))
+* **mic:** recover when the microphone stream dies mid-practice ([#193](https://github.com/wolasss/random-scale-trainer/issues/193)) ([461cd41](https://github.com/wolasss/random-scale-trainer/commit/461cd41b9d331bee15cd8939d384e1674954a748))
+* **routines:** keep a finished workout restartable after deleting an earlier block ([#199](https://github.com/wolasss/random-scale-trainer/issues/199)) ([d585f6a](https://github.com/wolasss/random-scale-trainer/commit/d585f6afc4ed07afe95c4d0adf99ecb6a6f6a5fd))
+
+## [1.28.3](https://github.com/wolasss/random-scale-trainer/compare/v1.28.2...v1.28.3) (2026-08-28)
+
+
+### Bug Fixes
+
+* **a11y:** let the keyboard scroll the fretboard neck when it overflows ([#200](https://github.com/wolasss/random-scale-trainer/issues/200)) ([8663560](https://github.com/wolasss/random-scale-trainer/commit/86635608fd8f56fef7685294b50ca1866a2a2a9e))
+
+## [1.28.2](https://github.com/wolasss/random-scale-trainer/compare/v1.28.1...v1.28.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **history:** surface the import error when a backup file cannot be read ([#196](https://github.com/wolasss/random-scale-trainer/issues/196)) ([4ce4e1f](https://github.com/wolasss/random-scale-trainer/commit/4ce4e1f343afca45b91361044ae314aa7167cd6e))
+
+## [1.28.1](https://github.com/wolasss/random-scale-trainer/compare/v1.28.0...v1.28.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **mic:** gate silence against the room the capture measures, not a constant ([#195](https://github.com/wolasss/random-scale-trainer/issues/195)) ([fca54e2](https://github.com/wolasss/random-scale-trainer/commit/fca54e2292d0b49c16b4b41790e02d8b0a670728))
+
+# [1.28.0](https://github.com/wolasss/random-scale-trainer/compare/v1.27.4...v1.28.0) (2026-08-26)
+
+
+### Features
+
+* **mic:** an on-device debug overlay, and a poll-loop resume retry ([#194](https://github.com/wolasss/random-scale-trainer/issues/194)) ([5b91137](https://github.com/wolasss/random-scale-trainer/commit/5b91137af452f96314117ca0d42932034bb804ec))
+
+## [1.27.4](https://github.com/wolasss/random-scale-trainer/compare/v1.27.3...v1.27.4) (2026-08-26)
+
+
+### Bug Fixes
+
+* **history:** commit the practice log onto freshly read storage so a second open tab cannot erase logged minutes ([#191](https://github.com/wolasss/random-scale-trainer/issues/191)) ([db77572](https://github.com/wolasss/random-scale-trainer/commit/db775721f7fb96b09c88c130c0a74fdbc60e5253))
+* **mic:** analyse on a capture-born context, and lower the silence floor ([#190](https://github.com/wolasss/random-scale-trainer/issues/190)) ([f67df32](https://github.com/wolasss/random-scale-trainer/commit/f67df329e93e69b4b7031da9fbd5de965b9e3b41))
+
+
+### Performance Improvements
+
+* **timer:** stop the 200 ms session tick from re-rendering the whole app ([#188](https://github.com/wolasss/random-scale-trainer/issues/188)) ([37c028a](https://github.com/wolasss/random-scale-trainer/commit/37c028a2e1b107cfc919b7c817fa299f561c83eb))
+
+## [1.27.3](https://github.com/wolasss/random-scale-trainer/compare/v1.27.2...v1.27.3) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mic:** capture raw audio instead of a voice-processed stream ([#189](https://github.com/wolasss/random-scale-trainer/issues/189)) ([7fac36b](https://github.com/wolasss/random-scale-trainer/commit/7fac36b127b326bf8a185495e0f5daaf053b2f41))
+
+## [1.27.2](https://github.com/wolasss/random-scale-trainer/compare/v1.27.1...v1.27.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mobile:** unwedge the idle start button and give the stand's mic row and stats room ([#187](https://github.com/wolasss/random-scale-trainer/issues/187)) ([b29abee](https://github.com/wolasss/random-scale-trainer/commit/b29abeecf5d05cb472fc938280369b7fe4cbe8e4))
+
+## [1.27.1](https://github.com/wolasss/random-scale-trainer/compare/v1.27.0...v1.27.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **mic:** resume the context iOS parks when the microphone opens ([#186](https://github.com/wolasss/random-scale-trainer/issues/186)) ([28002c4](https://github.com/wolasss/random-scale-trainer/commit/28002c4c1d6c66c7d81e84b394202bfbdb2421f2))
+
+# [1.27.0](https://github.com/wolasss/random-scale-trainer/compare/v1.26.1...v1.27.0) (2026-08-25)
+
+
+### Features
+
+* **footer:** report a bug from the app, behind a captcha ([#185](https://github.com/wolasss/random-scale-trainer/issues/185)) ([4822d7d](https://github.com/wolasss/random-scale-trainer/commit/4822d7d358827596ae2ca7b9fae5d4d45beb8839))
+
+## [1.26.1](https://github.com/wolasss/random-scale-trainer/compare/v1.26.0...v1.26.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **hero:** keep the idle ready caption clear of the note line edge ([#183](https://github.com/wolasss/random-scale-trainer/issues/183)) ([7f8ac14](https://github.com/wolasss/random-scale-trainer/commit/7f8ac14046c657a93a3dbf03ab0083c7e05bfca8))
+
+# [1.26.0](https://github.com/wolasss/random-scale-trainer/compare/v1.25.2...v1.26.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* **sw:** precache each asset from the network instead of the browser's 7-day HTTP cache ([#180](https://github.com/wolasss/random-scale-trainer/issues/180)) ([ea02712](https://github.com/wolasss/random-scale-trainer/commit/ea027120996cddc02bba4ff5dfacf5736b558681))
+
+
+### Features
+
+* **challenge:** size the board for a large virtual class and harden scoring ([#179](https://github.com/wolasss/random-scale-trainer/issues/179)) ([a1038f3](https://github.com/wolasss/random-scale-trainer/commit/a1038f345f4eb3b147ee0b2b589ebafaff1ed662))
+* **tempo:** hold the BPM steppers to sweep the tempo instead of tapping ([#182](https://github.com/wolasss/random-scale-trainer/issues/182)) ([d8e3927](https://github.com/wolasss/random-scale-trainer/commit/d8e39275147f9395e219c8be4cb7300b2a276b27))
+
+
+### Performance Improvements
+
+* **pitch:** make the NSDF energy term O(1) per lag with a prefix sum of squares ([#181](https://github.com/wolasss/random-scale-trainer/issues/181)) ([0e6a891](https://github.com/wolasss/random-scale-trainer/commit/0e6a891971a74fcc8e049e464f3d11e6ea205503))
+
+## [1.25.2](https://github.com/wolasss/random-scale-trainer/compare/v1.25.1...v1.25.2) (2026-08-25)
+
+
+### Bug Fixes
+
+* **scoreboard:** cap what a board response may put on screen before rendering it ([#170](https://github.com/wolasss/random-scale-trainer/issues/170)) ([ade467d](https://github.com/wolasss/random-scale-trainer/commit/ade467d39401ad55e388a30e6edf82e42f05bf12))
+
+## [1.25.1](https://github.com/wolasss/random-scale-trainer/compare/v1.25.0...v1.25.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **history:** give the practice history sheet a first-run empty state ([#177](https://github.com/wolasss/random-scale-trainer/issues/177)) ([8089fcc](https://github.com/wolasss/random-scale-trainer/commit/8089fcc12d3ff9001c1ebf06c1b6e9c97558d4f6))
+
 # [1.25.0](https://github.com/wolasss/random-scale-trainer/compare/v1.24.0...v1.25.0) (2026-08-24)
 
 

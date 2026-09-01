@@ -29,6 +29,9 @@ export const isIos = (): boolean => {
   )
 }
 
+export const isAndroid = (): boolean =>
+  typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)
+
 export type DisplayMode = {
   /** Launched from the home screen rather than a browser tab. */
   standalone: boolean

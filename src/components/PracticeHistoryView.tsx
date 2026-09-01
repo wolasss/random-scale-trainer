@@ -8,6 +8,7 @@ import {
   buildMonths,
   currentStreak,
   dayKey,
+  hasHistory,
   isBackupFileType,
   MAX_BACKUP_BYTES,
   parseBackup,
@@ -24,11 +25,24 @@ type PracticeHistoryViewProps = {
   getBackup: () => string
   /** Answers whether the merged log was actually stored — see App. */
   onImport: (incoming: PracticeHistory) => boolean
+  /**
+   * True if a commit right now would bank something — see App. Keeps Export
+   * live through the first ten seconds of a first-ever session, when
+   * `history` is still empty but there is practice waiting in refs.
+   */
+  hasPendingPractice?: () => boolean
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date
 }
 
 const IMPORT_ERROR = "That file doesn't look like a practice-log backup — nothing was changed."
+
+/**
+ * Thrown rather than silently failing: a browser that refuses object URLs
+ * (private modes, some locked-down embeds) leaves the click with nothing to
+ * point at, and without this the export button would just do nothing.
+ */
+const EXPORT_ERROR = "The backup couldn't be downloaded — your browser refused it. Nothing was saved."
 
 /**
  * A backup that read cleanly and then couldn't be saved. Worth its own line:
@@ -51,12 +65,26 @@ const RESTORE_BLOCKED_ERROR =
  * of this has something to lose, and a log kept in one browser's storage is one
  * cleared cache from gone.
  */
-export function PracticeHistoryView({ open, history, onClose, getBackup, onImport, today }: PracticeHistoryViewProps) {
+export function PracticeHistoryView({
+  open,
+  history,
+  onClose,
+  getBackup,
+  onImport,
+  hasPendingPractice,
+  today,
+}: PracticeHistoryViewProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // Mirrors `open` for handleFile's async continuations, which close over
+  // whatever `open` was when the read started — a ref stays current if the
+  // sheet closes mid-read, so a late failure can't repaint the error the
+  // cleanup below just cleared.
+  const openRef = useRef(open)
 
   // On the stand this opens on top of the practice sheet, which runs a trap of
   // its own on the window — hence capture. Focus starts on the close button
@@ -65,13 +93,19 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   useFocusTrap(sheetRef, open, onClose, { capture: true, initialFocus: closeRef })
 
   useEffect(() => {
+    openRef.current = open
+
     if (!open) {
       return undefined
     }
 
     // Closing ends the question that was being asked, so the next opening
-    // starts on today again rather than on whatever was last tapped.
-    return () => setSelectedKey(null)
+    // starts on today again rather than on whatever was last tapped — and
+    // clears any import error, which belongs to the visit that produced it.
+    return () => {
+      setSelectedKey(null)
+      setImportError(null)
+    }
   }, [open])
 
   if (!open) {
@@ -79,6 +113,11 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   }
 
   const now = today ?? new Date()
+  const populated = hasHistory(history)
+  // A brand-new session hasn't hit its first automatic flush yet, so `history`
+  // reads empty even though there is practice waiting to be banked — Export
+  // stays live for it rather than only for what has already been committed.
+  const canExport = populated || (hasPendingPractice?.() ?? false)
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
   const months = buildMonths(history, now)
@@ -94,13 +133,30 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
   const totalNotes = entries.reduce((sum, day) => sum + day.notes, 0)
 
   const handleExport = () => {
-    const blob = new Blob([getBackup()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
+    setExportError(null)
     const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `callnote-practice-log-${dayKey(now)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    let url: string | null = null
+
+    try {
+      const blob = new Blob([getBackup()], { type: 'application/json' })
+      url = URL.createObjectURL(blob)
+      anchor.href = url
+      anchor.download = `callnote-practice-log-${dayKey(now)}.json`
+      // Some browsers only honour a click on an anchor that is actually in
+      // the document.
+      document.body.appendChild(anchor)
+      anchor.click()
+    } catch {
+      setExportError(EXPORT_ERROR)
+    } finally {
+      anchor.remove()
+      if (url !== null) {
+        const revokeUrl = url
+        // Deferred past the click so a download that has just started isn't
+        // cancelled by revoking the URL it's still reading from.
+        window.setTimeout(() => URL.revokeObjectURL(revokeUrl), 0)
+      }
+    }
   }
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -120,16 +176,38 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
       return
     }
 
-    const parsed = parseBackup(await file.text())
+    // The picked file can still fail to read if it was moved, changed, or
+    // made unreadable in the gap between picking it and this await (Chromium
+    // surfaces that as NotReadableError) — without a guard here that rejection
+    // would escape as an unhandled promise rejection and leave no error on screen.
+    let contents: string
+    try {
+      contents = await file.text()
+    } catch {
+      if (openRef.current) {
+        setImportError(IMPORT_ERROR)
+      }
+      return
+    }
+
+    const parsed = parseBackup(contents)
     if (parsed === null) {
-      setImportError(IMPORT_ERROR)
+      if (openRef.current) {
+        setImportError(IMPORT_ERROR)
+      }
       return
     }
 
     // A successful restore reloads, so the cleared error is really only for the
     // case where it didn't — leaving the last failure on screen beside a log
-    // that has since been restored would be its own kind of lie.
-    setImportError(onImport(parsed) ? null : RESTORE_BLOCKED_ERROR)
+    // that has since been restored would be its own kind of lie. The read
+    // crossed an await, so the sheet may have closed underneath it — still
+    // worth writing (it's a real backup), just not worth repainting an error
+    // over a visit that has already cleared its own.
+    const restored = onImport(parsed)
+    if (openRef.current) {
+      setImportError(restored ? null : RESTORE_BLOCKED_ERROR)
+    }
   }
 
   // Through the body, not the card. It is opened from inside a .panel, and a
@@ -168,74 +246,82 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
         </div>
 
         <div className="sheet-body">
-          <div className="practice-history-summary">
-            <span className="practice-history-streak" data-testid="history-streak">
-              {streak} {streak === 1 ? 'day' : 'days'} in a row
-            </span>
-            {best > 0 ? (
-              <span className="practice-history-best" data-testid="history-best">
-                best {best}
-              </span>
-            ) : null}
-            <span className="practice-history-totals" data-testid="history-totals">
-              {entries.length} days practised · {Math.round(totalSec / 60)} min · {totalNotes} notes
-            </span>
-          </div>
+          {populated ? (
+            <>
+              <div className="practice-history-summary">
+                <span className="practice-history-streak" data-testid="history-streak">
+                  {streak} {streak === 1 ? 'day' : 'days'} in a row
+                </span>
+                {best > 0 ? (
+                  <span className="practice-history-best" data-testid="history-best">
+                    best {best}
+                  </span>
+                ) : null}
+                <span className="practice-history-totals" data-testid="history-totals">
+                  {entries.length} days practised · {Math.round(totalSec / 60)} min · {totalNotes} notes
+                </span>
+              </div>
 
-          <div className="practice-history-months">
-            {months.map((month) => (
-              <section className="practice-history-month" key={month.key}>
-                <div className="practice-history-month-head">
-                  <h3 className="practice-history-month-name">{month.label}</h3>
-                  <span className="practice-history-month-total">{month.totalMinutes} min</span>
-                </div>
+              <div className="practice-history-months">
+                {months.map((month) => (
+                  <section className="practice-history-month" key={month.key}>
+                    <div className="practice-history-month-head">
+                      <h3 className="practice-history-month-name">{month.label}</h3>
+                      <span className="practice-history-month-total">{month.totalMinutes} min</span>
+                    </div>
 
-                <div className="practice-history-weekdays" aria-hidden="true">
-                  {WEEKDAY_INITIALS.map((initial, index) => (
-                    <span key={index}>{initial}</span>
-                  ))}
-                </div>
+                    <div className="practice-history-weekdays" aria-hidden="true">
+                      {WEEKDAY_INITIALS.map((initial, index) => (
+                        <span key={index}>{initial}</span>
+                      ))}
+                    </div>
 
-                <div className="practice-history-grid">
-                  {month.cells.map((cell, index) => {
-                    if (cell === null) {
-                      return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
-                    }
+                    <div className="practice-history-grid">
+                      {month.cells.map((cell, index) => {
+                        if (cell === null) {
+                          return <span className="practice-history-pad" key={`pad-${index}`} aria-hidden="true" />
+                        }
 
-                    const label = `${cell.key}: ${practiceDayTitle(cell.minutes, cell.sec)}`
-                    const className = [
-                      `practice-history-cell is-l${cell.level}`,
-                      cell.isToday ? 'is-today' : '',
-                      cell.isFuture ? 'is-future' : '',
-                      !cell.isFuture && cell.key === selectedDay ? 'is-selected' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')
+                        const label = `${cell.key}: ${practiceDayTitle(cell.minutes, cell.sec)}`
+                        const className = [
+                          `practice-history-cell is-l${cell.level}`,
+                          cell.isToday ? 'is-today' : '',
+                          cell.isFuture ? 'is-future' : '',
+                          !cell.isFuture && cell.key === selectedDay ? 'is-selected' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
 
-                    // A day the calendar hasn't reached has nothing to read out,
-                    // so it stays a picture rather than becoming a tab stop.
-                    return cell.isFuture ? (
-                      <span key={cell.key} className={className} role="img" title={label} aria-label={label} />
-                    ) : (
-                      <button
-                        key={cell.key}
-                        type="button"
-                        className={className}
-                        title={label}
-                        aria-label={label}
-                        aria-pressed={cell.key === selectedDay}
-                        onClick={() => setSelectedKey(cell.key)}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
+                        // A day the calendar hasn't reached has nothing to read out,
+                        // so it stays a picture rather than becoming a tab stop.
+                        return cell.isFuture ? (
+                          <span key={cell.key} className={className} role="img" title={label} aria-label={label} />
+                        ) : (
+                          <button
+                            key={cell.key}
+                            type="button"
+                            className={className}
+                            title={label}
+                            aria-label={label}
+                            aria-pressed={cell.key === selectedDay}
+                            onClick={() => setSelectedKey(cell.key)}
+                          />
+                        )
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
 
-          <p className="practice-history-day" data-testid="history-day">
-            {selectedDay} · {practiceDayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
-          </p>
+              <p className="practice-history-day" data-testid="history-day">
+                {selectedDay} · {practiceDayTitle(Math.round(selectedSec / 60), selectedSec)} · {selected?.notes ?? 0} notes
+              </p>
+            </>
+          ) : (
+            <p className="practice-history-backup-note" data-testid="history-empty">
+              Nothing logged yet. A minute of practice fills in today’s square.
+            </p>
+          )}
 
           <div className="practice-history-backup">
             <p className="practice-history-backup-note">
@@ -244,7 +330,14 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
             </p>
 
             <div className="practice-history-actions">
-              <button type="button" className="ghost-button" onClick={handleExport} data-testid="history-export">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={handleExport}
+                disabled={!canExport}
+                title={canExport ? undefined : 'Nothing to export yet — practise for a minute first'}
+                data-testid="history-export"
+              >
                 Export backup
               </button>
               <button
@@ -269,8 +362,14 @@ export function PracticeHistoryView({ open, history, onClose, getBackup, onImpor
             />
 
             {importError !== null ? (
-              <p className="practice-history-error" data-testid="history-import-error">
+              <p className="practice-history-error" role="alert" data-testid="history-import-error">
                 {importError}
+              </p>
+            ) : null}
+
+            {exportError !== null ? (
+              <p className="practice-history-error" data-testid="history-export-error" role="alert">
+                {exportError}
               </p>
             ) : null}
           </div>

@@ -163,6 +163,36 @@ export const MAX_DIFFICULTY_MULTIPLIER =
  */
 export const FASTEST_NOTE_INTERVAL_MS = Math.floor(60_000 / MAX_BPM)
 
+/**
+ * The other end of the same ruler: the longest the app can possibly leave
+ * between two called notes — the widest span at the lowest tempo. Like the
+ * fastest interval it is derived from the app's own limits and not from
+ * anything a session declared, so nothing a client sends can stretch it.
+ */
+export const SLOWEST_NOTE_INTERVAL_MS = Math.max(...BEAT_SPAN_OPTIONS) * Math.floor(60_000 / MIN_BPM)
+
+/**
+ * The fewest judged notes a session can honestly have seen by each milestone.
+ *
+ * A milestone is what staying in the chair is worth, and the wall-clock check
+ * above (`MILESTONE_LEAD_MS`) only proves the *session* is old enough — a
+ * session left open with nothing played in it gets old for free, and an idle
+ * scripted client could otherwise bank all three milestones without reporting
+ * a single note. But practice time only accrues while playback runs, and
+ * playback calls a note at least every `SLOWEST_NOTE_INTERVAL_MS` — every one
+ * of them judged as a hit or a miss — so N minutes of practice cannot have
+ * produced fewer judged notes than the slowest pace would. The lead is
+ * subtracted first, same generosity about the boundary as the clock check: a
+ * missing note or two at the edge refuses nobody honest, and an idle session
+ * has nothing like the floor.
+ */
+export const MILESTONE_MIN_JUDGED_NOTES = Object.fromEntries(
+  Object.entries(PRACTICE_MILESTONES).map(([kind, { atMs }]) => [
+    kind,
+    Math.floor((atMs - MILESTONE_LEAD_MS) / SLOWEST_NOTE_INTERVAL_MS),
+  ]),
+)
+
 /** A session nobody has posted to for this long is abandoned. */
 export const SESSION_IDLE_MS = 10 * 60_000
 
@@ -303,6 +333,8 @@ export const createSessionState = (config, now) =>
     streak: 0,
     lastAt: -1,
     lastNote: null,
+    /** Hits and misses together — what the milestone floor counts. */
+    judgedNotes: 0,
     /** Which practice milestones this session has already paid. Once each. */
     milestones: [],
     completed: false,
@@ -390,7 +422,7 @@ export const applySessionEvents = (session, events, now) => {
   // post an afternoon's practice in one request.
   const ceiling = now - session.startedAt + CLOCK_SKEW_MS
 
-  let { nextSeq, points, streak, lastAt, lastNote, milestones } = session
+  let { nextSeq, points, streak, lastAt, lastNote, milestones, judgedNotes } = session
   const startingPoints = points
 
   for (const event of events) {
@@ -408,6 +440,13 @@ export const applySessionEvents = (session, events, now) => {
 
       const milestone = PRACTICE_MILESTONES[event.milestone]
       if (now - session.startedAt + MILESTONE_LEAD_MS < milestone.atMs) {
+        return { ok: false, reason: 'too_soon' }
+      }
+
+      // The clock proves the session is old enough; the notes prove somebody
+      // was in it. A session idled to the threshold has judged nothing and
+      // earns nothing — see MILESTONE_MIN_JUDGED_NOTES.
+      if (judgedNotes < MILESTONE_MIN_JUDGED_NOTES[event.milestone]) {
         return { ok: false, reason: 'too_soon' }
       }
 
@@ -449,6 +488,7 @@ export const applySessionEvents = (session, events, now) => {
       }
 
       lastNote = { at: event.at, hit: event.kind === 'hit', bonuses: [], multiplier }
+      judgedNotes += 1
     }
 
     lastAt = event.at
@@ -466,6 +506,7 @@ export const applySessionEvents = (session, events, now) => {
       lastAt,
       lastNote,
       milestones,
+      judgedNotes,
     }),
     points,
     gained: points - startingPoints,

@@ -1,3 +1,5 @@
+import { createCueLog } from './cueLog'
+
 type AudioWindow = Window & {
   webkitAudioContext?: typeof AudioContext
 }
@@ -65,20 +67,6 @@ const CLICK_DECAY_S = 0.04
  * too generous only costs a little listening time.
  */
 const SPEECH_CUE_FALLBACK_S = 1.2
-
-/** Cues this far behind the clock are gone from the room and from the array. */
-const CUE_HISTORY_S = 5
-
-/** A beat's click and its note are scheduled at one time; float maths is not exact. */
-const BEAT_MATCH_EPSILON_S = 0.001
-
-/**
- * When a sound the app makes starts and stops, on the AudioContext clock, plus
- * how long the room keeps ringing with it afterwards. The decay belongs to the
- * cue rather than to whoever asks, because a spoken note and a click leave very
- * different amounts of themselves behind.
- */
-type CueInterval = { start: number; end: number; decay: number }
 
 export type AudioEngineDeps = {
   contextFactory?: () => AudioContext | null
@@ -151,7 +139,7 @@ export class AudioEngine {
    * ahead of the beat you are hearing, so the most recently scheduled sound is
    * routinely a different beat's from the one playing now.
    */
-  private cueIntervals: CueInterval[] = []
+  private readonly cueLog = createCueLog()
   private readonly contextFactory: () => AudioContext | null
   private readonly fetchFn: typeof fetch
   private readonly mediaElementFactory: () => HTMLAudioElement | null
@@ -188,7 +176,13 @@ export class AudioEngine {
     this.unlockMediaSession()
 
     if (this.context) {
-      if (this.context.state === 'suspended') {
+      // 'suspended' is the spec's word for a context that needs a nudge, but
+      // Safari also parks one in a nonstandard 'interrupted' state when the
+      // audio session changes underneath it — a phone call, or the microphone
+      // opening and flipping iOS over to play-and-record. Anything short of
+      // running gets the same resume, except closed, which resume() cannot fix.
+      const state = this.context.state as string
+      if (state !== 'running' && state !== 'closed') {
         await this.context.resume()
       }
 
@@ -211,20 +205,16 @@ export class AudioEngine {
   }
 
   /**
-   * The context itself, for anything that has to share this clock — the
-   * microphone's analyser, whose detections are only comparable with beat times
-   * because both are read off here. Null until the first gesture opens it.
+   * The context itself. Null until the first gesture opens it, which is what
+   * the microphone waits on before opening a capture — the capture analyses on
+   * a context of its own where it can (see mic.ts), and falls back to this one.
    */
   getContext(): AudioContext | null {
     return this.context
   }
 
   private recordCue(start: number, end: number, decay: number): void {
-    // Bounded by the clock, not by a count: a long session must not grow an
-    // array of every click it has ever played.
-    const cutoff = this.getCurrentTime() - CUE_HISTORY_S
-    this.cueIntervals = this.cueIntervals.filter((cue) => cue.end >= cutoff)
-    this.cueIntervals.push({ start, end, decay })
+    this.cueLog.record(start, end, decay, this.getCurrentTime())
   }
 
   /**
@@ -233,7 +223,7 @@ export class AudioEngine {
    * the player for the note the speakers just called.
    */
   isWithinCue(time: number): boolean {
-    return this.cueIntervals.some((cue) => time >= cue.start && time <= cue.end + cue.decay)
+    return this.cueLog.isWithinCue(time)
   }
 
   /**
@@ -247,16 +237,7 @@ export class AudioEngine {
    * a fast tempo) count, since either one is the app's voice, not the player's.
    */
   getCueEndForBeat(beatTime: number): number | null {
-    let end: number | null = null
-    for (const cue of this.cueIntervals) {
-      const onTheBeat = Math.abs(cue.start - beatTime) <= BEAT_MATCH_EPSILON_S
-      const stillRinging = cue.start <= beatTime && beatTime <= cue.end
-      if ((onTheBeat || stillRinging) && (end === null || cue.end > end)) {
-        end = cue.end
-      }
-    }
-
-    return end
+    return this.cueLog.endForBeat(beatTime)
   }
 
   private track(node: AudioScheduledSourceNode, nodes = this.scheduledNodes): void {
@@ -292,8 +273,7 @@ export class AudioEngine {
     // A cue that was cancelled before it sounded never occupied the room, so it
     // must not go on suppressing the microphone — otherwise pressing stop would
     // deafen the app for a phantom second of look-ahead.
-    const now = this.getCurrentTime()
-    this.cueIntervals = this.cueIntervals.filter((cue) => cue.start <= now)
+    this.cueLog.pruneCancelled(this.getCurrentTime())
   }
 
   /**

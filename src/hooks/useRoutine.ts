@@ -26,6 +26,8 @@ export type UseRoutineOptions = {
   dispatch: Dispatch<SettingsAction>
   /** Practice time, which only advances while playing — the block clock rides it. */
   sessionElapsedMs: number
+  /** The exact, unthrottled practice time right now — for anchoring a block's start. */
+  getSessionElapsedMs: () => number
   isPlaying: boolean
   /** The last timed block ran out: stop playback cleanly. */
   onFinish: () => void
@@ -104,7 +106,7 @@ const blockSettingsOf = (settings: Settings): BlockSettings => ({
 })
 
 export function useRoutine(options: UseRoutineOptions): RoutineController {
-  const { settings, dispatch, sessionElapsedMs, isPlaying, onFinish } = options
+  const { settings, dispatch, sessionElapsedMs, getSessionElapsedMs, isPlaying, onFinish } = options
 
   const [routines, setRoutines, routinesPersisted] = usePersistentState<Routine[]>(STORAGE_KEYS.routines, {
     defaultValue: SEEDED_ROUTINES,
@@ -240,7 +242,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
   // --- actions -------------------------------------------------------------
   const startAt = (index: number, routine: Routine) => {
-    commit({ blockIndex: index, blockStartMs: sessionElapsedMs, finished: false, adjusted: false })
+    commit({ blockIndex: index, blockStartMs: getSessionElapsedMs(), finished: false, adjusted: false })
     applyBlock(routine.blocks[index])
   }
 
@@ -280,7 +282,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     setSelectedId(routine.id)
     selectedRef.current = routine
     // Built from the live settings, so there is nothing to apply.
-    commit({ blockIndex: 0, blockStartMs: sessionElapsedMs, finished: false, adjusted: false })
+    commit({ blockIndex: 0, blockStartMs: getSessionElapsedMs(), finished: false, adjusted: false })
   }
 
   const duplicate = (id: string) => {
@@ -320,7 +322,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       ...runtime,
       // The open block just gained a 2:00 timer — give it the full two minutes
       // rather than expiring it against a clock that has been running all along.
-      blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
+      blockStartMs: wasOpenEnded ? getSessionElapsedMs() : runtime.blockStartMs,
       finished: false,
     })
   }
@@ -338,13 +340,13 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     replaceSelected(next)
 
     if (index > runtime.blockIndex) {
-      commit({ ...runtime, finished: false })
+      commit({ ...runtime })
       return
     }
 
     if (index < runtime.blockIndex) {
       // The active block only shifted position; it keeps running on its clock.
-      commit({ ...runtime, blockIndex: runtime.blockIndex - 1, finished: false })
+      commit({ ...runtime, blockIndex: runtime.blockIndex - 1 })
       return
     }
 
@@ -414,7 +416,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     const wasOpenEnded = index === runtime.blockIndex && selected.blocks[index]?.dur === null && seconds !== null
     commit({
       ...runtime,
-      blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
+      blockStartMs: wasOpenEnded ? getSessionElapsedMs() : runtime.blockStartMs,
     })
   }
 
@@ -439,7 +441,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       blockIndex: index <= runtime.blockIndex ? runtime.blockIndex + 1 : runtime.blockIndex,
       // The open block just gained a 2:00 timer — give it the full two minutes
       // rather than expiring it against a clock that has been running all along.
-      blockStartMs: wasOpenEnded ? sessionElapsedMs : runtime.blockStartMs,
+      blockStartMs: wasOpenEnded ? getSessionElapsedMs() : runtime.blockStartMs,
     })
   }
 

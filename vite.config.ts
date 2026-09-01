@@ -4,6 +4,13 @@ import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Connect, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import {
+  BUG_REPORT_MAX_BODY_BYTES,
+  BUG_REPORT_PREFIX,
+  createBugReportHandler,
+  createMailgunSender,
+  createTurnstileVerifier,
+} from './src/server/bug-report.js'
 import { clientIdentity, isCrossSitePost } from './src/server/http.js'
 import { API_PREFIX, createStore, handleRequest } from './src/server/scoreboard.js'
 
@@ -100,6 +107,39 @@ const serviceWorkerPlugin = (): Plugin => ({
 const MAX_BODY_BYTES = 4096
 
 /**
+ * Cloudflare's own always-passes test pair, so the widget renders and a report
+ * can be sent end to end without anybody holding a real key. The sender is a
+ * log line: dev and preview must never put mail on a wire.
+ *
+ * Set the real Turnstile and Mailgun environment and this fixture steps aside —
+ * which is what makes `vite preview` a rehearsal of the container rather than a
+ * different program.
+ */
+const TURNSTILE_TEST_SITE_KEY = '1x00000000000000000000AA'
+
+const createDevBugReport = () => {
+  const sendMail = createMailgunSender(process.env)
+  const verifyCaptcha = createTurnstileVerifier(process.env)
+
+  if (sendMail !== null && verifyCaptcha !== null && (process.env.TURNSTILE_SITE_KEY ?? '') !== '') {
+    return createBugReportHandler({ sendMail, verifyCaptcha, siteKey: process.env.TURNSTILE_SITE_KEY ?? '' })
+  }
+
+  return createBugReportHandler({
+    siteKey: TURNSTILE_TEST_SITE_KEY,
+    // The test site key issues a real token; nothing here is a secret to check
+    // it against, so the fixture takes any token the widget produced.
+    verifyCaptcha: async (token: string) => typeof token === 'string' && token !== '',
+    sendMail: async (report) => {
+      // The report itself is somebody's words — the length is enough to see
+      // that the round trip worked.
+      console.log(`[bug-report] dev fixture accepted a report of ${report.description.length} characters`)
+      return true
+    },
+  })
+}
+
+/**
  * The scoreboard, for `vite dev` and `vite preview`.
  *
  * In the container nginx proxies /api/ to src/server/main.js. Nothing proxies
@@ -112,13 +152,18 @@ const MAX_BODY_BYTES = 4096
  */
 const scoreboardApiPlugin = (): Plugin => {
   const store = createStore()
+  const bugReport = createDevBugReport()
 
   const middleware: Connect.NextHandleFunction = (request, response, next) => {
     const { pathname } = new URL(request.url ?? '/', 'http://localhost')
-    if (!pathname.startsWith(API_PREFIX)) {
+    // The bug-report route sits beside /api/scoreboard/, not inside it.
+    const forBugReport = pathname === BUG_REPORT_PREFIX || pathname.startsWith(`${BUG_REPORT_PREFIX}/`)
+    if (!forBugReport && !pathname.startsWith(API_PREFIX)) {
       next()
       return
     }
+
+    const cap = forBugReport ? BUG_REPORT_MAX_BODY_BYTES : MAX_BODY_BYTES
 
     // The same cross-site refusal the container applies, from the same module,
     // so dev and preview behave like production rather than like a copy of it.
@@ -135,26 +180,32 @@ const scoreboardApiPlugin = (): Plugin => {
     let bytes = 0
     request.on('data', (chunk: Buffer) => {
       bytes += chunk.length
-      if (bytes <= MAX_BODY_BYTES) {
+      if (bytes <= cap) {
         chunks.push(chunk)
       }
     })
 
     request.on('end', () => {
-      const answer =
-        bytes > MAX_BODY_BYTES
-          ? { status: 413, json: { error: 'body too large' } }
-          : handleRequest(store, {
-              method: request.method ?? 'GET',
-              pathname,
-              body: Buffer.concat(chunks).toString('utf8'),
-              // A nickname's ownership token rides here and nowhere else.
-              headers: { authorization: request.headers.authorization },
-              client: clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for']),
-            })
+      void (async () => {
+        const client = clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for'])
+        const body = Buffer.concat(chunks).toString('utf8')
+        const answer =
+          bytes > cap
+            ? { status: 413, json: { error: 'body too large' } }
+            : forBugReport
+              ? await bugReport({ method: request.method ?? 'GET', pathname, body, client })
+              : handleRequest(store, {
+                  method: request.method ?? 'GET',
+                  pathname,
+                  body,
+                  // A nickname's ownership token rides here and nowhere else.
+                  headers: { authorization: request.headers.authorization },
+                  client,
+                })
 
-      response.writeHead(answer.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-      response.end(JSON.stringify(answer.json))
+        response.writeHead(answer.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        response.end(JSON.stringify(answer.json))
+      })()
     })
   }
 

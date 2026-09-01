@@ -20,6 +20,12 @@ const DOCKERFILE = read('Dockerfile')
 const ENTRYPOINT = read('docker/50-scoreboard.sh')
 const MAIN = read('src/server/main.js')
 
+// Same reasoning as the Permissions-Policy tests below: add_header does not
+// merge, so every location that declares one has to repeat the whole set.
+// This sweep generalises that check to any location added later.
+const LOCATIONS = (NGINX.match(/^ {2}location [^\n]*\{[\s\S]*?\n {2}\}/gm) ?? [])
+  .filter((block) => block.includes('add_header'))
+
 const RUNTIME = DOCKERFILE.match(/^FROM [^\n]*\bAS runtime\b[\s\S]*$/m)?.[0] ?? ''
 const SERVER_COPIES = (RUNTIME.match(/^COPY .*$/gm) ?? [])
   .filter((line) => line.includes('/opt/callnote/server'))
@@ -50,6 +56,56 @@ describe('nginx.conf', () => {
       expect(policy).toContain('camera=()')
       expect(policy).toContain('geolocation=()')
     }
+  })
+
+  it('repeats the whole security-header set in every location that declares one', () => {
+    // A guard so a broken regex can't silently pass by matching nothing.
+    expect(LOCATIONS.length).toBeGreaterThanOrEqual(5)
+
+    for (const block of LOCATIONS) {
+      const name = block.split('\n')[0].trim()
+      expect(block, `${name} is missing Content-Security-Policy`)
+        .toMatch(/add_header Content-Security-Policy "[^"]*" always;/)
+      expect(block, `${name} is missing X-Content-Type-Options`)
+        .toContain('add_header X-Content-Type-Options "nosniff" always;')
+      expect(block, `${name} is missing Referrer-Policy`)
+        .toContain('add_header Referrer-Policy "strict-origin-when-cross-origin" always;')
+      expect(block, `${name} is missing Permissions-Policy`)
+        .toMatch(/add_header Permissions-Policy "[^"]*" always;/)
+    }
+  })
+
+  it('spells out the CSP directives that don’t fall back to default-src', () => {
+    const policies = NGINX.match(/add_header Content-Security-Policy "[^"]*"/g) ?? []
+
+    expect(policies.length).toBeGreaterThan(0)
+    for (const policy of policies) {
+      expect(policy).toContain("default-src 'self'")
+      expect(policy).toContain("base-uri 'self'")
+      expect(policy).toContain("form-action 'self'")
+      expect(policy).toContain("frame-ancestors 'none'")
+      // frame-src is one of them too, and the captcha widget is an iframe.
+      expect(policy).toContain("frame-src 'self' https://challenges.cloudflare.com")
+    }
+  })
+
+  /**
+   * The captcha on the bug-report form is the only third-party origin the page
+   * runs anything from, and it buys exactly two directives. Anything wider —
+   * a connect-src opened up, a wildcard, a second host — is the wrong turn, and
+   * this is what says so before it ships.
+   */
+  it('admits the captcha host in script-src and frame-src, and nowhere else', () => {
+    const policies = NGINX.match(/add_header Content-Security-Policy "[^"]*"/g) ?? []
+
+    expect(policies.length).toBeGreaterThan(0)
+    for (const policy of policies) {
+      expect(policy).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com")
+      expect(policy.match(/challenges\.cloudflare\.com/g)).toHaveLength(2)
+    }
+
+    // The page talks to its own origin only; the token check is the server's.
+    expect(NGINX).not.toContain("connect-src 'self' https://challenges.cloudflare.com")
   })
 
   it('proxies /api/ to the scoreboard, and never lets it be cached', () => {
@@ -136,11 +192,12 @@ describe('Dockerfile', () => {
   it('ships every module the service imports', () => {
     expect(RUNTIME).not.toBe('')
 
-    for (const module of ['http.js', 'main.js', 'scoreboard.js', 'session-scoring.js']) {
+    for (const module of ['bug-report.js', 'http.js', 'main.js', 'scoreboard.js', 'session-scoring.js']) {
       expect(existsSync(fileURLToPath(new URL(`./${module}`, import.meta.url)))).toBe(true)
       expect(SERVER_SOURCES).toContain(`src/server/${module}`)
     }
 
+    expect(MAIN).toContain("from './bug-report.js'")
     expect(MAIN).toContain("from './http.js'")
     expect(MAIN).toContain("from './scoreboard.js'")
   })
@@ -148,12 +205,13 @@ describe('Dockerfile', () => {
   /**
    * The image is published, and the test sources spell out the rate-limit
    * constants, the snapshot format and the ownership rules to anyone who
-   * pulls it — so the runtime stage must copy exactly the four runtime
-   * modules and nothing else out of src/server.
+   * pulls it — so the runtime stage must copy exactly the runtime modules
+   * and nothing else out of src/server.
    */
   it('ships nothing else from src/server — no tests, no declarations', () => {
     expect(SERVER_COPIES.length).toBeGreaterThan(0)
     expect([...SERVER_SOURCES].sort()).toEqual([
+      'src/server/bug-report.js',
       'src/server/http.js',
       'src/server/main.js',
       'src/server/scoreboard.js',
