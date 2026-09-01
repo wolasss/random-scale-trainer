@@ -351,6 +351,35 @@ describe('PracticeHistoryView', () => {
     expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
+  it('does not let a read still in flight when the sheet closes repaint the error on reopen', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    let resolveText: (value: string) => void = () => {}
+    const file = fileOf('{"days":{}}')
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(() => new Promise<string>((resolve) => (resolveText = resolve))),
+    })
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    // Closed before the read resolves — the cleanup clears the (still empty) error.
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    resolveText('{"days":{}}')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    rerender(<PracticeHistoryView {...props} open />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
   it('refuses a file past the size ceiling without reading it', async () => {
     const { props } = renderView()
     const { file, text } = unreadableFile({ size: MAX_BACKUP_BYTES + 1 })

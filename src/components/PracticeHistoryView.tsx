@@ -72,6 +72,11 @@ export function PracticeHistoryView({
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  // Mirrors `open` for handleFile's async continuations, which close over
+  // whatever `open` was when the read started — a ref stays current if the
+  // sheet closes mid-read, so a late failure can't repaint the error the
+  // cleanup below just cleared.
+  const openRef = useRef(open)
 
   // On the stand this opens on top of the practice sheet, which runs a trap of
   // its own on the window — hence capture. Focus starts on the close button
@@ -80,6 +85,8 @@ export function PracticeHistoryView({
   useFocusTrap(sheetRef, open, onClose, { capture: true, initialFocus: closeRef })
 
   useEffect(() => {
+    openRef.current = open
+
     if (!open) {
       return undefined
     }
@@ -152,20 +159,30 @@ export function PracticeHistoryView({
     try {
       contents = await file.text()
     } catch {
-      setImportError(IMPORT_ERROR)
+      if (openRef.current) {
+        setImportError(IMPORT_ERROR)
+      }
       return
     }
 
     const parsed = parseBackup(contents)
     if (parsed === null) {
-      setImportError(IMPORT_ERROR)
+      if (openRef.current) {
+        setImportError(IMPORT_ERROR)
+      }
       return
     }
 
     // A successful restore reloads, so the cleared error is really only for the
     // case where it didn't — leaving the last failure on screen beside a log
-    // that has since been restored would be its own kind of lie.
-    setImportError(onImport(parsed) ? null : RESTORE_BLOCKED_ERROR)
+    // that has since been restored would be its own kind of lie. The read
+    // crossed an await, so the sheet may have closed underneath it — still
+    // worth writing (it's a real backup), just not worth repainting an error
+    // over a visit that has already cleared its own.
+    const restored = onImport(parsed)
+    if (openRef.current) {
+      setImportError(restored ? null : RESTORE_BLOCKED_ERROR)
+    }
   }
 
   // Through the body, not the card. It is opened from inside a .panel, and a
