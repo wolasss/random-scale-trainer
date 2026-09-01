@@ -109,6 +109,7 @@ describe('posting a report', () => {
       JSON.stringify([]),
       JSON.stringify({ token: 'solved-token' }),
       JSON.stringify({ description: '   ', token: 'solved-token' }),
+      JSON.stringify({ description: '\x00\x07', token: 'solved-token' }),
       JSON.stringify({ description: 'x'.repeat(MAX_DESCRIPTION_LENGTH + 1), token: 'solved-token' }),
       JSON.stringify({ description: 'ok', token: '' }),
       JSON.stringify({ description: 'ok', token: 42 }),
@@ -121,6 +122,24 @@ describe('posting a report', () => {
     expect(verifyCaptcha).not.toHaveBeenCalled()
     // Ten refusals, and the eleventh caller is still under the limit.
     expect((await post(handler, REPORT)).status).toBe(202)
+  })
+
+  it('strips control characters out of the version so none reach the subject line', async () => {
+    const { handler, sendMail } = build()
+
+    const answer = await post(handler, { ...REPORT, version: '1.2.3\r\nbcc: evil@x' })
+
+    expect(answer).toEqual({ status: 202, json: { ok: true } })
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ version: '1.2.3bcc: evil@x' }))
+  })
+
+  it('strips control characters out of the description but keeps its newlines and tabs', async () => {
+    const { handler, sendMail } = build()
+
+    const answer = await post(handler, { ...REPORT, description: 'line one\r\nline two\x00\u{200B}\tend' })
+
+    expect(answer).toEqual({ status: 202, json: { ok: true } })
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ description: 'line one\nline two\tend' }))
   })
 
   it('leaves the optional fields optional', async () => {
@@ -248,6 +267,17 @@ describe('the Turnstile verifier', () => {
     expect(new URLSearchParams(init.body as string).has('remoteip')).toBe(false)
   })
 
+  it('bounds the call to Cloudflare with a timeout, so a stalled provider cannot pin the handler', async () => {
+    const fetchImpl = reply({ success: true })
+    const verify = createTurnstileVerifier({ TURNSTILE_SECRET_KEY: 'secret' }, fetchImpl)!
+
+    await verify('a-token', '198.51.100.7')
+
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+    expect(init.signal.aborted).toBe(false)
+  })
+
   it('is false on an unsuccessful verdict, a bad status, or no network at all', async () => {
     const secret = { TURNSTILE_SECRET_KEY: 'secret' }
 
@@ -340,6 +370,17 @@ describe('the Mailgun sender', () => {
     for (const [, value] of init.body as FormData) {
       expect(String(value)).not.toContain('key-123')
     }
+  })
+
+  it('bounds the call to Mailgun with a timeout, so a stalled provider cannot pin the handler', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true })) as unknown as typeof fetch
+    const send = createMailgunSender({ MAILGUN_API_KEY: 'k', MAILGUN_DOMAIN: 'mg.example.com' }, fetchImpl)!
+
+    await send(report)
+
+    const [, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+    expect(init.signal.aborted).toBe(false)
   })
 
   it('posts to whichever region the deployment names, so an EU domain is reachable', async () => {
