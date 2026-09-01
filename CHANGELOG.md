@@ -1,3 +1,14 @@
+## [1.28.7](https://github.com/wolasss/random-scale-trainer/compare/v1.28.6...v1.28.7) (2026-09-01)
+
+
+### Bug Fixes
+
+* **challenge:** time-bound scoreboard requests so a stalled network can't wedge the join ([#210](https://github.com/wolasss/random-scale-trainer/issues/210)) ([dc02614](https://github.com/wolasss/random-scale-trainer/commit/dc02614492a6550c906040aa1efd29b61fd9a61c))
+* **history:** clear a stale import error when the sheet closes and announce it via role="alert" ([#204](https://github.com/wolasss/random-scale-trainer/issues/204)) ([9bb575a](https://github.com/wolasss/random-scale-trainer/commit/9bb575a11715cb020ab365ae39497704fde7d4ea))
+* **history:** make exporting a practice-log backup survive a browser that refuses the download ([#206](https://github.com/wolasss/random-scale-trainer/issues/206)) ([dddd0e0](https://github.com/wolasss/random-scale-trainer/commit/dddd0e0a5d15d71d1e54435c58d76aa875db3b33))
+* **shortcuts:** stop Space and R reaching the transport from behind an open sheet ([#209](https://github.com/wolasss/random-scale-trainer/issues/209)) ([e3e472c](https://github.com/wolasss/random-scale-trainer/commit/e3e472c622862afe176da7c4237539bf634b4b71))
+* strip control characters from bug reports and time-bound outbound calls ([#203](https://github.com/wolasss/random-scale-trainer/issues/203)) ([7ee4b05](https://github.com/wolasss/random-scale-trainer/commit/7ee4b05af307b649270a53c8fd3799f4f980bf0f))
+
 ## [1.28.6](https://github.com/wolasss/random-scale-trainer/compare/v1.28.5...v1.28.6) (2026-08-31)
 
 
