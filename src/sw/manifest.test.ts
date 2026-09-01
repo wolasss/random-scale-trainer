@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { SKIN_GROUND } from '../lib/skins'
 
 /**
  * The manifest never goes through the bundle — vite copies public/ verbatim —
@@ -22,6 +23,8 @@ interface WebManifest {
   dir: string
   start_url: string
   scope: string
+  background_color: string
+  theme_color: string
   icons: { src: string; sizes: string; type: string; purpose?: string }[]
 }
 
@@ -77,5 +80,21 @@ describe('manifest.webmanifest', () => {
       .map((icon) => icon.src)
 
     expect(missing).toEqual([])
+  })
+
+  it('paints the splash from the default skin ground', () => {
+    expect(manifest.background_color).toBe(SKIN_GROUND.glass.dark)
+    expect(manifest.theme_color).toBe(SKIN_GROUND.glass.dark)
+  })
+
+  it('keeps the offline shell on the same ground', () => {
+    // The splash screen (this manifest), the browser chrome, and the offline
+    // shell below are each painted outside index.css, so the same ground
+    // colour is spelled out three times — this pins all three together.
+    const serviceWorkerSource = readFileSync(
+      fileURLToPath(new URL('./service-worker.js', import.meta.url)),
+      'utf8',
+    )
+    expect(serviceWorkerSource).toContain(`background: ${SKIN_GROUND.glass.dark};`)
   })
 })
