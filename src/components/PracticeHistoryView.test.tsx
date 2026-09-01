@@ -406,8 +406,59 @@ describe('PracticeHistoryView', () => {
 
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
 
-    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    const error = await screen.findByTestId('history-import-error')
+    expect(error).toHaveTextContent('nothing was changed')
+    expect(error).toHaveAttribute('role', 'alert')
     expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('forgets a failed import the next time it is opened', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
+    await screen.findByTestId('history-import-error')
+
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    rerender(<PracticeHistoryView {...props} />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
+  it('does not let a read still in flight when the sheet closes repaint the error on reopen', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    let resolveText: (value: string) => void = () => {}
+    const file = fileOf('{"days":{}}')
+    Object.defineProperty(file, 'text', {
+      value: vi.fn(() => new Promise<string>((resolve) => (resolveText = resolve))),
+    })
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+
+    // Closed before the read resolves — the cleanup clears the (still empty) error.
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    resolveText('{"days":{}}')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    rerender(<PracticeHistoryView {...props} open />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
   it('refuses a file past the size ceiling without reading it', async () => {
