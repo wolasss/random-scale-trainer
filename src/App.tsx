@@ -28,7 +28,7 @@
  * `PracticeSheet`; otherwise it returns the scrolling page grid. The cards are
  * built once above the branch and placed by whichever one runs.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
@@ -46,8 +46,7 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
-import { NicknamePrompt } from './components/NicknamePrompt'
-import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
+import type { ScoreboardLayout } from './components/ScoreboardStrip'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
@@ -73,7 +72,12 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
-import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
+import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
+
+// Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
+// to ship them.
+const NicknamePrompt = lazy(() => import('./components/NicknamePrompt'))
+const ScoreboardStrip = lazy(() => import('./components/ScoreboardStrip'))
 
 type AppProps = {
   /** Injectable for tests; otherwise the browser's own reload. */
@@ -539,26 +543,30 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <NicknamePrompt
-        challenge={challenge.name}
-        prefill={challenge.prefill}
-        pending={challenge.joining}
-        error={challenge.joinError}
-        onJoin={challenge.join}
-        onDismiss={challenge.dismissPrompt}
-      />
+      <Suspense fallback={null}>
+        <NicknamePrompt
+          challenge={challenge.name}
+          prefill={challenge.prefill}
+          pending={challenge.joining}
+          error={challenge.joinError}
+          onJoin={challenge.join}
+          onDismiss={challenge.dismissPrompt}
+        />
+      </Suspense>
     ) : null
 
   const scoreboard =
     challenge.active && challenge.name !== null ? (
-      <ScoreboardStrip
-        challenge={challenge.name}
-        nickname={challenge.nickname}
-        scores={challenge.scores}
-        status={challenge.status}
-        notice={challenge.notice}
-        layout={boardLayout}
-      />
+      <Suspense fallback={null}>
+        <ScoreboardStrip
+          challenge={challenge.name}
+          nickname={challenge.nickname}
+          scores={challenge.scores}
+          status={challenge.status}
+          notice={challenge.notice}
+          layout={boardLayout}
+        />
+      </Suspense>
     ) : null
 
   // The two mounting points the two readings need: a column beside the stage,

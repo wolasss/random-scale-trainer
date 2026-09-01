@@ -2,8 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
-import { SCOREBOARD_RAIL_QUERY } from './components/ScoreboardStrip'
-import { STORAGE_KEYS } from './constants'
+import { SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
 import { installMatchMedia } from './test/matchMedia'
 import { FAKE_CLOCKS } from './test/fakeTimers'
 
@@ -186,7 +185,7 @@ describe('arriving on a challenge', () => {
     await renderApp()
 
     expect(getUserMedia).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('nickname-prompt')).toBeInTheDocument()
+    expect(await screen.findByTestId('nickname-prompt')).toBeInTheDocument()
   })
 
   it('listens for the player whatever the stored setting says', async () => {
@@ -208,6 +207,7 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
+    await screen.findByTestId('scoreboard')
     const entries = document.querySelectorAll('.scoreboard-rail .scoreboard-entry')
     expect(entries).toHaveLength(2)
     expect(entries[0]).toHaveTextContent('ada')
@@ -228,14 +228,14 @@ describe('arriving on a challenge', () => {
 
     const first = await renderApp()
 
-    fireEvent.click(screen.getByTestId('scoreboard-hide'))
+    fireEvent.click(await screen.findByTestId('scoreboard-hide'))
     expect(screen.getByTestId('scoreboard-handle')).toHaveAccessibleName(
       'Show the demo scoreboard — you are 1st with 300 points',
     )
     first.unmount()
 
     await renderApp()
-    expect(screen.getByTestId('scoreboard-handle')).toBeInTheDocument()
+    expect(await screen.findByTestId('scoreboard-handle')).toBeInTheDocument()
     expect(screen.queryByTestId('scoreboard')).toBeNull()
   })
 
@@ -245,7 +245,7 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: 'ada' } })
+    fireEvent.change(await screen.findByTestId('nickname-input'), { target: { value: 'ada' } })
     await act(async () => {
       fireEvent.click(screen.getByTestId('nickname-submit'))
     })
@@ -276,7 +276,7 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: 'ada' } })
+    fireEvent.change(await screen.findByTestId('nickname-input'), { target: { value: 'ada' } })
     await act(async () => {
       fireEvent.click(screen.getByTestId('nickname-submit'))
     })
@@ -294,7 +294,7 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    expect(screen.getByTestId('nickname-prompt')).toBeInTheDocument()
+    expect(await screen.findByTestId('nickname-prompt')).toBeInTheDocument()
     // ...prefilled, so re-claiming it is a tap rather than typing.
     expect(screen.getByTestId('nickname-input')).toHaveValue('ada')
   })
@@ -306,8 +306,8 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
+    expect(await screen.findByTestId('scoreboard')).toBeInTheDocument()
     expect(screen.queryByTestId('nickname-prompt')).toBeNull()
-    expect(screen.getByTestId('scoreboard')).toBeInTheDocument()
   })
 
   it('keeps the board on screen for somebody who would rather not be listed', async () => {
@@ -316,10 +316,10 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    fireEvent.click(screen.getByTestId('nickname-dismiss'))
+    fireEvent.click(await screen.findByTestId('nickname-dismiss'))
 
     expect(screen.queryByTestId('nickname-prompt')).toBeNull()
-    expect(screen.getByTestId('scoreboard')).toBeInTheDocument()
+    expect(await screen.findByTestId('scoreboard')).toBeInTheDocument()
     expect(document.querySelector('.scoreboard-entry[data-you="true"]')).toBeNull()
   })
 })
@@ -392,6 +392,7 @@ describe('on the stand', () => {
     const stage = document.querySelector('.stage')
     expect(stage).not.toBeNull()
 
+    await screen.findByTestId('scoreboard-summary')
     const order = Array.from(stage!.children).map((child) => child.className.split(' ')[0])
     expect(order).toEqual(['stage-hero', 'mic-readout', 'scoreboard', 'stage-foot'])
 

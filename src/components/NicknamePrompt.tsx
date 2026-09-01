@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMicrophone } from '@fortawesome/free-solid-svg-icons'
+import { faMicrophone } from '@fortawesome/free-solid-svg-icons/faMicrophone'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { MAX_NICKNAME_LENGTH, normalizeNickname } from '../lib/challenge'
 
@@ -127,3 +127,5 @@ export function NicknamePrompt({
     </div>
   )
 }
+
+export default NicknamePrompt
