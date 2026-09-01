@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_NICKNAME_LENGTH } from './challenge'
 import {
   claimNickname,
@@ -6,6 +6,7 @@ import {
   finishScoringSession,
   MAX_BOARD_ENTRIES,
   SCOREBOARD_ENDPOINT,
+  SCOREBOARD_REQUEST_TIMEOUT_MS,
   sendScoreEvents,
   startScoringSession,
 } from './scoreboard'
@@ -29,7 +30,9 @@ describe('fetchTopScores', () => {
     const fetchImpl = fetchReturning(BOARD)
 
     await expect(fetchTopScores('summer sprint', { fetchImpl })).resolves.toEqual(BOARD.scores)
-    expect(fetchImpl).toHaveBeenCalledWith(`${SCOREBOARD_ENDPOINT}/summer%20sprint`, { signal: undefined })
+    expect(fetchImpl).toHaveBeenCalledWith(`${SCOREBOARD_ENDPOINT}/summer%20sprint`, {
+      signal: expect.any(AbortSignal),
+    })
   })
 
   /** The read is the one call anybody may make, so it carries no credential. */
@@ -38,16 +41,21 @@ describe('fetchTopScores', () => {
 
     await fetchTopScores('demo', { fetchImpl })
 
-    expect(initOf(fetchImpl)).toEqual({ signal: undefined })
+    expect(initOf(fetchImpl)).toEqual({ signal: expect.any(AbortSignal) })
   })
 
-  it('passes an abort signal through, so a board can be dropped on unmount', async () => {
+  it('aborts the request when the caller signal fires, so a board can be dropped on unmount', async () => {
     const fetchImpl = fetchReturning(BOARD)
-    const { signal } = new AbortController()
+    const controller = new AbortController()
 
-    await fetchTopScores('demo', { fetchImpl, signal })
+    const pending = fetchTopScores('demo', { fetchImpl, signal: controller.signal })
+    const sentSignal = initOf(fetchImpl).signal as AbortSignal
+    expect(sentSignal.aborted).toBe(false)
 
-    expect(fetchImpl).toHaveBeenCalledWith(expect.any(String), { signal })
+    controller.abort()
+    expect(sentSignal.aborted).toBe(true)
+
+    await pending
   })
 
   /** A board is a nicety beside a practice session — never an error boundary. */
@@ -150,7 +158,7 @@ describe('claimNickname', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nickname: 'Ada' }),
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -221,7 +229,7 @@ describe('scoring sessions', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
       body: JSON.stringify({ events }),
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -273,5 +281,117 @@ describe('scoring sessions', () => {
     await finishScoringSession('demo', 'a/../b', TOKEN, { fetchImpl })
 
     expect(fetchImpl).toHaveBeenCalledWith(`${SCOREBOARD_ENDPOINT}/demo/session/a%2F..%2Fb/finish`, expect.anything())
+  })
+})
+
+/**
+ * A mobile network can accept a request and never answer it. These pin the
+ * deadline that stands in for the reload a stuck 'loading' board or joining
+ * spinner would otherwise need.
+ */
+describe('request deadline', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const signalOf = (fetchImpl: ReturnType<typeof vi.fn>, call = 0) =>
+    (fetchImpl.mock.calls[call] as unknown as [string, RequestInit])[1].signal as AbortSignal
+
+  const abortError = () => new DOMException('aborted', 'AbortError')
+
+  /** Headers never arrive; the fetch itself only ever settles if its signal fires. */
+  const hangingFetch = () =>
+    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal
+      return new Promise<Response>((_resolve, reject) => {
+        if (signal.aborted) {
+          reject(abortError())
+          return
+        }
+        signal.addEventListener('abort', () => reject(abortError()), { once: true })
+      })
+    })
+
+  /** Headers arrive fine, but the body never does. */
+  const stalledBodyFetch = () =>
+    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            if (signal.aborted) {
+              reject(abortError())
+              return
+            }
+            signal.addEventListener('abort', () => reject(abortError()), { once: true })
+          }),
+      } as unknown as Response)
+    })
+
+  it('is the existing failure, not a hang, when a request never gets an answer', async () => {
+    const fetchImpl = hangingFetch()
+
+    const scores = fetchTopScores('demo', { fetchImpl })
+    const claim = claimNickname('demo', 'ada', { fetchImpl })
+
+    await vi.advanceTimersByTimeAsync(SCOREBOARD_REQUEST_TIMEOUT_MS)
+
+    await expect(scores).resolves.toBeNull()
+    await expect(claim).resolves.toEqual({ outcome: 'error' })
+    expect(signalOf(fetchImpl, 0).aborted).toBe(true)
+    expect(signalOf(fetchImpl, 1).aborted).toBe(true)
+  })
+
+  /** The deadline has to outlive the fetch call, not just the headers. */
+  it('is the existing failure when the body stalls after the headers arrive', async () => {
+    const fetchImpl = stalledBodyFetch()
+
+    const claim = claimNickname('demo', 'ada', { fetchImpl })
+
+    await vi.advanceTimersByTimeAsync(SCOREBOARD_REQUEST_TIMEOUT_MS)
+
+    await expect(claim).resolves.toEqual({ outcome: 'error' })
+  })
+
+  it('aborts on a caller signal fired before the deadline, without waiting for it', async () => {
+    const fetchImpl = hangingFetch()
+    const controller = new AbortController()
+
+    const scores = fetchTopScores('demo', { fetchImpl, signal: controller.signal })
+    const claim = claimNickname('demo', 'ada', { fetchImpl, signal: controller.signal })
+
+    controller.abort()
+
+    await expect(scores).resolves.toBeNull()
+    await expect(claim).resolves.toEqual({ outcome: 'error' })
+    expect(signalOf(fetchImpl, 0).aborted).toBe(true)
+    expect(signalOf(fetchImpl, 1).aborted).toBe(true)
+  })
+
+  it('aborts a call made with an already-aborted signal, rather than waiting for the deadline', async () => {
+    const fetchImpl = hangingFetch()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(claimNickname('demo', 'ada', { fetchImpl, signal: controller.signal })).resolves.toEqual({
+      outcome: 'error',
+    })
+    expect(signalOf(fetchImpl).aborted).toBe(true)
+  })
+
+  it('clears the deadline and returns the value unchanged when the answer beats it', async () => {
+    await expect(fetchTopScores('demo', { fetchImpl: fetchReturning(BOARD) })).resolves.toEqual(BOARD.scores)
+    expect(vi.getTimerCount()).toBe(0)
+
+    await expect(
+      claimNickname('demo', 'ada', { fetchImpl: fetchReturning({ nickname: 'ada', token: TOKEN }) }),
+    ).resolves.toEqual({ outcome: 'ok', value: { nickname: 'ada', token: TOKEN } })
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

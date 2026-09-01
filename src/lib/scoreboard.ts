@@ -40,10 +40,44 @@ export const MAX_EVENTS_PER_BATCH = 20
 /** The most rows a board may show; mirrors the server's own TOP_LIMIT. */
 export const MAX_BOARD_ENTRIES = 10
 
+/**
+ * How long any one request may take before it is aborted. A mobile network
+ * that accepts a request and never answers must not wedge the board on
+ * 'loading' or the nickname prompt on its joining spinner forever.
+ */
+export const SCOREBOARD_REQUEST_TIMEOUT_MS = 10_000
+
 export type ScoreboardRequestOptions = {
   signal?: AbortSignal
   /** Injectable for tests; otherwise the browser's own. */
   fetchImpl?: typeof fetch
+}
+
+/**
+ * A signal that aborts on its own after the deadline, or the moment the
+ * caller's own signal does — whichever comes first. `done()` disarms the
+ * timer once the request has actually finished, so an unmount still aborts
+ * immediately and a caller abort is never mistaken for a timeout.
+ */
+const deadlined = (signal: AbortSignal | undefined) => {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+
+  if (signal?.aborted) {
+    abort()
+  } else {
+    signal?.addEventListener('abort', abort, { once: true })
+  }
+
+  const timer = setTimeout(abort, SCOREBOARD_REQUEST_TIMEOUT_MS)
+
+  return {
+    signal: controller.signal,
+    done: () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+    },
+  }
 }
 
 /**
@@ -148,10 +182,14 @@ export const fetchTopScores = async (
   challenge: string,
   { signal, fetchImpl = fetch }: ScoreboardRequestOptions = {},
 ): Promise<ScoreEntry[] | null> => {
+  const deadline = deadlined(signal)
+
   try {
-    return await readScores(await fetchImpl(endpointFor(challenge), { signal }))
+    return await readScores(await fetchImpl(endpointFor(challenge), { signal: deadline.signal }))
   } catch {
     return null
+  } finally {
+    deadline.done()
   }
 }
 
@@ -192,36 +230,42 @@ const mutate = async <T>(
   read: (payload: Record<string, unknown>) => T | null,
   { signal, fetchImpl = fetch }: ScoreboardRequestOptions,
 ): Promise<ScoreboardResult<T>> => {
-  let response: Response
+  const deadline = deadlined(signal)
+
   try {
-    response = await fetchImpl(path, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Only ever here, and only on the calls that change something.
-        ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(body),
-      signal,
-    })
-  } catch {
-    return { outcome: 'error' }
+    let response: Response
+    try {
+      response = await fetchImpl(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Only ever here, and only on the calls that change something.
+          ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify(body),
+        signal: deadline.signal,
+      })
+    } catch {
+      return { outcome: 'error' }
+    }
+
+    let payload: Record<string, unknown> = {}
+    try {
+      payload = (await response.json()) as Record<string, unknown>
+    } catch {
+      payload = {}
+    }
+
+    if (!response.ok) {
+      return { outcome: failureFrom(response.status, payload?.error) }
+    }
+
+    const value = read(payload ?? {})
+
+    return value === null ? { outcome: 'error' } : { outcome: 'ok', value }
+  } finally {
+    deadline.done()
   }
-
-  let payload: Record<string, unknown> = {}
-  try {
-    payload = (await response.json()) as Record<string, unknown>
-  } catch {
-    payload = {}
-  }
-
-  if (!response.ok) {
-    return { outcome: failureFrom(response.status, payload?.error) }
-  }
-
-  const value = read(payload ?? {})
-
-  return value === null ? { outcome: 'error' } : { outcome: 'ok', value }
 }
 
 /**
