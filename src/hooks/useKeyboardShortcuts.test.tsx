@@ -1,6 +1,20 @@
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import App from '../App'
 import { useKeyboardShortcuts, type KeyboardShortcutHandlers } from './useKeyboardShortcuts'
+import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './useDisplayMode'
+import { installMatchMedia } from '../test/matchMedia'
+import { FAKE_CLOCKS } from '../test/fakeTimers'
+
+vi.mock('../lib/audio/engine', async () => ({
+  AudioEngine: (await import('../test/fakeAudioEngine')).FakeAudioEngine,
+}))
+
+const PHONE_PORTRAIT = {
+  [STANDALONE_QUERY]: true,
+  [COARSE_POINTER_QUERY]: true,
+  [LANDSCAPE_QUERY]: false,
+}
 
 const createHandlers = (): KeyboardShortcutHandlers => ({
   onSpace: vi.fn(),
@@ -165,5 +179,104 @@ describe('useKeyboardShortcuts', () => {
     unmount()
     press('Space')
     expect(handlers.onSpace).not.toHaveBeenCalled()
+  })
+
+  describe('with an open modal in the document', () => {
+    let dialog: HTMLDivElement
+
+    beforeEach(() => {
+      dialog = document.createElement('div')
+      dialog.setAttribute('role', 'dialog')
+      dialog.setAttribute('aria-modal', 'true')
+      document.body.appendChild(dialog)
+    })
+
+    afterEach(() => {
+      dialog.remove()
+    })
+
+    it('ignores every shortcut while focus has dropped to the body', () => {
+      renderHook(() => useKeyboardShortcuts(handlers))
+
+      for (const code of ['Space', 'KeyR', 'KeyT', 'ArrowUp'] as const) {
+        const event = press(code, {}, document.body)
+        expect(event.defaultPrevented).toBe(false)
+      }
+      for (const handler of Object.values(handlers)) {
+        expect(handler).not.toHaveBeenCalled()
+      }
+    })
+
+    it('ignores a shortcut targeted at an element inside the modal', () => {
+      renderHook(() => useKeyboardShortcuts(handlers))
+
+      const heading = document.createElement('h2')
+      dialog.appendChild(heading)
+
+      const event = press('Space', {}, heading)
+      expect(event.defaultPrevented).toBe(false)
+      expect(handlers.onSpace).not.toHaveBeenCalled()
+    })
+
+    it('resumes handling shortcuts once the modal is gone', () => {
+      renderHook(() => useKeyboardShortcuts(handlers))
+
+      press('Space', {}, document.body)
+      expect(handlers.onSpace).not.toHaveBeenCalled()
+
+      dialog.remove()
+      press('Space', {}, document.body)
+      expect(handlers.onSpace).toHaveBeenCalledTimes(1)
+    })
+  })
+})
+
+describe('behind an open sheet', () => {
+  beforeEach(() => {
+    vi.useFakeTimers(FAKE_CLOCKS)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(window, 'matchMedia')
+    document.documentElement.removeAttribute('data-stage')
+    document.documentElement.removeAttribute('data-theme')
+    window.localStorage.clear()
+  })
+
+  it('leaves the transport and the session alone once focus has dropped to the body', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+    expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
+
+    ;(document.activeElement as HTMLElement | null)?.blur()
+
+    fireEvent.keyDown(window, { code: 'Space' })
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+
+    fireEvent.keyDown(window, { code: 'KeyR' })
+    expect(screen.queryByTestId('reset')).toBeNull()
+  })
+
+  it('does not stop playback or wipe the session clock behind the sheet', async () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {})
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Pause')
+
+    fireEvent.click(screen.getByTestId('open-setup'))
+    expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
+
+    ;(document.activeElement as HTMLElement | null)?.blur()
+
+    fireEvent.keyDown(window, { code: 'Space' })
+    fireEvent.keyDown(window, { code: 'KeyR' })
+
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Pause')
+    expect(screen.getByTestId('reset')).toBeInTheDocument()
   })
 })
