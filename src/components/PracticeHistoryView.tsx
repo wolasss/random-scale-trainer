@@ -38,6 +38,13 @@ type PracticeHistoryViewProps = {
 const IMPORT_ERROR = "That file doesn't look like a practice-log backup — nothing was changed."
 
 /**
+ * Thrown rather than silently failing: a browser that refuses object URLs
+ * (private modes, some locked-down embeds) leaves the click with nothing to
+ * point at, and without this the export button would just do nothing.
+ */
+const EXPORT_ERROR = "The backup couldn't be downloaded — your browser refused it. Nothing was saved."
+
+/**
  * A backup that read cleanly and then couldn't be saved. Worth its own line:
  * the file was fine, so "that file doesn't look like a backup" would send
  * somebody hunting for a second copy of something they already have.
@@ -71,6 +78,7 @@ export function PracticeHistoryView({
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
 
   // On the stand this opens on top of the practice sheet, which runs a trap of
@@ -114,13 +122,30 @@ export function PracticeHistoryView({
   const totalNotes = entries.reduce((sum, day) => sum + day.notes, 0)
 
   const handleExport = () => {
-    const blob = new Blob([getBackup()], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
+    setExportError(null)
     const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `callnote-practice-log-${dayKey(now)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    let url: string | null = null
+
+    try {
+      const blob = new Blob([getBackup()], { type: 'application/json' })
+      url = URL.createObjectURL(blob)
+      anchor.href = url
+      anchor.download = `callnote-practice-log-${dayKey(now)}.json`
+      // Some browsers only honour a click on an anchor that is actually in
+      // the document.
+      document.body.appendChild(anchor)
+      anchor.click()
+    } catch {
+      setExportError(EXPORT_ERROR)
+    } finally {
+      anchor.remove()
+      if (url !== null) {
+        const revokeUrl = url
+        // Deferred past the click so a download that has just started isn't
+        // cancelled by revoking the URL it's still reading from.
+        window.setTimeout(() => URL.revokeObjectURL(revokeUrl), 0)
+      }
+    }
   }
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -318,6 +343,12 @@ export function PracticeHistoryView({
             {importError !== null ? (
               <p className="practice-history-error" data-testid="history-import-error">
                 {importError}
+              </p>
+            ) : null}
+
+            {exportError !== null ? (
+              <p className="practice-history-error" data-testid="history-export-error" role="alert">
+                {exportError}
               </p>
             ) : null}
           </div>
