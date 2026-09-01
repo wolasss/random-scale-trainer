@@ -14,7 +14,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   with a NEXT preview and a "note N of M" cycle position
 - Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the eight
   major keys — C, G, D, A, E, F, B♭ and E♭ — the A/E/D minor pentatonics and A minor blues) — plus Custom,
-  which is what the selector reads back once the chips no longer match a preset
+  which is what the selector reads back once the chips no longer match a preset. The selector groups
+  presets by family — Chromatic & naturals, Major keys, Minor keys and Custom — and a custom selection
+  can be saved under a name of your own, appearing in its own Saved group with a Delete option
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -80,7 +82,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
-- Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
+- Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
+  readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
   scoreboard appears under the note. **The nickname is reserved for your browser** — claiming it
   hands back an ownership token, and nobody without that token can put a score under it, raise it
@@ -108,7 +111,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   isn't an open mail relay. Where the deployment has no keys for it (or the browser is offline) the
   modal says so plainly instead of offering a form it can't post. See
   [Reporting a bug](#reporting-a-bug)
-- Light/dark theme, and every setting persisted to localStorage
+- Light/dark theme, a Style picker in the footer with four skins (glass, instrument, editorial,
+  warm), and every setting persisted to localStorage
 - Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, T tap tempo, R reset
 
 ## Run locally
