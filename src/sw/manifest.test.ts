@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { SKIN_GROUND } from '../lib/skins'
+import { DEFAULT_SKIN, SKIN_GROUND } from '../lib/skins'
 
 /**
  * The manifest never goes through the bundle — vite copies public/ verbatim —
@@ -83,8 +83,8 @@ describe('manifest.webmanifest', () => {
   })
 
   it('paints the splash from the default skin ground', () => {
-    expect(manifest.background_color).toBe(SKIN_GROUND.glass.dark)
-    expect(manifest.theme_color).toBe(SKIN_GROUND.glass.dark)
+    expect(manifest.background_color).toBe(SKIN_GROUND[DEFAULT_SKIN].dark)
+    expect(manifest.theme_color).toBe(SKIN_GROUND[DEFAULT_SKIN].dark)
   })
 
   it('keeps the offline shell on the same ground', () => {
@@ -95,6 +95,6 @@ describe('manifest.webmanifest', () => {
       fileURLToPath(new URL('./service-worker.js', import.meta.url)),
       'utf8',
     )
-    expect(serviceWorkerSource).toContain(`background: ${SKIN_GROUND.glass.dark};`)
+    expect(serviceWorkerSource).toContain(`background: ${SKIN_GROUND[DEFAULT_SKIN].dark};`)
   })
 })
