@@ -119,7 +119,7 @@ const NGINX_SOURCE = resolve(ROOT, 'nginx.conf')
  * from the built dist/index.html so a build-time rewrite can't slip past.
  */
 export const extractInlineExecutables = (html: string): { scripts: string[]; handlers: string[] } => {
-  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi)]
     // A tag with src= runs an external file and is covered by `'self'`; its own
     // body is dead weight the browser ignores. Anything else — including a
     // future type="module" block — is inline and needs a hash.
