@@ -325,8 +325,30 @@ describe('PracticeHistoryView', () => {
 
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
 
-    expect(await screen.findByTestId('history-import-error')).toHaveTextContent('nothing was changed')
+    const error = await screen.findByTestId('history-import-error')
+    expect(error).toHaveTextContent('nothing was changed')
+    expect(error).toHaveAttribute('role', 'alert')
     expect(props.onImport).not.toHaveBeenCalled()
+  })
+
+  it('forgets a failed import the next time it is opened', async () => {
+    const props = {
+      open: true,
+      history,
+      onClose: vi.fn(),
+      getBackup: vi.fn(() => ''),
+      onImport: vi.fn(() => true),
+      today: TODAY,
+    }
+    const { rerender } = render(<PracticeHistoryView {...props} />)
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf('{"days":{}}')] } })
+    await screen.findByTestId('history-import-error')
+
+    rerender(<PracticeHistoryView {...props} open={false} />)
+    rerender(<PracticeHistoryView {...props} />)
+
+    expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
   it('refuses a file past the size ceiling without reading it', async () => {

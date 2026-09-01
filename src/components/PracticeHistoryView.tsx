@@ -85,8 +85,12 @@ export function PracticeHistoryView({
     }
 
     // Closing ends the question that was being asked, so the next opening
-    // starts on today again rather than on whatever was last tapped.
-    return () => setSelectedKey(null)
+    // starts on today again rather than on whatever was last tapped — and
+    // clears any import error, which belongs to the visit that produced it.
+    return () => {
+      setSelectedKey(null)
+      setImportError(null)
+    }
   }, [open])
 
   if (!open) {
@@ -316,7 +320,7 @@ export function PracticeHistoryView({
             />
 
             {importError !== null ? (
-              <p className="practice-history-error" data-testid="history-import-error">
+              <p className="practice-history-error" role="alert" data-testid="history-import-error">
                 {importError}
               </p>
             ) : null}
