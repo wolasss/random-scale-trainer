@@ -35,10 +35,15 @@ const renderView = (overrides: Partial<Parameters<typeof PracticeHistoryView>[0]
  * end and the file is read back out of the blob it was handed.
  */
 const captureDownload = () => {
-  const captured: { blob: Blob | null; name: string | null } = { blob: null, name: null }
+  const captured: { blob: Blob | null; name: string | null; connected: boolean | null } = {
+    blob: null,
+    name: null,
+    connected: null,
+  }
   const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
   const revokeDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
   const revoked: string[] = []
+  let revokedAtClick: string[] = []
 
   Object.defineProperty(URL, 'createObjectURL', {
     configurable: true,
@@ -57,6 +62,8 @@ const captureDownload = () => {
 
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
     captured.name = this.download
+    captured.connected = this.isConnected
+    revokedAtClick = [...revoked]
   })
 
   const restore = () => {
@@ -73,7 +80,7 @@ const captureDownload = () => {
     }
   }
 
-  return { captured, revoked, restore }
+  return { captured, revoked, get revokedAtClick() { return revokedAtClick }, restore }
 }
 
 const fileOf = (contents: string) => new File([contents], 'backup.json', { type: 'application/json' })
@@ -280,6 +287,7 @@ describe('PracticeHistoryView', () => {
 
   it('downloads whatever the backup handler gives it, under a dated name', async () => {
     const download = captureDownload()
+    vi.useFakeTimers()
 
     try {
       const { props } = renderView()
@@ -287,10 +295,83 @@ describe('PracticeHistoryView', () => {
 
       expect(props.getBackup).toHaveBeenCalledTimes(1)
       expect(download.captured.name).toBe('callnote-practice-log-2026-02-14.json')
-      expect(await download.captured.blob?.text()).toBe('BACKUP-FILE-TEXT')
+      expect(download.captured.connected).toBe(true)
+      // The anchor is removed straight after the click, and the URL isn't
+      // revoked until after — revoking mid-click could cancel a download
+      // that has just started.
+      expect(download.revokedAtClick).toEqual([])
+      expect(document.querySelector('a')).toBeNull()
+
+      vi.runAllTimers()
       expect(download.revoked).toEqual(['blob:practice-log'])
+
+      vi.useRealTimers()
+      expect(await download.captured.blob?.text()).toBe('BACKUP-FILE-TEXT')
+      expect(screen.queryByTestId('history-export-error')).toBeNull()
     } finally {
+      vi.useRealTimers()
       download.restore()
+    }
+  })
+
+  it("says so instead of throwing when the browser refuses the object URL", () => {
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new DOMException('Blob URLs are not available.', 'SecurityError')
+      },
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+
+    try {
+      renderView()
+      fireEvent.click(screen.getByTestId('history-export'))
+
+      expect(screen.getByTestId('history-export-error')).toHaveTextContent('refused it')
+      expect(click).not.toHaveBeenCalled()
+      expect(document.querySelector('a')).toBeNull()
+    } finally {
+      click.mockRestore()
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
+    }
+  })
+
+  it('clears a stale export error once a retry gets through', () => {
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        throw new DOMException('Blob URLs are not available.', 'SecurityError')
+      },
+    })
+
+    try {
+      renderView()
+      fireEvent.click(screen.getByTestId('history-export'))
+      expect(screen.getByTestId('history-export-error')).toBeInTheDocument()
+
+      // The throwing stub is replaced by a working one, standing in for the
+      // browser starting to cooperate on a second try.
+      const download = captureDownload()
+      try {
+        fireEvent.click(screen.getByTestId('history-export'))
+        expect(screen.queryByTestId('history-export-error')).toBeNull()
+      } finally {
+        download.restore()
+      }
+    } finally {
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
     }
   })
 
