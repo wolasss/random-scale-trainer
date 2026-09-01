@@ -47,6 +47,7 @@ import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
 import type { ScoreboardLayout } from './components/ScoreboardStrip'
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
@@ -179,16 +180,31 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
   // thing you are meant to be reading. Once per visit, and without waiting for
-  // a nickname: the permission is needed whether or not anybody joins.
+  // a nickname to be entered: the permission is needed whether or not anybody
+  // joins.
+  //
+  // The prompt itself, though, has to be waited on: it is the thing that
+  // explains the permission before the browser's own dialog does, and it is a
+  // lazily-loaded chunk, so it is not necessarily on screen the instant
+  // `challenge.active` flips true. `nicknamePromptReady` tracks whether it has
+  // actually mounted — set from the prompt's own effect, so it flips after the
+  // browser has painted the explanation, never before.
+  const [nicknamePromptReady, setNicknamePromptReady] = useState(false)
+  const onNicknamePromptReady = useCallback(() => setNicknamePromptReady(true), [])
   const micPrimedRef = useRef(false)
   useEffect(() => {
     if (!challenge.active || micPrimedRef.current) {
       return
     }
 
+    const waitingOnPrompt = challenge.needsNickname && challenge.name !== null && !nicknamePromptReady
+    if (waitingOnPrompt) {
+      return
+    }
+
     micPrimedRef.current = true
     void primeMicPermission()
-  }, [challenge.active])
+  }, [challenge.active, challenge.needsNickname, challenge.name, nicknamePromptReady])
 
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
@@ -543,30 +559,35 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <Suspense fallback={null}>
-        <NicknamePrompt
-          challenge={challenge.name}
-          prefill={challenge.prefill}
-          pending={challenge.joining}
-          error={challenge.joinError}
-          onJoin={challenge.join}
-          onDismiss={challenge.dismissPrompt}
-        />
-      </Suspense>
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <NicknamePrompt
+            challenge={challenge.name}
+            prefill={challenge.prefill}
+            pending={challenge.joining}
+            error={challenge.joinError}
+            onJoin={challenge.join}
+            onDismiss={challenge.dismissPrompt}
+            onReady={onNicknamePromptReady}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   const scoreboard =
     challenge.active && challenge.name !== null ? (
-      <Suspense fallback={null}>
-        <ScoreboardStrip
-          challenge={challenge.name}
-          nickname={challenge.nickname}
-          scores={challenge.scores}
-          status={challenge.status}
-          notice={challenge.notice}
-          layout={boardLayout}
-        />
-      </Suspense>
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <ScoreboardStrip
+            challenge={challenge.name}
+            nickname={challenge.nickname}
+            scores={challenge.scores}
+            status={challenge.status}
+            notice={challenge.notice}
+            layout={boardLayout}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   // The two mounting points the two readings need: a column beside the stage,

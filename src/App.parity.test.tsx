@@ -121,7 +121,7 @@ const toggle = async () => {
  * few real ticks instead.
  */
 const flushLazyMount = async () => {
-  for (let hop = 0; hop < 10; hop += 1) {
+  for (let hop = 0; hop < 40; hop += 1) {
     await act(async () => {
       await new Promise((resolve) => setImmediate(resolve))
     })

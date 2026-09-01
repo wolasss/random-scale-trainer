@@ -184,8 +184,11 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    // The prompt is what explains the permission, so it has to be on screen
+    // before the browser is asked for it — the lazy chunk it loads from means
+    // that's no longer guaranteed to land within the same tick as the render.
     expect(await screen.findByTestId('nickname-prompt')).toBeInTheDocument()
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(1))
   })
 
   it('listens for the player whatever the stored setting says', async () => {
