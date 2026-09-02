@@ -77,8 +77,14 @@ export function StageTransport({
       </div>
 
       <div className="stage-secondary">
-        <button type="button" className="secondary-button stage-setup" onClick={onOpenSetup} data-testid="open-setup">
-          <FontAwesomeIcon icon={faSliders} /> Practice setup
+        <button
+          type="button"
+          className="secondary-button stage-setup"
+          onClick={onOpenSetup}
+          data-testid="open-setup"
+          aria-label="Practice setup"
+        >
+          <FontAwesomeIcon icon={faSliders} /> <span className="stage-setup-label">Practice setup</span>
         </button>
         {started ? (
           <button
