@@ -18,14 +18,26 @@ set -e
 SCOREBOARD_DATA="${SCOREBOARD_DATA:-/var/lib/callnote/scoreboard.json}"
 export SCOREBOARD_DATA
 
-mkdir -p "$(dirname "$SCOREBOARD_DATA")"
+DATA_DIR="$(dirname "$SCOREBOARD_DATA")"
+mkdir -p "$DATA_DIR"
 
+# Only the image's own data directory is re-owned. SCOREBOARD_DATA is
+# operator-configurable, and chowning wherever it happens to point (up to
+# and including "/", if it were ever set to a bare filename) would hand the
+# network-facing nginx user write access to a directory outside our
+# control. A custom path is the operator's to provision permissions for.
+#
 # Non-recursive: the service only ever needs to write into the directory
 # (snapshots go through temp-file + rename) and this also re-owns a
 # freshly mounted volume. The file chown covers a root-owned snapshot left
-# behind by an earlier image.
-chown nginx:nginx "$(dirname "$SCOREBOARD_DATA")"
-if [ -e "$SCOREBOARD_DATA" ]; then chown nginx:nginx "$SCOREBOARD_DATA"; fi
+# behind by an earlier image. Failures are swallowed rather than aborting
+# the entrypoint under `set -e` — an unwritable volume is a persistence
+# problem, not a reason to stop nginx from serving the app, and writeSnapshot
+# already treats a failed write as best-effort.
+if [ "$DATA_DIR" = "/var/lib/callnote" ]; then
+  chown nginx:nginx "$DATA_DIR" 2>/dev/null || true
+  if [ -e "$SCOREBOARD_DATA" ]; then chown nginx:nginx "$SCOREBOARD_DATA" 2>/dev/null || true; fi
+fi
 
 # The port is fixed in main.js because nginx.conf proxies to it by number; there
 # is nothing to configure here that would not break that pairing.

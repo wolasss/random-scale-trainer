@@ -266,9 +266,30 @@ describe('Dockerfile', () => {
    * unrelated tree the env var happens to point at.
    */
   it('hands the data dir to the nginx user before starting the service', () => {
-    expect(ENTRYPOINT).toContain('chown nginx:nginx "$(dirname "$SCOREBOARD_DATA")"')
+    expect(ENTRYPOINT).toContain('chown nginx:nginx "$DATA_DIR"')
     expect(ENTRYPOINT).not.toContain('chown -R')
     expect(DOCKERFILE).toContain('chown nginx:nginx /var/lib/callnote')
+  })
+
+  /**
+   * SCOREBOARD_DATA is operator-configurable; a bare filename like
+   * "/scoreboard.json" would make dirname "/". Re-owning whatever directory
+   * the variable happens to point at would hand the network-facing nginx
+   * user write access outside the image's own data directory, so the chown
+   * only ever fires for the well-known default.
+   */
+  it('only re-owns the image’s own data directory, never a caller-selected path', () => {
+    expect(ENTRYPOINT).toContain('if [ "$DATA_DIR" = "/var/lib/callnote" ]')
+  })
+
+  /**
+   * writeSnapshot already treats an unwritable volume as best-effort; the
+   * entrypoint must not turn a read-only or root-squashed mount into a
+   * total outage by letting `set -e` kill the script before nginx starts.
+   */
+  it('does not let a failed ownership change abort nginx startup', () => {
+    expect(ENTRYPOINT).toContain('chown nginx:nginx "$DATA_DIR" 2>/dev/null || true')
+    expect(ENTRYPOINT).toContain('chown nginx:nginx "$SCOREBOARD_DATA" 2>/dev/null || true')
   })
 
   /**
