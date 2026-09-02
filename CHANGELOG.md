@@ -1,3 +1,21 @@
+# [1.29.0](https://github.com/wolasss/random-scale-trainer/compare/v1.28.7...v1.29.0) (2026-09-02)
+
+
+### Bug Fixes
+
+* **csp:** drop 'unsafe-inline' from script-src and allow the shell's inline scripts by hash ([#202](https://github.com/wolasss/random-scale-trainer/issues/202)) ([e7f367a](https://github.com/wolasss/random-scale-trainer/commit/e7f367aaccf8b97066c5142d67ab9d757f5d6464))
+* **scoreboard:** rate-limit board reads so a flood cannot starve a live board ([#213](https://github.com/wolasss/random-scale-trainer/issues/213)) ([a907a81](https://github.com/wolasss/random-scale-trainer/commit/a907a810a6ac134529dfca5d0a142501581ca9bd))
+
+
+### Features
+
+* **stage:** adjust the tempo from the stand without opening the setup sheet ([#214](https://github.com/wolasss/random-scale-trainer/issues/214)) ([44e9b46](https://github.com/wolasss/random-scale-trainer/commit/44e9b46dc6d847ba21e63262b49316e6f3357a90))
+
+
+### Performance Improvements
+
+* **bundle:** lazy-load the shared-challenge components out of the main chunk ([#212](https://github.com/wolasss/random-scale-trainer/issues/212)) ([a7b3e87](https://github.com/wolasss/random-scale-trainer/commit/a7b3e8700dedf8af10917be1ee2c6ba2899f05d3))
+
 ## [1.28.7](https://github.com/wolasss/random-scale-trainer/compare/v1.28.6...v1.28.7) (2026-09-01)
 
 

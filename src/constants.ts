@@ -40,6 +40,12 @@ export const OPEN_BLOCK_FLEX_SECONDS = 240
  */
 export const MIN_BLOCK_FLEX_SECONDS = 90
 
+/**
+ * Wide enough to give the board a 300px column and still leave the note the
+ * room it is read from a metre away. Below it the board folds; see `fold`.
+ */
+export const SCOREBOARD_RAIL_QUERY = '(min-width: 1024px)'
+
 export const SESSION_GOAL_OPTIONS = [5, 10, 20] as const
 export const DEFAULT_SESSION_GOAL_MIN = 10
 

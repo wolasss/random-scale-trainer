@@ -1,6 +1,6 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMicrophone } from '@fortawesome/free-solid-svg-icons'
+import { faMicrophone } from '@fortawesome/free-solid-svg-icons/faMicrophone'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { MAX_NICKNAME_LENGTH, normalizeNickname } from '../lib/challenge'
 
@@ -15,6 +15,9 @@ type NicknamePromptProps = {
   error?: 'taken' | 'rate-limited' | 'error' | null
   onJoin: (nickname: string) => void
   onDismiss: () => void
+  /** Fired once this has painted, so a caller can wait for it before asking
+   *  for anything the explanation on screen is meant to precede. */
+  onReady?: () => void
 }
 
 /** One line per way a claim can fail, and no jargon in any of them. */
@@ -43,11 +46,15 @@ export function NicknamePrompt({
   error = null,
   onJoin,
   onDismiss,
+  onReady,
 }: NicknamePromptProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const [draft, setDraft] = useState(prefill)
 
   useFocusTrap(dialogRef, true, onDismiss)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once, on the paint that puts this on screen
+  useEffect(() => onReady?.(), [])
 
   // Submit is disabled on exactly what the hook would refuse, so the form never
   // looks broken: a name of nothing but spaces is not a name.
@@ -127,3 +134,5 @@ export function NicknamePrompt({
     </div>
   )
 }
+
+export default NicknamePrompt
