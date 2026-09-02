@@ -27,6 +27,9 @@
       localStorage throws in some privacy modes and the document still has to
       end up with a declared scheme. The grounds mirror SKIN_GROUND in
       src/lib/skins.ts (and `--bg-deep` in index.css); change all three together.
+      These exact bytes — indentation and newlines included — are hashed into
+      the `script-src` of every CSP in nginx.conf, so editing this block means
+      updating those hashes; src/server/deploy.test.ts fails until they agree.
     -->
     <script>
       ;(function () {
@@ -86,7 +89,10 @@
       lands. Offline — or on a connection that never answers — the link simply
       never applies and every rule falls through to the system serif in its
       stack. The note glyph always paints, and so does the wordmark — Gabarito
-      falls back to the same grotesk stack the body text uses.
+      falls back to the same grotesk stack the body text uses. The onload text
+      is hashed into every `script-src` in nginx.conf (alongside
+      'unsafe-hashes', which is what lets a hash match an attribute at all);
+      src/server/deploy.test.ts fails if the two drift apart.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

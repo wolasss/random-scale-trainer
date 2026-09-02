@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { assertInlineExecutablesMatch, extractInlineExecutables } from '../../vite.config'
 
 /**
  * The three deployed facts a shared challenge depends on, none of which any
@@ -19,6 +21,14 @@ const NGINX = read('nginx.conf')
 const DOCKERFILE = read('Dockerfile')
 const ENTRYPOINT = read('docker/50-scoreboard.sh')
 const MAIN = read('src/server/main.js')
+const INDEX = read('index.html')
+
+const POLICIES = () => NGINX.match(/add_header Content-Security-Policy "[^"]*"/g) ?? []
+
+/** The one directive these tests are about, lifted out of a whole policy. */
+const directive = (policy: string, name: string) => policy.match(new RegExp(`${name} [^;"]*`))?.[0] ?? ''
+
+const csp = (source: string) => `'sha256-${createHash('sha256').update(source).digest('base64')}'`
 
 // Same reasoning as the Permissions-Policy tests below: add_header does not
 // merge, so every location that declares one has to repeat the whole set.
@@ -100,12 +110,68 @@ describe('nginx.conf', () => {
 
     expect(policies.length).toBeGreaterThan(0)
     for (const policy of policies) {
-      expect(policy).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com")
+      expect(policy).toContain("script-src 'self' https://challenges.cloudflare.com")
       expect(policy.match(/challenges\.cloudflare\.com/g)).toHaveLength(2)
     }
 
     // The page talks to its own origin only; the token check is the server's.
     expect(NGINX).not.toContain("connect-src 'self' https://challenges.cloudflare.com")
+  })
+
+  /**
+   * The shell's own inline code is why script-src used to carry
+   * 'unsafe-inline', which is the same as saying any injected <script> ran too.
+   * It is named by hash instead now — and a hash is of exact bytes, so this
+   * recomputes both from index.html rather than restating them. Edit the
+   * bootstrap or the onload handler and this fails with the value to paste in.
+   */
+  it('admits the shell’s inline scripts by hash', () => {
+    const { scripts, handlers } = extractInlineExecutables(INDEX)
+
+    // Growing either list is a decision, not a detail: every new inline vector
+    // costs another hash in all six policies.
+    expect(scripts).toHaveLength(1)
+    expect(handlers).toHaveLength(1)
+
+    const policies = POLICIES()
+    expect(policies.length).toBeGreaterThan(0)
+    for (const policy of policies) {
+      const scriptSrc = directive(policy, 'script-src')
+
+      for (const script of scripts) {
+        expect(scriptSrc, `script-src is missing the bootstrap hash ${csp(script)}`).toContain(csp(script))
+      }
+      // A 'sha256-…' source only ever matches a <script> element. Without this
+      // keyword the onload hash is inert and the webfont never flips to all.
+      expect(scriptSrc).toContain("'unsafe-hashes'")
+      for (const handler of handlers) {
+        expect(scriptSrc, `script-src is missing the handler hash ${csp(handler)}`).toContain(csp(handler))
+      }
+    }
+  })
+
+  it('no longer lets script-src run any inline script, while style-src still can', () => {
+    const policies = POLICIES()
+
+    expect(policies.length).toBeGreaterThan(0)
+    for (const policy of policies) {
+      expect(directive(policy, 'script-src')).not.toContain("'unsafe-inline'")
+      // The skins write style at run time; there is nothing fixed to hash.
+      expect(directive(policy, 'style-src')).toContain("'unsafe-inline'")
+    }
+  })
+
+  /**
+   * Hashes are only worth anything if the bytes nginx names are the bytes the
+   * browser is served, and the build is the one thing that could come between
+   * them. vite.config.ts checks the emitted dist/index.html on every build;
+   * this proves the check it makes can actually tell the difference.
+   */
+  it('has a build guard that rejects a rewritten shell', () => {
+    expect(() => assertInlineExecutablesMatch(INDEX, INDEX)).not.toThrow()
+    expect(() => assertInlineExecutablesMatch(INDEX, INDEX.replace("'dark'", "'dark' "))).toThrow(/inline scripts/)
+    expect(() => assertInlineExecutablesMatch(INDEX, INDEX.replace("this.media='all'", "this.media='all' ")))
+      .toThrow(/inline handlers/)
   })
 
   it('proxies /api/ to the scoreboard, and never lets it be cached', () => {

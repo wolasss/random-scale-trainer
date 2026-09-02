@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Connect, type Plugin } from 'vite'
+import { defineConfig, type Connect, type Plugin, type Rollup } from 'vite'
 import react from '@vitejs/plugin-react'
 import {
   BUG_REPORT_MAX_BODY_BYTES,
@@ -36,17 +36,18 @@ const listFilesRecursively = (dir: string): string[] =>
  *
  * The list has to be built here rather than written by hand because the bundle
  * filenames are content-hashed. The version covers the worker source, the list
- * itself, and the *contents* of everything under public/ — those files keep
- * their names when they are edited, so hashing the names alone would leave an
- * edited note clip, icon or manifest invisible to installed clients. Nothing
- * time- or machine-dependent goes into the digest, so a build that changes
- * nothing produces the same version, and any build that changes an asset
- * invalidates the old cache exactly once.
+ * itself, the *contents* of everything under public/ — those files keep their
+ * names when they are edited, so hashing the names alone would leave an edited
+ * note clip, icon or manifest invisible to installed clients — and the shell
+ * revision from `deriveShellRevision`. Nothing time- or machine-dependent goes
+ * into the digest, so a build that changes nothing produces the same version,
+ * and any build that changes an asset invalidates the old cache exactly once.
  */
 export const deriveServiceWorker = (
   workerSource: string,
   bundledFileNames: string[],
   publicDir: string,
+  shellRevision: string,
 ): { precache: string[]; version: string } => {
   const publicFiles = listFilesRecursively(publicDir)
     .map((file) => ({
@@ -73,10 +74,101 @@ export const deriveServiceWorker = (
     .update(workerSource)
     .update(precache.join('\n'))
     .update(publicFiles.map((file) => `${file.url} ${file.digest}`).join('\n'))
+    .update(shellRevision)
     .digest('hex')
     .slice(0, 12)
 
   return { precache, version }
+}
+
+/**
+ * A digest of the shell exactly as a client receives it: the emitted
+ * index.html, and the response headers nginx sets on it.
+ *
+ * Both belong in the cache version because a precached navigation is answered
+ * from the cache and nowhere else (`revalidateOnHit` false in the worker), and
+ * what the Cache API stores is the whole Response — headers included. So an
+ * installed client keeps replaying the Content-Security-Policy that was in
+ * force when it installed. Neither half moves a bundle filename: a shell whose
+ * only edit is a <meta> tag, or a policy tightened in nginx.conf alone, would
+ * otherwise leave the worker byte-identical and every returning client on the
+ * old shell under the old headers indefinitely.
+ *
+ * Only the `add_header` lines are read, not the whole file: those are the part
+ * of nginx.conf that ends up frozen in the cache, and proxy or timeout edits
+ * have no business making every client re-download the precache.
+ */
+export const deriveShellRevision = (builtHtml: string, nginxConf: string): string =>
+  createHash('sha256')
+    .update(builtHtml)
+    .update('\n')
+    .update((nginxConf.match(/^[^\S\n]*add_header .*$/gm) ?? []).join('\n'))
+    .digest('hex')
+
+const INDEX_SOURCE = resolve(ROOT, 'index.html')
+const NGINX_SOURCE = resolve(ROOT, 'nginx.conf')
+
+/**
+ * Every piece of JavaScript the shell carries inline, in the two forms a CSP
+ * treats separately: `<script>` bodies, which a `'sha256-…'` source admits, and
+ * `on*` attribute values, which one only admits alongside `'unsafe-hashes'`.
+ *
+ * nginx.conf's script-src names a hash of each of these instead of
+ * `'unsafe-inline'`, so this is the list those hashes are computed from —
+ * deploy.test.ts recomputes them, and inlineScriptGuardPlugin re-extracts them
+ * from the built dist/index.html so a build-time rewrite can't slip past.
+ */
+export const extractInlineExecutables = (html: string): { scripts: string[]; handlers: string[] } => {
+  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi)]
+    // A tag with src= runs an external file and is covered by `'self'`; its own
+    // body is dead weight the browser ignores. Anything else — including a
+    // future type="module" block — is inline and needs a hash.
+    .filter((match) => !/\bsrc\s*=/i.test(match[1]))
+    .map((match) => match[2])
+
+  const handlers = [...html.matchAll(/\son[a-z0-9]+\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)]
+    .map((match) => match[1] ?? match[2] ?? match[3])
+
+  for (const handler of handlers) {
+    // The browser hashes the *decoded* attribute value, so an entity would make
+    // the raw bytes read here differ from what the CSP is checked against.
+    // None exist today; decoding one correctly is a job for the day one does.
+    if (handler.includes('&')) {
+      throw new Error(`inline handler "${handler}" contains an HTML entity, which its CSP hash could not match`)
+    }
+  }
+
+  return { scripts, handlers }
+}
+
+/**
+ * Fails a build whose emitted index.html no longer carries the source's inline
+ * scripts byte for byte — at which point the hashes in nginx.conf name code the
+ * browser is not being served, and the shell's bootstrap is refused.
+ */
+export const assertInlineExecutablesMatch = (sourceHtml: string, builtHtml: string): void => {
+  const source = extractInlineExecutables(sourceHtml)
+  const built = extractInlineExecutables(builtHtml)
+
+  for (const kind of ['scripts', 'handlers'] as const) {
+    if (JSON.stringify(source[kind]) !== JSON.stringify(built[kind])) {
+      throw new Error(
+        `the build rewrote the shell's inline ${kind}, so the 'sha256-…' sources in nginx.conf no longer match.\n` +
+          `  index.html: ${JSON.stringify(source[kind], null, 2)}\n` +
+          `  dist/index.html: ${JSON.stringify(built[kind], null, 2)}`,
+      )
+    }
+  }
+}
+
+/** The shell as this build emitted it, read back out of the bundle. */
+const emittedShell = (bundle: Rollup.OutputBundle): string => {
+  const emitted = bundle['index.html']
+  if (emitted === undefined || emitted.type !== 'asset') {
+    throw new Error('the build emitted no index.html')
+  }
+
+  return typeof emitted.source === 'string' ? emitted.source : Buffer.from(emitted.source).toString('utf8')
 }
 
 /**
@@ -91,7 +183,12 @@ const serviceWorkerPlugin = (): Plugin => ({
   enforce: 'post',
   generateBundle(_options, bundle) {
     const source = readFileSync(SW_SOURCE, 'utf8')
-    const { precache, version } = deriveServiceWorker(source, Object.keys(bundle), PUBLIC_DIR)
+    const { precache, version } = deriveServiceWorker(
+      source,
+      Object.keys(bundle),
+      PUBLIC_DIR,
+      deriveShellRevision(emittedShell(bundle), readFileSync(NGINX_SOURCE, 'utf8')),
+    )
 
     this.emitFile({
       type: 'asset',
@@ -100,6 +197,25 @@ const serviceWorkerPlugin = (): Plugin => ({
         .replace('__CACHE_VERSION__', version)
         .replace('__PRECACHE_MANIFEST__', JSON.stringify(precache, null, 2)),
     })
+  },
+})
+
+/**
+ * Holds the built shell to the inline scripts nginx.conf has hashed.
+ *
+ * The claim is about dist, so no vitest run can make it: `npm run check` runs
+ * the suite before the build, and there is no dist to read on a clean checkout.
+ * Asserting it here instead means every build — CI's, the container's, and the
+ * one behind the e2e run — is the check.
+ */
+const inlineScriptGuardPlugin = (): Plugin => ({
+  name: 'callnote-inline-script-guard',
+  apply: 'build',
+  // Same reason as the worker plugin: the emitted index.html has to be in the
+  // bundle by the time this reads it.
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    assertInlineExecutablesMatch(readFileSync(INDEX_SOURCE, 'utf8'), emittedShell(bundle))
   },
 })
 
@@ -221,7 +337,7 @@ const scoreboardApiPlugin = (): Plugin => {
 }
 
 export default defineConfig({
-  plugins: [react(), serviceWorkerPlugin(), scoreboardApiPlugin()],
+  plugins: [react(), serviceWorkerPlugin(), inlineScriptGuardPlugin(), scoreboardApiPlugin()],
   server: {
     // The dev server is shared the same way the preview server is — through a
     // tailnet proxy — so it takes the same guests.
