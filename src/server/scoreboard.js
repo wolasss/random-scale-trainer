@@ -123,6 +123,7 @@ const CHALLENGE_PATTERN = /^[a-z0-9][a-z0-9 _-]{0,31}$/
 const CONTROL_CHARS = /[\p{Cc}\p{Cf}]/gu
 const MAX_NICKNAME_LENGTH = 20
 
+/** @param {unknown} raw */
 export const normalizeChallengeName = (raw) => {
   if (typeof raw !== 'string') {
     return null
@@ -133,6 +134,7 @@ export const normalizeChallengeName = (raw) => {
   return CHALLENGE_PATTERN.test(name) ? name : null
 }
 
+/** @param {unknown} raw */
 export const normalizeNickname = (raw) => {
   if (typeof raw !== 'string') {
     return null
@@ -156,12 +158,14 @@ export const normalizeNickname = (raw) => {
  * of a key would differ from the key, and a key is round-tripped through here
  * every time one is read back out of a snapshot.
  */
+/** @param {unknown} raw */
 export const nicknameKey = (raw) => {
   const nickname = normalizeNickname(raw)
 
   return nickname === null ? null : normalizeNickname(nickname.toLowerCase())
 }
 
+/** @param {unknown} raw */
 export const normalizePoints = (raw) => {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) {
     return null
@@ -172,13 +176,18 @@ export const normalizePoints = (raw) => {
 
 export const createStore = () => ({ challenges: new Map(), sessions: new Map(), limits: new Map(), sweepCursor: 0 })
 
+/** @param {number} now */
 const createBoard = (now) => ({ entries: new Map(), owners: new Map(), unscored: new Set(), lastActiveAt: now })
 
+/** @param {string} token */
 const hashToken = (token) => createHash('sha256').update(token, 'utf8').digest('hex')
 
 /**
  * Constant-time as far as it can be: the digests are fixed-length hex, so a
  * mismatched length is a malformed token rather than a hint about the secret.
+ *
+ * @param {unknown} a
+ * @param {unknown} b
  */
 const hashesMatch = (a, b) => {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) {
@@ -191,6 +200,9 @@ const hashesMatch = (a, b) => {
 /**
  * The store.limits half of a sweep, on its own: a bounded slice of the map,
  * oldest-inserted first, with anything past its window dropped.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {number} now
  */
 const sweepLimits = (store, now) => {
   let budget = SWEEP_BUDGET
@@ -210,6 +222,11 @@ const sweepLimits = (store, now) => {
  * A token bucket over a bounded map. Every limited route checks this *before*
  * touching anything else, so an exhausted caller cannot leave a half-written
  * store behind.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {string} key
+ * @param {import('./scoreboard.js').RateLimit} limit
+ * @param {number} now
  */
 export const takeToken = (store, key, { limit, windowMs }, now) => {
   const bucket = store.limits.get(key)
@@ -245,6 +262,9 @@ export const takeToken = (store, key, { limit, windowMs }, now) => {
  * Expires what has gone stale, a bounded slice at a time. Called on the way in
  * to every request, so nothing accumulates while the server is busy and nothing
  * turns one request into a full-table scan.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {number} now
  */
 export const sweep = (store, now) => {
   sweepLimits(store, now)
@@ -306,6 +326,8 @@ export const sweep = (store, now) => {
  * names elsewhere. When every challenge has been scored on, the table is
  * genuinely full and a claim is refused — which is what the cap has always
  * meant.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
  */
 const evictForNewChallenge = (store) => {
   if (store.challenges.size < MAX_CHALLENGES) {
@@ -344,6 +366,11 @@ const evictForNewChallenge = (store) => {
  *
  * The token is returned exactly once, here. Only its digest is kept, so a
  * snapshot on disk — or a leaked one — is not a set of credentials.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {unknown} nickname
+ * @param {number} now
  */
 export const claimNickname = (store, challenge, nickname, now) => {
   const name = normalizeChallengeName(challenge)
@@ -394,6 +421,11 @@ export const claimNickname = (store, challenge, nickname, now) => {
  * The owner record a token unlocks, looked up by the key it is stored under, or
  * null. A record with a null hash is a tombstone — a nickname carried over from
  * before ownership existed — and no token satisfies it, ever.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {unknown} key
+ * @param {unknown} token
  */
 export const verifyOwnerKey = (store, challenge, key, token) => {
   const name = normalizeChallengeName(challenge)
@@ -409,7 +441,14 @@ export const verifyOwnerKey = (store, challenge, key, token) => {
   return hashesMatch(owner.tokenHash, hashToken(token)) ? owner : null
 }
 
-/** The same, for a nickname as somebody typed it rather than a stored key. */
+/**
+ * The same, for a nickname as somebody typed it rather than a stored key.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {unknown} nickname
+ * @param {unknown} token
+ */
 export const verifyOwner = (store, challenge, nickname, token) =>
   verifyOwnerKey(store, challenge, nicknameKey(nickname), token)
 
@@ -420,6 +459,12 @@ export const verifyOwner = (store, challenge, nickname, token) =>
  * session that ends lower than an earlier one must not take the board down with
  * it. Never creates a challenge and never creates an entry for a nickname
  * nobody owns — both of those go through `claimNickname`.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {unknown} nickname
+ * @param {unknown} points
+ * @param {number} now
  */
 export const recordSessionTotal = (store, challenge, nickname, points, now) => {
   const name = normalizeChallengeName(challenge)
@@ -460,6 +505,10 @@ export const recordSessionTotal = (store, challenge, nickname, points, now) => {
  * numbers only. Reading still spends a per-client token — see READ_LIMIT and
  * its check in handleRequest — so holding the URL is not a license to spend
  * this call as fast as a client can send it.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {number} [limit]
  */
 export const topScores = (store, challenge, limit = TOP_LIMIT) => {
   const name = normalizeChallengeName(challenge)
@@ -474,7 +523,11 @@ export const topScores = (store, challenge, limit = TOP_LIMIT) => {
     .slice(0, Math.max(0, limit))
 }
 
-/** The challenge and the rest of the path, or null if it names none we accept. */
+/**
+ * The challenge and the rest of the path, or null if it names none we accept.
+ *
+ * @param {unknown} pathname
+ */
 const parsePath = (pathname) => {
   if (typeof pathname !== 'string' || !pathname.startsWith(API_PREFIX)) {
     return null
@@ -491,7 +544,11 @@ const parsePath = (pathname) => {
   }
 }
 
-/** The JSON object a POST body carries, or null if it carries none usefully. */
+/**
+ * The JSON object a POST body carries, or null if it carries none usefully.
+ *
+ * @param {unknown} body
+ */
 const parseBody = (body) => {
   if (typeof body !== 'string' || body === '') {
     return null
@@ -505,7 +562,11 @@ const parseBody = (body) => {
   }
 }
 
-/** The token on an `Authorization: Bearer` header, or null. */
+/**
+ * The token on an `Authorization: Bearer` header, or null.
+ *
+ * @param {Record<string, string | undefined>} [headers]
+ */
 const bearerToken = (headers) => {
   const raw = headers?.authorization ?? headers?.Authorization
   if (typeof raw !== 'string') {
@@ -517,8 +578,18 @@ const bearerToken = (headers) => {
   return match === null ? null : match[1]
 }
 
+/**
+ * @param {number} status
+ * @param {Record<string, unknown>} json
+ * @param {boolean} [changed]
+ */
 const answer = (status, json, changed = false) => ({ status, json, changed })
 
+/**
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {unknown} challenge
+ * @param {Record<string, unknown>} [extra]
+ */
 const board = (store, challenge, extra = {}) =>
   answer(200, { challenge, scores: topScores(store, challenge), ...extra })
 
@@ -528,6 +599,9 @@ const board = (store, challenge, extra = {}) =>
  *
  * Every refusal below happens before anything is written. A 400, a 401, a 409
  * and a 429 all leave the store byte-for-byte where they found it.
+ *
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {import('./scoreboard.js').ApiRequest} request
  */
 export const handleRequest = (store, request) => {
   const { method, pathname, body, headers = {}, client = '', now = Date.now() } = request
@@ -586,6 +660,10 @@ export const handleRequest = (store, request) => {
   return answer(404, { error: 'not found' })
 }
 
+/**
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {{ challenge: string, body?: string, client: string, now: number }} request
+ */
 const handleClaim = (store, { challenge, body, client, now }) => {
   const parsed = parseBody(body)
   if (parsed === null || normalizeNickname(parsed.nickname) === null) {
@@ -619,6 +697,10 @@ const handleClaim = (store, { challenge, body, client, now }) => {
   return answer(201, { challenge, nickname: result.nickname, token: result.token }, true)
 }
 
+/**
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {{ challenge: string, body?: string, headers: Record<string, string | undefined>, client: string, now: number }} request
+ */
 const handleSessionStart = (store, { challenge, body, headers, client, now }) => {
   const parsed = parseBody(body)
   if (parsed === null) {
@@ -645,7 +727,11 @@ const handleSessionStart = (store, { challenge, body, headers, client, now }) =>
 
   const id = randomBytes(16).toString('hex')
   const session = createSessionState(config, now)
-  store.sessions.set(id, { challenge, key: nicknameKey(owner.nickname), session })
+  // owner.nickname was normalizeNickname'd when the claim was made, so a second
+  // pass through nicknameKey cannot fail — unlike the unknown-input call sites
+  // scoreboard.d.ts's `unknown` signature guards against.
+  const key = /** @type {string} */ (nicknameKey(owner.nickname))
+  store.sessions.set(id, { challenge, key, session })
 
   return answer(201, {
     challenge,
@@ -657,6 +743,10 @@ const handleSessionStart = (store, { challenge, body, headers, client, now }) =>
   })
 }
 
+/**
+ * @param {import('./scoreboard.js').ScoreStore} store
+ * @param {{ challenge: string, id: string, step: string, body?: string, headers: Record<string, string | undefined>, client: string, now: number }} request
+ */
 const handleSessionPost = (store, { challenge, id, step, body, headers, client, now }) => {
   const parsed = parseBody(body)
   // A finish carries nothing — it is the path that says what it means — so an
@@ -714,6 +804,7 @@ const handleSessionPost = (store, { challenge, id, step, body, headers, client, 
   }
 }
 
+/** @param {import('./scoreboard.js').ScoreStore} store */
 export const serializeSnapshot = (store) =>
   JSON.stringify({
     version: 2,
@@ -740,7 +831,12 @@ export const serializeSnapshot = (store) =>
     ),
   })
 
-/** A number out of a file somebody may have edited, or the fallback. */
+/**
+ * A number out of a file somebody may have edited, or the fallback.
+ *
+ * @param {unknown} raw
+ * @param {number} fallback
+ */
 const readTime = (raw, fallback) => (typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback)
 
 /**
@@ -755,6 +851,8 @@ const readTime = (raw, fallback) => (typeof raw === 'number' && Number.isFinite(
  * can ever satisfy it. Handing those names out to whoever claims them first
  * would be worse than freezing them, and quietly issuing a token to the next
  * caller would be exactly the hijack this whole file exists to stop.
+ *
+ * @param {string} path
  */
 export const readSnapshot = (path) => {
   const store = createStore()
@@ -854,6 +952,9 @@ export const readSnapshot = (path) => {
  * truncating the target in place, because a kill or a full disk mid-write
  * would otherwise leave torn JSON — which readSnapshot treats as an empty
  * board, putting every owned nickname and every tokenHash back up for grabs.
+ *
+ * @param {string} path
+ * @param {import('./scoreboard.js').ScoreStore} store
  */
 export const writeSnapshot = (path, store) => {
   let temp = null
