@@ -189,6 +189,24 @@ const hashesMatch = (a, b) => {
 }
 
 /**
+ * The store.limits half of a sweep, on its own: a bounded slice of the map,
+ * oldest-inserted first, with anything past its window dropped.
+ */
+const sweepLimits = (store, now) => {
+  let budget = SWEEP_BUDGET
+
+  for (const [key, bucket] of store.limits) {
+    if (budget-- <= 0) {
+      break
+    }
+
+    if (now >= bucket.resetAt) {
+      store.limits.delete(key)
+    }
+  }
+}
+
+/**
  * A token bucket over a bounded map. Every limited route checks this *before*
  * touching anything else, so an exhausted caller cannot leave a half-written
  * store behind.
@@ -197,9 +215,17 @@ export const takeToken = (store, key, { limit, windowMs }, now) => {
   const bucket = store.limits.get(key)
   if (bucket === undefined || now >= bucket.resetAt) {
     if (store.limits.size >= MAX_LIMIT_BUCKETS && bucket === undefined) {
-      // The bookkeeping is full and this is a caller we have never seen. Refuse
-      // rather than grow: a refusal costs a request, growing costs the process.
-      return false
+      // The bookkeeping is full and this is a caller we have never seen. A
+      // route that checks this ahead of the sweep (the board read, so a
+      // refused one costs nothing) would otherwise never get a chance to
+      // reclaim the room a stale bucket is still holding, so reclaim it here
+      // before refusing rather than after.
+      sweepLimits(store, now)
+
+      if (store.limits.size >= MAX_LIMIT_BUCKETS) {
+        // Still full once expired entries are gone: every bucket is live.
+        return false
+      }
     }
 
     store.limits.set(key, { count: 1, resetAt: now + windowMs })
@@ -221,19 +247,9 @@ export const takeToken = (store, key, { limit, windowMs }, now) => {
  * turns one request into a full-table scan.
  */
 export const sweep = (store, now) => {
+  sweepLimits(store, now)
+
   let budget = SWEEP_BUDGET
-
-  for (const [key, bucket] of store.limits) {
-    if (budget-- <= 0) {
-      break
-    }
-
-    if (now >= bucket.resetAt) {
-      store.limits.delete(key)
-    }
-  }
-
-  budget = SWEEP_BUDGET
   for (const [id, record] of store.sessions) {
     if (budget-- <= 0) {
       break

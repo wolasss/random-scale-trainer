@@ -33,6 +33,7 @@ import {
   handleRequest,
   MAX_CHALLENGES,
   MAX_ENTRIES,
+  MAX_LIMIT_BUCKETS,
   MAX_NEW_CHALLENGES_PER_HOUR,
   MAX_POINTS,
   MAX_UNSCORED_OWNERS,
@@ -44,6 +45,7 @@ import {
   serializeSnapshot,
   SESSION_LIMIT,
   sweep,
+  takeToken,
   topScores,
   UNUSED_OWNER_TTL_MS,
   verifyOwner,
@@ -639,6 +641,20 @@ describe('rate limits', () => {
     expect(call(store, { pathname: `${API_PREFIX}demo` }).status).toBe(429)
 
     expect(claimVia(store, 'demo', 'ada').answer.status).toBe(201)
+  })
+
+  it('reclaims expired buckets for a never-seen reader instead of locking the board forever', () => {
+    const store = createStore()
+    for (let index = 0; index < MAX_LIMIT_BUCKETS; index += 1) {
+      takeToken(store, `old:${index}`, { limit: 1, windowMs: 1_000 }, NOW)
+    }
+    expect(store.limits.size).toBe(MAX_LIMIT_BUCKETS)
+
+    // The read gate runs ahead of sweep() (see the test above), so a caller it
+    // has never seen would be stuck behind a map full of buckets nobody is
+    // using anymore, forever, unless takeToken reclaims them itself.
+    const answer = call(store, { pathname: `${API_PREFIX}demo`, client: 'newcomer', now: NOW + 1_001 })
+    expect(answer.status).toBe(200)
   })
 
   it('leaves the session-start limit exactly as it was', () => {
