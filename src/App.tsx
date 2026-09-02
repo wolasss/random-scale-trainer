@@ -28,7 +28,7 @@
  * `PracticeSheet`; otherwise it returns the scrolling page grid. The cards are
  * built once above the branch and placed by whichever one runs.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
@@ -46,8 +46,8 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
-import { NicknamePrompt } from './components/NicknamePrompt'
-import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
+import type { ScoreboardLayout } from './components/ScoreboardStrip'
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
@@ -73,7 +73,12 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
-import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
+import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
+
+// Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
+// to ship them.
+const NicknamePrompt = lazy(() => import('./components/NicknamePrompt'))
+const ScoreboardStrip = lazy(() => import('./components/ScoreboardStrip'))
 
 type AppProps = {
   /** Injectable for tests; otherwise the browser's own reload. */
@@ -175,16 +180,31 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
   // thing you are meant to be reading. Once per visit, and without waiting for
-  // a nickname: the permission is needed whether or not anybody joins.
+  // a nickname to be entered: the permission is needed whether or not anybody
+  // joins.
+  //
+  // The prompt itself, though, has to be waited on: it is the thing that
+  // explains the permission before the browser's own dialog does, and it is a
+  // lazily-loaded chunk, so it is not necessarily on screen the instant
+  // `challenge.active` flips true. `nicknamePromptReady` tracks whether it has
+  // actually mounted — set from the prompt's own effect, so it flips after the
+  // browser has painted the explanation, never before.
+  const [nicknamePromptReady, setNicknamePromptReady] = useState(false)
+  const onNicknamePromptReady = useCallback(() => setNicknamePromptReady(true), [])
   const micPrimedRef = useRef(false)
   useEffect(() => {
     if (!challenge.active || micPrimedRef.current) {
       return
     }
 
+    const waitingOnPrompt = challenge.needsNickname && challenge.name !== null && !nicknamePromptReady
+    if (waitingOnPrompt) {
+      return
+    }
+
     micPrimedRef.current = true
     void primeMicPermission()
-  }, [challenge.active])
+  }, [challenge.active, challenge.needsNickname, challenge.name, nicknamePromptReady])
 
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
@@ -539,26 +559,35 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <NicknamePrompt
-        challenge={challenge.name}
-        prefill={challenge.prefill}
-        pending={challenge.joining}
-        error={challenge.joinError}
-        onJoin={challenge.join}
-        onDismiss={challenge.dismissPrompt}
-      />
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <NicknamePrompt
+            challenge={challenge.name}
+            prefill={challenge.prefill}
+            pending={challenge.joining}
+            error={challenge.joinError}
+            onJoin={challenge.join}
+            onDismiss={challenge.dismissPrompt}
+            onReady={onNicknamePromptReady}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   const scoreboard =
     challenge.active && challenge.name !== null ? (
-      <ScoreboardStrip
-        challenge={challenge.name}
-        nickname={challenge.nickname}
-        scores={challenge.scores}
-        status={challenge.status}
-        notice={challenge.notice}
-        layout={boardLayout}
-      />
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <ScoreboardStrip
+            challenge={challenge.name}
+            nickname={challenge.nickname}
+            scores={challenge.scores}
+            status={challenge.status}
+            notice={challenge.notice}
+            layout={boardLayout}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   // The two mounting points the two readings need: a column beside the stage,
