@@ -246,7 +246,29 @@ describe('Dockerfile', () => {
     expect(DOCKERFILE).toContain('/docker-entrypoint.d/50-scoreboard.sh')
     expect(ENTRYPOINT).toContain('/opt/callnote/server/main.js')
     // Blocking here would stop nginx from ever starting.
-    expect(ENTRYPOINT).toMatch(/node .*main\.js &/)
+    expect(ENTRYPOINT).toContain("su nginx -s /bin/sh -c 'exec node /opt/callnote/server/main.js' &")
+  })
+
+  /**
+   * The only process in the image that parses untrusted network input
+   * (report bodies, claims, event batches) must not run as uid 0.
+   */
+  it('starts node as the nginx user, never as root', () => {
+    expect(ENTRYPOINT).toContain("su nginx -s /bin/sh -c 'exec node /opt/callnote/server/main.js' &")
+    expect(ENTRYPOINT).not.toMatch(/^\s*node /m)
+    expect(ENTRYPOINT.indexOf('chown')).toBeLessThan(ENTRYPOINT.indexOf('su nginx'))
+  })
+
+  /**
+   * The data directory (and a freshly mounted volume over it) must be
+   * handed to the nginx user before the service starts, or its writes
+   * fail; the chown must stay non-recursive so it cannot re-own an
+   * unrelated tree the env var happens to point at.
+   */
+  it('hands the data dir to the nginx user before starting the service', () => {
+    expect(ENTRYPOINT).toContain('chown nginx:nginx "$(dirname "$SCOREBOARD_DATA")"')
+    expect(ENTRYPOINT).not.toContain('chown -R')
+    expect(DOCKERFILE).toContain('chown nginx:nginx /var/lib/callnote')
   })
 
   /**
