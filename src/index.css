@@ -3534,6 +3534,44 @@ button.practice-history-cell {
   text-align: center;
 }
 
+.stage-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.stage-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stage-tempo-step {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.stage-tempo output {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.stage-tempo-unit {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 .stage-secondary {
   display: flex;
   align-items: stretch;
@@ -3613,6 +3651,58 @@ button.practice-history-cell {
 
   :root[data-stage] .hero-note {
     font-size: min(42vh, 30vw);
+  }
+
+  /* The stand's landscape foot has no row to spare — .stage-shell is a fixed,
+     overflow-hidden height, so a whole extra line here is a line taken from
+     the note above it. The tempo row shares the setup/reset row instead of
+     stacking under it; .stage-status only ever wrapped the two so CSS could
+     style them together; here it steps out of the way so its children can be
+     placed independently. */
+  :root[data-stage] .stage-foot {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'strip strip'
+      'readout readout'
+      'tempo secondary'
+      'play play';
+  }
+
+  :root[data-stage] .stage-foot > .routine-strip {
+    grid-area: strip;
+  }
+
+  :root[data-stage] .stage-status {
+    display: contents;
+  }
+
+  :root[data-stage] .stage-tempo {
+    grid-area: tempo;
+  }
+
+  :root[data-stage] .stage-readout-line {
+    grid-area: readout;
+  }
+
+  :root[data-stage] .stage-secondary {
+    grid-area: secondary;
+  }
+
+  :root[data-stage] .stage-play {
+    grid-area: play;
+  }
+
+  /* The shared row is too narrow for the tempo control's full width and the
+     setup button's label both — the icon alone (with the label still in its
+     aria-label) keeps the button from wrapping to a second line and growing
+     the row back to the height this rule exists to avoid. */
+  :root[data-stage] .stage-setup-label {
+    display: none;
+  }
+
+  :root[data-stage] .stage-tempo-unit {
+    display: none;
   }
 }
 

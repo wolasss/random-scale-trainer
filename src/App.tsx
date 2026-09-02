@@ -606,6 +606,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             started={sessionTouched}
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
+            bpm={settings.bpm}
+            onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
           />
         </main>
