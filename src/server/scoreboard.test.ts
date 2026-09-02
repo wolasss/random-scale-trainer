@@ -29,6 +29,7 @@ import {
   CLAIM_LIMIT,
   claimNickname,
   createStore,
+  EVENTS_LIMIT,
   handleRequest,
   MAX_CHALLENGES,
   MAX_ENTRIES,
@@ -41,6 +42,7 @@ import {
   readSnapshot,
   recordSessionTotal,
   serializeSnapshot,
+  SESSION_LIMIT,
   sweep,
   topScores,
   UNUSED_OWNER_TTL_MS,
@@ -72,6 +74,9 @@ const tempFile = (contents?: string): string => {
 }
 
 const NOW = 1_700_000_000_000
+
+// Mirrors the private READ_LIMIT in scoreboard.js — kept in step with it.
+const READ_LIMIT = { limit: 2_400, windowMs: 60_000 }
 
 /** A store with the named people owning their nicknames and holding a score. */
 const seeded = (entries: Array<[string, number]>, challenge = 'demo') => {
@@ -579,6 +584,83 @@ describe('rate limits', () => {
     expect(claimVia(store, 'demo', 'blocked').answer.status).toBe(429)
 
     expect(claimVia(store, 'demo', 'later', 'test-client', NOW + CLAIM_LIMIT.windowMs + 1).answer.status).toBe(201)
+  })
+
+  it('lets a client read a board many times before being limited', () => {
+    const { store } = seeded([['ada', 5]])
+    for (let index = 0; index < READ_LIMIT.limit; index += 1) {
+      const answer = call(store, { pathname: `${API_PREFIX}demo` })
+      expect(answer.status).toBe(200)
+      expect(answer.json.scores).toEqual([{ nickname: 'ada', points: 5 }])
+    }
+  })
+
+  it('refuses a read past the limit before the sweep runs, and changes nothing', () => {
+    const { store } = seeded([['ada', 5]])
+    for (let index = 0; index < READ_LIMIT.limit; index += 1) {
+      call(store, { pathname: `${API_PREFIX}demo` })
+    }
+
+    // Something a sweep would remove, so a sweep that ran would be visible.
+    claimNickname(store, 'demo', 'stale walker', NOW - UNUSED_OWNER_TTL_MS - 1)
+    const cursorBefore = store.sweepCursor
+
+    const refused = call(store, { pathname: `${API_PREFIX}demo` })
+    expect(refused).toEqual({ status: 429, json: { error: 'rate_limited' }, changed: false })
+    expect(store.challenges.get('demo')?.owners.has('stale walker')).toBe(true)
+    expect(store.challenges.get('demo')?.unscored.has('stale walker')).toBe(true)
+    expect(store.sweepCursor).toBe(cursorBefore)
+    expect(topScores(store, 'demo')).toEqual([{ nickname: 'ada', points: 5 }])
+
+    // A GET subpath spends nothing from the read bucket and still 404s.
+    expect(call(store, { pathname: `${API_PREFIX}demo/extra` }).status).toBe(404)
+
+    // Another client's bucket is untouched.
+    expect(call(store, { pathname: `${API_PREFIX}demo`, client: 'a stranger' }).status).toBe(200)
+  })
+
+  it('lets the read bucket refill once its window is past', () => {
+    const { store } = seeded([['ada', 5]])
+    for (let index = 0; index < READ_LIMIT.limit; index += 1) {
+      call(store, { pathname: `${API_PREFIX}demo` })
+    }
+    expect(call(store, { pathname: `${API_PREFIX}demo` }).status).toBe(429)
+
+    const refreshed = call(store, { pathname: `${API_PREFIX}demo`, now: NOW + READ_LIMIT.windowMs + 1 })
+    expect(refreshed.status).toBe(200)
+    expect(refreshed.json.scores).toEqual([{ nickname: 'ada', points: 5 }])
+  })
+
+  it('keeps the read bucket separate from the claim bucket', () => {
+    const store = createStore()
+    for (let index = 0; index < READ_LIMIT.limit; index += 1) {
+      call(store, { pathname: `${API_PREFIX}demo` })
+    }
+    expect(call(store, { pathname: `${API_PREFIX}demo` }).status).toBe(429)
+
+    expect(claimVia(store, 'demo', 'ada').answer.status).toBe(201)
+  })
+
+  it('leaves the session-start limit exactly as it was', () => {
+    const store = createStore()
+    for (let index = 0; index < SESSION_LIMIT.limit; index += 1) {
+      expect(
+        post(store, `${API_PREFIX}demo/session`, { nickname: 'ghost', config: { bpm: 72, beatsPerNote: 4 } }).status,
+      ).toBe(401)
+    }
+
+    expect(
+      post(store, `${API_PREFIX}demo/session`, { nickname: 'ghost', config: { bpm: 72, beatsPerNote: 4 } }).status,
+    ).toBe(429)
+  })
+
+  it('leaves the session-events limit exactly as it was', () => {
+    const store = createStore()
+    for (let index = 0; index < EVENTS_LIMIT.limit; index += 1) {
+      expect(post(store, `${API_PREFIX}demo/session/no-such-id/events`, { events: [] }).status).toBe(404)
+    }
+
+    expect(post(store, `${API_PREFIX}demo/session/no-such-id/events`, { events: [] }).status).toBe(429)
   })
 })
 
