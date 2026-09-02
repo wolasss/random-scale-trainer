@@ -42,7 +42,7 @@ describe('PracticeOptionsCard mic switch', () => {
     const micSwitch = screen.getByRole('switch', { name: 'Listen for my playing' })
 
     expect(micSwitch).toBeEnabled()
-    expect(micSwitch).toHaveAccessibleDescription('Hear what you play through the mic, live on the stage.')
+    expect(micSwitch).toHaveAccessibleDescription('The mic verifies each note you play, with instant feedback.')
 
     fireEvent.click(micSwitch)
 

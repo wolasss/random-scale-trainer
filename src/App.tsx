@@ -28,13 +28,14 @@
  * `PracticeSheet`; otherwise it returns the scrolling page grid. The cards are
  * built once above the branch and placed by whichever one runs.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
-import { InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
+import { AndroidInstallHint, InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
+import { MicDebugPanel } from './components/MicDebugPanel'
 import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
 import { FretboardCard } from './components/FretboardCard'
@@ -46,8 +47,8 @@ import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
-import { NicknamePrompt } from './components/NicknamePrompt'
-import { ScoreboardStrip, SCOREBOARD_RAIL_QUERY, type ScoreboardLayout } from './components/ScoreboardStrip'
+import type { ScoreboardLayout } from './components/ScoreboardStrip'
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary'
 import { Footer } from './components/Footer'
 import { createTapTempo, type TapTempo } from './lib/tapTempo'
 import { AudioEngine } from './lib/audio/engine'
@@ -75,7 +76,12 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { hasNoteStats } from './lib/noteStats'
-import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, STORAGE_KEYS } from './constants'
+import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
+
+// Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
+// to ship them.
+const NicknamePrompt = lazy(() => import('./components/NicknamePrompt'))
+const ScoreboardStrip = lazy(() => import('./components/ScoreboardStrip'))
 
 type AppProps = {
   /** Injectable for tests; otherwise the browser's own reload. */
@@ -180,16 +186,31 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
   // thing you are meant to be reading. Once per visit, and without waiting for
-  // a nickname: the permission is needed whether or not anybody joins.
+  // a nickname to be entered: the permission is needed whether or not anybody
+  // joins.
+  //
+  // The prompt itself, though, has to be waited on: it is the thing that
+  // explains the permission before the browser's own dialog does, and it is a
+  // lazily-loaded chunk, so it is not necessarily on screen the instant
+  // `challenge.active` flips true. `nicknamePromptReady` tracks whether it has
+  // actually mounted — set from the prompt's own effect, so it flips after the
+  // browser has painted the explanation, never before.
+  const [nicknamePromptReady, setNicknamePromptReady] = useState(false)
+  const onNicknamePromptReady = useCallback(() => setNicknamePromptReady(true), [])
   const micPrimedRef = useRef(false)
   useEffect(() => {
     if (!challenge.active || micPrimedRef.current) {
       return
     }
 
+    const waitingOnPrompt = challenge.needsNickname && challenge.name !== null && !nicknamePromptReady
+    if (waitingOnPrompt) {
+      return
+    }
+
     micPrimedRef.current = true
     void primeMicPermission()
-  }, [challenge.active])
+  }, [challenge.active, challenge.needsNickname, challenge.name, nicknamePromptReady])
 
   // Default off, and only ever open alongside playback: with the setting off
   // nothing here touches a microphone API at all. The note count is what the
@@ -232,6 +253,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     settings,
     dispatch,
     sessionElapsedMs: sessionTimer.elapsedMs,
+    getSessionElapsedMs: sessionTimer.getElapsedMs,
     isPlaying: playback.isPlaying,
     onFinish: useCallback(() => playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete), []),
   })
@@ -498,6 +520,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       onClear={clearTimer}
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
+      hasPendingPractice={practiceHistory.hasPending}
     />
   )
 
@@ -536,6 +559,14 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
               leader.points - (challenge.scores.find((entry) => entry.nickname === challenge.nickname)?.points ?? 0),
           }
 
+  // A diagnostic, not a feature: ?micdebug puts the capture's own report on
+  // screen, because the iOS microphone pipeline has repeatedly behaved in ways
+  // only a real handset can reveal — this is how that handset reports back.
+  const micDebug =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('micdebug') ? (
+      <MicDebugPanel status={mic.status} getDebugInfo={mic.getDebugInfo} />
+    ) : null
+
   // Only when asked for: with the setting off the tree is exactly what it was
   // before the microphone existed.
   const micReadout = micEnabled ? (
@@ -563,26 +594,35 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <NicknamePrompt
-        challenge={challenge.name}
-        prefill={challenge.prefill}
-        pending={challenge.joining}
-        error={challenge.joinError}
-        onJoin={challenge.join}
-        onDismiss={challenge.dismissPrompt}
-      />
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <NicknamePrompt
+            challenge={challenge.name}
+            prefill={challenge.prefill}
+            pending={challenge.joining}
+            error={challenge.joinError}
+            onJoin={challenge.join}
+            onDismiss={challenge.dismissPrompt}
+            onReady={onNicknamePromptReady}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   const scoreboard =
     challenge.active && challenge.name !== null ? (
-      <ScoreboardStrip
-        challenge={challenge.name}
-        nickname={challenge.nickname}
-        scores={challenge.scores}
-        status={challenge.status}
-        notice={challenge.notice}
-        layout={boardLayout}
-      />
+      <ChunkErrorBoundary>
+        <Suspense fallback={null}>
+          <ScoreboardStrip
+            challenge={challenge.name}
+            nickname={challenge.nickname}
+            scores={challenge.scores}
+            status={challenge.status}
+            notice={challenge.notice}
+            layout={boardLayout}
+          />
+        </Suspense>
+      </ChunkErrorBoundary>
     ) : null
 
   // The two mounting points the two readings need: a column beside the stage,
@@ -630,6 +670,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             started={sessionTouched}
             elapsedMs={sessionTimer.elapsedMs}
             goalMin={settings.sessionGoalMin}
+            bpm={settings.bpm}
+            onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
           />
         </main>
@@ -707,6 +749,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}
+        {installPrompt.showAndroidHint ? <AndroidInstallHint onDismiss={installPrompt.dismissAndroidHint} /> : null}
+        {micDebug}
 
         {/* The practice stage: everything you look at with the guitar in your
             hands, in one full-width card. The neck sits beside the note rather

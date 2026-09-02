@@ -58,6 +58,14 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
         return
       }
 
+      // Every sheet in the app traps Tab, but a click on a heading or a
+      // paragraph inside it — content, not a control — drops focus to body,
+      // which isInteractiveTarget waves through. The transport must not
+      // answer from behind an open sheet, so any open aria-modal wins outright.
+      if (document.querySelector('[aria-modal="true"]') !== null) {
+        return
+      }
+
       const target = event.target instanceof HTMLElement ? event.target : null
       if (target !== null) {
         const isTypingContext = TYPING_TAGS.has(target.tagName.toLowerCase()) || target.isContentEditable

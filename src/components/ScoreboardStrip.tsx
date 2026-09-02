@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faAnglesLeft,
-  faAnglesRight,
-  faArrowTrendUp,
-  faChevronDown,
-  faChevronUp,
-} from '@fortawesome/free-solid-svg-icons'
+import { faAnglesLeft } from '@fortawesome/free-solid-svg-icons/faAnglesLeft'
+import { faAnglesRight } from '@fortawesome/free-solid-svg-icons/faAnglesRight'
+import { faArrowTrendUp } from '@fortawesome/free-solid-svg-icons/faArrowTrendUp'
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons/faChevronDown'
+import { faChevronUp } from '@fortawesome/free-solid-svg-icons/faChevronUp'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { usePersistentState } from '../hooks/usePersistentState'
 import { STORAGE_KEYS } from '../constants'
@@ -20,12 +18,6 @@ import type { ScoreEntry } from '../lib/scoreboard'
  * — a button and a sheet — and not a rail with narrower rules.
  */
 export type ScoreboardLayout = 'rail' | 'fold'
-
-/**
- * Wide enough to give the board a 300px column and still leave the note the
- * room it is read from a metre away. Below it the board folds; see `fold`.
- */
-export const SCOREBOARD_RAIL_QUERY = '(min-width: 1024px)'
 
 type ScoreboardStripProps = {
   challenge: string
@@ -362,3 +354,5 @@ export function ScoreboardStrip({
     </section>
   )
 }
+
+export default ScoreboardStrip

@@ -6,6 +6,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  BUG_REPORT_MAX_BODY_BYTES,
+  BUG_REPORT_PREFIX,
+  createBugReportHandler,
+} from './bug-report.js'
+import {
   createScoreboardServer,
   HEADERS_TIMEOUT_MS,
   KEEP_ALIVE_TIMEOUT_MS,
@@ -440,6 +445,134 @@ describe('the edge itself', () => {
     expect((await request(`${API_PREFIX}same-origin`)).body.scores).toEqual([
       { nickname: 'ada', points: POINTS_PER_HIT * 2 },
     ])
+  })
+})
+
+/**
+ * The other route this edge serves. What the handler decides is bug-report.test.ts's
+ * business; what only exists over a socket is here: that it is routed before the
+ * scoreboard's own router rather than read as a board called "bug-report", that
+ * it reads to its own larger cap while the scoreboard keeps 4096, and that the
+ * cross-site refusal covers it without anything being added for it.
+ */
+describe('reporting a bug over the wire', () => {
+  const REPORT = { description: 'The metronome drifts after a ramp.', token: 'solved-token' }
+
+  const listenWithBugReport = async (
+    { solved = true, sends = true }: { solved?: boolean; sends?: boolean } = {},
+  ) => {
+    const sent: unknown[] = []
+    const started = createScoreboardServer({
+      store: createStore(),
+      bugReport: createBugReportHandler({
+        siteKey: 'site-key',
+        verifyCaptcha: async () => solved,
+        sendMail: async (report) => {
+          sent.push(report)
+          return sends
+        },
+      }),
+    })
+    await new Promise<void>((resolve) => started.listen(0, '127.0.0.1', resolve))
+    const { port } = started.address() as AddressInfo
+
+    return { started, url: `http://127.0.0.1:${port}`, sent }
+  }
+
+  it('takes a report, and offers the site key before it', async () => {
+    const { started, url, sent } = await listenWithBugReport()
+
+    try {
+      const config = await request(`${BUG_REPORT_PREFIX}/config`, { url })
+      expect(config.status).toBe(200)
+      expect(config.body).toEqual({ siteKey: 'site-key' })
+
+      const posted = await request(BUG_REPORT_PREFIX, { method: 'POST', body: REPORT, url })
+      expect(posted.status).toBe(202)
+      expect(posted.body).toEqual({ ok: true })
+      expect(sent).toHaveLength(1)
+    } finally {
+      await new Promise<void>((resolve) => started.close(() => resolve()))
+    }
+  })
+
+  /** A form-shaped POST from anywhere: the same refusal the scoreboard gets. */
+  it('refuses a report the browser marks as coming from another site', async () => {
+    const { started, url, sent } = await listenWithBugReport()
+
+    try {
+      const forged = await request(BUG_REPORT_PREFIX, {
+        method: 'POST',
+        body: JSON.stringify(REPORT),
+        headers: { 'Content-Type': 'text/plain' },
+        url,
+      })
+
+      expect(forged.status).toBe(403)
+      expect(forged.body).toEqual({ error: 'cross_site' })
+      expect(sent).toEqual([])
+    } finally {
+      await new Promise<void>((resolve) => started.close(() => resolve()))
+    }
+  })
+
+  /**
+   * A Turnstile token runs to a couple of kilobytes on its own, so this route
+   * reads to 8192 — and the scoreboard, on the very same server, still does not.
+   */
+  it('reads a body the scoreboard would refuse, and no larger', async () => {
+    const { started, url, sent } = await listenWithBugReport()
+
+    try {
+      const long = { description: 'd'.repeat(900), token: 't'.repeat(4_000) }
+      expect(JSON.stringify(long).length).toBeGreaterThan(MAX_BODY_BYTES)
+
+      expect((await request(BUG_REPORT_PREFIX, { method: 'POST', body: long, url })).status).toBe(202)
+      expect(sent).toHaveLength(1)
+
+      // The same size, at a scoreboard route, is still 413.
+      const oversized = await request(`${API_PREFIX}big/nickname`, {
+        method: 'POST',
+        body: { nickname: 'a'.repeat(MAX_BODY_BYTES) },
+        url,
+      })
+      expect(oversized.status).toBe(413)
+
+      // ...and past this route's own cap, so is a report.
+      const huge = await request(BUG_REPORT_PREFIX, {
+        method: 'POST',
+        body: { description: 'd', token: 't'.repeat(BUG_REPORT_MAX_BODY_BYTES) },
+        url,
+      })
+      expect(huge.status).toBe(413)
+    } finally {
+      await new Promise<void>((resolve) => started.close(() => resolve()))
+    }
+  })
+
+  it('answers a refused captcha and a refused send apart', async () => {
+    const refused = await listenWithBugReport({ solved: false })
+    const undelivered = await listenWithBugReport({ sends: false })
+
+    try {
+      expect((await request(BUG_REPORT_PREFIX, { method: 'POST', body: REPORT, url: refused.url })).body).toEqual({
+        error: 'captcha_failed',
+      })
+      expect((await request(BUG_REPORT_PREFIX, { method: 'POST', body: REPORT, url: undelivered.url })).body).toEqual({
+        error: 'send_failed',
+      })
+    } finally {
+      await new Promise<void>((resolve) => refused.started.close(() => resolve()))
+      await new Promise<void>((resolve) => undelivered.started.close(() => resolve()))
+    }
+  })
+
+  /** Without a handler the route is nothing — not a board named "bug-report". */
+  it('is a plain 404 on a server that was given no handler', async () => {
+    const posted = await request(BUG_REPORT_PREFIX, { method: 'POST', body: REPORT })
+
+    expect(posted.status).toBe(404)
+    expect((await request(`${BUG_REPORT_PREFIX}/config`)).status).toBe(404)
   })
 })
 

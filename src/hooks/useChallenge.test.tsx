@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SCOREBOARD_REFRESH_MS, useChallenge, type UseChallengeOptions } from './useChallenge'
+import { RATE_LIMIT_RETRY_MS, SCOREBOARD_REFRESH_MS, useChallenge, type UseChallengeOptions } from './useChallenge'
 import { STORAGE_KEYS } from '../constants'
 
 const CONFIG = { bpm: 72, beatsPerNote: 4 } as const
@@ -577,6 +577,41 @@ describe('scoring through a session', () => {
     await act(async () => result.current.flushEvents())
 
     expect(result.current.notice).toContain('too fast')
+  })
+
+  /**
+   * A whole class shares a board's buckets, so a 429 is congestion and not a
+   * verdict on the run: the queue keeps everything and the flush comes back for
+   * it by itself — losing the batch would cost an honest player their points
+   * for arriving at the same minute as everybody else.
+   */
+  it('keeps the queue through a rate limit and retries it on its own', async () => {
+    let limited = true
+    const inner = service()
+    const fetchImpl = stubFetch(async (url, init) =>
+      limited && init?.method === 'POST' && url.endsWith('/events')
+        ? reply({ error: 'rate_limited' }, 429)
+        : inner(url, init),
+    )
+
+    const { result } = await joined(fetchImpl)
+    vi.useFakeTimers()
+
+    act(() => result.current.recordEvent(hit()))
+    await act(async () => result.current.flushEvents())
+    expect(result.current.notice).toContain('too fast')
+
+    limited = false
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RATE_LIMIT_RETRY_MS)
+    })
+
+    const batches = fetchImpl.mock.calls.filter(([url]) => url.endsWith('/events'))
+    expect(batches).toHaveLength(2)
+    // The very same batch, under the very same session: nothing went missing.
+    expect(bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1).events[0].seq).toBe(0)
+    expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/session'))).toHaveLength(1)
+    expect(result.current.notice).toBeNull()
   })
 
   /**

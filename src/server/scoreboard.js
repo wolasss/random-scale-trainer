@@ -69,9 +69,12 @@ export const MAX_NEW_CHALLENGES_PER_HOUR = 30
 
 /**
  * How many owners a challenge may hold who have never scored. Squatting names
- * would otherwise consume the MAX_ENTRIES slots the people playing need.
+ * would otherwise consume the MAX_ENTRIES slots the people playing need. Sized
+ * for the app's real audience — a virtual class of hundreds joining in the
+ * minutes before anybody has played a note — so nearly the whole board may be
+ * claimed-but-unscored at once; MAX_ENTRIES stays the harder ceiling above it.
  */
-export const MAX_UNSCORED_OWNERS = 25
+export const MAX_UNSCORED_OWNERS = 400
 
 /** ...and a claim nobody ever scored under is swept after a day. A scored one never is. */
 export const UNUSED_OWNER_TTL_MS = 24 * 60 * 60_000
@@ -85,7 +88,23 @@ export const UNUSED_OWNER_TTL_MS = 24 * 60 * 60_000
 export const CLAIM_LIMIT = { limit: 10, windowMs: 60_000 }
 export const SESSION_LIMIT = { limit: 10, windowMs: 60_000 }
 export const EVENTS_LIMIT = { limit: 120, windowMs: 60_000 }
-export const CHALLENGE_CLAIM_LIMIT = { limit: 20, windowMs: 60 * 60_000 }
+/**
+ * Sized so a whole virtual class can join one board inside the first hour —
+ * and every attempt spends a token, a collision on a taken name included, so
+ * the headroom above the class size is not spare, it is what the retries cost.
+ */
+export const CHALLENGE_CLAIM_LIMIT = { limit: 400, windowMs: 60 * 60_000 }
+
+/**
+ * The board-read bucket. Unlike the limits above, this one is not exported:
+ * nothing outside this file needs it, and scoreboard.d.ts is the contract this
+ * module keeps with its callers. Sized against ScoreboardStrip's poll — every
+ * 20s, three reads a minute per client — with a whole classroom folded into one
+ * bucket by clientIdentity: 400 owners at 3/min is 1,200/min at the legitimate
+ * worst case, so this doubles that for headroom while still capping a flood at
+ * a fraction of what sweep() and topScores() can absorb per request.
+ */
+const READ_LIMIT = { limit: 2_400, windowMs: 60_000 }
 
 /** A ceiling on the bookkeeping itself, so the buckets cannot become the leak. */
 export const MAX_LIMIT_BUCKETS = 5_000
@@ -170,6 +189,24 @@ const hashesMatch = (a, b) => {
 }
 
 /**
+ * The store.limits half of a sweep, on its own: a bounded slice of the map,
+ * oldest-inserted first, with anything past its window dropped.
+ */
+const sweepLimits = (store, now) => {
+  let budget = SWEEP_BUDGET
+
+  for (const [key, bucket] of store.limits) {
+    if (budget-- <= 0) {
+      break
+    }
+
+    if (now >= bucket.resetAt) {
+      store.limits.delete(key)
+    }
+  }
+}
+
+/**
  * A token bucket over a bounded map. Every limited route checks this *before*
  * touching anything else, so an exhausted caller cannot leave a half-written
  * store behind.
@@ -178,9 +215,17 @@ export const takeToken = (store, key, { limit, windowMs }, now) => {
   const bucket = store.limits.get(key)
   if (bucket === undefined || now >= bucket.resetAt) {
     if (store.limits.size >= MAX_LIMIT_BUCKETS && bucket === undefined) {
-      // The bookkeeping is full and this is a caller we have never seen. Refuse
-      // rather than grow: a refusal costs a request, growing costs the process.
-      return false
+      // The bookkeeping is full and this is a caller we have never seen. A
+      // route that checks this ahead of the sweep (the board read, so a
+      // refused one costs nothing) would otherwise never get a chance to
+      // reclaim the room a stale bucket is still holding, so reclaim it here
+      // before refusing rather than after.
+      sweepLimits(store, now)
+
+      if (store.limits.size >= MAX_LIMIT_BUCKETS) {
+        // Still full once expired entries are gone: every bucket is live.
+        return false
+      }
     }
 
     store.limits.set(key, { count: 1, resetAt: now + windowMs })
@@ -202,19 +247,9 @@ export const takeToken = (store, key, { limit, windowMs }, now) => {
  * turns one request into a full-table scan.
  */
 export const sweep = (store, now) => {
+  sweepLimits(store, now)
+
   let budget = SWEEP_BUDGET
-
-  for (const [key, bucket] of store.limits) {
-    if (budget-- <= 0) {
-      break
-    }
-
-    if (now >= bucket.resetAt) {
-      store.limits.delete(key)
-    }
-  }
-
-  budget = SWEEP_BUDGET
   for (const [id, record] of store.sessions) {
     if (budget-- <= 0) {
       break
@@ -422,7 +457,9 @@ export const recordSessionTotal = (store, challenge, nickname, points, now) => {
  * Highest first, then by nickname so a tie is stable rather than dependent on
  * who happened to submit first. Nothing about ownership is in here: this is the
  * one endpoint anybody holding the URL may read, and it hands back names and
- * numbers only.
+ * numbers only. Reading still spends a per-client token — see READ_LIMIT and
+ * its check in handleRequest — so holding the URL is not a license to spend
+ * this call as fast as a client can send it.
  */
 export const topScores = (store, challenge, limit = TOP_LIMIT) => {
   const name = normalizeChallengeName(challenge)
@@ -495,9 +532,22 @@ const board = (store, challenge, extra = {}) =>
 export const handleRequest = (store, request) => {
   const { method, pathname, body, headers = {}, client = '', now = Date.now() } = request
 
+  const parsed = parsePath(pathname)
+
+  // Checked before the sweep, on purpose: a refused read must cost nothing at
+  // all, the sweep's own slice of work included. takeToken never mutates the
+  // store when it refuses, so this is the one gate that is free to fail.
+  if (
+    method === 'GET' &&
+    parsed !== null &&
+    parsed.tail.length === 0 &&
+    !takeToken(store, `read:${client}`, READ_LIMIT, now)
+  ) {
+    return answer(429, { error: 'rate_limited' })
+  }
+
   sweep(store, now)
 
-  const parsed = parsePath(pathname)
   if (parsed === null) {
     return typeof pathname === 'string' && pathname.startsWith(API_PREFIX)
       ? answer(400, { error: 'invalid challenge name' })

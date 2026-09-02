@@ -6,8 +6,19 @@ const SAMPLE_RATE = 44100
 
 /** A stream whose tracks report whether the microphone was handed back. */
 const createFakeStream = () => {
-  const track = { stop: vi.fn() }
-  return { track, stream: { getTracks: () => [track] } as unknown as MediaStream }
+  const listeners = new Set<() => void>()
+  const track = {
+    stop: vi.fn(),
+    addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
+  }
+  const fireEnded = () => {
+    for (const listener of [...listeners]) {
+      listener()
+    }
+  }
+
+  return { track, fireEnded, stream: { getTracks: () => [track] } as unknown as MediaStream }
 }
 
 /** An analyser that always hears a steady A — pitch class 9. */
@@ -25,6 +36,10 @@ const createFakeContext = (frequency = 220) => {
   }
   const context = {
     sampleRate: SAMPLE_RATE,
+    state: 'running',
+    resume: vi.fn(async () => {}),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
     createAnalyser: vi.fn(() => analyser),
   }
@@ -437,5 +452,126 @@ describe('useMicPitch', () => {
     expect(result.current.status).toBe('listening')
     expect(raw.createAnalyser).toHaveBeenCalledTimes(1)
     expect(streams[1].track.stop).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A USB interface unplugged, a Bluetooth mic dropping out, or the OS
+   * revoking the permission all surface the same way: the track fires
+   * 'ended' out from under a poll that would otherwise keep reading silence
+   * off a dead stream while the status still says 'listening'.
+   */
+  it('tears down and reacquires once when the stream dies mid-session', async () => {
+    const streamA = createFakeStream()
+    const streamB = createFakeStream()
+    const streams = [streamA.stream, streamB.stream]
+    let call = 0
+    const getUserMedia = installGetUserMedia(async () => streams[call++])
+    const { context } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    const events: HeardPitch[] = []
+    act(() => {
+      result.current.subscribe((event) => events.push(event))
+    })
+
+    await act(async () => {
+      streamA.fireEnded()
+    })
+    await flush()
+
+    expect(streamA.track.stop).toHaveBeenCalled()
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
+    expect(result.current.status).toBe('listening')
+
+    // The reacquired capture is a working one — it still polls.
+    await tick()
+    expect(events.length).toBeGreaterThan(0)
+  })
+
+  it('falls back to denied when the reacquire is refused', async () => {
+    const streamA = createFakeStream()
+    const getUserMedia = installGetUserMedia(async () => {
+      if (getUserMedia.mock.calls.length === 1) {
+        return streamA.stream
+      }
+
+      throw new DOMException('Permission denied', 'NotAllowedError')
+    })
+    const { context, analyser } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    const framesRead = analyser.getFloatTimeDomainData.mock.calls.length
+    await act(async () => {
+      streamA.fireEnded()
+    })
+    await flush()
+
+    expect(result.current.status).toBe('denied')
+
+    await tick(4)
+    expect(analyser.getFloatTimeDomainData.mock.calls.length).toBe(framesRead)
+  })
+
+  it('never loops when the fresh stream dies too', async () => {
+    const streamA = createFakeStream()
+    const streamB = createFakeStream()
+    const streams = [streamA.stream, streamB.stream]
+    let call = 0
+    const getUserMedia = installGetUserMedia(async () => streams[call++])
+    const { context } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+
+    await act(async () => {
+      streamA.fireEnded()
+    })
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    await act(async () => {
+      streamB.fireEnded()
+    })
+    await flush()
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
+    expect(streamA.track.stop).toHaveBeenCalled()
+    expect(streamB.track.stop).toHaveBeenCalled()
+    expect(result.current.status).toBe('denied')
+  })
+
+  it('ignores an ended that lands after the capture has already been torn down', async () => {
+    const streamA = createFakeStream()
+    const getUserMedia = installGetUserMedia(async () => streamA.stream)
+    const engine = createFakeEngine(createFakeContext().context)
+
+    const { rerender, result } = renderHook(
+      ({ running }) => useMicPitch({ engine, enabled: true, running, callId: 1 }),
+      { initialProps: { running: true } },
+    )
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    await act(async () => {
+      rerender({ running: false })
+    })
+    expect(result.current.status).toBe('idle')
+
+    await act(async () => {
+      streamA.fireEnded()
+    })
+    await flush()
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(result.current.status).toBe('idle')
   })
 })

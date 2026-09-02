@@ -40,6 +40,12 @@ export const OPEN_BLOCK_FLEX_SECONDS = 240
  */
 export const MIN_BLOCK_FLEX_SECONDS = 90
 
+/**
+ * Wide enough to give the board a 300px column and still leave the note the
+ * room it is read from a metre away. Below it the board folds; see `fold`.
+ */
+export const SCOREBOARD_RAIL_QUERY = '(min-width: 1024px)'
+
 export const SESSION_GOAL_OPTIONS = [5, 10, 20] as const
 export const DEFAULT_SESSION_GOAL_MIN = 10
 
@@ -153,6 +159,10 @@ export const STORAGE_KEYS = {
   // and is left exactly where it is: the hint costs a launch to show and a tap
   // to send away, which is cheaper than rewriting a value nobody asked about.
   iosInstallHint: 'fretboard-ios-install-hint',
+  // Same contract as the iOS hint, for the Android browsers that never fire an
+  // install event — the two are dismissed separately only because nobody is
+  // ever shown both.
+  androidInstallHint: 'fretboard-android-install-hint',
 } as const
 
 /**

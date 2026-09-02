@@ -14,7 +14,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   with a NEXT preview and a "note N of M" cycle position
 - Note pool control: 12 tappable pitch-class chips plus presets (all 12, naturals, accidentals, the eight
   major keys — C, G, D, A, E, F, B♭ and E♭ — the A/E/D minor pentatonics and A minor blues) — plus Custom,
-  which is what the selector reads back once the chips no longer match a preset
+  which is what the selector reads back once the chips no longer match a preset. The selector groups
+  presets by family — Chromatic & naturals, Major keys, Minor keys and Custom — and a custom selection
+  can be saved under a name of your own, appearing in its own Saved group with a Delete option
 - Enharmonic spelling as flats, sharps, or mixed — the spoken name always matches the displayed one
 - Tempo (30–240 BPM, live-adjustable, tap tempo) split from the note-change rate
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
@@ -80,7 +82,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
   your playing, and the fretboard map toggle. The spoken note name is always on
-- Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats
+- Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
+  readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
   scoreboard appears under the note. **The nickname is reserved for your browser** — claiming it
   hands back an ownership token, and nobody without that token can put a score under it, raise it
@@ -103,7 +106,13 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   alongside the note
 - The screen is kept awake while playing, and playback stops itself after a minute in the
   background rather than clicking on in a pocket
-- Light/dark theme, and every setting persisted to localStorage
+- Report a bug: a button in the footer opens a form that sends the report straight from the app —
+  a description, an optional address to reply to, and a Cloudflare Turnstile check so the route
+  isn't an open mail relay. Where the deployment has no keys for it (or the browser is offline) the
+  modal says so plainly instead of offering a form it can't post. See
+  [Reporting a bug](#reporting-a-bug)
+- Light/dark theme, a Style picker in the footer with four skins (glass, instrument, editorial,
+  warm), and every setting persisted to localStorage
 - Keyboard shortcuts: Space play/pause, ←/→ (or ↑/↓) tempo, T tap tempo, R reset
 
 ## Run locally
@@ -217,6 +226,45 @@ challenge, 30 new challenges an hour overall, and a sweep for abandoned sessions
 ever scored under. None of this proves somebody physically played a guitar; what it does is stop a
 scripted client putting an arbitrary number on a board, and stop a stranger touching a row that is
 not theirs. Don't put anything you care about on a public board.
+
+### Reporting a bug
+
+The footer's bug button opens a form that posts to `/api/bug-report`, served by the same Node
+process. It needs a captcha to check and somewhere to send the report, and both are environment —
+**with any of them unset the route answers `not_configured` and the modal says reporting is not
+switched on for this build.** Everything else keeps working; nothing about the app depends on it.
+
+| Variable | What it is |
+| --- | --- |
+| `TURNSTILE_SITE_KEY` | The public half of a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) pair. Served to the page at run time by `/api/bug-report/config`, never baked into the bundle. |
+| `TURNSTILE_SECRET_KEY` | The other half. Read once, in this process, and used only to verify a token server-side. |
+| `MAILGUN_API_KEY` | Mailgun's HTTP API key. Never logged, never echoed, never sent anywhere but the `Authorization` header. |
+| `MAILGUN_DOMAIN` | The Mailgun sending domain. |
+| `MAILGUN_API_BASE` | Optional; defaults to `https://api.mailgun.net/v3`. An EU-region account needs `https://api.eu.mailgun.net/v3` — the US host cannot see an EU domain. |
+| `BUG_REPORT_TO` | Optional; defaults to `bugs@$MAILGUN_DOMAIN`. |
+| `BUG_REPORT_FROM` | Optional; defaults to `callnote bug reports <bugs@$MAILGUN_DOMAIN>`. |
+
+```bash
+docker run --rm -p 8080:80 \
+  -e TURNSTILE_SITE_KEY=0x… -e TURNSTILE_SECRET_KEY=0x… \
+  -e MAILGUN_API_KEY=key-… -e MAILGUN_DOMAIN=mg.example.com \
+  -e BUG_REPORT_TO=you@example.com \
+  callnote
+```
+
+The captcha is there because the alternative is an open mail relay with a Send button on it. The
+token the widget produces is checked against the secret key by the server — a form posted by
+anything that isn't a browser with a person behind it gets a `403` and no mail. Rate limits sit
+*before* that check (5 reports per client per 10 minutes, 60 an hour overall), so hammering wrong
+tokens costs the sender their allowance rather than costing the service a round trip each.
+
+`vite dev` and `vite preview` use Cloudflare's always-passes **test** keys and a sender that only
+logs, so the whole round trip is exercisable — and exercised, by `e2e/specs/14-bug-report.test.ts` —
+without a real key anywhere. Setting the real environment makes them step aside.
+
+This is the only third-party origin the page loads anything from, and it costs the CSP exactly two
+directives: `https://challenges.cloudflare.com` in `script-src` and in `frame-src`. `connect-src`
+stays `'self'` — the token check is made by the service, which no CSP governs.
 
 Serving the microphone at all needs `Permissions-Policy: microphone=(self)`, which `nginx.conf`
 now sends on every response (it was `microphone=()`, which forbade `getUserMedia` outright). It is

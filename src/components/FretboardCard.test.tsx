@@ -38,4 +38,13 @@ describe('FretboardCard', () => {
         '6th string (E) open and fret 12',
     )
   })
+
+  it('puts the scrollable neck in the tab order', () => {
+    render(<FretboardCard currentPc={0} currentDisplay="C" />)
+
+    const scroller = screen.getByRole('group', { name: 'Fretboard map, scrolls sideways' })
+
+    expect(scroller).toHaveProperty('tabIndex', 0)
+    expect(scroller).toContainElement(screen.getByRole('img'))
+  })
 })

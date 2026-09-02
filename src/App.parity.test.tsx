@@ -33,6 +33,10 @@ vi.mock('./lib/audio/engine', () => ({
   AudioEngine: class FakeAudioEngine {
     context = {
       sampleRate: 44100,
+      state: 'running',
+      async resume() {},
+      addEventListener() {},
+      removeEventListener() {},
       createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
       createAnalyser: () => ({
         fftSize: 0,
@@ -110,6 +114,23 @@ const toggle = async () => {
   })
 }
 
+/**
+ * The nickname prompt is a lazy chunk, and its dynamic import resolves over
+ * real macrotasks that `vi.useFakeTimers` doesn't fake — a bare
+ * `await act(async () => {})` isn't enough to see it mount, so this pumps a
+ * few real ticks instead.
+ */
+const flushLazyMount = async () => {
+  for (let hop = 0; hop < 40; hop += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setImmediate(resolve))
+    })
+    if (screen.queryByTestId('nickname-input')) {
+      return
+    }
+  }
+}
+
 const play = (pitchClass: number) => {
   vi.mocked(detectPitch).mockReturnValue({
     frequency: 440 * 2 ** ((60 + pitchClass - 69) / 12),
@@ -164,7 +185,7 @@ beforeEach(() => {
   window.history.replaceState({}, '', `/?challenge=${CHALLENGE}`)
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
-    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {} }] }) as unknown as MediaStream) },
+    value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }) as unknown as MediaStream) },
   })
 })
 
@@ -181,7 +202,7 @@ describe('the board and the readout', () => {
   it('reach the same total over a session played at a priced difficulty', async () => {
     const store = installServer()
     render(<App />)
-    await act(async () => {})
+    await flushLazyMount()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {
@@ -212,7 +233,7 @@ describe('the board and the readout', () => {
   it('reach the same total across a milestone', async () => {
     const store = installServer()
     render(<App />)
-    await act(async () => {})
+    await flushLazyMount()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {
@@ -243,7 +264,7 @@ describe('the board and the readout', () => {
   it('reach the same total again when the tempo moves under the session', async () => {
     const store = installServer()
     render(<App />)
-    await act(async () => {})
+    await flushLazyMount()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {

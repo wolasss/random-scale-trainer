@@ -165,6 +165,8 @@ describe('the stand reading', () => {
   })
 
   it('keeps the neck beside the note in landscape and in the sheet in portrait', () => {
+    // The map defaults to hidden; this test is about where it lives when shown.
+    window.localStorage.setItem('fretboard-show-neck', 'true')
     installMatchMedia(PHONE_LANDSCAPE)
     const landscape = render(<App />)
 
@@ -198,6 +200,28 @@ describe('the stand reading', () => {
     expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
 
     fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape' })
+    expect(screen.queryByTestId('practice-sheet')).toBeNull()
+  })
+
+  it('nudges the tempo from the stand without opening the sheet', () => {
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    const down = screen.getByTestId('stage-bpm-down')
+    const up = screen.getByTestId('stage-bpm-up')
+    expect(down).toHaveAttribute('aria-label', 'Slower by 1 BPM')
+    expect(up).toHaveAttribute('aria-label', 'Faster by 1 BPM')
+
+    const readout = screen.getByTestId('stage-bpm-value')
+    expect(readout).toHaveTextContent('72')
+    expect(readout).toHaveAttribute('aria-label', 'Tempo 72 BPM')
+
+    fireEvent.click(up)
+    fireEvent.click(up)
+    fireEvent.click(down)
+
+    expect(readout).toHaveTextContent('73')
+    expect(readout).toHaveAttribute('aria-label', 'Tempo 73 BPM')
     expect(screen.queryByTestId('practice-sheet')).toBeNull()
   })
 

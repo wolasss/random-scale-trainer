@@ -136,7 +136,7 @@ describe('useSettings persistence', () => {
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('240')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,1,2,3,4,5,6,7,8,9,10,11')
     expect(window.localStorage.getItem('fretboard-spelling')).toBe('mixed')
-    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
     expect(window.localStorage.getItem('fretboard-session-goal')).toBe('10')
   })
 
@@ -190,29 +190,30 @@ describe('useSettings persistence', () => {
   })
 
   /**
-   * The toggles that default to on must survive a stored value we never wrote —
-   * only a literal 'false' is allowed to switch one off.
+   * A toggle must survive a stored value we never wrote — only the literal
+   * 'true'/'false' pair may move one off its default, which for the fretboard
+   * map is hidden.
    */
   it.each([
     ['an empty value', ''],
     ['a capitalized value', 'True'],
-    ['a number', '0'],
+    ['a number', '1'],
     ['junk', 'maybe'],
-  ])('keeps the fretboard shown on %s', (_label, stored) => {
+  ])('keeps the fretboard hidden on %s', (_label, stored) => {
     window.localStorage.setItem('fretboard-show-neck', stored)
 
     const { result } = renderHook(() => useSettings())
 
-    expect(result.current[0].showFretboard).toBe(true)
-    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
+    expect(result.current[0].showFretboard).toBe(false)
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
   })
 
-  it('still honours a stored false', () => {
-    window.localStorage.setItem('fretboard-show-neck', 'false')
+  it('still honours a stored true', () => {
+    window.localStorage.setItem('fretboard-show-neck', 'true')
 
     const { result } = renderHook(() => useSettings())
 
-    expect(result.current[0].showFretboard).toBe(false)
+    expect(result.current[0].showFretboard).toBe(true)
   })
 
   it('discards a stored ramp when loop mode starts off', () => {
@@ -293,7 +294,8 @@ describe('useSettings persistence', () => {
 
     expect(window.localStorage.getItem('fretboard-bpm')).toBe('120')
     expect(window.localStorage.getItem('fretboard-note-pool')).toBe('0,1,2,3,4,6,7,8,9,10,11')
-    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('false')
+    // The map defaults to hidden, so the toggle switches it on.
+    expect(window.localStorage.getItem('fretboard-show-neck')).toBe('true')
   })
 
   it('starts from defaults and stays live when storage is blocked', () => {
@@ -302,7 +304,7 @@ describe('useSettings persistence', () => {
       const { result } = renderHook(() => useSettings())
 
       // The blocked read on mount yields no stored values — defaults hold.
-      expect(result.current[0]).toMatchObject({ bpm: 72, spelling: 'mixed', showFretboard: true })
+      expect(result.current[0]).toMatchObject({ bpm: 72, spelling: 'mixed', showFretboard: false })
 
       // A refused write must not throw, and the reducer still updates in memory.
       expect(() =>

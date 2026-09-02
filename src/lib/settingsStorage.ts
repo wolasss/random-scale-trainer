@@ -124,7 +124,7 @@ const DEFAULT_SETTINGS: Settings = {
   countInEnabled: true,
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
-  showFretboard: true,
+  showFretboard: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
