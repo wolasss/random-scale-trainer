@@ -3534,6 +3534,44 @@ button.practice-history-cell {
   text-align: center;
 }
 
+.stage-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.stage-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stage-tempo-step {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.stage-tempo output {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.stage-tempo-unit {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 .stage-secondary {
   display: flex;
   align-items: stretch;
