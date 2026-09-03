@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { STORAGE_KEYS } from '../constants'
 import { readRaw, writeRaw } from '../lib/storage'
 import { isAndroid, isIos } from './useDisplayMode'
@@ -44,8 +44,6 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
   const [androidHintDismissed, setAndroidHintDismissed] = useState(() =>
     hintDismissed(STORAGE_KEYS.androidInstallHint),
   )
-  const installedRef = useRef(false)
-
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
       // Suppress the browser's own bar; the header button replaces it.
@@ -54,7 +52,6 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
     }
 
     const onInstalled = () => {
-      installedRef.current = true
       setDeferred(null)
     }
 
@@ -72,19 +69,15 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
       return
     }
 
-    // The event is single-use whatever the user chooses.
+    // The event is single-use whatever the browser decides — even a refusal
+    // spends it, so there is nothing to hand back. Only a fresh
+    // beforeinstallprompt event can offer it again.
     setDeferred(null)
-    void (async () => {
-      try {
-        await deferred.prompt()
-      } catch {
-        // Chromium rejects when the prompt is re-used or called outside a
-        // user gesture — nothing was installed, so hand the event back.
-        if (!installedRef.current) {
-          setDeferred(current => current ?? deferred)
-        }
-      }
-    })()
+    void deferred.prompt().catch(() => {
+      // Chromium rejects when the prompt is re-used or called outside a
+      // user gesture. Nothing was installed; swallow it so it doesn't
+      // surface as an unhandled rejection.
+    })
   }, [deferred])
 
   const dismissIosHint = useCallback(() => {

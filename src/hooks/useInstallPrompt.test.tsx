@@ -11,7 +11,17 @@ const createInstallEvent = (prompt?: () => Promise<void>) => {
     prompt: () => Promise<void>
     userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
   }
-  event.prompt = vi.fn(prompt ?? (async () => undefined))
+  // The real prompt() can only ever be called once per event, whatever the
+  // outcome of that first call — mirror that so a regression that tries to
+  // reuse a spent event fails here instead of only in production.
+  let consumed = false
+  event.prompt = vi.fn(() => {
+    if (consumed) {
+      return Promise.reject(new Error('prompt() may only be called once on a given BeforeInstallPromptEvent'))
+    }
+    consumed = true
+    return (prompt ?? (async () => undefined))()
+  })
   event.userChoice = Promise.resolve({ outcome: 'accepted' as const })
   return event
 }
@@ -67,7 +77,7 @@ describe('useInstallPrompt', () => {
     expect(result.current.canInstall).toBe(false)
   })
 
-  it('brings the offer back when the browser refuses the prompt', async () => {
+  it('swallows a refused prompt instead of crashing or resurrecting the offer', async () => {
     setUserAgent(CHROME_ANDROID)
     const { result } = renderHook(() => useInstallPrompt(false))
 
@@ -85,41 +95,12 @@ describe('useInstallPrompt', () => {
       })
 
       expect(onUnhandledRejection).not.toHaveBeenCalled()
-      expect(result.current.canInstall).toBe(true)
-
-      await act(async () => {
-        result.current.install()
-      })
-
-      expect(event.prompt).toHaveBeenCalledTimes(2)
+      // The event is spent even though the browser refused it — only a
+      // fresh beforeinstallprompt event can offer it again.
+      expect(result.current.canInstall).toBe(false)
     } finally {
       process.off('unhandledRejection', onUnhandledRejection)
     }
-  })
-
-  it('does not resurrect the offer when the app installed before the refusal landed', async () => {
-    setUserAgent(CHROME_ANDROID)
-    const { result } = renderHook(() => useInstallPrompt(false))
-
-    let rejectPrompt!: (reason: unknown) => void
-    const event = createInstallEvent(() => new Promise((_, reject) => { rejectPrompt = reject }))
-    act(() => {
-      window.dispatchEvent(event)
-    })
-
-    act(() => {
-      result.current.install()
-    })
-
-    act(() => {
-      window.dispatchEvent(new Event('appinstalled'))
-    })
-
-    await act(async () => {
-      rejectPrompt(new Error('not from a user gesture'))
-    })
-
-    expect(result.current.canInstall).toBe(false)
   })
 
   it('offers nothing once the app is already installed', () => {
