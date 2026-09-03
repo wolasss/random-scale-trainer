@@ -228,7 +228,7 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
   /** The retry a rate-limited flush booked, so only ever one is pending. */
   const retryRef = useRef<number | null>(null)
   /** The current drain, for that retry to call — a timer outlives any closure. */
-  const drainSelfRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const drainSelfRef = useRef<(keepalive?: boolean) => Promise<void>>(() => Promise.resolve())
 
   // Every request is stamped with the number it was issued as, and only the
   // newest one is ever shown. Requests overlap in ordinary use — a poll under a
@@ -367,8 +367,12 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
    *
    * An event stays in the queue until the server has taken it, so a flush that
    * never landed is retried by the next one rather than lost.
+   *
+   * `keepalive` is for the flush a page makes on its way out: the requests go
+   * to the browser rather than the document, so they still land once this page
+   * is gone. Everything else leaves it off.
    */
-  const drain = useCallback((): Promise<void> => {
+  const drain = useCallback((keepalive = false): Promise<void> => {
     const holder = ownerRef.current
     if (!active || holder === null) {
       return Promise.resolve()
@@ -406,6 +410,7 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
 
           const opened = await startScoringSession(name, holder.nickname, holder.token, settings, {
             fetchImpl: fetchRef.current,
+            keepalive,
           })
           if (opened.outcome !== 'ok') {
             // As below: a blip keeps what is queued for the next attempt, a
@@ -425,7 +430,10 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
 
         const batch = queueRef.current.slice(0, MAX_EVENTS_PER_BATCH)
         const issue = ++issuedRef.current
-        const sent = await sendScoreEvents(name, pending.id, holder.token, batch, { fetchImpl: fetchRef.current })
+        const sent = await sendScoreEvents(name, pending.id, holder.token, batch, {
+          fetchImpl: fetchRef.current,
+          keepalive,
+        })
         if (sent.outcome !== 'ok') {
           // A network blip keeps the queue and tries again next time, and a
           // rate limit does the same with the retry already booked — the
@@ -460,6 +468,46 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
   useEffect(() => {
     drainSelfRef.current = drain
   }, [drain])
+
+  /**
+   * The points a run earned must not depend on how it ended. A player who
+   * pockets the phone or closes the tab mid-run would otherwise lose everything
+   * queued since the last batch — the flushes on pause and stop only fire when
+   * somebody actually pressed something.
+   *
+   * Hidden is the ordinary case and an ordinary flush covers it. Pagehide is
+   * the last moment there is, so its requests go out `keepalive` and survive
+   * the unload. Both go through `drainSelfRef`, which is the flush's own
+   * serialisation: one already in flight is *joined*, never raced, so no
+   * sequence number is ever sent twice.
+   *
+   * The session is deliberately left open. A page that went into the back/
+   * forward cache comes back to the same run, and finishing the session here
+   * would close the board on a player who is still playing.
+   */
+  useEffect(() => {
+    if (!active) {
+      return undefined
+    }
+
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        void drainSelfRef.current()
+      }
+    }
+
+    const flushOnUnload = () => {
+      void drainSelfRef.current(true)
+    }
+
+    document.addEventListener('visibilitychange', flushWhenHidden)
+    window.addEventListener('pagehide', flushOnUnload)
+
+    return () => {
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+      window.removeEventListener('pagehide', flushOnUnload)
+    }
+  }, [active])
 
   // A pending retry must not outlive the page it was booked on: after unmount
   // it would flush into a tree that is gone.
