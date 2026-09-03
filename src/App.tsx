@@ -464,15 +464,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
   )
 
-  // Both backup paths go through here rather than through the log's own hook,
-  // which holds up to ten seconds of practice in refs and rewrites storage on
-  // every commit. Exporting banks the pending seconds first, so the file is
-  // never short of the session that is running as it is written.
-  const getPracticeBackup = () => {
-    practiceHistory.commit()
-
-    return serializeBackup(readHistory(), new Date())
-  }
+  // Taken from the hook rather than from the store: it banks the pending
+  // seconds first, so the file is never short of the session that is running as
+  // it is written, and it hands back the log it is holding — which is the whole
+  // of it when the store is refusing writes, exactly when a backup is worth
+  // most.
+  const getPracticeBackup = () => serializeBackup(practiceHistory.snapshot(), new Date())
 
   // A restore merges into what is stored and then reloads: the hook reads
   // storage once, on mount, so anything short of a reload would be overwritten

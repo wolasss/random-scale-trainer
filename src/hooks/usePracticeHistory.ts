@@ -106,6 +106,21 @@ export function usePracticeHistory() {
     [],
   )
 
+  /**
+   * The freshest log this tab can assemble: the pending seconds banked first,
+   * then whatever the store holds merged in so a second tab's days survive.
+   * Handed back rather than read from storage by the caller, because a store
+   * that refused the commit still has none of this — and a backup taken to
+   * rescue an unsaveable log must not come back empty.
+   */
+  const snapshot = useCallback((): PracticeHistory => {
+    commit()
+
+    // Not `historyRef` alone: a commit with nothing pending returns early, so
+    // another tab's stored days would never have been folded in.
+    return mergeHistories(readHistory(), historyRef.current)
+  }, [commit])
+
   // A tab closed mid-session still gets its seconds; pagehide is the only
   // unload event iOS Safari fires reliably.
   useEffect(() => {
@@ -126,5 +141,5 @@ export function usePracticeHistory() {
     }
   }, [commit])
 
-  return { history, persisted, trackElapsed, trackNotes, commit, hasPending }
+  return { history, persisted, trackElapsed, trackNotes, commit, hasPending, snapshot }
 }
