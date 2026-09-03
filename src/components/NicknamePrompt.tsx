@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faMicrophone } from '@fortawesome/free-solid-svg-icons/faMicrophone'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { MAX_NICKNAME_LENGTH, normalizeNickname } from '../lib/challenge'
@@ -90,7 +90,7 @@ export function NicknamePrompt({
             permission is asked for the moment a challenge opens, and a request
             nobody explained is one people refuse. */}
         <p className="nickname-prompt-mic">
-          <FontAwesomeIcon icon={faMicrophone} />
+          <Icon icon={faMicrophone} />
           We’ll ask for your microphone — that’s how notes become points.
         </p>
 

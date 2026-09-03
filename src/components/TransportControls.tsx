@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faPause, faPlay } from '@fortawesome/free-solid-svg-icons'
 import { transportLabel, type TransportState } from '../lib/transport'
 import { formatElapsed, formatRemaining } from '../lib/time'
@@ -36,7 +36,7 @@ export function PlayToggle({
       data-testid="play-toggle"
       onClick={onClick}
     >
-      <FontAwesomeIcon icon={transport.isPlaying ? faPause : faPlay} /> {label}
+      <Icon icon={transport.isPlaying ? faPause : faPlay} /> {label}
     </button>
   )
 }

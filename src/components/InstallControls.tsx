@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faArrowUpFromBracket, faDownload, faEllipsisVertical, faRotate, faXmark } from '@fortawesome/free-solid-svg-icons'
 
 type InstallButtonProps = {
@@ -9,7 +9,7 @@ type InstallButtonProps = {
 export function InstallButton({ onInstall }: InstallButtonProps) {
   return (
     <button type="button" className="install-button" onClick={onInstall} data-testid="install-button">
-      <FontAwesomeIcon icon={faDownload} />
+      <Icon icon={faDownload} />
       Install
     </button>
   )
@@ -44,7 +44,7 @@ export function IosInstallHint({ onDismiss }: IosInstallHintProps) {
 
   return (
     <p className="ios-install-hint" data-testid="ios-install-hint">
-      <FontAwesomeIcon icon={faArrowUpFromBracket} aria-hidden="true" />
+      <Icon icon={faArrowUpFromBracket} aria-hidden="true" />
       <span>
         Add as an app to your home screen:{' '}
         {canShare ? (
@@ -57,7 +57,7 @@ export function IosInstallHint({ onDismiss }: IosInstallHintProps) {
         → <strong>Add to Home Screen</strong>.
       </span>
       <button type="button" className="hint-dismiss" onClick={onDismiss} aria-label="Dismiss install hint">
-        <FontAwesomeIcon icon={faXmark} />
+        <Icon icon={faXmark} />
       </button>
     </p>
   )
@@ -78,12 +78,12 @@ type AndroidInstallHintProps = {
 export function AndroidInstallHint({ onDismiss }: AndroidInstallHintProps) {
   return (
     <p className="ios-install-hint" data-testid="android-install-hint">
-      <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
+      <Icon icon={faEllipsisVertical} aria-hidden="true" />
       <span>
         Add as an app to your home screen: <strong>browser menu</strong> → <strong>Add to Home screen</strong>.
       </span>
       <button type="button" className="hint-dismiss" onClick={onDismiss} aria-label="Dismiss install hint">
-        <FontAwesomeIcon icon={faXmark} />
+        <Icon icon={faXmark} />
       </button>
     </p>
   )
@@ -103,11 +103,11 @@ export function UpdateChip({ onReload, onDismiss }: UpdateChipProps) {
   return (
     <div className="update-chip" role="status" data-testid="update-chip">
       <button type="button" className="update-chip-action" onClick={onReload}>
-        <FontAwesomeIcon icon={faRotate} />
+        <Icon icon={faRotate} />
         Update ready — reload
       </button>
       <button type="button" className="hint-dismiss" onClick={onDismiss} aria-label="Dismiss update notice">
-        <FontAwesomeIcon icon={faXmark} />
+        <Icon icon={faXmark} />
       </button>
     </div>
   )

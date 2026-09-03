@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faRotateLeft, faSliders } from '@fortawesome/free-solid-svg-icons'
 import { GoalReadout, PlayToggle } from './TransportControls'
 import type { TransportState } from '../lib/transport'
@@ -84,7 +84,7 @@ export function StageTransport({
           data-testid="open-setup"
           aria-label="Practice setup"
         >
-          <FontAwesomeIcon icon={faSliders} /> <span className="stage-setup-label">Practice setup</span>
+          <Icon icon={faSliders} /> <span className="stage-setup-label">Practice setup</span>
         </button>
         {started ? (
           <button
@@ -94,7 +94,7 @@ export function StageTransport({
             data-testid="reset"
             aria-label="Reset session"
           >
-            <FontAwesomeIcon icon={faRotateLeft} />
+            <Icon icon={faRotateLeft} />
           </button>
         ) : null}
       </div>

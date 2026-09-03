@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faAnglesLeft } from '@fortawesome/free-solid-svg-icons/faAnglesLeft'
 import { faAnglesRight } from '@fortawesome/free-solid-svg-icons/faAnglesRight'
 import { faArrowTrendUp } from '@fortawesome/free-solid-svg-icons/faArrowTrendUp'
@@ -150,7 +150,7 @@ function ScoreboardNudge({ standing }: { standing: Standing | null }) {
 
   return (
     <p className="scoreboard-nudge" data-testid="scoreboard-nudge">
-      <FontAwesomeIcon className="scoreboard-nudge-icon" icon={faArrowTrendUp} />
+      <Icon className="scoreboard-nudge-icon" icon={faArrowTrendUp} />
       {standing.ahead === null
         ? 'Top of the board — hold it.'
         : `${standing.ahead.points - standing.points} pts behind ${standing.ahead.nickname} — keep going`}
@@ -246,7 +246,7 @@ export function ScoreboardStrip({
               ? ''
               : `${standing.ahead.nickname} +${standing.ahead.points - standing.points}`}
           </span>
-          <FontAwesomeIcon className="scoreboard-summary-chevron" icon={faChevronUp} />
+          <Icon className="scoreboard-summary-chevron" icon={faChevronUp} />
         </button>
 
         {noticeLine}
@@ -286,7 +286,7 @@ export function ScoreboardStrip({
                       aria-label="Close the board"
                       onClick={() => setSheetOpen(false)}
                     >
-                      <FontAwesomeIcon icon={faChevronDown} />
+                      <Icon icon={faChevronDown} />
                     </button>
                   </div>
 
@@ -318,7 +318,7 @@ export function ScoreboardStrip({
         }
         onClick={() => setHiddenMap((current) => ({ ...current, [challenge]: false }))}
       >
-        <FontAwesomeIcon icon={faAnglesLeft} />
+        <Icon icon={faAnglesLeft} />
         {label}
         {standing === null ? null : (
           <span className="scoreboard-handle-standing" aria-hidden="true">
@@ -342,7 +342,7 @@ export function ScoreboardStrip({
           aria-label="Hide the board"
           onClick={() => setHiddenMap((current) => ({ ...current, [challenge]: true }))}
         >
-          <FontAwesomeIcon icon={faAnglesRight} />
+          <Icon icon={faAnglesRight} />
         </button>
       </div>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faBug, faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
@@ -24,7 +24,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
   return (
     <footer className="app-footer">
       <p>
-        Made with <FontAwesomeIcon icon={faHeart} className="heart-icon" /> by Adam Wolski
+        Made with <Icon icon={faHeart} className="heart-icon" /> by Adam Wolski
       </p>
       <p className="app-version">v{version}</p>
       <div className="footer-links">
@@ -63,7 +63,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           title="Report a bug"
           data-testid="report-bug-button"
         >
-          <FontAwesomeIcon icon={faBug} />
+          <Icon icon={faBug} />
         </button>
         <a
           className="social-link"
@@ -73,7 +73,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           aria-label="Project on GitHub"
           title="GitHub"
         >
-          <FontAwesomeIcon icon={faGithub} />
+          <Icon icon={faGithub} />
         </a>
         <a
           className="social-link"
@@ -83,7 +83,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           aria-label="wolasso on Instagram"
           title="Instagram"
         >
-          <FontAwesomeIcon icon={faInstagram} />
+          <Icon icon={faInstagram} />
         </a>
         <a
           className="coffee-button"
@@ -91,7 +91,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
           target="_blank"
           rel="noreferrer"
         >
-          <FontAwesomeIcon icon={faMugHot} /> Buy me a coffee
+          <Icon icon={faMugHot} /> Buy me a coffee
         </a>
       </div>
 

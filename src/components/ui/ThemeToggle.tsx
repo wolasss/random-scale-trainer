@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './Icon'
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons'
 import type { Theme } from '../TopBar'
 
@@ -22,7 +22,7 @@ export function ThemeToggle({ theme, onToggle, className, testId }: ThemeToggleP
       onClick={onToggle}
       aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
-      <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
+      <Icon icon={theme === 'dark' ? faSun : faMoon} />
       {theme === 'dark' ? 'Light mode' : 'Dark mode'}
     </button>
   )

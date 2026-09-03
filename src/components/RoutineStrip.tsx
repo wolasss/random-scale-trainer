@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faForwardStep, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { formatClock, routineProgress, type Routine } from '../lib/routines'
 
@@ -59,7 +59,7 @@ export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, on
           title={`Skip to the next block of ${routine.name}`}
           onClick={onSkip}
         >
-          <FontAwesomeIcon icon={faForwardStep} />
+          <Icon icon={faForwardStep} />
         </button>
       ) : null}
 
@@ -71,7 +71,7 @@ export function RoutineStrip({ routine, blockIndex, blockElapsedMs, finished, on
         title={`Unload ${routine.name}`}
         onClick={onClear}
       >
-        <FontAwesomeIcon icon={faXmark} />
+        <Icon icon={faXmark} />
       </button>
     </div>
   )

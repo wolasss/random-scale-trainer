@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faXmark } from '@fortawesome/free-solid-svg-icons'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import {
@@ -241,7 +241,7 @@ export function PracticeHistoryView({
             data-testid="practice-history-close"
             aria-label="Close practice history"
           >
-            <FontAwesomeIcon icon={faXmark} />
+            <Icon icon={faXmark} />
           </button>
         </div>
 

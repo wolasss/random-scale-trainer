@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faClone, faForwardStep, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
 import {
   formatClock,
@@ -166,7 +166,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
           title={copyLabel}
           onClick={() => routine.duplicate(entry.id)}
         >
-          <FontAwesomeIcon icon={faClone} />
+          <Icon icon={faClone} />
         </button>
         <button
           type="button"
@@ -176,7 +176,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
           onClick={() => removeChip(entry.id)}
           onBlur={disarmRemove}
         >
-          {isArmed ? 'Delete?' : <FontAwesomeIcon icon={faXmark} />}
+          {isArmed ? 'Delete?' : <Icon icon={faXmark} />}
         </button>
       </div>
     )
@@ -209,7 +209,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
               setSaveOffered(true)
             }}
           >
-            <FontAwesomeIcon icon={faPlus} /> Save as a setup
+            <Icon icon={faPlus} /> Save as a setup
           </button>
         </div>
       </div>
@@ -320,7 +320,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
                 data-testid="routine-add-block"
                 onClick={routine.addBlock}
               >
-                <FontAwesomeIcon icon={faPlus} />{' '}
+                <Icon icon={faPlus} />{' '}
                 {isOpenEnded(selected) ? 'Turn into a workout' : 'Add a block from current settings'}
               </button>
               {selected.blocks.length > 1 ? (
@@ -330,7 +330,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
                   data-testid="routine-skip-block"
                   onClick={routine.skipBlock}
                 >
-                  Skip block <FontAwesomeIcon icon={faForwardStep} />
+                  Skip block <Icon icon={faForwardStep} />
                 </button>
               ) : null}
               {/* A lone block is the only shape whose timer may come and go: an

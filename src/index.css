@@ -95,6 +95,16 @@
   box-sizing: border-box;
 }
 
+/* Replaces the CSS Font Awesome's runtime used to inject via autoAddCss. */
+.svg-inline--fa {
+  box-sizing: content-box;
+  display: inline-block;
+  height: 1em;
+  overflow: visible;
+  vertical-align: -0.125em;
+  width: 1.25em;
+}
+
 html,
 body,
 #root {

@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faRotateLeft } from '@fortawesome/free-solid-svg-icons'
 import { GoalReadout, PlayToggle } from './TransportControls'
 import type { TransportState } from '../lib/transport'
@@ -38,7 +38,7 @@ export function TransportBar({
             onClick={onReset}
             title="Back to the start — clock, counters and routine position"
           >
-            <FontAwesomeIcon icon={faRotateLeft} /> Reset session
+            <Icon icon={faRotateLeft} /> Reset session
           </button>
         ) : null}
       </div>
