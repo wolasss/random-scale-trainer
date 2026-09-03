@@ -41,8 +41,8 @@
             theme = storedTheme
           }
           var storedSkin = localStorage.getItem('fretboard-skin')
-          var skins = { glass: 1, instrument: 1, editorial: 1, warm: 1 }
-          if (storedSkin && skins[storedSkin]) {
+          var skins = ['glass', 'instrument', 'editorial', 'warm']
+          if (storedSkin && skins.indexOf(storedSkin) !== -1) {
             skin = storedSkin
             document.documentElement.setAttribute('data-skin', skin)
             var fonts = {
