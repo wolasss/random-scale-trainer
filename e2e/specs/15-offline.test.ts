@@ -13,9 +13,10 @@ import { config } from '../config.ts'
  *
  * The other thing only true here: over the Docker Selenium path the app is
  * reached at a non-localhost http origin (host.docker.internal), which Chrome
- * does not treat as a secure context, so `navigator.serviceWorker` is simply
- * absent. That is not a failure — it is degraded the same way
- * 14-bug-report.test.ts degrades when there is no egress for the captcha.
+ * would not otherwise treat as a secure context. `buildDriver`'s
+ * `secureOrigin` option vouches for it, the same way `fakeMedia` does for
+ * getUserMedia elsewhere in the suite, so `navigator.serviceWorker` is
+ * available on both paths and this spec always exercises the real thing.
  */
 const SW_CACHE_PREFIX = 'callnote-' // mirrors CACHE_PREFIX in src/sw/service-worker.js
 
@@ -23,7 +24,7 @@ describe('offline shell', () => {
   let driver: WebDriver
 
   before(async () => {
-    driver = await buildDriver()
+    driver = await buildDriver({ secureOrigin: true })
     await driver.get(config.appBaseUrl)
   })
 
@@ -33,12 +34,7 @@ describe('offline shell', () => {
 
   it('precaches the shell and takes control of the page', async () => {
     const hasServiceWorker = await driver.executeScript<boolean>("return 'serviceWorker' in navigator")
-    if (!hasServiceWorker) {
-      console.log(
-        '# navigator.serviceWorker is undefined — not a secure context (e.g. Docker Selenium over host.docker.internal); skipping the offline spec',
-      )
-      return
-    }
+    assert.equal(hasServiceWorker, true, 'navigator.serviceWorker is undefined even with secureOrigin vouching for the origin')
 
     const ready = await driver.executeAsyncScript<boolean>(
       `const [timeoutMs, done] = arguments
