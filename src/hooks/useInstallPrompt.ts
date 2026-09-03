@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { STORAGE_KEYS } from '../constants'
 import { readRaw, writeRaw } from '../lib/storage'
 import { isAndroid, isIos } from './useDisplayMode'
@@ -44,6 +44,7 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
   const [androidHintDismissed, setAndroidHintDismissed] = useState(() =>
     hintDismissed(STORAGE_KEYS.androidInstallHint),
   )
+  const installedRef = useRef(false)
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
@@ -52,7 +53,10 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
       setDeferred(event as BeforeInstallPromptEvent)
     }
 
-    const onInstalled = () => setDeferred(null)
+    const onInstalled = () => {
+      installedRef.current = true
+      setDeferred(null)
+    }
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
     window.addEventListener('appinstalled', onInstalled)
@@ -70,7 +74,17 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
 
     // The event is single-use whatever the user chooses.
     setDeferred(null)
-    void deferred.prompt()
+    void (async () => {
+      try {
+        await deferred.prompt()
+      } catch {
+        // Chromium rejects when the prompt is re-used or called outside a
+        // user gesture — nothing was installed, so hand the event back.
+        if (!installedRef.current) {
+          setDeferred(current => current ?? deferred)
+        }
+      }
+    })()
   }, [deferred])
 
   const dismissIosHint = useCallback(() => {
