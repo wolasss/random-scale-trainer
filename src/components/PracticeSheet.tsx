@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faXmark } from '@fortawesome/free-solid-svg-icons'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
@@ -47,7 +47,7 @@ export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
             data-testid="practice-sheet-close"
             aria-label="Close practice setup"
           >
-            <FontAwesomeIcon icon={faXmark} />
+            <Icon icon={faXmark} />
           </button>
         </div>
 

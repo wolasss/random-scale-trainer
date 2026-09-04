@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faChevronDown, faSliders } from '@fortawesome/free-solid-svg-icons'
 
 type SetupRevealProps = {
@@ -18,13 +18,13 @@ export function SetupReveal({ onReveal }: SetupRevealProps) {
   return (
     <button type="button" className="panel setup-reveal" data-testid="setup-reveal" onClick={onReveal}>
       <span className="setup-reveal-icon">
-        <FontAwesomeIcon icon={faSliders} />
+        <Icon icon={faSliders} />
       </span>
       <span className="setup-reveal-copy">
         <span className="setup-reveal-title">Set up practice</span>
         <span className="setup-reveal-subtitle">Notes, tempo, saved setups, session goal — all optional.</span>
       </span>
-      <FontAwesomeIcon className="setup-reveal-chevron" icon={faChevronDown} />
+      <Icon className="setup-reveal-chevron" icon={faChevronDown} />
     </button>
   )
 }

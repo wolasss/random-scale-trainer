@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faBug } from '@fortawesome/free-solid-svg-icons'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import {
@@ -180,7 +180,7 @@ export function BugReportModal({ version, onDismiss, loadWidget = loadTurnstile 
         aria-labelledby="bug-report-title"
       >
         <h2 className="bug-report-title" id="bug-report-title">
-          <FontAwesomeIcon icon={faBug} /> Report a bug
+          <Icon icon={faBug} /> Report a bug
         </h2>
 
         {status === 'sent' ? (

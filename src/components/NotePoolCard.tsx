@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faPlus } from '@fortawesome/free-solid-svg-icons'
 import {
   FLAT_DISPLAY,
@@ -208,7 +208,7 @@ export function NotePoolCard({
               setSaveOffered(true)
             }}
           >
-            <FontAwesomeIcon icon={faPlus} /> Save these notes
+            <Icon icon={faPlus} /> Save these notes
           </button>
           {selectedSaved !== null ? (
             <button

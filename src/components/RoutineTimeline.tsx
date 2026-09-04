@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { faChevronLeft, faChevronRight, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { DEFAULT_BLOCK_SECONDS } from '../constants'
 import {
@@ -88,7 +88,7 @@ export function RoutineTimeline({
                 onClick={() => onRemoveBlock(index)}
                 onBlur={onDisarm}
               >
-                {armed ? 'Remove?' : <FontAwesomeIcon icon={faXmark} />}
+                {armed ? 'Remove?' : <Icon icon={faXmark} />}
               </button>
             </div>
             <span className="routine-segment-meta">{blockMeta(block)}</span>
@@ -109,7 +109,7 @@ export function RoutineTimeline({
                 title={`Insert current settings before block ${block.name}`}
                 onClick={() => onInsertBlock(index)}
               >
-                <FontAwesomeIcon icon={faPlus} />
+                <Icon icon={faPlus} />
               </button>
               <button
                 type="button"
@@ -119,7 +119,7 @@ export function RoutineTimeline({
                 disabled={index === 0}
                 onClick={() => onMoveBlock(index, -1)}
               >
-                <FontAwesomeIcon icon={faChevronLeft} />
+                <Icon icon={faChevronLeft} />
               </button>
               <button
                 type="button"
@@ -129,7 +129,7 @@ export function RoutineTimeline({
                 disabled={index === routine.blocks.length - 1}
                 onClick={() => onMoveBlock(index, 1)}
               >
-                <FontAwesomeIcon icon={faChevronRight} />
+                <Icon icon={faChevronRight} />
               </button>
               {/* Every block in a sequence is timed — normalizeBlocks sees to
                   that — so these two always have a duration to work from. */}

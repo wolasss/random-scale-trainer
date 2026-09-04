@@ -1,5 +1,5 @@
 import { faArrowTrendUp, faCheck, faXmark } from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { Icon } from './ui/Icon'
 import { FLAT_DISPLAY, SHARP_DISPLAY, type SpellingPreference } from '../lib/notes'
 import type { MicStatus } from '../hooks/useMicPitch'
 import {
@@ -184,7 +184,7 @@ export function MicReadout({
               role="img"
               aria-label={match ? `${name} — the note called` : `${name} — not the note called, ${called.display}`}
             >
-              <FontAwesomeIcon icon={match ? faCheck : faXmark} aria-hidden="true" />
+              <Icon icon={match ? faCheck : faXmark} aria-hidden="true" />
             </span>
           )}
           <span className="mic-readout-note">{name}</span>
@@ -309,7 +309,7 @@ function SummaryStat({ testId, value, label }: { testId: string; value: string; 
 function BoardNudge({ board }: { board: BoardStanding }) {
   return (
     <p className="mic-readout-nudge" data-testid="score-nudge">
-      <FontAwesomeIcon icon={faArrowTrendUp} aria-hidden="true" />
+      <Icon icon={faArrowTrendUp} aria-hidden="true" />
       {board.leading
         ? 'Top of the board — hold it.'
         : `${board.gap} pts behind ${board.leader} — your score just went up on the board.`}
