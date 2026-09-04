@@ -1907,6 +1907,39 @@ input[type='range'] {
   color: var(--ink-soft);
 }
 
+/* --- App-level crash fallback -------------------------------------------- */
+
+/* Centered column filling the viewport: this renders in place of the whole
+   app, so it can't lean on any layout the app itself would have provided. */
+.app-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  min-height: 100vh;
+  padding: 2rem 1.3rem;
+  text-align: center;
+}
+
+.app-error-title {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.app-error-copy {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.app-error-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
 /* The prompt reuses the practice sheet's scrim and layer; it is a question
    rather than a drawer, so it sits in the middle instead of on the bottom. */
 .nickname-layer {
