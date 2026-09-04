@@ -12,7 +12,7 @@ import {
   type ScoreEvent,
   type SessionConfig,
 } from '../lib/scoreboard'
-import type { DifficultyInputs, PracticeMilestoneKind } from '../lib/scoring'
+import type { ScoredEvent } from '../lib/scoring'
 import { readRaw, writeRaw } from '../lib/storage'
 import { STORAGE_KEYS } from '../constants'
 
@@ -22,23 +22,7 @@ export type ChallengeStatus = 'off' | 'loading' | 'ready' | 'unavailable'
 /** Why a join did not happen, in the words the prompt puts on screen. */
 export type JoinError = 'taken' | 'rate-limited' | 'error'
 
-/**
- * The kinds of thing the scoring hook reports; see `recordEvent`. `at` is the
- * audio time in seconds of the note it is about — the app's own call, which is
- * the only timestamp with no response jitter in it.
- */
-export type ScoredEvent =
-  /**
-   * A hit carries what its note was called under, which is what the server
-   * prices it by. Optional, and null is the same as absent: a hit that declares
-   * nothing is priced flat at both ends, which is what a beat carrying no
-   * settings produces.
-   */
-  | { kind: 'hit'; at: number; difficulty?: DifficultyInputs | null }
-  | { kind: 'miss'; at: number }
-  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
-  /** The clock's own, which the server checks its own clock against. */
-  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
+export type { ScoredEvent } from '../lib/scoring'
 
 export type Challenge = {
   /** The whole feature, in one boolean. False means none of it exists. */

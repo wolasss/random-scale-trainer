@@ -11,7 +11,7 @@ const TOKEN = 'a'.repeat(64)
  * carries. What the hook does with it is turn it into an offset from the first.
  */
 let called = 0
-const hit = () => ({ kind: 'hit' as const, at: (called += 1) })
+const hit = () => ({ kind: 'hit' as const, at: (called += 1), difficulty: null })
 
 const board = (...scores: Array<[string, number]>) => ({
   scores: scores.map(([nickname, points]) => ({ nickname, points })),
@@ -354,7 +354,7 @@ describe('scoring through a session', () => {
     const { result } = await joined(fetchImpl)
 
     act(() => {
-      result.current.recordEvent({ kind: 'hit', at: 10 })
+      result.current.recordEvent({ kind: 'hit', at: 10, difficulty: null })
       result.current.recordEvent({ kind: 'bonus', bonus: 'octaves', at: 10 })
       result.current.recordEvent({ kind: 'miss', at: 10.5 })
     })
