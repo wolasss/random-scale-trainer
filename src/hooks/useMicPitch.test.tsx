@@ -549,6 +549,50 @@ describe('useMicPitch', () => {
     expect(result.current.status).toBe('denied')
   })
 
+  /**
+   * A route change, a call banner, a USB interface re-enumerating — none of
+   * them is the last one of the session. Once a reacquired capture has proven
+   * itself by polling a frame, the next 'ended' is a fresh drop rather than the
+   * guard's spin, and the mic has to come back again.
+   */
+  it('recovers a second dropped stream once the first recovery has proven itself', async () => {
+    const fakes = [createFakeStream(), createFakeStream(), createFakeStream()]
+    let call = 0
+    const getUserMedia = installGetUserMedia(async () => fakes[call++].stream)
+    const { context } = createFakeContext()
+    const engine = createFakeEngine(context)
+
+    const { result } = renderHook(() => useMicPitch({ engine, enabled: true, running: true, callId: 1 }))
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    await act(async () => {
+      fakes[0].fireEnded()
+    })
+    await flush()
+    expect(result.current.status).toBe('listening')
+
+    // The second capture reads a real frame — that is what makes it proven.
+    await tick()
+
+    await act(async () => {
+      fakes[1].fireEnded()
+    })
+    await flush()
+
+    expect(getUserMedia).toHaveBeenCalledTimes(3)
+    expect(fakes[1].track.stop).toHaveBeenCalled()
+    expect(result.current.status).toBe('listening')
+
+    const events: HeardPitch[] = []
+    act(() => {
+      result.current.subscribe((event) => events.push(event))
+    })
+
+    await tick()
+    expect(events.length).toBeGreaterThan(0)
+  })
+
   it('ignores an ended that lands after the capture has already been torn down', async () => {
     const streamA = createFakeStream()
     const getUserMedia = installGetUserMedia(async () => streamA.stream)
