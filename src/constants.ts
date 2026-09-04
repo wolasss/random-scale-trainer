@@ -9,6 +9,13 @@ export const RAMP_TARGET_STEP = 5
 /** How far above the current tempo a target lands when nobody has named one. */
 export const RAMP_TARGET_OFFSET = 40
 
+/**
+ * How many notes the read-ahead list shows at once, the one being called
+ * included. Long enough to read a phrase off the screen, short enough that the
+ * deck is never asked to deal much more than a bag ahead of the beat.
+ */
+export const NOTE_LIST_LENGTH = 7
+
 export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8, 12] as const
 export const DEFAULT_BEATS_PER_NOTE = 4
 
@@ -101,6 +108,9 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Whether the hero shows the upcoming notes as a list rather than only the
+  // one being called. Off unless it reads 'true', like the rest of the toggles.
+  noteList: 'fretboard-note-list',
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',

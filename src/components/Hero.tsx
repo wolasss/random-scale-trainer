@@ -3,6 +3,7 @@ import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
+import { NoteQueue } from './NoteQueue'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
@@ -13,6 +14,8 @@ type HeroProps = {
   message?: string
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
   idlePreview?: IdlePreviewNote | null
+  /** Show the read-ahead strip of upcoming notes under the glyph. */
+  noteList?: boolean
   /**
    * 'stage' is the installed-on-a-phone reading: the glyph takes the room the
    * browser chrome gave up, and the surrounding cards are gone. Everything the
@@ -77,7 +80,16 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idlePreview, variant = 'card' }: HeroProps) {
+export function Hero({
+  snapshot,
+  beatsPerNote,
+  poolSize,
+  ringRef,
+  message,
+  idlePreview,
+  noteList = false,
+  variant = 'card',
+}: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
@@ -123,12 +135,18 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       </span>
     )
 
+  // The same strip in both readings, so what you read ahead on a phone stand is
+  // what you read ahead on a desktop.
+  const noteQueue = noteList ? <NoteQueue current={currentNote} upcoming={snapshot.upcomingNotes} /> : null
+
   if (isStage) {
     return (
       <section className="stage-hero">
         <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+
+        {noteQueue}
 
         <div className="stage-readout">
           <span className="next-chip stage-next-chip">
@@ -156,6 +174,8 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       </div>
 
       <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+
+      {noteQueue}
 
       <PlaybackMessage>{coachingLine}</PlaybackMessage>
 
