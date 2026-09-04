@@ -1,3 +1,12 @@
+## [1.29.1](https://github.com/wolasss/random-scale-trainer/compare/v1.29.0...v1.29.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **app:** show a recoverable error screen instead of a blank page when a render throws ([#232](https://github.com/wolasss/random-scale-trainer/issues/232)) ([038bcf7](https://github.com/wolasss/random-scale-trainer/commit/038bcf75f3d43c7d367c964bf011009653a88511))
+* **history:** build the export backup from the live practice log, not from storage ([#228](https://github.com/wolasss/random-scale-trainer/issues/228)) ([4d41038](https://github.com/wolasss/random-scale-trainer/commit/4d4103857045909ec2cf95c39c710ce106bd4fc2))
+* **mic:** recover a second dropped microphone stream instead of reporting it as denied ([#230](https://github.com/wolasss/random-scale-trainer/issues/230)) ([ee53198](https://github.com/wolasss/random-scale-trainer/commit/ee53198a265fe6f8edd07ead2ec25bfb3552f2bc))
+
 # [1.29.0](https://github.com/wolasss/random-scale-trainer/compare/v1.28.7...v1.29.0) (2026-09-02)
 
 
