@@ -796,6 +796,13 @@ export const readSnapshot = (path) => {
     const owners = version === 2 && rawBoard.owners !== null && typeof rawBoard.owners === 'object' ? rawBoard.owners : {}
 
     for (const [rawKey, rawOwner] of Object.entries(owners)) {
+      // The boot-time twin of the cap claimNickname enforces: a file that was
+      // hand-edited, or grown by a build with a different ceiling, must not
+      // restore a board the running server would have refused to build.
+      if (entry.owners.size >= MAX_ENTRIES) {
+        break
+      }
+
       const key = nicknameKey(rawKey)
       const nickname = rawOwner === null || typeof rawOwner !== 'object' ? null : normalizeNickname(rawOwner.nickname)
       if (key === null || nickname === null || nicknameKey(nickname) !== key) {
@@ -824,6 +831,13 @@ export const readSnapshot = (path) => {
 
       const owner = entry.owners.get(key)
       if (owner === undefined) {
+        // Past the cap the row goes *with* its owner: keeping the score alone
+        // would put a name on the board that nobody owns and that the cap has
+        // just refused to freeze — a scored name anybody could still claim.
+        if (entry.owners.size >= MAX_ENTRIES) {
+          continue
+        }
+
         // A legacy row, or one whose owner was edited out of the file. It keeps
         // its score and becomes unclaimable, which is the safe half of the two.
         entry.owners.set(key, { nickname, tokenHash: null, claimedAt: entry.lastActiveAt, scoredAt: entry.lastActiveAt })
