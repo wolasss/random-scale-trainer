@@ -39,6 +39,23 @@ export default defineConfig([
     },
   },
   {
+    // Same type-aware promise rules for the test files, which the block above
+    // ignores. tsconfig.test.json includes all of src, so the parser can
+    // place every test file (and src/test/** helpers).
+    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test/**/*.{ts,tsx}'],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.test.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+    },
+  },
+  {
     // Shipped as dist/sw.js, so it gets linted like everything else that runs
     // in a browser — just with the service worker globals and the two names
     // vite.config.ts substitutes at build time.
