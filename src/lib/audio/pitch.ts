@@ -10,6 +10,8 @@
  * gates on: a guitar string reads near 1, a room reads near nothing.
  */
 
+import { autocorrelate } from './fft'
+
 /**
  * The guitar's range with headroom: low E is 82.4 Hz, the 24th fret's B is 988.
  *
@@ -221,20 +223,20 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
     return null
   }
 
+  // Every lag's correlation in two transforms rather than one pass per lag:
+  // summing them directly costs a multiply-add per sample per lag, which on a
+  // 50 ms poll is over a million of them on the main thread every frame.
+  const correlation = autocorrelate(frame, maxLag)
+
   const nsdf = new Float32Array(maxLag + 1)
   // From lag 1, not from minLag: the lobe walk below needs the zero-lag lobe's
   // real extent rather than a guess at where it has ended by minLag.
   for (let lag = 1; lag <= maxLag; lag += 1) {
-    let correlation = 0
-    for (let index = 0; index < size - lag; index += 1) {
-      correlation += frame[index] * frame[index + lag]
-    }
-
-    // The same two windows the loop walked: frame[0..size-lag-1] on the left,
-    // frame[lag..size-1] on the right, read off the prefix sum instead of
-    // re-added sample by sample.
+    // The same two windows the correlation covers: frame[0..size-lag-1] on
+    // the left, frame[lag..size-1] on the right, read off the prefix sum
+    // instead of re-added sample by sample.
     const energy = prefix[size - lag] + (total - prefix[lag])
-    nsdf[lag] = energy > 0 ? (2 * correlation) / energy : 0
+    nsdf[lag] = energy > 0 ? (2 * correlation[lag]) / energy : 0
   }
 
   const peaks = findKeyMaxima(nsdf, minLag, maxLag)
