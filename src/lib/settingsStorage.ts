@@ -12,14 +12,36 @@ import {
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
 
+/**
+ * Owns every persisted practice setting: one codec per key, read on mount by
+ * `initSettings` and written back by `writeChangedSettings`. The contract a
+ * `deserialize` implements is reject, don't repair — returning `undefined`
+ * rejects the stored value outright and leaves the default in place, which is
+ * the rule several past bugs turned out to be a violation of. `bpm` and
+ * `rampTargetBpm` are the two exceptions: a finite number is clamped into
+ * range rather than rejected. `rampTargetBpm` is deliberately not re-floored
+ * against the stored `bpm` on read (see the codec below for why). The pool is
+ * validated segment by segment as text, so a blank or gappy value like ''
+ * or '1,,3' can't coerce its way into a pool holding C. `initSettings` also
+ * applies one cross-field invariant: a stored speed ramp is discarded when
+ * `continuousMode` is off. `writeChangedSettings(null, next)` is the
+ * mount-time write-back that normalizes the store (e.g. a clamped BPM comes
+ * back clamped) and the e2e suite relies on it running. What each
+ * `STORAGE_KEYS` entry holds is documented there, in `src/constants.ts`.
+ */
+
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 
 export type Settings = {
+  /** The practice tempo; clamped into range rather than rejected on read. */
   bpm: number
+  /** How many clicks each note gets; one of `BEAT_SPAN_OPTIONS`. */
   beatsPerNote: BeatsPerNote
+  /** Loop through new notes indefinitely instead of running once through the pool; gates `speedRampMode`. */
   continuousMode: boolean
   /** A four-beat count-in before the first note and each new cycle. */
   countInEnabled: boolean
+  /** Climb the tempo toward `rampTargetBpm` as rounds complete; forced off when `continuousMode` is off. */
   speedRampMode: boolean
   /** The tempo the ramp climbs to and then holds; never below `bpm`. */
   rampTargetBpm: number
@@ -27,9 +49,11 @@ export type Settings = {
   showFretboard: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
+  /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
+  /** The session-timer goal in minutes; one of `SESSION_GOAL_OPTIONS`. */
   sessionGoalMin: SessionGoalMin
   /** Stored setting without UI: deliberately kept read-only. */
   endSoundEnabled: boolean
