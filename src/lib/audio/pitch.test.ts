@@ -250,3 +250,41 @@ describe('detectPitch with a gate-supplied cutoff', () => {
     expect(reading!.frequency).toBeCloseTo(196, 0)
   })
 })
+
+/**
+ * The mic poll runs `detectPitch` on the main thread every 50 ms for a whole
+ * practice session, so the cost per frame competes with metronome scheduling
+ * and rendering. This is a regression guard, not a measurement: the ceiling is
+ * loose enough to survive a busy CI box, tight enough that going back to an
+ * O(frame x lag) correlation would blow straight through it.
+ *
+ * Measured on the development machine: 2.31 ms/frame when every lag was summed
+ * sample by sample, 0.58 ms/frame with the FFT autocorrelation. A slower box
+ * moves both numbers together, which is what the headroom below is for.
+ */
+const MS_PER_FRAME_CEILING = 1.5
+
+describe('detectPitch performance', () => {
+  it('stays well inside its per-frame budget', () => {
+    // Distinct frames so nothing can be memoised away, and harmonic-rich ones
+    // so the peak walk has real lobes to climb rather than one clean sine.
+    const frames = [82.41, 110, 146.83, 196, 246.94, 329.63, 440].flatMap((frequency, index) => [
+      sine(frequency, 0.4 + index * 0.01),
+      sawtooth(frequency, 0.3 + index * 0.01),
+    ])
+
+    for (let index = 0; index < 20; index += 1) {
+      detectPitch(frames[index % frames.length], SAMPLE_RATE)
+    }
+
+    const runs = 300
+    const started = performance.now()
+    for (let index = 0; index < runs; index += 1) {
+      detectPitch(frames[index % frames.length], SAMPLE_RATE)
+    }
+    const msPerFrame = (performance.now() - started) / runs
+
+    console.info(`detectPitch: ${msPerFrame.toFixed(3)} ms/frame`)
+    expect(msPerFrame).toBeLessThan(MS_PER_FRAME_CEILING)
+  })
+})
