@@ -26,7 +26,7 @@ export type FocusTrapOptions = {
    */
   capture?: boolean
   /** Where focus starts, when the first focusable isn't the right landing spot. */
-  initialFocus?: RefObject<HTMLElement | null>
+  initialFocus?: RefObject<HTMLElement | null> | undefined
 }
 
 /**

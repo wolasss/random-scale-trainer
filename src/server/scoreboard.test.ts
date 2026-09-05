@@ -102,7 +102,7 @@ const post = (
   store: ScoreStore,
   pathname: string,
   body: unknown,
-  { token, client = 'test-client', now = NOW }: { token?: string; client?: string; now?: number } = {},
+  { token, client = 'test-client', now = NOW }: { token?: string | undefined; client?: string; now?: number } = {},
 ) =>
   handleRequest(store, {
     method: 'POST',

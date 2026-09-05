@@ -43,7 +43,8 @@ The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is no
 - `brand/` — the brand guide and the generated logo/icon exports; `scripts/generate-brand-assets.py` and `scripts/rasterize-icons.mjs` produce them.
 
 ## Conventions
-- **TypeScript is strict** (`strict`, `noUnusedLocals`). Keep it type-clean — no `any` escape hatches, no unused symbols.
+- **TypeScript is strict** (`strict`, `noUnusedLocals`, `exactOptionalPropertyTypes`). Keep it type-clean — no `any` escape hatches, no unused symbols. Under `exactOptionalPropertyTypes` an optional property means *absent*: don't set one to an explicit `undefined` to say "not there" — omit the key (`...(x === undefined ? {} : { x })`). Where a property genuinely accepts both — an injectable a caller passes through, read with `??` or `?.` — say so in the type: `foo?: T | undefined`.
+- **Layering:** `src/lib` is the framework-free domain layer. It must not import React, `react-dom`, or anything from `src/components`/`src/hooks` — the UI imports from it, never the reverse. Lint-enforced via `no-restricted-imports`.
 - **Tests are colocated** as `*.test.tsx?` next to the code. Add/adjust tests with behavior changes.
 - **Test environment:** `vitest.config.ts` sets `environment: 'jsdom'` globally. DOM-free suites (e.g. `src/lib/*.test.ts`, `src/lib/playback/*.test.ts`, `src/sw/*.test.ts`) opt out with a `// @vitest-environment node` pragma at the top of the file — a new lib test only runs node-side if its author adds the pragma, which is why `src/test/setup.ts` guards its `window` access.
 - **Console discipline:** `src/test/consoleGuard.ts` (imported by `src/test/setup.ts`, the configured `setupFiles`) fails a test that emits an unexpected `console.error` or `console.warn`. A test that means to provoke one opts in with `allowConsole()` from `src/test/consoleGuard`.

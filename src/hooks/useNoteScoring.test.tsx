@@ -72,11 +72,12 @@ const beat = (time: number, pc?: number, difficulty?: DifficultyInputs): BeatEve
   time,
   accent: pc !== undefined,
   isCountIn: false,
-  note:
-    pc === undefined
-      ? undefined
-      : { pc, display: 'X', audioKey: 'X', cycleStart: false, bagSize: 12 },
-  difficulty: pc === undefined ? undefined : difficulty,
+  ...(pc === undefined
+    ? {}
+    : {
+        note: { pc, display: 'X', audioKey: 'X', cycleStart: false, bagSize: 12 },
+        ...(difficulty === undefined ? {} : { difficulty }),
+      }),
   nextNote: null,
   beatInSpan: 0,
   positionInCycle: 0,
