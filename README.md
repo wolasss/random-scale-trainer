@@ -220,10 +220,15 @@ old, not to arbitrate the last few seconds of an honest one. A claim that is too
 asserts they agree, and `src/App.parity.test.tsx` plays a session through the real app against the
 real service — including one that sits past ten minutes — and asserts the two totals match.
 
-Around that sit the limits in `src/server/scoreboard.js` — 4 KB bodies, 1,000,000 points, 500
-nicknames per challenge, 200 challenges, 10 claims a minute per client and 20 an hour per
-challenge, 30 new challenges an hour overall, and a sweep for abandoned sessions and claims nobody
-ever scored under. None of this proves somebody physically played a guitar; what it does is stop a
+Around that sit the limits in `src/server/scoreboard.js` — 1,000,000 points, 500 nicknames per
+challenge, 200 challenges, 30 new challenges an hour overall, 2,000 live sessions, and a sweep for
+abandoned sessions and for claims nobody ever scored under (capped at 400 unscored owners per
+challenge, swept after 24 hours unused). Per-client rate limits cover claims (10 a minute, and 400
+an hour per challenge), session starts (10 a minute) and event posts (120 a minute).
+`src/server/session-scoring.js` adds its own ceilings on a session once it exists: 20 events per
+batch, 5,000 events over its lifetime, and a 2-hour cap on how long it can run. Request bodies are
+capped in `src/server/http.js` — 4 KB (`MAX_BODY_BYTES`) for most routes, 8 KB for the bug-report
+route alone. None of this proves somebody physically played a guitar; what it does is stop a
 scripted client putting an arbitrary number on a board, and stop a stranger touching a row that is
 not theirs. Don't put anything you care about on a public board.
 
