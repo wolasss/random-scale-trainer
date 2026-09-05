@@ -41,6 +41,7 @@ APP_BASE_URL=http://host.docker.internal:4173 npm run test:e2e   # terminal 2
 - `session.ts` — `useTrainerSession(options?)`, the shared browser lifecycle every spec uses: it registers the `before`/`after` that open and quit one session for the enclosing suite, takes the same `DriverOptions` as `buildDriver`, and returns an accessor for the `TrainerPage`.
 - `specs/01–11` — initial defaults, playback/pause/resume, tempo controls + persistence, switches + persistence, theme + persistence, keyboard shortcuts, session completion + reset, note pool + presets, NEXT preview, enharmonic spelling, session goal/stats.
 - `specs/12` — the mobile layout guard; see below.
+- `specs/13–15` — shared challenge + scoreboard, bug report, and the offline shell (15 opens its session with `secureOrigin: true` so service worker registration works on the Docker host.docker.internal path too).
 
 ## The mobile layout guard (spec 12)
 

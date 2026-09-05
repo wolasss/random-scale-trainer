@@ -672,7 +672,7 @@ export class TrainerPage {
       .click()
   }
 
-  async setSessionGoal(minutes: 5 | 10 | 20): Promise<void> {
+  async setSessionGoal(minutes: 5 | 10 | 20 | 30): Promise<void> {
     await this.driver
       .findElement(SELECTORS.sessionGoal)
       .findElement(By.css(`[data-value="${minutes}"]`))

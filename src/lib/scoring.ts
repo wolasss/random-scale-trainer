@@ -309,6 +309,30 @@ export type NoteVerdict = { hit: true; responseMs: number } | { hit: false; resp
 /** The bonuses the clock earns, which belong to no note. */
 export type PracticeMilestoneKind = 'practice10' | 'practice20' | 'practice30'
 
+/**
+ * One thing that landed, in the shape the shared board reports it in.
+ *
+ * `at` is the audio time — in seconds, on the same clock as a beat — of the note
+ * this is about, which is the moment the *app* called it and not the moment a
+ * callback happened to run. Response times vary by a couple of hundred
+ * milliseconds either way, and at the fastest tempo the app offers two notes are
+ * only 250 ms apart, so stamping these when they are observed would report
+ * ordinary playing as two notes closer together than the app can possibly call
+ * them. The call is the one timestamp with no jitter in it at all.
+ */
+export type ScoredEvent =
+  /**
+   * A hit carries what it was called under, because that is what prices it —
+   * and what the server prices it by too. Null is the same as absent: a hit
+   * that declares nothing is priced flat at both ends, which is what a beat
+   * carrying no settings produces.
+   */
+  | { kind: 'hit'; at: number; difficulty: DifficultyInputs | null }
+  | { kind: 'miss'; at: number }
+  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
+  /** The clock's own, which the server checks its own clock against. */
+  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
+
 /** The bonuses a note can earn. More kinds join these as they are written. */
 export type BonusKind = 'streak' | 'octaves' | 'tempo' | PracticeMilestoneKind
 

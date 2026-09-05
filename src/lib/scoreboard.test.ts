@@ -233,6 +233,29 @@ describe('scoring sessions', () => {
     })
   })
 
+  /**
+   * A page on its way out has one moment to send what it has. `keepalive` is
+   * what buys the request a life of its own past the unload, and it is opt-in
+   * so that every ordinary flush stays a plain, cancellable fetch.
+   */
+  it('sends a batch keepalive only when it is asked to', async () => {
+    const fetchImpl = fetchReturning({ points: 30, ...BOARD })
+
+    await sendScoreEvents('demo', 'abc', TOKEN, [], { fetchImpl })
+    expect(initOf(fetchImpl).keepalive).toBeUndefined()
+
+    await sendScoreEvents('demo', 'abc', TOKEN, [], { fetchImpl, keepalive: true })
+    expect(initOf(fetchImpl, 1).keepalive).toBe(true)
+  })
+
+  it('opens a session keepalive too, for a queue that never got one', async () => {
+    const fetchImpl = fetchReturning({ sessionId: 'abc', expiresAt: 42, config: CONFIG })
+
+    await startScoringSession('demo', 'ada', TOKEN, CONFIG, { fetchImpl, keepalive: true })
+
+    expect(initOf(fetchImpl).keepalive).toBe(true)
+  })
+
   it('reports an expired or finished session as expired', async () => {
     for (const error of ['session_expired', 'session_completed']) {
       const fetchImpl = fetchReturning({ error }, false, 404)

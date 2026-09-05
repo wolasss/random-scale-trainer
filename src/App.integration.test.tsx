@@ -377,15 +377,19 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-beats-per-note')).toBe('1')
   })
 
-  it('averages tap-tempo taps into the BPM', () => {
+  it('averages tap-tempo taps into the BPM', async () => {
     render(<App />)
 
     // 500ms between taps → 120 BPM; performance.now is faked, so advance it.
     const tap = () => fireEvent.click(screen.getByTestId('tap-tempo'))
     tap()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
     tap()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
     tap()
 
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('120')
