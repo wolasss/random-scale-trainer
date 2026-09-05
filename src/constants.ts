@@ -46,7 +46,7 @@ export const MIN_BLOCK_FLEX_SECONDS = 90
  */
 export const SCOREBOARD_RAIL_QUERY = '(min-width: 1024px)'
 
-export const SESSION_GOAL_OPTIONS = [5, 10, 20] as const
+export const SESSION_GOAL_OPTIONS = [5, 10, 20, 30] as const
 export const DEFAULT_SESSION_GOAL_MIN = 10
 
 /** Look-ahead scheduler tuning: the tick wakes every 25ms and keeps ~250ms of
