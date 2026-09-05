@@ -54,6 +54,19 @@ export type ScoreboardRequestOptions = {
 }
 
 /**
+ * A write that has to survive the page it was sent from. `keepalive` hands the
+ * request to the browser rather than the document, so it still goes out after
+ * an unload the ordinary fetch would have cancelled — which is the only way a
+ * run that ended by closing the tab keeps its last few points.
+ *
+ * Browsers cap the *total* keepalive body in flight at around 64KB. One batch
+ * is at most `MAX_EVENTS_PER_BATCH` events of a few dozen bytes each, so the
+ * cap is orders of magnitude above anything this sends and never worth
+ * splitting a batch for.
+ */
+export type ScoreboardWriteOptions = ScoreboardRequestOptions & { keepalive?: boolean }
+
+/**
  * A signal that aborts on its own after the deadline, or the moment the
  * caller's own signal does — whichever comes first. `done()` disarms the
  * timer once the request has actually finished, so an unmount still aborts
@@ -228,7 +241,7 @@ const mutate = async <T>(
   body: unknown,
   token: string | null,
   read: (payload: Record<string, unknown>) => T | null,
-  { signal, fetchImpl = fetch }: ScoreboardRequestOptions,
+  { signal, fetchImpl = fetch, keepalive }: ScoreboardWriteOptions,
 ): Promise<ScoreboardResult<T>> => {
   const deadline = deadlined(signal)
 
@@ -243,6 +256,9 @@ const mutate = async <T>(
           ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify(body),
+        // Left off entirely unless it was asked for, so every ordinary call
+        // sends exactly the init it always has.
+        ...(keepalive === true ? { keepalive: true } : {}),
         signal: deadline.signal,
       })
     } catch {
@@ -297,7 +313,7 @@ export const startScoringSession = (
   nickname: string,
   token: string,
   config: SessionConfig,
-  options: ScoreboardRequestOptions = {},
+  options: ScoreboardWriteOptions = {},
 ): Promise<ScoreboardResult<ScoringSession>> =>
   mutate(
     `${endpointFor(challenge)}/session`,
@@ -329,7 +345,7 @@ export const sendScoreEvents = (
   sessionId: string,
   token: string,
   events: ScoreEvent[],
-  options: ScoreboardRequestOptions = {},
+  options: ScoreboardWriteOptions = {},
 ): Promise<ScoreboardResult<SessionProgress>> =>
   mutate(
     `${endpointFor(challenge)}/session/${encodeURIComponent(sessionId)}/events`,

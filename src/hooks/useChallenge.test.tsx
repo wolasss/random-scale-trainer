@@ -668,6 +668,161 @@ describe('scoring through a session', () => {
   })
 })
 
+/**
+ * A run is worth what it earned, however it ended. Backgrounding the phone or
+ * closing the tab is the commonest way a practice session actually stops, and
+ * neither of them presses pause — so the queue has to go up by itself.
+ */
+describe('going away mid-run', () => {
+  const settled = () => act(async () => undefined)
+
+  const joined = async (fetchImpl: typeof fetch) => {
+    owning()
+    const rendered = render({ search: '?challenge=demo', fetchImpl })
+    await waitFor(() => expect(rendered.result.current.status).toBe('ready'))
+
+    return rendered
+  }
+
+  /** The page going out of sight, as the browser reports it. */
+  const hide = async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    await act(async () => void document.dispatchEvent(new Event('visibilitychange')))
+  }
+
+  const pagehide = async () => {
+    await act(async () => void window.dispatchEvent(new Event('pagehide')))
+  }
+
+  /** The inits of every POST that went to one endpoint, in order. */
+  const posts = (fetchImpl: Spy, suffix: string) =>
+    fetchImpl.mock.calls.filter(([url, init]) => init?.method === 'POST' && url.endsWith(suffix)).map(([, init]) => init)
+
+  /** A service whose first call to one endpoint never arrives. */
+  const dropsFirst = (suffix: string) => {
+    let dropped = false
+    const inner = service()
+
+    return stubFetch(async (url, init) => {
+      if (!dropped && init?.method === 'POST' && url.endsWith(suffix)) {
+        dropped = true
+        throw new TypeError('Failed to fetch')
+      }
+
+      return inner(url, init)
+    })
+  }
+
+  it('sends what is queued when the page goes out of sight', async () => {
+    const fetchImpl = dropsFirst('/events')
+    const { result } = await joined(fetchImpl)
+
+    // The first note's own flush never landed, so the event is still queued.
+    await act(async () => result.current.recordEvent(hit()))
+    expect(result.current.scores).toEqual([])
+
+    await hide()
+
+    // The dropped attempt, and the one being hidden sent in its place.
+    const batches = posts(fetchImpl, '/events')
+    expect(batches).toHaveLength(2)
+    expect(bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1).events[0].seq).toBe(0)
+    // An ordinary flush: nothing is unloading, so nothing needs the escape hatch.
+    expect(batches[1]?.keepalive).toBeUndefined()
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 10 }])
+  })
+
+  /**
+   * Unload is the last moment there is: an ordinary fetch is cancelled with the
+   * document, and `keepalive` is the only thing that gets the batch out.
+   */
+  it('sends the queue keepalive on the way out, opening a session if it must', async () => {
+    const fetchImpl = dropsFirst('/session')
+    const { result } = await joined(fetchImpl)
+
+    // The open failed, so the event is queued under a session with no id yet.
+    await act(async () => result.current.recordEvent(hit()))
+    expect(posts(fetchImpl, '/events')).toHaveLength(0)
+
+    await pagehide()
+
+    expect(posts(fetchImpl, '/session')[1]?.keepalive).toBe(true)
+    const batches = posts(fetchImpl, '/events')
+    expect(batches).toHaveLength(1)
+    expect(batches[0]?.keepalive).toBe(true)
+    expect(bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1).events).toEqual([{ seq: 0, kind: 'hit', at: 0 }])
+  })
+
+  it('posts nothing at all when there is nothing queued', async () => {
+    const fetchImpl = service()
+    await joined(fetchImpl)
+
+    await pagehide()
+    await hide()
+
+    expect(fetchImpl.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+  })
+
+  /**
+   * The server insists on exact ordering, so a second flush beside one already
+   * in flight would arrive with a sequence number the session has not reached.
+   * Going away joins the flush that is running rather than starting its own.
+   */
+  it('joins a flush already in flight instead of sending a sequence twice', async () => {
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const inner = service()
+    const fetchImpl = stubFetch(async (url, init) => {
+      if (init?.method === 'POST' && url.endsWith('/session')) {
+        await held
+      }
+
+      return inner(url, init)
+    })
+
+    const { result } = await joined(fetchImpl)
+
+    // The first note opens the session, and the open is still in the air.
+    act(() => result.current.recordEvent(hit()))
+    await pagehide()
+    await act(async () => {
+      release()
+      await held
+    })
+    await settled()
+
+    const batches = posts(fetchImpl, '/events')
+    expect(batches).toHaveLength(1)
+    expect(posts(fetchImpl, '/session')).toHaveLength(1)
+    expect(bodyOf(fetchImpl, fetchImpl.mock.calls.length - 1).events).toHaveLength(1)
+  })
+
+  it('does nothing off a challenge', async () => {
+    const fetchImpl = service()
+    const { result } = render({ search: '', fetchImpl })
+
+    act(() => result.current.recordEvent(hit()))
+    await pagehide()
+    await hide()
+
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('does nothing before anybody has claimed a name', async () => {
+    const fetchImpl = service()
+    const { result } = render({ search: '?challenge=demo', fetchImpl })
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.recordEvent(hit()))
+    await pagehide()
+    await hide()
+
+    expect(fetchImpl.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0)
+  })
+})
+
 describe('keeping up with the room', () => {
   const settled = () => act(async () => undefined)
 
