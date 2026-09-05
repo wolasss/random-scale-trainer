@@ -39,12 +39,19 @@ describe('initSettings', () => {
   it('keeps the default-on booleans on when garbage is stored', () => {
     window.localStorage.setItem(STORAGE_KEYS.continuousMode, '1')
     window.localStorage.setItem(STORAGE_KEYS.countIn, 'off')
+    window.localStorage.setItem(STORAGE_KEYS.speakNotes, 'off')
     window.localStorage.setItem(STORAGE_KEYS.endSound, '1')
 
     const settings = initSettings()
     expect(settings.continuousMode).toBe(true)
     expect(settings.countInEnabled).toBe(true)
+    expect(settings.speakNotes).toBe(true)
     expect(settings.endSoundEnabled).toBe(true)
+  })
+
+  it('reads back a stored false for speakNotes', () => {
+    window.localStorage.setItem(STORAGE_KEYS.speakNotes, 'false')
+    expect(initSettings().speakNotes).toBe(false)
   })
 
   it('flips the default-off booleans on only from a literal true', () => {
@@ -140,6 +147,7 @@ describe('writeChangedSettings', () => {
     STORAGE_KEYS.rampTarget,
     STORAGE_KEYS.endSound,
     STORAGE_KEYS.countIn,
+    STORAGE_KEYS.speakNotes,
     STORAGE_KEYS.beatsPerNote,
     STORAGE_KEYS.spelling,
     STORAGE_KEYS.notePool,
