@@ -8,6 +8,7 @@ const baseSettings = (): Settings => ({
   beatsPerNote: 4,
   continuousMode: true,
   countInEnabled: false,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,

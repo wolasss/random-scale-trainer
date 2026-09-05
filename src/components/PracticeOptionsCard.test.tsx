@@ -16,6 +16,7 @@ const SETTINGS: Settings = {
   beatsPerNote: 4,
   continuousMode: true,
   countInEnabled: true,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: 120,
   showFretboard: true,
@@ -68,10 +69,31 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Keep going', 'Count in', 'Fretboard map']) {
+    for (const name of ['Keep going', 'Count in', 'Say the note', 'Fretboard map']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
-    expect(props.onToggle.mock.calls).toEqual([['continuousMode'], ['countInEnabled'], ['showFretboard']])
+    expect(props.onToggle.mock.calls).toEqual([
+      ['continuousMode'],
+      ['countInEnabled'],
+      ['speakNotes'],
+      ['showFretboard'],
+    ])
+  })
+})
+
+describe('PracticeOptionsCard speak-notes switch', () => {
+  it('renders checked from settings and reports its subtitle', () => {
+    const { props } = renderCard({ speakNotes: false })
+    const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
+
+    expect(speakSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(speakSwitch).toHaveAccessibleDescription(
+      'Off leaves the note on screen only — name it yourself before checking.',
+    )
+
+    fireEvent.click(speakSwitch)
+
+    expect(props.onToggle).toHaveBeenCalledWith('speakNotes')
   })
 })

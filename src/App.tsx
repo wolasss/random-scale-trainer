@@ -3,7 +3,7 @@
  * between four of them is most of what this file is.
  *
  * `useSettings` holds the practice settings, and they feed both `usePlayback`
- * (with `speakNotes` forced on) and `useRoutine`. There are two ways to write
+ * and `useRoutine`. There are two ways to write
  * to them. `userDispatch` takes the edits the user makes to the settings a
  * routine block owns — tempo, beats per note, the note pool, spelling, the
  * ramp — so the routine can tell someone drifting off a block from its own
@@ -134,8 +134,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    // The spoken note is always on; count-in and the rest ride the user's settings.
-    settings: { ...settings, speakNotes: true },
+    settings,
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's

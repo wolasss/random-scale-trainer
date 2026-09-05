@@ -20,6 +20,8 @@ export type Settings = {
   continuousMode: boolean
   /** A four-beat count-in before the first note and each new cycle. */
   countInEnabled: boolean
+  /** Speak each called note; off makes it a reading drill. */
+  speakNotes: boolean
   speedRampMode: boolean
   /** The tempo the ramp climbs to and then holds; never below `bpm`. */
   rampTargetBpm: number
@@ -48,7 +50,7 @@ const isPitchClassText = (segment: string) => /^\d{1,2}$/.test(segment) && Numbe
 const booleanCodec = (storageKey: string): Codec<boolean> => ({
   storageKey,
   // Only the two values we write count: anything else is rejected so the
-  // default holds, rather than reading as off for the three toggles that
+  // default holds, rather than reading as off for the four toggles that
   // default to on.
   deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   serialize: String,
@@ -73,6 +75,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   continuousMode: booleanCodec(STORAGE_KEYS.continuousMode),
   countInEnabled: booleanCodec(STORAGE_KEYS.countIn),
+  speakNotes: booleanCodec(STORAGE_KEYS.speakNotes),
   speedRampMode: booleanCodec(STORAGE_KEYS.speedRampMode),
   rampTargetBpm: {
     storageKey: STORAGE_KEYS.rampTarget,
@@ -122,6 +125,7 @@ const DEFAULT_SETTINGS: Settings = {
   beatsPerNote: DEFAULT_BEATS_PER_NOTE as BeatsPerNote,
   continuousMode: true,
   countInEnabled: true,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: false,

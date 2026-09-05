@@ -34,6 +34,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         onChange={() => onToggle('countInEnabled')}
       />
       <SwitchRow
+        id="speak-notes"
+        label="Say the note"
+        subtitle="Off leaves the note on screen only — name it yourself before checking."
+        checked={settings.speakNotes}
+        onChange={() => onToggle('speakNotes')}
+      />
+      <SwitchRow
         id="mic-listen"
         label="Listen for my playing"
         subtitle={
