@@ -1,3 +1,10 @@
+## [1.30.2](https://github.com/wolasss/random-scale-trainer/compare/v1.30.1...v1.30.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **challenge:** send the queued points when the tab goes away mid-run ([#222](https://github.com/wolasss/random-scale-trainer/issues/222)) ([20f52df](https://github.com/wolasss/random-scale-trainer/commit/20f52df3f60744583f2f8f12c50780c9cbf9d17b))
+
 ## [1.30.1](https://github.com/wolasss/random-scale-trainer/compare/v1.30.0...v1.30.1) (2026-09-05)
 
 
