@@ -11,6 +11,7 @@ const baseSettings = (): Settings => ({
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  noteListMode: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -281,6 +282,45 @@ describe('useSettings persistence', () => {
 
     expect(result.current[0].micEnabled).toBe(true)
     expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('true')
+  })
+
+  /**
+   * The read-ahead list is a reading of the same practice, not a mode: it stays
+   * off until it is asked for, and comes back on for the next session.
+   */
+  it('keeps the note list off by default and persists the toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].noteListMode).toBe(false)
+    expect(window.localStorage.getItem('fretboard-note-list')).toBe('false')
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'noteListMode' })
+    })
+
+    expect(result.current[0].noteListMode).toBe(true)
+    expect(window.localStorage.getItem('fretboard-note-list')).toBe('true')
+  })
+
+  it('restores a stored note list setting', () => {
+    window.localStorage.setItem('fretboard-note-list', 'true')
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].noteListMode).toBe(true)
+  })
+
+  it.each([
+    ['an empty value', ''],
+    ['a capitalized value', 'True'],
+    ['junk', 'sometimes'],
+  ])('keeps the note list off on %s', (_label, stored) => {
+    window.localStorage.setItem('fretboard-note-list', stored)
+
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].noteListMode).toBe(false)
+    expect(window.localStorage.getItem('fretboard-note-list')).toBe('false')
   })
 
   it('persists dispatched changes per key', () => {

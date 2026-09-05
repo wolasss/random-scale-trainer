@@ -610,6 +610,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
+            noteList={settings.noteListMode}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -674,6 +675,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}
+          noteList={settings.noteListMode}
         />
 
         {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}

@@ -46,6 +46,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         disabled={!micSupported}
       />
       <SwitchRow
+        id="note-list"
+        label="Note list"
+        subtitle="Show the next few notes so you can read ahead."
+        checked={settings.noteListMode}
+        onChange={() => onToggle('noteListMode')}
+      />
+      <SwitchRow
         id="show-fretboard"
         label="Fretboard map"
         subtitle="Show the On the neck card with every position."

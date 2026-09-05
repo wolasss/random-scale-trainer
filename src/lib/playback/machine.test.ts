@@ -6,7 +6,7 @@ import {
   type PlaybackSettings,
   type PlaybackSnapshot,
 } from './machine'
-import { MAX_BPM, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
+import { MAX_BPM, NOTE_LIST_LENGTH, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
 import type { SpellingPreference } from '../notes'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
@@ -204,6 +204,73 @@ describe('machine creation', () => {
       message: PLAYBACK_MESSAGES.idle,
     })
     expect(harness.snapshot().nextNote?.pc).toBe(0) // identity shuffle
+  })
+})
+
+describe('the read-ahead list', () => {
+  it('previews the coming notes before anything has started', () => {
+    const harness = createHarness({ pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+
+    // Identity shuffle, so the window is the pool in order and stops at the
+    // list length rather than at the bag.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([0, 1, 2, 3, 4, 5, 6])
+  })
+
+  it('deals a window no longer than the notes there are', () => {
+    const harness = createHarness({ pool: [3] })
+
+    // A one-note pool still tops up bag after bag, so the window fills with
+    // the only note it has rather than running short.
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
+    expect(new Set(harness.snapshot().upcomingNotes.map((note) => note.pc))).toEqual(new Set([3]))
+  })
+
+  it('leads with the note after the one being called', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([1, 2, 3, 4, 5, 6])
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([2, 3, 4, 5, 6, 7])
+  })
+
+  it('holds the list still through the beats inside a span', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 2 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    const dealt = harness.snapshot().upcomingNotes.map((note) => note.pc)
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual(dealt)
+  })
+
+  it('regenerates the idle window when the pool changes', () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+
+    harness.state.pool = [7, 8]
+    harness.machine.invalidateDeck()
+
+    // Bag after bag of the two new notes, with the deck's own no-repeat swap
+    // keeping the same one from opening a bag it just closed.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([7, 8, 7, 8, 7, 8, 7])
+  })
+
+  it('goes back to previewing the coming round once playback stops', async () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
+
+    harness.machine.reset()
+
+    expect(harness.snapshot().currentNote).toBeNull()
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
   })
 })
 

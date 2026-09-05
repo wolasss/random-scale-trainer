@@ -19,6 +19,7 @@ const SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: 120,
   showFretboard: true,
+  noteListMode: false,
   micEnabled: false,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
@@ -68,10 +69,15 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Keep going', 'Count in', 'Fretboard map']) {
+    for (const name of ['Keep going', 'Count in', 'Note list', 'Fretboard map']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
-    expect(props.onToggle.mock.calls).toEqual([['continuousMode'], ['countInEnabled'], ['showFretboard']])
+    expect(props.onToggle.mock.calls).toEqual([
+      ['continuousMode'],
+      ['countInEnabled'],
+      ['noteListMode'],
+      ['showFretboard'],
+    ])
   })
 })
