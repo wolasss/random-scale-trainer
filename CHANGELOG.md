@@ -1,3 +1,10 @@
+## [1.30.1](https://github.com/wolasss/random-scale-trainer/compare/v1.30.0...v1.30.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **pwa:** keep the install button usable when the browser refuses the install prompt ([#219](https://github.com/wolasss/random-scale-trainer/issues/219)) ([0187e1d](https://github.com/wolasss/random-scale-trainer/commit/0187e1dd67cd3eab842b0897b92945faee7d0a0d))
+
 # [1.30.0](https://github.com/wolasss/random-scale-trainer/compare/v1.29.1...v1.30.0) (2026-09-05)
 
 
