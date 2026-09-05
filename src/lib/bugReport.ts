@@ -70,7 +70,7 @@ export const fetchBugReportConfig = async ({
   fetchImpl = fetch,
 }: BugReportRequestOptions = {}): Promise<BugReportConfig> => {
   try {
-    const response = await fetchImpl(`${BUG_REPORT_ENDPOINT}/config`, { signal })
+    const response = await fetchImpl(`${BUG_REPORT_ENDPOINT}/config`, { ...(signal === undefined ? {} : { signal }) })
     if (response.status === 503) {
       return 'unavailable'
     }
@@ -102,7 +102,7 @@ export const sendBugReport = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description, email, token, version }),
-      signal,
+      ...(signal === undefined ? {} : { signal }),
     })
   } catch {
     return 'error'

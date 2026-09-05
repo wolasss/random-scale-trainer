@@ -48,9 +48,9 @@ export const MAX_BOARD_ENTRIES = 10
 export const SCOREBOARD_REQUEST_TIMEOUT_MS = 10_000
 
 export type ScoreboardRequestOptions = {
-  signal?: AbortSignal
+  signal?: AbortSignal | undefined
   /** Injectable for tests; otherwise the browser's own. */
-  fetchImpl?: typeof fetch
+  fetchImpl?: typeof fetch | undefined
 }
 
 /**
@@ -64,7 +64,7 @@ export type ScoreboardRequestOptions = {
  * cap is orders of magnitude above anything this sends and never worth
  * splitting a batch for.
  */
-export type ScoreboardWriteOptions = ScoreboardRequestOptions & { keepalive?: boolean }
+export type ScoreboardWriteOptions = ScoreboardRequestOptions & { keepalive?: boolean | undefined }
 
 /**
  * A signal that aborts on its own after the deadline, or the moment the
