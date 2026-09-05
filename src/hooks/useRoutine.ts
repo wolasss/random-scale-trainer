@@ -323,7 +323,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       // The open block just gained a 2:00 timer — give it the full two minutes
       // rather than expiring it against a clock that has been running all along.
       blockStartMs: wasOpenEnded ? getSessionElapsedMs() : runtime.blockStartMs,
-      finished: false,
+      // `finished` is deliberately left as found: a completed workout that
+      // gains a block is restarted from the top by Start, not resumed on the
+      // expired last block.
     })
   }
 
@@ -361,8 +363,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
    * whatever is now the top of the list — a warm-up put in front of block one is
    * the block Start begins on, not one already behind it.
    *
-   * The counterpart of that rule is `finished`, which the three edits below all
-   * leave as they found it: a completed routine that is edited is still
+   * The counterpart of that rule is `finished`, which the block edits —
+   * `addBlock` above and the three below — leave as they found it: a
+   * completed routine that is edited is still
    * completed, and clearing the flag would send Start back into the expired last
    * block, ending the workout again on the very next tick rather than running
    * the order that was just edited.
