@@ -44,7 +44,6 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
   const [androidHintDismissed, setAndroidHintDismissed] = useState(() =>
     hintDismissed(STORAGE_KEYS.androidInstallHint),
   )
-
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
       // Suppress the browser's own bar; the header button replaces it.
@@ -52,7 +51,9 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
       setDeferred(event as BeforeInstallPromptEvent)
     }
 
-    const onInstalled = () => setDeferred(null)
+    const onInstalled = () => {
+      setDeferred(null)
+    }
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
     window.addEventListener('appinstalled', onInstalled)
@@ -68,9 +69,15 @@ export function useInstallPrompt(standalone: boolean): InstallPrompt {
       return
     }
 
-    // The event is single-use whatever the user chooses.
+    // The event is single-use whatever the browser decides — even a refusal
+    // spends it, so there is nothing to hand back. Only a fresh
+    // beforeinstallprompt event can offer it again.
     setDeferred(null)
-    void deferred.prompt()
+    void deferred.prompt().catch(() => {
+      // Chromium rejects when the prompt is re-used or called outside a
+      // user gesture. Nothing was installed; swallow it so it doesn't
+      // surface as an unhandled rejection.
+    })
   }, [deferred])
 
   const dismissIosHint = useCallback(() => {
