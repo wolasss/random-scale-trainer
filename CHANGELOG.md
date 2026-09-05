@@ -1,3 +1,20 @@
+# [1.30.0](https://github.com/wolasss/random-scale-trainer/compare/v1.29.1...v1.30.0) (2026-09-05)
+
+
+### Bug Fixes
+
+* **scoreboard:** cap the owners a snapshot may restore ([#238](https://github.com/wolasss/random-scale-trainer/issues/238)) ([7baa143](https://github.com/wolasss/random-scale-trainer/commit/7baa143aee95170c122035878b4a3816ce53ba6e))
+
+
+### Features
+
+* **session:** offer a 30-minute practice goal ([#217](https://github.com/wolasss/random-scale-trainer/issues/217)) ([63b7959](https://github.com/wolasss/random-scale-trainer/commit/63b79590e93bb5015e1bce791eb2c17ae0918da4))
+
+
+### Performance Improvements
+
+* **pitch:** compute the NSDF correlation by FFT instead of the per-lag double loop ([#236](https://github.com/wolasss/random-scale-trainer/issues/236)) ([98e4559](https://github.com/wolasss/random-scale-trainer/commit/98e455943f993326c2d8c1ad5f113902f353d68f))
+
 ## [1.29.1](https://github.com/wolasss/random-scale-trainer/compare/v1.29.0...v1.29.1) (2026-09-04)
 
 
