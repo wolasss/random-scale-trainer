@@ -34,6 +34,7 @@ export const STORAGE_KEYS = {
   sessionGoal: 'fretboard-session-goal',
   setupRevealed: 'fretboard-setup-revealed',
   micListen: 'fretboard-mic-listen',
+  noteStats: 'fretboard-note-stats',
 }
 
 const POLL_MS = 100

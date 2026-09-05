@@ -42,6 +42,7 @@ import { FretboardCard } from './components/FretboardCard'
 import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
+import { NoteStatsCard } from './components/NoteStatsCard'
 import { RoutineCard } from './components/RoutineCard'
 import { RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
@@ -58,6 +59,7 @@ import { useSavedPresets } from './hooks/useSavedPresets'
 import { usePlayback } from './hooks/usePlayback'
 import { useMicPitch } from './hooks/useMicPitch'
 import { useNoteScoring } from './hooks/useNoteScoring'
+import { useNoteStats } from './hooks/useNoteStats'
 import { useBeatPulse } from './hooks/useBeatPulse'
 import { useSessionTimer } from './hooks/useSessionTimer'
 import { useSettings, type SettingsAction } from './hooks/useSettings'
@@ -73,6 +75,7 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
+import { hasNoteStats } from './lib/noteStats'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
 
 // Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
@@ -115,6 +118,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // Scoring needs the microphone, which needs the engine playback runs on, so
   // it cannot be declared above the beat handler that feeds it either.
   const scoringRef = useRef<ReturnType<typeof useNoteScoring> | null>(null)
+  // ...and the per-note record rides the same beats, for the same reason.
+  const noteStatsRef = useRef<ReturnType<typeof useNoteStats> | null>(null)
 
   // The practice log rides the same tick as the block clock, so both stop the
   // moment playback does.
@@ -162,6 +167,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     onBeat: (event) => {
       beatPulse.handleBeat(event)
       scoringRef.current?.handleBeat(event)
+      noteStatsRef.current?.handleBeat(event)
     },
     audio: engine,
   })
@@ -232,6 +238,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
+  // The same beats and the same microphone frames, judged by the same two pure
+  // functions, kept per note and across sessions — see useNoteStats. A sibling
+  // of the hook above rather than a reading of it: the tally is what this
+  // session scored, and this is which of the twelve you keep losing.
+  const noteStats = useNoteStats({
+    engine,
+    subscribe: mic.subscribe,
+    active: micEnabled && mic.status === 'listening',
+    running: playback.isPlaying,
+  })
+
   const routine = useRoutine({
     settings,
     dispatch,
@@ -245,6 +262,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     playbackRef.current = playback
     routineRef.current = routine
     scoringRef.current = scoring
+    noteStatsRef.current = noteStats
   })
 
   /**
@@ -503,6 +521,23 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
+  // On screen while the microphone is on, and afterwards for as long as there
+  // is a record to read: a card built out of what you played is worth reading
+  // with the mic off, and a browser that has never turned it on has nothing to
+  // put in one.
+  const noteStatsCard =
+    micEnabled || hasNoteStats(noteStats.stats) ? (
+      <NoteStatsCard
+        stats={noteStats.stats}
+        spelling={settings.spelling}
+        weakest={noteStats.weakest}
+        // Through the user dispatch: loading a drill is a hand on the pool, so
+        // the routine reads it as drifting off its block rather than as its own.
+        onDrill={() => userDispatch({ type: 'setPool', pool: noteStats.weakest })}
+        onReset={noteStats.reset}
+      />
+    ) : null
+
   // Whoever is top of the board, and how far off them this browser is — the
   // line under the pause summary, and null wherever there is nothing true to
   // say. Off a challenge there is no board at all; without a nickname there is
@@ -646,6 +681,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           {sessionCard}
           {display.landscape ? null : fretboardCard}
           {practiceLogCard}
+          {noteStatsCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
           <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
@@ -762,6 +798,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
               {practiceLogCard}
             </div>
+
+            {/* Under the two above, and after them: what you played rather than
+                how long for. Wrapped in a band because only .card-row and its
+                siblings span the grid — a bare .panel would take one twelfth. */}
+            {noteStatsCard !== null ? <div className="card-row">{noteStatsCard}</div> : null}
           </>
         ) : (
           <SetupReveal onReveal={() => setSetupRevealed(true)} />
