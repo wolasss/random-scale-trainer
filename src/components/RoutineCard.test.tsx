@@ -39,6 +39,7 @@ const renderCard = (selected: Routine, runtime: Partial<RoutineController> = {})
     remove: vi.fn(),
     save: vi.fn(),
     duplicate: vi.fn(),
+    rename: vi.fn(),
     addBlock: vi.fn(),
     removeBlock: vi.fn(),
     moveBlock: vi.fn(),
@@ -140,6 +141,63 @@ describe('RoutineCard block editing', () => {
     fireEvent.click(screen.getByLabelText('Remove block Second'))
     fireEvent.click(screen.getByLabelText('Lengthen block Third by 30 seconds'))
     expect(screen.queryByText('Remove?')).toBeNull()
+  })
+})
+
+describe('renaming a chip', () => {
+  it('opens the shared form, prefilled with the chip name', () => {
+    renderCard(WORKOUT)
+
+    fireEvent.click(screen.getByLabelText('Rename Workout'))
+
+    expect(screen.getByTestId('routine-save-form')).toBeInTheDocument()
+    expect(screen.getByTestId('routine-name-input')).toHaveValue('Workout')
+    expect(screen.getByTestId('routine-save-confirm')).toHaveTextContent('Rename')
+  })
+
+  it('submits a rename, never a save, and closes the form', () => {
+    const controller = renderCard(WORKOUT)
+
+    fireEvent.click(screen.getByLabelText('Rename Workout'))
+    fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'New name' } })
+    fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+    expect(controller.rename).toHaveBeenCalledWith('r-workout', 'New name')
+    expect(controller.save).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('routine-save-form')).toBeNull()
+  })
+
+  it('closes on Escape without renaming', () => {
+    const controller = renderCard(WORKOUT)
+
+    fireEvent.click(screen.getByLabelText('Rename Workout'))
+    fireEvent.keyDown(screen.getByTestId('routine-name-input'), { key: 'Escape' })
+
+    expect(controller.rename).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('routine-save-form')).toBeNull()
+  })
+
+  it('closes on Cancel without renaming', () => {
+    const controller = renderCard(WORKOUT)
+
+    fireEvent.click(screen.getByLabelText('Rename Workout'))
+    fireEvent.click(screen.getByText('Cancel'))
+
+    expect(controller.rename).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('routine-save-form')).toBeNull()
+  })
+
+  it('still saves from the "Save as a setup" flow, proving the shared form dispatches by mode', () => {
+    const controller = renderCard(WORKOUT)
+
+    fireEvent.click(screen.getByTestId('routine-save'))
+    expect(screen.getByTestId('routine-save-confirm')).toHaveTextContent('Save')
+
+    fireEvent.change(screen.getByTestId('routine-name-input'), { target: { value: 'Fresh setup' } })
+    fireEvent.click(screen.getByTestId('routine-save-confirm'))
+
+    expect(controller.save).toHaveBeenCalledWith('Fresh setup')
+    expect(controller.rename).not.toHaveBeenCalled()
   })
 })
 

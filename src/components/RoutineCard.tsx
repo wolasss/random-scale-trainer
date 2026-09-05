@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClone, faForwardStep, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faClone, faForwardStep, faPen, faPlus, faXmark } from '@fortawesome/free-solid-svg-icons'
 import {
   formatClock,
   formatMinutes,
@@ -58,16 +58,22 @@ const statusLine = (
  */
 type PendingRemove = { kind: 'chip'; id: string } | { kind: 'block'; routineId: string; index: number }
 
+/** One form serves both flows: a fresh save has no id yet, a rename always does. */
+type Naming = { mode: 'save'; name: string } | { mode: 'rename'; id: string; name: string }
+
 export function RoutineCard({ routine }: RoutineCardProps) {
   const { selected, blockIndex, blockElapsedMs, finished, adjusted } = routine
-  const [draftName, setDraftName] = useState<string | null>(null)
+  const [naming, setNaming] = useState<Naming | null>(null)
   const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
   // Whether anybody has reached for the save button yet. A store that drops
   // writes is only worth mentioning to someone about to trust it with
   // something; until then it is noise about a browser setting.
   const [saveOffered, setSaveOffered] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
-  const isNaming = draftName !== null
+  const isNaming = naming !== null
+  // Which chip's form is open, so re-selecting the input fires when that
+  // changes but not on every keystroke into the name it already selected.
+  const namingKey = naming === null ? null : naming.mode === 'save' ? 'save' : naming.id
 
   const disarmRemove = () => setPendingRemove(null)
 
@@ -123,15 +129,26 @@ export function RoutineCard({ routine }: RoutineCardProps) {
     if (isNaming) {
       nameInputRef.current?.select()
     }
-  }, [isNaming])
+  }, [isNaming, namingKey])
 
-  const submitSave = () => {
-    if (draftName === null) {
+  const cancelNaming = () => {
+    if (naming?.mode === 'save') {
+      setSaveOffered(false)
+    }
+    setNaming(null)
+  }
+
+  const submitName = () => {
+    if (naming === null) {
       return
     }
 
-    routine.save(draftName)
-    setDraftName(null)
+    if (naming.mode === 'save') {
+      routine.save(naming.name)
+    } else {
+      routine.rename(naming.id, naming.name)
+    }
+    setNaming(null)
   }
 
   const setups = routine.routines.filter(isOpenEnded)
@@ -143,6 +160,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
     const removeLabel = confirmLabel(`Delete ${entry.name}`, isArmed)
     // Nothing is lost by copying, so unlike the X this one fires on first tap.
     const copyLabel = `Duplicate ${entry.name}`
+    const renameLabel = `Rename ${entry.name}`
     return (
       <div
         key={entry.id}
@@ -158,6 +176,15 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         >
           <span className="routine-chip-name">{entry.name}</span>
           <span className="routine-chip-meta">{routineMeta(entry)}</span>
+        </button>
+        <button
+          type="button"
+          className="routine-chip-rename"
+          aria-label={renameLabel}
+          title={renameLabel}
+          onClick={() => setNaming({ mode: 'rename', id: entry.id, name: entry.name })}
+        >
+          <FontAwesomeIcon icon={faPen} />
         </button>
         <button
           type="button"
@@ -205,7 +232,7 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             className="ghost-button routine-save"
             data-testid="routine-save"
             onClick={() => {
-              setDraftName(routine.suggestedName)
+              setNaming({ mode: 'save', name: routine.suggestedName })
               setSaveOffered(true)
             }}
           >
@@ -214,13 +241,13 @@ export function RoutineCard({ routine }: RoutineCardProps) {
         </div>
       </div>
 
-      {draftName !== null ? (
+      {naming !== null ? (
         <form
           className="routine-save-form"
           data-testid="routine-save-form"
           onSubmit={(event) => {
             event.preventDefault()
-            submitSave()
+            submitName()
           }}
         >
           <input
@@ -229,26 +256,18 @@ export function RoutineCard({ routine }: RoutineCardProps) {
             className="routine-name-input"
             data-testid="routine-name-input"
             aria-label="Routine name"
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
+            value={naming.name}
+            onChange={(event) => setNaming({ ...naming, name: event.target.value })}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
-                setDraftName(null)
-                setSaveOffered(false)
+                cancelNaming()
               }
             }}
           />
           <button type="submit" className="primary-button routine-save-confirm" data-testid="routine-save-confirm">
-            Save
+            {naming.mode === 'rename' ? 'Rename' : 'Save'}
           </button>
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={() => {
-              setDraftName(null)
-              setSaveOffered(false)
-            }}
-          >
+          <button type="button" className="ghost-button" onClick={cancelNaming}>
             Cancel
           </button>
         </form>
