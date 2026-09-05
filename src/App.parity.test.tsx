@@ -174,6 +174,10 @@ beforeEach(() => {
   hush()
   window.localStorage.setItem(STORAGE_KEYS.setupRevealed, 'true')
   window.localStorage.setItem(STORAGE_KEYS.countIn, 'false')
+  // Reaching the session goal now ends the session, and the milestone case
+  // below plays ten minutes — this is about score parity, not goals, so the
+  // finish line is put out past the session rather than across it.
+  window.localStorage.setItem(STORAGE_KEYS.sessionGoal, '20')
   // Five of the twelve, two of them with a sharp name and a flat one: a pool
   // that prices below the whole octave and gives mixed spelling something to be
   // about. Both are factors the board has to have been told about.

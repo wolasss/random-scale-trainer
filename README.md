@@ -38,6 +38,13 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
   export/import, where an import merges with what is already there (keeping the longer of any two days)
   rather than replacing it
+- Session recap: stop after at least a minute — by hand, by reaching the practice goal, or by
+  letting a run or a workout end itself — and a summary appears under the transport saying how long
+  you practised, how many notes were called and rounds completed, the tempo you started and finished
+  on (and the highest it reached in between), what was running, and where the day now stands in the
+  practice log. Reaching the goal now ends the session rather than only lighting up the progress bar;
+  pressing start again carries straight on past it. A session under a minute gets no recap at all, and
+  Done clears the one on screen and puts the session back to zero, ready for the next one
 - Listen for my playing (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note

@@ -196,5 +196,8 @@ export const PLAYBACK_MESSAGES = {
   audioLoadFailed: 'Failed to load audio. Please reload the page.',
   finished: (noteCount: number) => `Finished all ${noteCount} notes.`,
   routineComplete: 'Routine complete — press start to run it again.',
+  // The session goal is a finish line, so crossing it ends the session rather
+  // than being noted while the metronome keeps going.
+  goalReached: (minutes: number) => `${minutes} min goal reached — press start for more.`,
   hiddenTooLong: 'Stopped — the app was in the background.',
 } as const

@@ -17,7 +17,7 @@ This runs, in order: `lint` → `typecheck:e2e` → `test` (Vitest) → `build` 
 The end-to-end suite (`npm run test:e2e:ci`, Selenium) also runs in CI but is not part of `npm run check`; run it only when your change could affect real browser behavior.
 
 ## Layout
-- `src/App.tsx` — top-level app; composes the practice UI. Colocated tests: `App.challenge.test.tsx`, `App.firstRun.test.tsx`, `App.install.test.tsx`, `App.integration.test.tsx`, `App.mic.test.tsx`, `App.parity.test.tsx`, `App.practiceLog.test.tsx`, `App.routines.test.tsx`, `App.skin.test.tsx`, `App.stage.test.tsx`.
+- `src/App.tsx` — top-level app; composes the practice UI. Colocated tests: `App.challenge.test.tsx`, `App.firstRun.test.tsx`, `App.install.test.tsx`, `App.integration.test.tsx`, `App.mic.test.tsx`, `App.parity.test.tsx`, `App.practiceLog.test.tsx`, `App.recap.test.tsx`, `App.routines.test.tsx`, `App.skin.test.tsx`, `App.stage.test.tsx`.
 - `src/components/` — presentational/UI components.
 - `src/components/ui/` — shared primitives (`SegmentedControl`, `SwitchRow`, `ThemeToggle`; the first two each have a colocated test).
 - `src/hooks/` — React hooks (settings, keyboard shortcuts, session timer, wake lock, service worker, persistent state…), each with a colocated `*.test.tsx`.
