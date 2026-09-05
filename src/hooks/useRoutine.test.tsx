@@ -742,6 +742,24 @@ describe('editing a finished routine', () => {
     // The block that was moved to the front is the one the settings came from.
     expect(applied()).toContainEqual({ type: 'setBpm', bpm: 80 })
   })
+
+  it('stays finished when a block is added, so Start runs it from the top', () => {
+    const { view } = renderFinished()
+
+    act(() => {
+      view.result.current.addBlock()
+    })
+
+    expect(view.result.current.selected!.blocks).toHaveLength(4)
+    expect(view.result.current.finished).toBe(true)
+
+    act(() => {
+      view.result.current.restart()
+    })
+
+    expect(view.result.current.blockIndex).toBe(0)
+    expect(view.result.current.blockElapsedMs).toBe(0)
+  })
 })
 
 describe('removeBlock around the active block', () => {
