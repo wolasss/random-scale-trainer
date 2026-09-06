@@ -213,6 +213,38 @@ export class AudioEngine {
     return this.context
   }
 
+  /**
+   * The context's live state, or null before the first gesture opens one. Read
+   * as a plain string for the same reason ensureContext() casts: Safari parks a
+   * context in a nonstandard 'interrupted' the type does not admit.
+   */
+  getContextState(): string | null {
+    return this.context ? (this.context.state as string) : null
+  }
+
+  /**
+   * Reports every state change on the context to `listener`, until the returned
+   * unsubscriber is called.
+   *
+   * This exists for the interruption that never hides the page — a call banner,
+   * Siri, or the microphone opening and flipping iOS to play-and-record. The
+   * context parks, its clock freezes, and nothing else tells the app: there is
+   * no visibility change to hang the recovery off. The capture path already
+   * watches for exactly this (see `watchAndResume` in mic.ts); this is the same
+   * signal, left as data so its owner decides what a parked context means.
+   */
+  watchContextState(listener: (state: string) => void): () => void {
+    const context = this.context
+    if (!context) {
+      return () => undefined
+    }
+
+    const onStateChange = () => listener(context.state as string)
+    context.addEventListener('statechange', onStateChange)
+
+    return () => context.removeEventListener('statechange', onStateChange)
+  }
+
   private recordCue(start: number, end: number, decay: number): void {
     this.cueLog.record(start, end, decay, this.getCurrentTime())
   }

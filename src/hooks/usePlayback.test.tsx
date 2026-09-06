@@ -25,6 +25,12 @@ class FakeAudioPort implements PlaybackAudioPort {
   getCurrentTime() {
     return this.time
   }
+  getContextState() {
+    return 'running'
+  }
+  watchContextState() {
+    return () => {}
+  }
   playClickAt(time: number) {
     this.clicks.push(time)
   }

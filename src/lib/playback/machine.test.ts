@@ -22,8 +22,25 @@ class FakeAudioPort implements PlaybackAudioPort {
   stopCalls = 0
   /** Stops that would have silenced a chime scheduled but not yet sounding. */
   chimeCancels = 0
+  /** What the context reports; 'interrupted' is what iOS parks it in. */
+  contextState = 'running'
+  /** Makes the next resume reject, the way iOS refuses one mid-interruption. */
+  resumeRejects = false
+  /** Whether a resume that resolves actually gets the context running again. */
+  resumeRestores = true
+  ensureContextCalls = 0
+  private stateWatchers = new Set<(state: string) => void>()
 
   async ensureContext() {
+    this.ensureContextCalls += 1
+    if (this.resumeRejects) {
+      throw new Error('resume refused')
+    }
+
+    if (this.resumeRestores) {
+      this.contextState = 'running'
+    }
+
     return this.contextAvailable ? {} : null
   }
   async loadNoteBuffers() {}
@@ -32,6 +49,22 @@ class FakeAudioPort implements PlaybackAudioPort {
   }
   getCurrentTime() {
     return this.time
+  }
+  getContextState() {
+    return this.contextState
+  }
+  watchContextState(listener: (state: string) => void) {
+    this.stateWatchers.add(listener)
+    return () => {
+      this.stateWatchers.delete(listener)
+    }
+  }
+  /** Test hook: parks (or revives) the context and fires the statechange. */
+  emitContextState(state: string) {
+    this.contextState = state
+    for (const listener of [...this.stateWatchers]) {
+      listener(state)
+    }
   }
   playClickAt(time: number, accent: boolean) {
     this.clicks.push({ time, accent })
@@ -178,6 +211,17 @@ const createHarness = (options: HarnessOptions = {}) => {
     pumpFrame()
   }
 
+  /**
+   * Settles the microtasks a recovery attempt runs through. The context
+   * watcher resumes across an await, so a snapshot read without this still
+   * shows the transport as it was before the interruption was handled.
+   */
+  const flush = async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
   return {
     machine,
     audio,
@@ -189,6 +233,7 @@ const createHarness = (options: HarnessOptions = {}) => {
     counters,
     advanceTo,
     freezeAndWake,
+    flush,
     snapshot: () => machine.getSnapshot(),
   }
 }
@@ -963,5 +1008,112 @@ describe('handleVisible', () => {
 
     harness.machine.handleVisible()
     expect(resumes).toBe(0)
+  })
+})
+
+describe('an audio session interrupted while the page stays visible', () => {
+  it('settles to paused when the resume is refused', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const pausesBefore = harness.counters.sessionPauses
+
+    // A call banner parks the context; iOS refuses the resume behind it.
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
+    expect(harness.counters.sessionPauses).toBe(pausesBefore + 1)
+
+    // And the transport really stopped: no further beats reach the audio.
+    const clicksAtPause = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks).toHaveLength(clicksAtPause)
+  })
+
+  it('settles to paused when the resume resolves but the context stays parked', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+
+    // resume() resolving is not the same as the context running again.
+    harness.audio.resumeRestores = false
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
+
+    const clicksAtPause = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks).toHaveLength(clicksAtPause)
+  })
+
+  it('keeps the beat scheduled when the resume succeeds', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const clicksAtInterruption = harness.audio.clicks.length
+
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot().status).toBe('playing')
+    expect(harness.snapshot().message).not.toBe(PLAYBACK_MESSAGES.audioInterrupted)
+
+    harness.advanceTo(4.1)
+    expect(harness.audio.clicks.length).toBeGreaterThan(clicksAtInterruption)
+  })
+
+  it('leaves a context that is merely reporting itself running alone', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const calls = harness.audio.ensureContextCalls
+
+    harness.audio.emitContextState('running')
+    await harness.flush()
+
+    expect(harness.audio.ensureContextCalls).toBe(calls)
+    expect(harness.snapshot().status).toBe('playing')
+  })
+
+  it('stops watching once the transport is paused by hand', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+
+    harness.machine.pause()
+    const calls = harness.audio.ensureContextCalls
+
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.audio.ensureContextCalls).toBe(calls)
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.paused)
+  })
+
+  it('watches again after a resume from paused', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    harness.machine.pause()
+    await harness.machine.start()
+
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
   })
 })
