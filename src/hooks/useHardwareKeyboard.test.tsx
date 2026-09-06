@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { TOUCH_INPUT_QUERY, useHardwareKeyboard } from './useHardwareKeyboard'
 import { installMatchMedia } from '../test/matchMedia'
 
@@ -14,11 +14,6 @@ const pressKey = (init: KeyboardEventInit) => {
 }
 
 describe('useHardwareKeyboard', () => {
-  afterEach(() => {
-    // Drops the own property, leaving jsdom's implementation in place.
-    Reflect.deleteProperty(window, 'matchMedia')
-  })
-
   it('trusts a browser with no touch input at all', () => {
     installTouchInput(false)
 

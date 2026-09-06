@@ -34,7 +34,6 @@ describe('useIdlePreview', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     setVisibility('visible')
-    Reflect.deleteProperty(window, 'matchMedia')
   })
 
   it('deals immediately and cycles on its own clock, never repeating back to back', () => {

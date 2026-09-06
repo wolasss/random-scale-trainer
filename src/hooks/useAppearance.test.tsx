@@ -13,8 +13,6 @@ const colorScheme = () => document.documentElement.style.colorScheme
 afterEach(() => {
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.remove())
   document.documentElement.style.colorScheme = ''
-  document.documentElement.removeAttribute('data-theme')
-  document.documentElement.removeAttribute('data-skin')
   vi.restoreAllMocks()
 })
 
