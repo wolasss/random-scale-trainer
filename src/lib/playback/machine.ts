@@ -54,6 +54,10 @@ export type PlaybackAudioPort = {
   loadNoteBuffers(): Promise<void>
   hasBuffers(): boolean
   getCurrentTime(): number
+  /** The context's live state, or null before one is open. */
+  getContextState(): string | null
+  /** Reports state changes on the context until the unsubscriber is called. */
+  watchContextState(listener: (state: string) => void): () => void
   playClickAt(time: number, accent: boolean): void
   playNoteAt(audioKey: string, time: number): void
   playSessionEndChime(at?: number): void
@@ -141,6 +145,10 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let stopTimeoutId: number | null = null
   let visualQueue: BeatEvent[] = []
   let sessionStartQueued = false
+  /** Live only while a run is scheduling; see handleContextState. */
+  let unwatchContext: (() => void) | null = null
+  /** One recovery attempt at a time — a park can fire several statechanges. */
+  let recovering = false
   // Bumped by every start that waits on the buffers, so a slow load that lands
   // after a newer start can tell it no longer owns the transport.
   let startSequence = 0
@@ -183,6 +191,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     clearTick()
     clearFrame()
     clearStopTimeout()
+    // A dead run must not go on resuming a context nobody is listening to.
+    unwatchContext?.()
+    unwatchContext = null
     visualQueue = []
     audio.stopScheduledSounds(keepSessionEndChime)
   }
@@ -396,6 +407,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   const startLoops = () => {
     clearTick()
     clearFrame()
+    unwatchContext?.()
+    unwatchContext = audio.watchContextState(handleContextState)
     tick()
     frameId = frame.request(pumpFrames)
   }
@@ -404,7 +417,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     finishStop(message)
   }
 
-  const pause = () => {
+  const pause = (message: string = PLAYBACK_MESSAGES.paused) => {
     if (!active) {
       // A press while the buffers are still loading: there is no session to
       // pause yet, but the transport already reads as playing. Settle back on
@@ -419,7 +432,41 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
     haltScheduling()
     onSessionPause()
-    emit({ status: 'paused', countIn: null, message: PLAYBACK_MESSAGES.paused })
+    emit({ status: 'paused', countIn: null, message })
+  }
+
+  /**
+   * The context left 'running' while the run is live. Unlike the backgrounded
+   * case handleVisible() covers, nothing here brought the page back — an iOS
+   * call banner, Siri, or the microphone flipping the audio session to
+   * play-and-record can park the context with the page still on screen, which
+   * freezes the audio clock and leaves the scheduler ticking into silence.
+   *
+   * Try the same resume ensureContext() already performs, once. If it is
+   * refused, or the context is still parked afterwards, settle the transport on
+   * paused: a transport that says it is playing while nothing sounds is worse
+   * than one that admits it stopped, and the player can press start to pick up.
+   */
+  const handleContextState = (state: string) => {
+    if (!active || state === 'running' || recovering) {
+      return
+    }
+
+    recovering = true
+    void Promise.resolve(audio.ensureContext())
+      .then(() => {
+        if (active && audio.getContextState() !== 'running') {
+          pause(PLAYBACK_MESSAGES.audioInterrupted)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          pause(PLAYBACK_MESSAGES.audioInterrupted)
+        }
+      })
+      .finally(() => {
+        recovering = false
+      })
   }
 
   const start = async () => {

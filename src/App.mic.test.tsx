@@ -47,6 +47,12 @@ vi.mock('./lib/audio/engine', () => ({
     getCurrentTime() {
       return performance.now() / 1000
     }
+    getContextState() {
+      return this.context.state
+    }
+    watchContextState() {
+      return () => {}
+    }
     isWithinCue() {
       return false
     }

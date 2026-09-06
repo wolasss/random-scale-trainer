@@ -190,6 +190,7 @@ export const PLAYBACK_MESSAGES = {
   rampClimbing: (target: number) => `Climbing to ${target} BPM, ${RAMP_BPM_STEP} at a time.`,
   rampHolding: (bpm: number) => `At your target tempo — holding ${bpm} BPM.`,
   paused: 'Paused — the timer stopped too.',
+  audioInterrupted: 'Audio was interrupted — press start to pick up again.',
   loadingAudio: 'Loading audio...',
   noNotes: 'No notes available.',
   audioUnsupported: 'Audio playback is unsupported in this browser.',

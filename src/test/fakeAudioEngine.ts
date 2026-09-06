@@ -36,6 +36,12 @@ export class FakeAudioEngine {
   getCurrentTime() {
     return performance.now() / 1000
   }
+  getContextState() {
+    return 'running'
+  }
+  watchContextState() {
+    return () => {}
+  }
   playClickAt(time: number) {
     if (recording) {
       soundLog.sounds.push({ kind: 'click', key: 'click', time })
