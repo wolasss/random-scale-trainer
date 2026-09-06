@@ -36,7 +36,6 @@ const fold = (extras: Extras = {}) =>
   )
 
 afterEach(() => {
-  window.localStorage.clear()
   document.body.style.overflow = ''
 })
 
