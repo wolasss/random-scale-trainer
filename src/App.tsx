@@ -457,6 +457,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
+      tuning={settings.tuning}
+      leftHanded={settings.leftHanded}
+      onTuning={(id) => dispatch({ type: 'setTuning', id })}
+      onLeftHanded={(leftHanded) => dispatch({ type: 'setLeftHanded', leftHanded })}
     />
   ) : null
 

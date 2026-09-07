@@ -11,6 +11,7 @@ import {
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
+import { DEFAULT_TUNING_ID, isTuningId, type TuningId } from './tunings'
 
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 
@@ -25,6 +26,10 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Which tuning the neck map is drawn in. */
+  tuning: TuningId
+  /** Draw the neck for a left-handed guitar: same frets, strings the other way up. */
+  leftHanded: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
   spelling: SpellingPreference
@@ -86,6 +91,12 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  tuning: {
+    storageKey: STORAGE_KEYS.tuning,
+    deserialize: (raw) => (isTuningId(raw) ? raw : undefined),
+    serialize: String,
+  },
+  leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -125,6 +136,8 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: false,
+  tuning: DEFAULT_TUNING_ID,
+  leftHanded: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
