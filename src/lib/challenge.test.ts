@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_NICKNAME_LENGTH, nicknameKey, normalizeNickname, readChallengeName } from './challenge'
+import {
+  challengeUrl,
+  MAX_NICKNAME_LENGTH,
+  nicknameKey,
+  normalizeChallengeName,
+  normalizeNickname,
+  readChallengeName,
+} from './challenge'
 
 describe('readChallengeName', () => {
   it('is null when nothing asked for a challenge — which is the whole feature flag', () => {
@@ -30,6 +37,55 @@ describe('readChallengeName', () => {
     expect(readChallengeName('?challenge=-leading')).toBeNull()
     expect(readChallengeName('?challenge=%3Cscript%3E')).toBeNull()
     expect(readChallengeName(`?challenge=${'a'.repeat(33)}`)).toBeNull()
+  })
+})
+
+describe('normalizeChallengeName', () => {
+  it('canonicalises what somebody typed, so one name is one board', () => {
+    expect(normalizeChallengeName(' Summer Sprint ')).toBe('summer sprint')
+    expect(normalizeChallengeName('DEMO')).toBe('demo')
+    expect(normalizeChallengeName('week-1_final')).toBe('week-1_final')
+  })
+
+  it('is null for anything that is not a name', () => {
+    expect(normalizeChallengeName('')).toBeNull()
+    expect(normalizeChallengeName('   ')).toBeNull()
+    expect(normalizeChallengeName('-leading')).toBeNull()
+    expect(normalizeChallengeName('<script>')).toBeNull()
+    expect(normalizeChallengeName('a'.repeat(33))).toBeNull()
+  })
+})
+
+describe('challengeUrl', () => {
+  it('puts the name on this page and nothing else', () => {
+    expect(challengeUrl('demo', 'https://callnote.app/')).toBe('https://callnote.app/?challenge=demo')
+  })
+
+  /** Whoever shares arrived here somehow; that is not the recipient's business. */
+  it('drops a query and a hash the sharer happened to be carrying', () => {
+    expect(challengeUrl('demo', 'https://callnote.app/?challenge=old&src=pwa#stage')).toBe(
+      'https://callnote.app/?challenge=demo',
+    )
+  })
+
+  it('canonicalises the name into the link', () => {
+    expect(challengeUrl('  Summer Sprint ', 'https://callnote.app/')).toBe(
+      'https://callnote.app/?challenge=summer+sprint',
+    )
+  })
+
+  it('is null rather than a throw when there is no link to make', () => {
+    expect(challengeUrl('-nope', 'https://callnote.app/')).toBeNull()
+    expect(challengeUrl('demo', 'not a url')).toBeNull()
+  })
+
+  /** The one that matters: a link this side builds is a link this side reads. */
+  it('round-trips through readChallengeName, spaces and all', () => {
+    for (const name of ['demo', 'summer sprint', 'week-1_final']) {
+      const url = challengeUrl(name, 'https://callnote.app/?src=pwa')
+      expect(url).not.toBeNull()
+      expect(readChallengeName(new URL(url as string).search)).toBe(name)
+    }
   })
 })
 

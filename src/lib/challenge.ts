@@ -17,6 +17,13 @@ export const CHALLENGE_PARAM = 'challenge'
 export const MAX_NICKNAME_LENGTH = 20
 
 /**
+ * What CHALLENGE_PATTERN already encodes — one leading character plus up to 31
+ * more — said as a number, so a field can stop typing at the limit instead of
+ * refusing the name afterwards. Duplicated in src/server/scoreboard.js.
+ */
+export const MAX_CHALLENGE_NAME_LENGTH = 32
+
+/**
  * Lowercase, because a challenge is shared by typing it to somebody and nobody
  * agrees on capitals. Spaces, dashes and underscores are allowed inside; the
  * first character has to be a letter or a digit so a name is never just
@@ -28,16 +35,50 @@ const CHALLENGE_PATTERN = /^[a-z0-9][a-z0-9 _-]{0,31}$/
 /** Control and format characters — invisible on a board, and not a name. */
 const CONTROL_CHARS = /[\p{Cc}\p{Cf}]/gu
 
-/** The challenge a URL's query string names, or null if it names none. */
-export const readChallengeName = (search: string): string | null => {
-  const raw = new URLSearchParams(search).get(CHALLENGE_PARAM)
-  if (raw === null) {
-    return null
-  }
-
+/**
+ * A challenge name as everyone else will type it, or null when what was given
+ * is not a name. Shares its body — and its function name — with
+ * src/server/scoreboard.js, so the board a link opens is the board the server
+ * writes to.
+ */
+export const normalizeChallengeName = (raw: string): string | null => {
   const name = raw.trim().toLowerCase()
 
   return CHALLENGE_PATTERN.test(name) ? name : null
+}
+
+/** The challenge a URL's query string names, or null if it names none. */
+export const readChallengeName = (search: string): string | null => {
+  const raw = new URLSearchParams(search).get(CHALLENGE_PARAM)
+
+  return raw === null ? null : normalizeChallengeName(raw)
+}
+
+/**
+ * The link that starts a challenge: this page, with the name on it and nothing
+ * else. The query and the hash are dropped rather than added to — whoever is
+ * sharing arrived here somehow, and `?src=pwa` or a previous `?challenge=` is
+ * their business and not the recipient's.
+ *
+ * Null when the name is not one, or when `base` is not a URL at all; the caller
+ * has a link to show or it has nothing, and neither is a throw.
+ */
+export const challengeUrl = (name: string, base: string): string | null => {
+  const canonical = normalizeChallengeName(name)
+  if (canonical === null) {
+    return null
+  }
+
+  try {
+    const url = new URL(base)
+    url.search = ''
+    url.hash = ''
+    url.searchParams.set(CHALLENGE_PARAM, canonical)
+
+    return url.toString()
+  } catch {
+    return null
+  }
 }
 
 /**

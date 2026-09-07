@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faBug, faHeart, faMugHot } from '@fortawesome/free-solid-svg-icons'
+import { faBug, faHeart, faMugHot, faTrophy } from '@fortawesome/free-solid-svg-icons'
 import { faGithub, faInstagram } from '@fortawesome/free-brands-svg-icons'
 import { version } from '../../package.json'
 import { SKINS, SKIN_LABELS, type Skin } from '../lib/skins'
 import { BugReportModal } from './BugReportModal'
+import { StartChallengeDialog } from './StartChallengeDialog'
 import type { Theme } from './TopBar'
 import { ThemeToggle } from './ui/ThemeToggle'
 
@@ -20,6 +21,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
   // Kept here rather than lifted: the footer renders twice — once under the
   // page and once inside the practice sheet — and both of them need it.
   const [reporting, setReporting] = useState(false)
+  const [inviting, setInviting] = useState(false)
 
   return (
     <footer className="app-footer">
@@ -57,13 +59,23 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
             button here would cost it a third. */}
         <button
           type="button"
-          className="social-link bug-report-button"
+          className="social-link footer-icon-button"
           onClick={() => setReporting(true)}
           aria-label="Report a bug"
           title="Report a bug"
           data-testid="report-bug-button"
         >
           <FontAwesomeIcon icon={faBug} />
+        </button>
+        <button
+          type="button"
+          className="social-link footer-icon-button"
+          onClick={() => setInviting(true)}
+          aria-label="Start a challenge"
+          title="Start a challenge"
+          data-testid="start-challenge-button"
+        >
+          <FontAwesomeIcon icon={faTrophy} />
         </button>
         <a
           className="social-link"
@@ -96,6 +108,7 @@ export function Footer({ skin, onSkinChange, theme, onToggleTheme }: FooterProps
       </div>
 
       {reporting ? <BugReportModal version={version} onDismiss={() => setReporting(false)} /> : null}
+      {inviting ? <StartChallengeDialog onDismiss={() => setInviting(false)} /> : null}
     </footer>
   )
 }

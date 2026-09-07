@@ -57,6 +57,38 @@ describe('Footer', () => {
     expect(screen.queryByTestId('bug-report-modal')).toBeNull()
   })
 
+  it('offers a way to start a challenge, in the same icon-only shape', () => {
+    stubFetch()
+    render(<Footer skin="glass" onSkinChange={vi.fn()} />)
+
+    const button = screen.getByTestId('start-challenge-button')
+    expect(button).toHaveAccessibleName('Start a challenge')
+    expect(button).toHaveAttribute('type', 'button')
+    expect(button).toHaveClass('social-link')
+    expect(button.textContent).toBe('')
+  })
+
+  it('opens the challenge dialog on a click, and not before one', () => {
+    stubFetch()
+    render(<Footer skin="glass" onSkinChange={vi.fn()} />)
+
+    expect(screen.queryByTestId('challenge-invite')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('start-challenge-button'))
+
+    expect(screen.getByTestId('challenge-invite')).toBeInTheDocument()
+  })
+
+  it('closes the challenge dialog again on Escape', () => {
+    stubFetch()
+    render(<Footer skin="glass" onSkinChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByTestId('start-challenge-button'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByTestId('challenge-invite')).toBeNull()
+  })
+
   /**
    * On the stage layout the footer lives inside the practice sheet, which is a
    * focus trap of its own. Without the modal trapping on the capture phase one
@@ -78,6 +110,24 @@ describe('Footer', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByTestId('bug-report-modal')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
+  })
+
+  /** The same guard for the challenge dialog, which shares the capture trap. */
+  it('takes one Escape for the challenge dialog and not the sheet either', () => {
+    stubFetch()
+    const onClose = vi.fn()
+    render(
+      <PracticeSheet open onClose={onClose}>
+        <Footer skin="glass" onSkinChange={vi.fn()} />
+      </PracticeSheet>,
+    )
+
+    fireEvent.click(screen.getByTestId('start-challenge-button'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByTestId('challenge-invite')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByTestId('practice-sheet')).toBeInTheDocument()
   })
