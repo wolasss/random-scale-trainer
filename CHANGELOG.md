@@ -1,3 +1,10 @@
+## [1.30.3](https://github.com/wolasss/random-scale-trainer/compare/v1.30.2...v1.30.3) (2026-09-08)
+
+
+### Bug Fixes
+
+* **pwa:** request persistent storage so the practice log and offline cache survive eviction ([#252](https://github.com/wolasss/random-scale-trainer/issues/252)) ([9078796](https://github.com/wolasss/random-scale-trainer/commit/9078796993c1f73a0cdf8fe8744842cf21f5df36))
+
 ## [1.30.2](https://github.com/wolasss/random-scale-trainer/compare/v1.30.1...v1.30.2) (2026-09-05)
 
 
