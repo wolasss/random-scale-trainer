@@ -8,9 +8,12 @@ const baseSettings = (): Settings => ({
   beatsPerNote: 4,
   continuousMode: true,
   countInEnabled: false,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  tuning: 'standard',
+  leftHanded: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -125,6 +128,19 @@ describe('settingsReducer', () => {
       0, 2, 4, 6, 7, 9, 11,
     ])
     expect(settingsReducer(state, { type: 'setPreset', preset: 'custom' })).toBe(state)
+  })
+
+  it('sets the neck tuning and its handedness independently', () => {
+    const state = baseSettings()
+
+    const retuned = settingsReducer(state, { type: 'setTuning', id: 'dadgad' })
+    expect(retuned.tuning).toBe('dadgad')
+    expect(retuned.leftHanded).toBe(false)
+
+    const flipped = settingsReducer(retuned, { type: 'setLeftHanded', leftHanded: true })
+    expect(flipped.leftHanded).toBe(true)
+    expect(flipped.tuning).toBe('dadgad')
+    expect(settingsReducer(flipped, { type: 'setLeftHanded', leftHanded: false }).leftHanded).toBe(false)
   })
 })
 

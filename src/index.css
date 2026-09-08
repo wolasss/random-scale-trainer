@@ -992,6 +992,18 @@ input[type='range'] {
   gap: 0.3rem;
 }
 
+/* The neck's own two controls. A wrapping row rather than a header-right
+   cluster: on the stage the card is chrome-stripped into a narrow column, and
+   a picker that cannot wrap would set a floor under it. */
+.fretboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
 /* On a phone the neck is wider than its card — 400px of board in a box nearer
    294px — so frets 10-12 sit behind an edge that, with every cell closing on a
    fret hairline, reads as the end of the map rather than the start of a scroll.
@@ -2379,11 +2391,13 @@ input[type='range'] {
 }
 
 .routine-chip.selected .routine-chip-body,
+.routine-chip.selected .routine-chip-rename,
 .routine-chip.selected .routine-chip-copy,
 .routine-chip.selected .routine-chip-remove {
   color: var(--primary);
 }
 
+.routine-chip-rename,
 .routine-chip-copy,
 .routine-chip-remove {
   display: inline-flex;
@@ -2397,12 +2411,14 @@ input[type='range'] {
   transition: opacity 140ms var(--ease-out);
 }
 
-/* Two icons on one chip: the copy sits tight against the remove so the pair
-   reads as one trailing group rather than as padding. */
+/* Three icons on one chip: rename and copy sit tight against the remove so
+   the group reads as one trailing cluster rather than as padding. */
+.routine-chip-rename,
 .routine-chip-copy {
   padding: 0 0.2rem 0 0.4rem;
 }
 
+.routine-chip-rename:hover,
 .routine-chip-copy:hover,
 .routine-chip-remove:hover {
   opacity: 1;
@@ -2564,6 +2580,7 @@ input[type='range'] {
    negative margins spend the segment's own padding on the target instead of
    growing every block in the timeline. */
 @media (pointer: coarse) {
+  .routine-chip-rename,
   .routine-chip-copy,
   .routine-chip-remove {
     justify-content: center;

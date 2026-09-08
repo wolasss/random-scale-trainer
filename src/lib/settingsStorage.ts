@@ -11,6 +11,7 @@ import {
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
+import { DEFAULT_TUNING_ID, isTuningId, type TuningId } from './tunings'
 
 /**
  * Owns every persisted practice setting: one codec per key, read on mount by
@@ -41,12 +42,18 @@ export type Settings = {
   continuousMode: boolean
   /** A four-beat count-in before the first note and each new cycle. */
   countInEnabled: boolean
+  /** Speak each called note; off makes it a reading drill. */
+  speakNotes: boolean
   /** Climb the tempo toward `rampTargetBpm` as rounds complete; forced off when `continuousMode` is off. */
   speedRampMode: boolean
   /** The tempo the ramp climbs to and then holds; never below `bpm`. */
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Which tuning the neck map is drawn in. */
+  tuning: TuningId
+  /** Draw the neck for a left-handed guitar: same frets, strings the other way up. */
+  leftHanded: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
   /** Whether note names read as flats, sharps, or a mix. */
@@ -72,7 +79,7 @@ const isPitchClassText = (segment: string) => /^\d{1,2}$/.test(segment) && Numbe
 const booleanCodec = (storageKey: string): Codec<boolean> => ({
   storageKey,
   // Only the two values we write count: anything else is rejected so the
-  // default holds, rather than reading as off for the three toggles that
+  // default holds, rather than reading as off for the four toggles that
   // default to on.
   deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
   serialize: String,
@@ -97,6 +104,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   continuousMode: booleanCodec(STORAGE_KEYS.continuousMode),
   countInEnabled: booleanCodec(STORAGE_KEYS.countIn),
+  speakNotes: booleanCodec(STORAGE_KEYS.speakNotes),
   speedRampMode: booleanCodec(STORAGE_KEYS.speedRampMode),
   rampTargetBpm: {
     storageKey: STORAGE_KEYS.rampTarget,
@@ -110,6 +118,12 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  tuning: {
+    storageKey: STORAGE_KEYS.tuning,
+    deserialize: (raw) => (isTuningId(raw) ? raw : undefined),
+    serialize: String,
+  },
+  leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -146,9 +160,12 @@ const DEFAULT_SETTINGS: Settings = {
   beatsPerNote: DEFAULT_BEATS_PER_NOTE as BeatsPerNote,
   continuousMode: true,
   countInEnabled: true,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: false,
+  tuning: DEFAULT_TUNING_ID,
+  leftHanded: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],

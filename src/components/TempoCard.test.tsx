@@ -1,10 +1,11 @@
 import type { ComponentProps } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
-import { HOLD_REPEAT_DELAY_MS, HOLD_REPEAT_INTERVAL_MS, TempoCard } from './TempoCard'
+import { TAP_RESET_MS } from '../lib/tapTempo'
+import { HOLD_REPEAT_DELAY_MS, HOLD_REPEAT_INTERVAL_MS, TAP_AGAIN_LABEL, TAP_RESTING_LABEL, TempoCard } from './TempoCard'
 
 const renderCard = (overrides: Partial<ComponentProps<typeof TempoCard>> = {}) => {
   const spies = {
@@ -262,6 +263,60 @@ describe('TempoCard', () => {
       vi.advanceTimersByTime(HOLD_REPEAT_INTERVAL_MS * 3)
 
       expect(onRampTargetNudge).toHaveBeenCalledTimes(3)
+    })
+  })
+
+  describe('tap tempo feedback', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows a keep-tapping state after the first tap, which does not yet produce a tempo', () => {
+      const { onTap } = renderCard()
+      const button = screen.getByTestId('tap-tempo')
+
+      fireEvent.click(button)
+
+      expect(button).toHaveTextContent(TAP_AGAIN_LABEL)
+      expect(onTap).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the keep-tapping state once a second tap lands a tempo', () => {
+      const { onTap } = renderCard()
+      const button = screen.getByTestId('tap-tempo')
+
+      fireEvent.click(button)
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      fireEvent.click(button)
+
+      expect(button).toHaveTextContent(TAP_RESTING_LABEL)
+      expect(onTap).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns to the resting label after TAP_RESET_MS with no further tap', () => {
+      renderCard()
+      const button = screen.getByTestId('tap-tempo')
+
+      fireEvent.click(button)
+
+      act(() => {
+        vi.advanceTimersByTime(TAP_RESET_MS - 1)
+      })
+      expect(button).toHaveTextContent(TAP_AGAIN_LABEL)
+
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(button).toHaveTextContent(TAP_RESTING_LABEL)
+
+      fireEvent.click(button)
+      expect(button).toHaveTextContent(TAP_AGAIN_LABEL)
     })
   })
 })
