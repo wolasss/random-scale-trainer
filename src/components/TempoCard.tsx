@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
+import { TAP_RESET_MS } from '../lib/tapTempo'
 import type { BeatsPerNote } from '../hooks/useSettings'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { SwitchRow } from './ui/SwitchRow'
@@ -41,6 +42,41 @@ const rampHelper = (bpm: number, target: number) => {
 
 export const HOLD_REPEAT_DELAY_MS = 400
 export const HOLD_REPEAT_INTERVAL_MS = 80
+
+export const TAP_RESTING_LABEL = 'Tap tempo'
+export const TAP_AGAIN_LABEL = 'Tap again…'
+
+/** Shows a "keep tapping" label after a lone first tap, so the control doesn't look unresponsive
+ *  before `createTapTempo` has two taps to average. Forgets the run on the same clock the tap
+ *  buffer itself resets on, so the button and the measurement always agree. */
+function TapTempoButton({ onTap }: { onTap: () => void }) {
+  const [tapCount, setTapCount] = useState(0)
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) {
+        clearTimeout(resetTimer.current)
+      }
+    },
+    [],
+  )
+
+  const handleClick = () => {
+    onTap()
+    if (resetTimer.current !== null) {
+      clearTimeout(resetTimer.current)
+    }
+    setTapCount((count) => count + 1)
+    resetTimer.current = setTimeout(() => setTapCount(0), TAP_RESET_MS)
+  }
+
+  return (
+    <button type="button" className="ghost-button tap-tempo" data-testid="tap-tempo" onClick={handleClick}>
+      {tapCount === 1 ? TAP_AGAIN_LABEL : TAP_RESTING_LABEL}
+    </button>
+  )
+}
 
 /** Repeats `fire` while the pointer holds a button down, so a nudge button can sweep instead of tapping. */
 function useHoldRepeat(fire: () => void) {
@@ -185,9 +221,7 @@ export function TempoCard({
           incrementLabel="Faster by 1 BPM"
           onNudge={onNudge}
         >
-          <button type="button" className="ghost-button tap-tempo" data-testid="tap-tempo" onClick={onTap}>
-            Tap tempo
-          </button>
+          <TapTempoButton onTap={onTap} />
         </TempoStepper>
 
         <input
