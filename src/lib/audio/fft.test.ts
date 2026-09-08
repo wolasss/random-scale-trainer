@@ -111,6 +111,38 @@ describe('autocorrelate', () => {
     }
   })
 
+  it('does not carry one call\'s buffers into the next', () => {
+    // The transform scratch is shared between calls, so a frame shorter than
+    // the one before it sits on the previous frame's tail, and the second
+    // transform's imaginary part is still full of the previous frame's
+    // spectrum. The first two cases below share a 4096-point transform with
+    // different frame lengths, which is where a missed clear shows up.
+    const sequence = [
+      { frame: noise(2048, 11), maxLag: 630 },
+      { frame: noise(3000, 12), maxLag: 900 },
+      { frame: noise(1500, 13), maxLag: 500 },
+      { frame: noise(2048, 11), maxLag: 630 },
+    ]
+
+    for (const { frame, maxLag } of sequence) {
+      const correlation = autocorrelate(frame, maxLag)
+
+      const scale = naiveAutocorrelation(frame, 0)
+      for (let lag = 0; lag <= maxLag; lag += 1) {
+        expect(Math.abs(correlation[lag] - naiveAutocorrelation(frame, lag)) / scale).toBeLessThan(1e-6)
+      }
+    }
+  })
+
+  it('fills and returns an output array when it is given one', () => {
+    const frame = noise(2048, 99)
+    const maxLag = 200
+    const out = new Float64Array(maxLag + 1)
+
+    expect(autocorrelate(frame, maxLag, out)).toBe(out)
+    expect(Array.from(out)).toEqual(Array.from(autocorrelate(frame, maxLag)))
+  })
+
   it('keeps the longest lag free of the wrap-around the transform would otherwise fold in', () => {
     // maxLag is over half the frame, so a transform padded only to the frame's
     // own length would alias the tail of the correlation onto its own head.
