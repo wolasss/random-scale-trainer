@@ -11,7 +11,6 @@ const PHONE_STANDALONE = {
 
 describe('useDisplayMode', () => {
   afterEach(() => {
-    Reflect.deleteProperty(window, 'matchMedia')
     Reflect.deleteProperty(navigator, 'standalone')
   })
 

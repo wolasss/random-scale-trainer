@@ -80,7 +80,6 @@ const render = (options: UseChallengeOptions) => renderHook(() => useChallenge({
 
 afterEach(() => {
   called = 0
-  window.localStorage.clear()
   vi.restoreAllMocks()
   vi.useRealTimers()
 })

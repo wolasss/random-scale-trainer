@@ -43,6 +43,9 @@ const LOOPBACK = /^(::1|::ffff:127\.\d+\.\d+\.\d+|127\.\d+\.\d+\.\d+)$/
  * itself observed; the earlier ones, if a caller sent any, are whatever that
  * caller felt like typing. Trusting the first hop would let anybody hand
  * themselves a fresh rate-limit bucket per request.
+ *
+ * @param {unknown} remoteAddress
+ * @param {unknown} forwardedFor
  */
 export const clientIdentity = (remoteAddress, forwardedFor) => {
   const peer = typeof remoteAddress === 'string' ? remoteAddress : ''
@@ -80,6 +83,9 @@ export const clientIdentity = (remoteAddress, forwardedFor) => {
  * work, but a header that is there must pass — an empty value is not an allowed
  * one. A POST with no body at all is likewise left alone: there is nothing for
  * it to declare, and it is the shape a bodyless `…/finish` takes.
+ *
+ * @param {unknown} method
+ * @param {Record<string, unknown>} headers
  */
 export const isCrossSitePost = (method, headers) => {
   if (method !== 'POST') {
@@ -119,14 +125,23 @@ export const isCrossSitePost = (method, headers) => {
  * cap — so the request can be refused before a single `data` event is read.
  * `Number(undefined)` is `NaN` and `Number('')` is `0`; a missing or empty
  * declaration falls through to the streaming cap in `readBody` instead.
+ *
+ * @param {Record<string, unknown>} headers
+ * @param {number} cap
  */
 const declaresOversizedBody = (headers, cap) => {
   const declared = Number(headers['content-length'])
   return Number.isFinite(declared) && declared > cap
 }
 
+/**
+ * @param {import('node:http').IncomingMessage} request
+ * @param {import('node:http').ServerResponse} response
+ * @param {number} cap
+ */
 const readBody = (request, response, cap) =>
   new Promise((resolve) => {
+    /** @type {Buffer[]} */
     const chunks = []
     let bytes = 0
 
@@ -146,7 +161,11 @@ const readBody = (request, response, cap) =>
     request.on('error', () => resolve(null))
   })
 
-/** Whether a path belongs to the bug-report route rather than the scoreboard. */
+/**
+ * Whether a path belongs to the bug-report route rather than the scoreboard.
+ *
+ * @param {string} pathname
+ */
 const isBugReportPath = (pathname) =>
   pathname === BUG_REPORT_PREFIX || pathname.startsWith(`${BUG_REPORT_PREFIX}/`)
 
@@ -158,6 +177,8 @@ const isBugReportPath = (pathname) =>
  * `bugReport`, when given, is the handler from bug-report.js. It is routed
  * *before* the scoreboard's own router, which reads the first path segment as a
  * challenge name and would otherwise open a board called "bug-report".
+ *
+ * @param {import('./http.js').ScoreboardServerOptions} options
  */
 export const createScoreboardServer = ({ store, dataPath = '', now = Date.now, bugReport = null }) => {
   const server = createServer(async (request, response) => {
@@ -189,6 +210,10 @@ export const createScoreboardServer = ({ store, dataPath = '', now = Date.now, b
     }
 
     const client = clientIdentity(request.socket.remoteAddress, request.headers['x-forwarded-for'])
+    /**
+     * @type {import('./scoreboard.js').ApiResponse
+     *   | (import('./bug-report.js').BugReportAnswer & { changed?: boolean })}
+     */
     let answer
     if (bugReport !== null && isBugReportPath(pathname)) {
       // The handler is written not to reject, and this is the belt to that
