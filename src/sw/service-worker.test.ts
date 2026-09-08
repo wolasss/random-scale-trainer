@@ -21,7 +21,7 @@ interface FakeRequest {
   method: string
   url: string
   mode?: string
-  cache?: string
+  cache?: string | undefined
 }
 
 interface FakeResponse {
@@ -37,7 +37,7 @@ interface FakeResponse {
 type CacheKey = string | FakeRequest
 
 interface FakeEvent {
-  request?: FakeRequest
+  request?: FakeRequest | undefined
   waitUntil: (promise: Promise<unknown>) => void
   respondWith: (promise: Promise<unknown>) => void
 }
@@ -136,7 +136,7 @@ const makeWorker = ({
   class FakeRequestCtor implements FakeRequest {
     method = 'GET'
     url: string
-    cache?: string
+    cache?: string | undefined
     constructor(url: string, init?: { cache?: string }) {
       this.url = url
       this.cache = init?.cache

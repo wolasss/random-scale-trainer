@@ -22,6 +22,13 @@ export type DriverOptions = {
    * headless browser has neither a microphone nor anybody to click "Allow".
    */
   fakeMedia?: boolean
+  /**
+   * Vouch for config.appBaseUrl as a secure context even when it isn't
+   * (plain-HTTP, non-localhost — the Docker host.docker.internal path). Needed
+   * by anything gated on a secure context, e.g. service worker registration,
+   * not just getUserMedia.
+   */
+  secureOrigin?: boolean
 }
 
 /** Tall enough that the stage layout is never squeezed vertically. */
@@ -60,16 +67,15 @@ export const buildDriver = async (options: DriverOptions = {}): Promise<WebDrive
     )
 
     if (options.fakeMedia === true) {
-      chromeOptions.addArguments(
-        '--use-fake-device-for-media-stream',
-        '--use-fake-ui-for-media-stream',
-        // getUserMedia is gated on a secure context. In CI, config.appBaseUrl
-        // is a plain-HTTP, non-localhost origin (host.docker.internal, so the
-        // browser inside Selenium can reach the app on the runner host), which
-        // Chrome does not treat as trustworthy on its own — this flag is the
-        // supported way to vouch for it.
-        `--unsafely-treat-insecure-origin-as-secure=${config.appBaseUrl}`,
-      )
+      chromeOptions.addArguments('--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream')
+    }
+
+    if (options.fakeMedia === true || options.secureOrigin === true) {
+      // In CI, config.appBaseUrl is a plain-HTTP, non-localhost origin
+      // (host.docker.internal, so the browser inside Selenium can reach the
+      // app on the runner host), which Chrome does not treat as trustworthy
+      // on its own — this flag is the supported way to vouch for it.
+      chromeOptions.addArguments(`--unsafely-treat-insecure-origin-as-secure=${config.appBaseUrl}`)
     }
 
     if (options.standalone === true) {

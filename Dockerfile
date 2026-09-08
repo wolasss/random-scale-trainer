@@ -24,7 +24,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # one by one so the image ships no test sources.
 COPY src/server/bug-report.js src/server/http.js src/server/main.js src/server/scoreboard.js src/server/session-scoring.js /opt/callnote/server/
 COPY docker/50-scoreboard.sh /docker-entrypoint.d/50-scoreboard.sh
-RUN chmod +x /docker-entrypoint.d/50-scoreboard.sh && mkdir -p /var/lib/callnote
+RUN chmod +x /docker-entrypoint.d/50-scoreboard.sh && mkdir -p /var/lib/callnote && chown nginx:nginx /var/lib/callnote
 
 # Mount something here to keep the board across restarts; without it a restart
 # starts everyone from zero.

@@ -1,3 +1,55 @@
+# [1.31.0](https://github.com/wolasss/random-scale-trainer/compare/v1.30.3...v1.31.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **tempo:** acknowledge the first tap-tempo tap instead of looking unresponsive ([#249](https://github.com/wolasss/random-scale-trainer/issues/249)) ([67ad6a2](https://github.com/wolasss/random-scale-trainer/commit/67ad6a210b95da14ab241ec97e9e42b3de321297))
+
+
+### Features
+
+* **fretboard:** alternate tunings and a left-handed neck ([#250](https://github.com/wolasss/random-scale-trainer/issues/250)) ([c551d16](https://github.com/wolasss/random-scale-trainer/commit/c551d16ff703fedeab0c565eb70e67169e9608cf))
+* **practice:** add a switch to stop saying the note aloud ([#241](https://github.com/wolasss/random-scale-trainer/issues/241)) ([c6dc88c](https://github.com/wolasss/random-scale-trainer/commit/c6dc88c7c4716d964f750cb2b748a4ce5c46517d))
+* **routines:** rename a saved setup or workout ([#242](https://github.com/wolasss/random-scale-trainer/issues/242)) ([cb1de9e](https://github.com/wolasss/random-scale-trainer/commit/cb1de9e8855341783fbcd7c3e3f4fe1d6911becf))
+
+## [1.30.3](https://github.com/wolasss/random-scale-trainer/compare/v1.30.2...v1.30.3) (2026-09-08)
+
+
+### Bug Fixes
+
+* **pwa:** request persistent storage so the practice log and offline cache survive eviction ([#252](https://github.com/wolasss/random-scale-trainer/issues/252)) ([9078796](https://github.com/wolasss/random-scale-trainer/commit/9078796993c1f73a0cdf8fe8744842cf21f5df36))
+
+## [1.30.2](https://github.com/wolasss/random-scale-trainer/compare/v1.30.1...v1.30.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* **challenge:** send the queued points when the tab goes away mid-run ([#222](https://github.com/wolasss/random-scale-trainer/issues/222)) ([20f52df](https://github.com/wolasss/random-scale-trainer/commit/20f52df3f60744583f2f8f12c50780c9cbf9d17b))
+
+## [1.30.1](https://github.com/wolasss/random-scale-trainer/compare/v1.30.0...v1.30.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **pwa:** keep the install button usable when the browser refuses the install prompt ([#219](https://github.com/wolasss/random-scale-trainer/issues/219)) ([0187e1d](https://github.com/wolasss/random-scale-trainer/commit/0187e1dd67cd3eab842b0897b92945faee7d0a0d))
+
+# [1.30.0](https://github.com/wolasss/random-scale-trainer/compare/v1.29.1...v1.30.0) (2026-09-05)
+
+
+### Bug Fixes
+
+* **scoreboard:** cap the owners a snapshot may restore ([#238](https://github.com/wolasss/random-scale-trainer/issues/238)) ([7baa143](https://github.com/wolasss/random-scale-trainer/commit/7baa143aee95170c122035878b4a3816ce53ba6e))
+
+
+### Features
+
+* **session:** offer a 30-minute practice goal ([#217](https://github.com/wolasss/random-scale-trainer/issues/217)) ([63b7959](https://github.com/wolasss/random-scale-trainer/commit/63b79590e93bb5015e1bce791eb2c17ae0918da4))
+
+
+### Performance Improvements
+
+* **pitch:** compute the NSDF correlation by FFT instead of the per-lag double loop ([#236](https://github.com/wolasss/random-scale-trainer/issues/236)) ([98e4559](https://github.com/wolasss/random-scale-trainer/commit/98e455943f993326c2d8c1ad5f113902f353d68f))
+
 ## [1.29.1](https://github.com/wolasss/random-scale-trainer/compare/v1.29.0...v1.29.1) (2026-09-04)
 
 

@@ -102,7 +102,7 @@ const post = (
   store: ScoreStore,
   pathname: string,
   body: unknown,
-  { token, client = 'test-client', now = NOW }: { token?: string; client?: string; now?: number } = {},
+  { token, client = 'test-client', now = NOW }: { token?: string | undefined; client?: string; now?: number } = {},
 ) =>
   handleRequest(store, {
     method: 'POST',
@@ -954,6 +954,55 @@ describe('snapshots', () => {
 
     expect(store.challenges.get('demo')?.owners.has('bo')).toBe(false)
     expect(topScores(store, 'demo')).toEqual([{ nickname: 'ada', points: 300 }])
+  })
+
+  /**
+   * A file that was hand-edited, or written by a build with a different
+   * ceiling, must not restore a board bigger than the one the running server
+   * would agree to build.
+   */
+  it('caps the owners a snapshot may restore', () => {
+    const owners: Record<string, unknown> = {}
+    const scores: Record<string, number> = {}
+    for (let index = 0; index < MAX_ENTRIES + 20; index += 1) {
+      const nickname = `player ${index}`
+      owners[nicknameKey(nickname) as string] = { nickname, tokenHash: 'x'.repeat(64), claimedAt: NOW, scoredAt: NOW }
+      scores[nickname] = 100
+    }
+
+    const store = readSnapshot(
+      tempFile(JSON.stringify({ version: 2, challenges: { demo: { scores, owners, lastActiveAt: NOW } } })),
+    )
+    const board = store.challenges.get('demo')
+
+    expect(board?.owners.size).toBe(MAX_ENTRIES)
+    expect(board?.entries.size).toBeLessThanOrEqual(MAX_ENTRIES)
+    // No scored name is left unowned — an unowned row is a name up for grabs.
+    for (const nickname of board?.entries.keys() ?? []) {
+      expect(board?.owners.has(nicknameKey(nickname) as string)).toBe(true)
+    }
+    // And the restored board is full, exactly as the live claim path says.
+    expect(claimNickname(store, 'demo', 'a fresh name', NOW).outcome).toBe('full')
+  })
+
+  it('drops an over-cap legacy row together with its owner', () => {
+    // The owners map is already at the ceiling, and `ada` is a score row with
+    // no owner record — the legacy shape, arriving with nowhere left to go.
+    const owners: Record<string, unknown> = {}
+    for (let index = 0; index < MAX_ENTRIES; index += 1) {
+      const nickname = `player ${index}`
+      owners[nicknameKey(nickname) as string] = { nickname, tokenHash: 'x'.repeat(64), claimedAt: NOW, scoredAt: NOW }
+    }
+    const scores: Record<string, number> = { ada: 300 }
+
+    const store = readSnapshot(
+      tempFile(JSON.stringify({ version: 2, challenges: { demo: { scores, owners, lastActiveAt: NOW } } })),
+    )
+    const board = store.challenges.get('demo')
+
+    expect(board?.entries.has('ada')).toBe(false)
+    expect(board?.owners.has('ada')).toBe(false)
+    expect(claimNickname(store, 'demo', 'ada', NOW).outcome).toBe('full')
   })
 
   it('reports a write it could not make rather than throwing', () => {

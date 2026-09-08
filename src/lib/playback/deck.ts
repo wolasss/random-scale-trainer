@@ -5,7 +5,7 @@ export type NoteDeckDeps = {
   getPool(): number[]
   /** Read fresh at every refill; mixed spelling is decided per enqueued call. */
   getSpelling(): SpellingPreference
-  random?: () => number
+  random?: (() => number) | undefined
 }
 
 export type NoteDeck = {

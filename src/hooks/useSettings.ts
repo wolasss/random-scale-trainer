@@ -2,13 +2,15 @@ import { useEffect, useReducer, useRef, type Dispatch } from 'react'
 import { clampBpm, clampRampTarget, defaultRampTarget, type BeatsPerNote } from '../constants'
 import { sortedPcs, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
+import type { TuningId } from '../lib/tunings'
 import { initSettings, writeChangedSettings, type Settings, type SessionGoalMin } from '../lib/settingsStorage'
 
-export type { BeatsPerNote, Settings, SessionGoalMin }
+export type { BeatsPerNote, Settings, SessionGoalMin, TuningId }
 
 export type SettingsToggleKey =
   | 'continuousMode'
   | 'countInEnabled'
+  | 'speakNotes'
   | 'showFretboard'
   | 'noteListMode'
   | 'micEnabled'
@@ -28,6 +30,10 @@ export type SettingsAction =
   | { type: 'setPreset'; preset: PresetId }
   | { type: 'setPool'; pool: readonly number[] }
   | { type: 'setSessionGoal'; minutes: SessionGoalMin }
+  // The neck's own two settings. Value-carrying rather than `toggle` members:
+  // both come from a control that names the value it is asking for.
+  | { type: 'setTuning'; id: TuningId }
+  | { type: 'setLeftHanded'; leftHanded: boolean }
 
 // A tempo raised past its ramp target strands the target below the tempo, so
 // this hands it a fresh goal — mirroring 'setRamp's own fresh-goal rule. The
@@ -109,6 +115,10 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
     }
     case 'setSessionGoal':
       return { ...state, sessionGoalMin: action.minutes }
+    case 'setTuning':
+      return { ...state, tuning: action.id }
+    case 'setLeftHanded':
+      return { ...state, leftHanded: action.leftHanded }
   }
 }
 

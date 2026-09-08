@@ -26,8 +26,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   phrase off the screen instead of one note at a time. It is the very same queue the metronome is
   calling from — spelling, pool edits and round boundaries all show up in it — and it is on the
   idle screen too, previewing the round you are about to start. Switched on from "How it runs"
-- "On the neck" fretboard map showing every position of the called note (frets 0–12, standard
-  tuning), hideable from "How it runs"
+- "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
+  E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
   target you choose, then holds there — so a session ends on a tempo you reached, not the first one
   you missed. Routine blocks own their own ramp and ceiling
@@ -48,11 +48,21 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
   D♯ — and the reading stays up until you play something else or the next note is called, rather
   than blinking out with the string. The count-in between rounds clears it: no note on screen, so
-  nothing to be right or wrong about. The detector is a hand-rolled Web Audio autocorrelation
-  on the same AudioContext playback uses, and what the app plays through the speakers is suppressed
-  by the cue intervals the engine records, so the readout reports you rather than itself. The mic is
-  released the moment you pause, stop or leave, and a refusal or a browser without one says so and
-  changes nothing else
+  nothing to be right or wrong about. The detector is a hand-rolled Web Audio autocorrelation, but it
+  runs on a context of the capture's own rather than the one playback uses, opened while the mic
+  session is live so it is born at the microphone's own sample rate — iOS moves the hardware rate
+  when the mic opens, and analysing on the app's existing context would otherwise feed a rate
+  mismatch into silence; it falls back to sharing the app's context only when a new one can't be
+  built. Capture also asks for raw audio, with echo cancellation, noise suppression and automatic
+  gain control all switched off, because every one of them is built for speech and would otherwise
+  eat the sound of an instrument. What the app plays through the speakers is kept out of the reading
+  by the cue intervals the engine records rather than by echo cancellation, so the readout reports
+  you rather than itself. The mic is released the moment you pause, stop or leave, and a refusal or
+  a browser without one says so and changes nothing else
+- Mic diagnostics: appending `?micdebug` to the URL adds a plain-text overlay showing the mic status,
+  the track settings the browser actually applied (whether the raw-capture request was honoured),
+  both audio contexts' rates and states and which one is in use, and the live level, clarity and
+  last detected pitch — meant for screenshotting when reporting a microphone bug
 - Scoring, with the mic on: every note you actually play banks points, and four bonuses make them
   climb faster — a streak bonus from the third right note in a row up to a cap, a bonus for finding
   the called note in two octaves before the next one is called, a small one for striking the
@@ -224,10 +234,15 @@ old, not to arbitrate the last few seconds of an honest one. A claim that is too
 asserts they agree, and `src/App.parity.test.tsx` plays a session through the real app against the
 real service — including one that sits past ten minutes — and asserts the two totals match.
 
-Around that sit the limits in `src/server/scoreboard.js` — 4 KB bodies, 1,000,000 points, 500
-nicknames per challenge, 200 challenges, 10 claims a minute per client and 20 an hour per
-challenge, 30 new challenges an hour overall, and a sweep for abandoned sessions and claims nobody
-ever scored under. None of this proves somebody physically played a guitar; what it does is stop a
+Around that sit the limits in `src/server/scoreboard.js` — 1,000,000 points, 500 nicknames per
+challenge, 200 challenges, 30 new challenges an hour overall, 2,000 live sessions, and a sweep for
+abandoned sessions and for claims nobody ever scored under (capped at 400 unscored owners per
+challenge, swept after 24 hours unused). Per-client rate limits cover claims (10 a minute, and 400
+an hour per challenge), session starts (10 a minute) and event posts (120 a minute).
+`src/server/session-scoring.js` adds its own ceilings on a session once it exists: 20 events per
+batch, 5,000 events over its lifetime, and a 2-hour cap on how long it can run. Request bodies are
+capped in `src/server/http.js` — 4 KB (`MAX_BODY_BYTES`) for most routes, 8 KB for the bug-report
+route alone. None of this proves somebody physically played a guitar; what it does is stop a
 scripted client putting an arbitrary number on a board, and stop a stranger touching a row that is
 not theirs. Don't put anything you care about on a public board.
 

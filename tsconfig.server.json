@@ -1,20 +1,25 @@
 {
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.sw.tsbuildinfo",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo",
     "target": "es2023",
-    "lib": ["ES2023", "WebWorker"],
+    "lib": ["ES2023"],
     "module": "esnext",
-    "types": [],
+    "types": ["node"],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
     "strict": true,
-    "exactOptionalPropertyTypes": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/sw/service-worker.js", "types/service-worker-globals.d.ts"]
+  "files": [
+    "src/server/http.js",
+    "src/server/scoreboard.js",
+    "src/server/session-scoring.js",
+    "src/server/bug-report.js",
+    "src/server/main.js"
+  ]
 }

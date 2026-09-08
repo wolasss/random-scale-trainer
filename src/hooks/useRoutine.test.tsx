@@ -12,10 +12,13 @@ const baseSettings = (): Settings => ({
   beatsPerNote: 4,
   continuousMode: true,
   countInEnabled: false,
+  speakNotes: true,
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
   noteListMode: false,
+  tuning: 'standard',
+  leftHanded: false,
   micEnabled: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -742,6 +745,82 @@ describe('editing a finished routine', () => {
     expect(view.result.current.blockElapsedMs).toBe(0)
     // The block that was moved to the front is the one the settings came from.
     expect(applied()).toContainEqual({ type: 'setBpm', bpm: 80 })
+  })
+})
+
+describe('renaming', () => {
+  it('renames the selected routine without disturbing its blocks, position or the running clock', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.rename(WORKOUT.id, 'Renamed')
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.name).toBe('Renamed')
+    expect(routine.selected!.id).toBe(WORKOUT.id)
+    expect(routine.blockIndex).toBe(1)
+    expect(routine.blockElapsedMs).toBe(70_000)
+    expect(routine.selected!.blocks).toEqual(WORKOUT.blocks)
+    expect(routine.routines.map((entry) => entry.id)).toEqual([WORKOUT.id])
+  })
+
+  it('persists the new name across a remount', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.rename(WORKOUT.id, 'Renamed')
+    })
+
+    const remounted = renderHook(() => useRoutineHarness(0, vi.fn()))
+    expect(remounted.result.current.routine.routines.find((entry) => entry.id === WORKOUT.id)?.name).toBe(
+      'Renamed',
+    )
+  })
+
+  it('refuses a blank name, leaving the routine untouched', () => {
+    const view = renderOnBlock(1)
+
+    act(() => {
+      view.result.current.routine.rename(WORKOUT.id, '   ')
+    })
+
+    expect(view.result.current.routine.selected!.name).toBe(WORKOUT.name)
+  })
+
+  it('refuses a name already taken by another routine', () => {
+    const OTHER: Routine = { id: 'r-other', name: 'Other', blocks: [block('Solo', { dur: null })] }
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT, OTHER]))
+
+    const view = renderHook(() => useRoutineHarness(0, vi.fn()))
+    act(() => {
+      view.result.current.routine.select(WORKOUT.id)
+    })
+
+    act(() => {
+      view.result.current.routine.rename(WORKOUT.id, 'Other')
+    })
+
+    const { routine } = view.result.current
+    expect(routine.routines.map((entry) => entry.name)).toEqual([WORKOUT.name, OTHER.name])
+  })
+
+  it('renaming a routine that is not selected leaves the selection alone', () => {
+    const OTHER: Routine = { id: 'r-other', name: 'Other', blocks: [block('Solo', { dur: null })] }
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT, OTHER]))
+
+    const view = renderHook(() => useRoutineHarness(0, vi.fn()))
+    act(() => {
+      view.result.current.routine.select(WORKOUT.id)
+    })
+
+    act(() => {
+      view.result.current.routine.rename(OTHER.id, 'Renamed other')
+    })
+
+    const { routine } = view.result.current
+    expect(routine.selected!.id).toBe(WORKOUT.id)
+    expect(routine.routines.find((entry) => entry.id === OTHER.id)?.name).toBe('Renamed other')
   })
 })
 
