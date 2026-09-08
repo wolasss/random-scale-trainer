@@ -19,6 +19,8 @@ const SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: 120,
   showFretboard: true,
+  tuning: 'standard',
+  leftHanded: false,
   micEnabled: false,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],

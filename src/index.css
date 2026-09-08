@@ -992,6 +992,18 @@ input[type='range'] {
   gap: 0.3rem;
 }
 
+/* The neck's own two controls. A wrapping row rather than a header-right
+   cluster: on the stage the card is chrome-stripped into a narrow column, and
+   a picker that cannot wrap would set a floor under it. */
+.fretboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
 /* On a phone the neck is wider than its card — 400px of board in a box nearer
    294px — so frets 10-12 sit behind an edge that, with every cell closing on a
    fret hairline, reads as the end of the map rather than the start of a scroll.

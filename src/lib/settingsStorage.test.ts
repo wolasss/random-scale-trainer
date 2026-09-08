@@ -69,6 +69,24 @@ describe('initSettings', () => {
     expect(settings.micEnabled).toBe(false)
   })
 
+  it('reads back a stored tuning id', () => {
+    window.localStorage.setItem(STORAGE_KEYS.tuning, 'dadgad')
+    expect(initSettings().tuning).toBe('dadgad')
+  })
+
+  it.each(['DADGAD', 'drop-c', ''])('rejects %j as a tuning and draws the standard neck', (raw) => {
+    window.localStorage.setItem(STORAGE_KEYS.tuning, raw)
+    expect(initSettings().tuning).toBe('standard')
+  })
+
+  it('flips the neck left-handed only from a literal true', () => {
+    window.localStorage.setItem(STORAGE_KEYS.leftHanded, 'true')
+    expect(initSettings().leftHanded).toBe(true)
+
+    window.localStorage.setItem(STORAGE_KEYS.leftHanded, 'yes')
+    expect(initSettings().leftHanded).toBe(false)
+  })
+
   it('clamps an out-of-range finite bpm', () => {
     window.localStorage.setItem(STORAGE_KEYS.bpm, '999')
     expect(initSettings().bpm).toBe(240)
