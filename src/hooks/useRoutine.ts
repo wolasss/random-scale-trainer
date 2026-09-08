@@ -50,6 +50,9 @@ export type RoutineController = {
   save: (name: string) => void
   /** Clone a routine into an editable copy and load it. */
   duplicate: (id: string) => void
+  /** Renames a routine in place: its blocks, list position and the current
+   *  selection are untouched. Refuses (no-op) a blank or already-taken name. */
+  rename: (id: string, name: string) => void
   addBlock: () => void
   removeBlock: (index: number) => void
   /** Swap a block with the neighbour `delta` away; the active one is renumbered, not restarted. */
@@ -306,6 +309,25 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     startAt(0, copy)
   }
 
+  const rename = (id: string, name: string) => {
+    const trimmed = name.trim()
+    const target = routines.find((entry) => entry.id === id)
+    if (trimmed === '' || target === undefined) {
+      return
+    }
+
+    if (routines.some((entry) => entry.id !== id && entry.name === trimmed)) {
+      return
+    }
+
+    const next: Routine = { ...target, name: trimmed }
+    if (id === selectedId) {
+      selectedRef.current = next
+    }
+
+    setRoutines((list) => list.map((entry) => (entry.id === id ? next : entry)))
+  }
+
   const replaceSelected = (next: Routine) => {
     selectedRef.current = next
     setRoutines((list) => list.map((routine) => (routine.id === next.id ? next : routine)))
@@ -501,6 +523,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     remove,
     save,
     duplicate,
+    rename,
     addBlock,
     removeBlock,
     moveBlock,

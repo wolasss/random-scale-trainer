@@ -120,6 +120,7 @@ export const MIXED_SPELLING_MULTIPLIER = 1.15
 export const SINGLE_SPELLING_MULTIPLIER = 1
 export const FRETBOARD_HIDDEN_MULTIPLIER = 1.2
 export const FRETBOARD_SHOWN_MULTIPLIER = 1
+/** @type {Record<number, number>} */
 export const BEAT_SPAN_MULTIPLIERS = { 1: 1.4, 2: 1.2, 4: 1, 8: 0.85, 12: 0.75 }
 export const TEMPO_MULTIPLIER_GAIN = 0.5
 export const TEMPO_MULTIPLIER_MAX = 1.4
@@ -130,6 +131,7 @@ export const TEMPO_MULTIPLIER_MAX = 1.4
  * whose formula would have to be evaluated identically in two engines, and
  * twelve written-down numbers cannot disagree.
  */
+/** @type {Record<number, number>} */
 export const POOL_MULTIPLIERS = {
   1: 0.5,
   2: 0.64,
@@ -214,21 +216,43 @@ const EVENT_KINDS = new Set(['hit', 'miss', 'bonus', 'milestone'])
 /** The bonuses it may report, and what each is worth. */
 const BONUS_POINTS = { octaves: OCTAVES_BONUS_POINTS, tempo: TEMPO_BONUS_POINTS }
 
-/** The streak bonus for landing the `streak`-th consecutive note. */
+/**
+ * The streak bonus for landing the `streak`-th consecutive note.
+ *
+ * @param {number} streak
+ */
 export const streakBonusPoints = (streak) =>
   streak < STREAK_BONUS_FROM
     ? 0
     : Math.min((streak - STREAK_BONUS_FROM + 1) * STREAK_BONUS_STEP, STREAK_BONUS_MAX)
 
-/** A tempo the app's own slider can reach, and a span it offers. */
-const isTempo = (bpm) => Number.isInteger(bpm) && bpm >= MIN_BPM && bpm <= MAX_BPM
-const isSpan = (beatsPerNote) => BEAT_SPAN_OPTIONS.includes(beatsPerNote)
+/**
+ * A tempo the app's own slider can reach, and a span it offers.
+ *
+ * @param {unknown} bpm
+ * @returns {bpm is number}
+ */
+const isTempo = (bpm) => typeof bpm === 'number' && Number.isInteger(bpm) && bpm >= MIN_BPM && bpm <= MAX_BPM
+/**
+ * @param {unknown} beatsPerNote
+ * @returns {beatsPerNote is number}
+ */
+const isSpan = (beatsPerNote) => typeof beatsPerNote === 'number' && BEAT_SPAN_OPTIONS.includes(beatsPerNote)
+
+/**
+ * @param {unknown} spelling
+ * @returns {spelling is import('./session-scoring.js').SessionDifficulty['spelling']}
+ */
+const isSpelling = (spelling) => typeof spelling === 'string' && SPELLING_OPTIONS.includes(spelling)
 
 /**
  * A set of pitch classes somebody could actually have practised: at least one,
  * at most the octave, each of them a pitch class, and none of them twice. The
  * duplicate rule is not fussiness — a pool is priced by how many notes are in
  * it, and a list that repeats one is a list claiming to be bigger than it is.
+ *
+ * @param {unknown} pool
+ * @returns {pool is number[]}
  */
 const isPool = (pool) =>
   Array.isArray(pool) &&
@@ -237,16 +261,32 @@ const isPool = (pool) =>
   pool.every((pc) => Number.isInteger(pc) && pc >= 0 && pc < PITCH_CLASS_COUNT) &&
   new Set(pool).size === pool.length
 
-/** A span with no price of its own is neutral rather than free. */
+/**
+ * A span with no price of its own is neutral rather than free.
+ *
+ * @param {number} beatsPerNote
+ */
 const beatSpanMultiplier = (beatsPerNote) => BEAT_SPAN_MULTIPLIERS[beatsPerNote] ?? 1
 
-/** The same for a pool size, counted distinct so a repeat is still one note. */
+/**
+ * The same for a pool size, counted distinct so a repeat is still one note.
+ *
+ * @param {readonly number[]} pool
+ */
 const poolMultiplier = (pool) => POOL_MULTIPLIERS[new Set(pool).size] ?? 1
 
-/** Whether a spelling preference has anything to be a preference about here. */
+/**
+ * Whether a spelling preference has anything to be a preference about here.
+ *
+ * @param {readonly number[]} pool
+ */
 const holdsAccidental = (pool) => pool.some((pc) => ACCIDENTAL_PITCH_CLASSES.includes(pc))
 
-/** Nothing is owed for practising at or below the default tempo. */
+/**
+ * Nothing is owed for practising at or below the default tempo.
+ *
+ * @param {number} bpm
+ */
 const tempoMultiplier = (bpm) =>
   bpm <= DEFAULT_BPM
     ? 1
@@ -259,6 +299,8 @@ const tempoMultiplier = (bpm) =>
  * the app can produce and asserts they never differ, so a change to one that is
  * not a change to the other is a failing test rather than a board that
  * disagrees with the screen.
+ *
+ * @param {import('./session-scoring.js').SessionDifficulty} difficulty
  */
 export const difficultyMultiplier = ({ spelling, showFretboard, bpm, beatsPerNote, pool }) =>
   (spelling === 'mixed' && holdsAccidental(pool) ? MIXED_SPELLING_MULTIPLIER : SINGLE_SPELLING_MULTIPLIER) *
@@ -271,15 +313,17 @@ export const difficultyMultiplier = ({ spelling, showFretboard, bpm, beatsPerNot
  * The settings one note was called under, or null if they are not settings this
  * app offers. Every field is required: a partial one would be priced by the
  * defaults of whatever was left out, which is a price nobody played at.
+ *
+ * @param {unknown} raw
  */
 export const validateDifficulty = (raw) => {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return null
   }
 
-  const { spelling, showFretboard, bpm, beatsPerNote, pool } = raw
+  const { spelling, showFretboard, bpm, beatsPerNote, pool } = /** @type {Record<string, unknown>} */ (raw)
 
-  return SPELLING_OPTIONS.includes(spelling) &&
+  return isSpelling(spelling) &&
     typeof showFretboard === 'boolean' &&
     isTempo(bpm) &&
     isSpan(beatsPerNote) &&
@@ -293,6 +337,7 @@ export const validateDifficulty = (raw) => {
  * one when it declared none. Null means it declared something this app cannot
  * produce, which is a rejection rather than a fallback — see `validateDifficulty`.
  */
+/** @param {unknown} raw */
 const notePrice = (raw) => {
   if (raw === undefined || raw === null) {
     return 1
@@ -308,12 +353,13 @@ const notePrice = (raw) => {
  * Recorded and reported; it times nothing, and it prices nothing either — what
  * prices a note rides on the note, because the settings move under a session.
  */
+/** @param {unknown} raw */
 export const validateConfig = (raw) => {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return null
   }
 
-  const { bpm, beatsPerNote } = raw
+  const { bpm, beatsPerNote } = /** @type {Record<string, unknown>} */ (raw)
 
   return isTempo(bpm) && isSpan(beatsPerNote) ? { bpm, beatsPerNote } : null
 }
@@ -322,6 +368,9 @@ export const validateConfig = (raw) => {
  * A fresh session, fixed at `config` from this moment. `lastNote` is the last
  * judged note — a bonus may only ever be claimed straight after a hit, and only
  * once per kind on it, which is what stops one lucky note being billed twice.
+ *
+ * @param {import('./session-scoring.js').SessionConfig} config
+ * @param {number} now
  */
 export const createSessionState = (config, now) =>
   Object.freeze({
@@ -340,27 +389,51 @@ export const createSessionState = (config, now) =>
     completed: false,
   })
 
-/** Abandoned, or simply old. Either way it takes no more events. */
+/**
+ * Abandoned, or simply old. Either way it takes no more events.
+ *
+ * @param {import('./session-scoring.js').SessionState} session
+ * @param {number} now
+ */
 export const isSessionExpired = (session, now) =>
   now - session.lastSeenAt > SESSION_IDLE_MS || now - session.startedAt > SESSION_MAX_MS
 
-/** After this nothing else lands on it; a replayed finish is worth nothing. */
+/**
+ * After this nothing else lands on it; a replayed finish is worth nothing.
+ *
+ * @param {import('./session-scoring.js').SessionState} session
+ */
 export const completeSession = (session) => Object.freeze({ ...session, completed: true })
 
-/** A field an event actually declared. Absent and null are the same thing. */
+/**
+ * A field an event actually declared. Absent and null are the same thing.
+ *
+ * @param {Record<string, unknown>} event
+ * @param {string} field
+ */
 const carries = (event, field) => event[field] !== undefined && event[field] !== null
 
-/** Whether one event is even the right shape to be judged. */
+/**
+ * Whether one event is even the right shape to be judged.
+ *
+ * @param {unknown} event
+ * @returns {event is import('./session-scoring.js').SessionEvent}
+ */
 const isWellFormed = (event) => {
   if (event === null || typeof event !== 'object' || Array.isArray(event)) {
     return false
   }
 
-  if (!EVENT_KINDS.has(event.kind) || !Number.isInteger(event.seq) || !Number.isInteger(event.at)) {
+  const record =
+    /** @type {{ kind: string, seq: number, at: number, bonus?: unknown, milestone?: unknown, difficulty?: unknown }} */ (
+      event
+    )
+
+  if (!EVENT_KINDS.has(record.kind) || !Number.isInteger(record.seq) || !Number.isInteger(record.at)) {
     return false
   }
 
-  if (event.at < 0 || event.at > SESSION_MAX_MS) {
+  if (record.at < 0 || record.at > SESSION_MAX_MS) {
     return false
   }
 
@@ -368,23 +441,23 @@ const isWellFormed = (event) => {
   // hit is priced, because only a hit is worth something a difficulty could
   // scale: a miss pays nothing whatever it was called under, a bonus is paid at
   // the price of the note it landed on, and a milestone is not a note at all.
-  if (carries(event, 'difficulty') && event.kind !== 'hit') {
+  if (carries(record, 'difficulty') && record.kind !== 'hit') {
     return false
   }
 
-  if (carries(event, 'bonus') !== (event.kind === 'bonus')) {
+  if (carries(record, 'bonus') !== (record.kind === 'bonus')) {
     return false
   }
 
-  if (carries(event, 'milestone') !== (event.kind === 'milestone')) {
+  if (carries(record, 'milestone') !== (record.kind === 'milestone')) {
     return false
   }
 
-  if (event.kind === 'bonus') {
-    return Object.hasOwn(BONUS_POINTS, event.bonus)
+  if (record.kind === 'bonus') {
+    return Object.hasOwn(BONUS_POINTS, /** @type {string} */ (record.bonus))
   }
 
-  return event.kind !== 'milestone' || Object.hasOwn(PRACTICE_MILESTONES, event.milestone)
+  return record.kind !== 'milestone' || Object.hasOwn(PRACTICE_MILESTONES, /** @type {string} */ (record.milestone))
 }
 
 /**
@@ -395,6 +468,10 @@ const isWellFormed = (event) => {
  * event in it changes nothing at all — not the points, not `nextSeq`, not
  * `lastSeenAt` — so a rejected request is not a way to walk a session forward
  * one accepted event at a time.
+ *
+ * @param {import('./session-scoring.js').SessionState} session
+ * @param {unknown} events
+ * @param {number} now
  */
 export const applySessionEvents = (session, events, now) => {
   if (session.completed) {
@@ -434,11 +511,12 @@ export const applySessionEvents = (session, events, now) => {
       // The session clock's own bonus. Spacing-exempt and note-blind: it leaves
       // `lastNote` exactly where it is, so a bonus that follows one still
       // belongs to the note it was earned on, and it never touches the streak.
-      if (milestones.includes(event.milestone)) {
+      const milestoneKind = /** @type {import('./session-scoring.js').PracticeMilestoneKind} */ (event.milestone)
+      if (milestones.includes(milestoneKind)) {
         return { ok: false, reason: 'invalid_event' }
       }
 
-      const milestone = PRACTICE_MILESTONES[event.milestone]
+      const milestone = PRACTICE_MILESTONES[milestoneKind]
       if (now - session.startedAt + MILESTONE_LEAD_MS < milestone.atMs) {
         return { ok: false, reason: 'too_soon' }
       }
@@ -446,24 +524,25 @@ export const applySessionEvents = (session, events, now) => {
       // The clock proves the session is old enough; the notes prove somebody
       // was in it. A session idled to the threshold has judged nothing and
       // earns nothing — see MILESTONE_MIN_JUDGED_NOTES.
-      if (judgedNotes < MILESTONE_MIN_JUDGED_NOTES[event.milestone]) {
+      if (judgedNotes < MILESTONE_MIN_JUDGED_NOTES[milestoneKind]) {
         return { ok: false, reason: 'too_soon' }
       }
 
       points += milestone.points
-      milestones = [...milestones, event.milestone]
+      milestones = [...milestones, milestoneKind]
     } else if (event.kind === 'bonus') {
       // Spacing-exempt — a bonus is earned on a note, not between two — but only
       // ever on the note just hit, and only once per kind. Paid at the price
       // that note was called at, which is what src/lib/scoring.ts does with a
       // bonus discovered late: the window it belongs to froze the price, and a
       // click or an octave landing under it cannot re-price the note.
-      if (lastNote === null || !lastNote.hit || lastNote.bonuses.includes(event.bonus)) {
+      const bonusKind = /** @type {'octaves' | 'tempo'} */ (event.bonus)
+      if (lastNote === null || !lastNote.hit || lastNote.bonuses.includes(bonusKind)) {
         return { ok: false, reason: 'invalid_event' }
       }
 
-      points += Math.round(BONUS_POINTS[event.bonus] * lastNote.multiplier)
-      lastNote = { ...lastNote, bonuses: [...lastNote.bonuses, event.bonus] }
+      points += Math.round(BONUS_POINTS[bonusKind] * lastNote.multiplier)
+      lastNote = { ...lastNote, bonuses: [...lastNote.bonuses, bonusKind] }
     } else {
       // Resolved before the spacing rule, so settings this app cannot produce
       // read as the malformed event they are rather than as a mistimed one.

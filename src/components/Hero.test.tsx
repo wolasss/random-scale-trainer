@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { Hero } from './Hero'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { TOUCH_INPUT_QUERY } from '../hooks/useHardwareKeyboard'
@@ -22,10 +22,6 @@ const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
   )
 
 describe('Hero coaching line', () => {
-  afterEach(() => {
-    Reflect.deleteProperty(window, 'matchMedia')
-  })
-
   it('names the Space shortcut on a browser with no touch input', () => {
     installTouchInput(false)
 

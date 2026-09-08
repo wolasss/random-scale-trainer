@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { TopBar } from './TopBar'
 import { TOUCH_INPUT_QUERY } from '../hooks/useHardwareKeyboard'
 import { installMatchMedia } from '../test/matchMedia'
@@ -11,10 +11,6 @@ const installTouchInput = (touchInput: boolean) => installMatchMedia({ [TOUCH_IN
 const renderTopBar = () => render(<TopBar theme="dark" onToggleTheme={() => undefined} />)
 
 describe('TopBar key hints', () => {
-  afterEach(() => {
-    Reflect.deleteProperty(window, 'matchMedia')
-  })
-
   it('lists the shortcuts on a browser with no touch input', () => {
     installTouchInput(false)
 

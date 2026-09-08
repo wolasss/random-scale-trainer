@@ -36,7 +36,6 @@ const SAFARI_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Apple
 describe('useInstallPrompt', () => {
   afterEach(() => {
     setUserAgent(CHROME_ANDROID)
-    window.localStorage.clear()
   })
 
   it('offers nothing until the browser says it can install', () => {

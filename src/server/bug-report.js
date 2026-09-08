@@ -79,7 +79,14 @@ const DESCRIPTION_CONTROL_CHARS = /(?![\t\n])[\p{Cc}\p{Cf}]/gu
 /** A stalled Turnstile or Mailgun must not pin a request handler indefinitely. */
 const OUTBOUND_TIMEOUT_MS = 10_000
 
-/** A token bucket over a bounded map; the scoreboard's, kept local to this module. */
+/**
+ * A token bucket over a bounded map; the scoreboard's, kept local to this module.
+ *
+ * @param {Map<string, { count: number, resetAt: number }>} buckets
+ * @param {string} key
+ * @param {{ limit: number, windowMs: number }} limit
+ * @param {number} now
+ */
 const takeToken = (buckets, key, { limit, windowMs }, now) => {
   const bucket = buckets.get(key)
   if (bucket === undefined || now >= bucket.resetAt) {
@@ -102,7 +109,12 @@ const takeToken = (buckets, key, { limit, windowMs }, now) => {
   return true
 }
 
-/** Drops what has expired, a bounded slice per request. */
+/**
+ * Drops what has expired, a bounded slice per request.
+ *
+ * @param {Map<string, { count: number, resetAt: number }>} buckets
+ * @param {number} now
+ */
 const sweep = (buckets, now) => {
   let budget = SWEEP_BUDGET
   for (const [key, bucket] of buckets) {
@@ -122,6 +134,8 @@ const sweep = (buckets, now) => {
  * Everything optional is normalised to '' rather than left undefined, so the
  * mail formatter never has to ask which of the three shapes an absent field
  * arrived in.
+ *
+ * @param {unknown} raw
  */
 export const parseReport = (raw) => {
   let payload
@@ -179,6 +193,8 @@ const NOT_FOUND = { status: 404, json: { error: 'not_found' } }
  * `siteKey` is public by design — it is the half of the Turnstile pair the
  * widget renders with — and it is served from here rather than baked into the
  * bundle so the published image stays configurable by environment alone.
+ *
+ * @param {import('./bug-report.js').BugReportHandlerOptions} [options]
  */
 export const createBugReportHandler = ({ sendMail = null, verifyCaptcha = null, siteKey = '', now = Date.now } = {}) => {
   const buckets = new Map()
@@ -251,6 +267,9 @@ export const createBugReportHandler = ({ sendMail = null, verifyCaptcha = null, 
  *
  * Answers null when there is no secret to check against — which is what makes
  * the whole feature opt-in rather than half-working.
+ *
+ * @param {import('./bug-report.js').BugReportEnv} [env]
+ * @param {typeof fetch} [fetchImpl]
  */
 export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
   const secret = typeof env.TURNSTILE_SECRET_KEY === 'string' ? env.TURNSTILE_SECRET_KEY.trim() : ''
@@ -258,6 +277,10 @@ export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
     return null
   }
 
+  /**
+   * @param {string} token
+   * @param {string} client
+   */
   return async (token, client) => {
     try {
       const form = new URLSearchParams({ secret, response: String(token ?? '') })
@@ -278,14 +301,22 @@ export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
 
       const payload = await response.json()
 
-      return payload !== null && typeof payload === 'object' && payload.success === true
+      return (
+        payload !== null &&
+        typeof payload === 'object' &&
+        /** @type {Record<string, unknown>} */ (payload).success === true
+      )
     } catch {
       return false
     }
   }
 }
 
-/** What lands in the inbox. One report, and the little that is known about it. */
+/**
+ * What lands in the inbox. One report, and the little that is known about it.
+ *
+ * @param {import('./bug-report.js').BugReport} report
+ */
 const formatReport = ({ description, email, version, client, at }) =>
   [
     description,
@@ -303,6 +334,9 @@ const formatReport = ({ description, email, version, client, at }) =>
  * Null without a key and a domain, for the same reason the verifier is: a route
  * that would accept a report and drop it is worse than one that says it is not
  * set up. The key is read once, here, and never logged or echoed.
+ *
+ * @param {import('./bug-report.js').BugReportEnv} [env]
+ * @param {typeof fetch} [fetchImpl]
  */
 export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
   const apiKey = typeof env.MAILGUN_API_KEY === 'string' ? env.MAILGUN_API_KEY.trim() : ''
@@ -320,6 +354,7 @@ export const createMailgunSender = (env = {}, fetchImpl = fetch) => {
   const to = typeof env.BUG_REPORT_TO === 'string' && env.BUG_REPORT_TO !== '' ? env.BUG_REPORT_TO : `bugs@${domain}`
   const authorization = `Basic ${Buffer.from(`api:${apiKey}`, 'utf8').toString('base64')}`
 
+  /** @param {import('./bug-report.js').BugReport} report */
   return async (report) => {
     try {
       // multipart, which is what /messages takes; fetch writes the boundary

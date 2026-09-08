@@ -29,47 +29,8 @@ vi.mock('./lib/audio/pitch', async (importOriginal) => ({
   detectPitch: vi.fn(() => null),
 }))
 
-vi.mock('./lib/audio/engine', () => ({
-  AudioEngine: class FakeAudioEngine {
-    context = {
-      sampleRate: 44100,
-      state: 'running',
-      async resume() {},
-      addEventListener() {},
-      removeEventListener() {},
-      createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
-      createAnalyser: () => ({
-        fftSize: 0,
-        smoothingTimeConstant: 1,
-        getFloatTimeDomainData() {},
-        connect() {},
-        disconnect() {},
-      }),
-    }
-    async ensureContext() {
-      return this.context
-    }
-    getContext() {
-      return this.context
-    }
-    async loadNoteBuffers() {}
-    hasBuffers() {
-      return true
-    }
-    getCurrentTime() {
-      return performance.now() / 1000
-    }
-    isWithinCue() {
-      return false
-    }
-    getCueEndForBeat() {
-      return null
-    }
-    playClickAt() {}
-    playNoteAt() {}
-    playSessionEndChime() {}
-    stopScheduledSounds() {}
-  },
+vi.mock('./lib/audio/engine', async () => ({
+  AudioEngine: (await import('./test/fakeAudioEngine')).FakeAudioEngine,
 }))
 
 const NICKNAME = 'Ada'

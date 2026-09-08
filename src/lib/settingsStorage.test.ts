@@ -39,12 +39,19 @@ describe('initSettings', () => {
   it('keeps the default-on booleans on when garbage is stored', () => {
     window.localStorage.setItem(STORAGE_KEYS.continuousMode, '1')
     window.localStorage.setItem(STORAGE_KEYS.countIn, 'off')
+    window.localStorage.setItem(STORAGE_KEYS.speakNotes, 'off')
     window.localStorage.setItem(STORAGE_KEYS.endSound, '1')
 
     const settings = initSettings()
     expect(settings.continuousMode).toBe(true)
     expect(settings.countInEnabled).toBe(true)
+    expect(settings.speakNotes).toBe(true)
     expect(settings.endSoundEnabled).toBe(true)
+  })
+
+  it('reads back a stored false for speakNotes', () => {
+    window.localStorage.setItem(STORAGE_KEYS.speakNotes, 'false')
+    expect(initSettings().speakNotes).toBe(false)
   })
 
   it('flips the default-off booleans on only from a literal true', () => {
@@ -67,6 +74,24 @@ describe('initSettings', () => {
     expect(settings.speedRampMode).toBe(false)
     expect(settings.showFretboard).toBe(false)
     expect(settings.micEnabled).toBe(false)
+  })
+
+  it('reads back a stored tuning id', () => {
+    window.localStorage.setItem(STORAGE_KEYS.tuning, 'dadgad')
+    expect(initSettings().tuning).toBe('dadgad')
+  })
+
+  it.each(['DADGAD', 'drop-c', ''])('rejects %j as a tuning and draws the standard neck', (raw) => {
+    window.localStorage.setItem(STORAGE_KEYS.tuning, raw)
+    expect(initSettings().tuning).toBe('standard')
+  })
+
+  it('flips the neck left-handed only from a literal true', () => {
+    window.localStorage.setItem(STORAGE_KEYS.leftHanded, 'true')
+    expect(initSettings().leftHanded).toBe(true)
+
+    window.localStorage.setItem(STORAGE_KEYS.leftHanded, 'yes')
+    expect(initSettings().leftHanded).toBe(false)
   })
 
   it('clamps an out-of-range finite bpm', () => {
@@ -140,6 +165,7 @@ describe('writeChangedSettings', () => {
     STORAGE_KEYS.rampTarget,
     STORAGE_KEYS.endSound,
     STORAGE_KEYS.countIn,
+    STORAGE_KEYS.speakNotes,
     STORAGE_KEYS.beatsPerNote,
     STORAGE_KEYS.spelling,
     STORAGE_KEYS.notePool,
