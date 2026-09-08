@@ -84,6 +84,8 @@ export const STORAGE_KEYS = {
   rampTarget: 'fretboard-ramp-target',
   endSound: 'fretboard-end-sound',
   countIn: 'fretboard-count-in',
+  // Off leaves the called note on screen only, never spoken aloud.
+  speakNotes: 'fretboard-speak-notes',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
   // Pitch classes as comma-joined indices — '0,4,7'. Rejected as a whole
