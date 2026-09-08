@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { useMediaQuery } from './useMediaQuery'
 
 const QUERY = '(orientation: landscape)'
@@ -37,11 +37,6 @@ const createList = (initial: boolean) => {
 }
 
 describe('useMediaQuery', () => {
-  afterEach(() => {
-    // Drops the own property, leaving jsdom's implementation in place.
-    Reflect.deleteProperty(window, 'matchMedia')
-  })
-
   it('reports false in a browser with no matchMedia', () => {
     installMatchMedia(undefined as unknown as () => unknown)
 
