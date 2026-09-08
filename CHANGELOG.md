@@ -1,3 +1,17 @@
+# [1.31.0](https://github.com/wolasss/random-scale-trainer/compare/v1.30.3...v1.31.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* **tempo:** acknowledge the first tap-tempo tap instead of looking unresponsive ([#249](https://github.com/wolasss/random-scale-trainer/issues/249)) ([67ad6a2](https://github.com/wolasss/random-scale-trainer/commit/67ad6a210b95da14ab241ec97e9e42b3de321297))
+
+
+### Features
+
+* **fretboard:** alternate tunings and a left-handed neck ([#250](https://github.com/wolasss/random-scale-trainer/issues/250)) ([c551d16](https://github.com/wolasss/random-scale-trainer/commit/c551d16ff703fedeab0c565eb70e67169e9608cf))
+* **practice:** add a switch to stop saying the note aloud ([#241](https://github.com/wolasss/random-scale-trainer/issues/241)) ([c6dc88c](https://github.com/wolasss/random-scale-trainer/commit/c6dc88c7c4716d964f750cb2b748a4ce5c46517d))
+* **routines:** rename a saved setup or workout ([#242](https://github.com/wolasss/random-scale-trainer/issues/242)) ([cb1de9e](https://github.com/wolasss/random-scale-trainer/commit/cb1de9e8855341783fbcd7c3e3f4fe1d6911becf))
+
 ## [1.30.3](https://github.com/wolasss/random-scale-trainer/compare/v1.30.2...v1.30.3) (2026-09-08)
 
 
