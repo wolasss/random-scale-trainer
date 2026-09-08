@@ -71,6 +71,7 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { usePersistentStorage } from './hooks/usePersistentStorage'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
@@ -264,6 +265,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const boardRailFits = useMediaQuery(SCOREBOARD_RAIL_QUERY)
   const boardLayout: ScoreboardLayout = !display.stage && boardRailFits ? 'rail' : 'fold'
   const serviceWorker = useServiceWorker()
+  // An evicted origin loses both the offline shell and the practice log.
+  usePersistentStorage()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
 
