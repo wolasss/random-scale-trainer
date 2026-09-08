@@ -1,6 +1,8 @@
 /**
  * The fake engine accepts every scheduled sound and reports the faked
- * performance clock, so beats become due as the fake timers advance.
+ * performance clock, so beats become due as the fake timers advance. It also
+ * carries the microphone surface (a context to hang the analyser off, plus
+ * the cue-interval queries) that suites exercising the mic path need.
  *
  * `vi.mock` factories are hoisted above imports, so reach this module through
  * a dynamic import inside the factory rather than a top-level one:
@@ -25,9 +27,34 @@ export const soundLog = {
   },
 }
 
+/**
+ * The slice of `AudioContext` that `src/lib/audio/mic.ts`'s `createMicCapture`
+ * touches. jsdom has no `window.AudioContext`, so the capture falls back to
+ * the app's own context and hangs its analyser off it.
+ */
+export const createFakeAudioContext = () => ({
+  sampleRate: 44100,
+  state: 'running',
+  async resume() {},
+  addEventListener() {},
+  removeEventListener() {},
+  createMediaStreamSource: () => ({ connect() {}, disconnect() {} }),
+  createAnalyser: () => ({
+    fftSize: 0,
+    smoothingTimeConstant: 1,
+    getFloatTimeDomainData() {},
+    connect() {},
+    disconnect() {},
+  }),
+})
+
 export class FakeAudioEngine {
+  context = createFakeAudioContext()
   async ensureContext() {
-    return {}
+    return this.context
+  }
+  getContext() {
+    return this.context
   }
   async loadNoteBuffers() {}
   hasBuffers() {
@@ -35,6 +62,12 @@ export class FakeAudioEngine {
   }
   getCurrentTime() {
     return performance.now() / 1000
+  }
+  isWithinCue() {
+    return false
+  }
+  getCueEndForBeat() {
+    return null
   }
   playClickAt(time: number) {
     if (recording) {
