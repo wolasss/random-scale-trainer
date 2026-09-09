@@ -76,7 +76,11 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
 
       if (event.code === 'Space') {
         event.preventDefault()
-        handlersRef.current.onSpace()
+        // A held Space is one intent, not N toggles — without this guard the
+        // final play/pause state would depend on the OS repeat-count parity.
+        if (!event.repeat) {
+          handlersRef.current.onSpace()
+        }
         return
       }
 
@@ -106,7 +110,9 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
 
       if (event.code === 'KeyR') {
         event.preventDefault()
-        handlersRef.current.onReset()
+        if (!event.repeat) {
+          handlersRef.current.onReset()
+        }
       }
     }
 
