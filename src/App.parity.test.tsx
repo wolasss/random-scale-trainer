@@ -76,20 +76,17 @@ const toggle = async () => {
 }
 
 /**
- * The nickname prompt is a lazy chunk, and its dynamic import resolves over
- * real macrotasks that `vi.useFakeTimers` doesn't fake — a bare
- * `await act(async () => {})` isn't enough to see it mount, so this pumps a
- * few real ticks instead.
+ * The nickname prompt is a lazy chunk, and under `vi.useFakeTimers` nothing the
+ * test can spin hands the module loader its real I/O back dependably — a loop
+ * of immediates keeps the poll phase from blocking, so a cold transform can
+ * outrun it and the wait gives up without saying so. So the chunk is loaded
+ * here, before the render that needs it: React.lazy then finds it cached and
+ * the prompt is on screen after the first act flush.
  */
-const flushLazyMount = async () => {
-  for (let hop = 0; hop < 40; hop += 1) {
-    await act(async () => {
-      await new Promise((resolve) => setImmediate(resolve))
-    })
-    if (screen.queryByTestId('nickname-input')) {
-      return
-    }
-  }
+const renderChallenge = async () => {
+  await import('./components/NicknamePrompt')
+  render(<App />)
+  await act(async () => {})
 }
 
 const play = (pitchClass: number) => {
@@ -162,8 +159,7 @@ afterEach(() => {
 describe('the board and the readout', () => {
   it('reach the same total over a session played at a priced difficulty', async () => {
     const store = installServer()
-    render(<App />)
-    await flushLazyMount()
+    await renderChallenge()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {
@@ -193,8 +189,7 @@ describe('the board and the readout', () => {
    */
   it('reach the same total across a milestone', async () => {
     const store = installServer()
-    render(<App />)
-    await flushLazyMount()
+    await renderChallenge()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {
@@ -224,8 +219,7 @@ describe('the board and the readout', () => {
 
   it('reach the same total again when the tempo moves under the session', async () => {
     const store = installServer()
-    render(<App />)
-    await flushLazyMount()
+    await renderChallenge()
 
     fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
     await act(async () => {
