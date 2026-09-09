@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { STORAGE_KEYS } from './constants'
 import { dayKey, shiftDays, type PracticeHistory } from './lib/history'
+import { withBlockedStorage } from './test/blockedStorage'
 import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
 vi.mock('./lib/audio/engine', async () => ({
@@ -243,6 +244,48 @@ describe('practice log', () => {
         Object.defineProperty(URL, 'createObjectURL', createDescriptor)
       }
     }
+  })
+
+  it('writes out the session the store refused to save', async () => {
+    const blobs: Blob[] = []
+    const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: (blob: Blob) => {
+        blobs.push(blob)
+
+        return 'blob:practice-log'
+      },
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    // Private mode: nothing this session practises will ever reach the store.
+    const restoreStorage = withBlockedStorage()
+    let backup: { days: PracticeHistory['days'] } | undefined
+
+    try {
+      render(<App />)
+      await practiceFor(12_000)
+
+      fireEvent.click(screen.getByTestId('practice-log-history'))
+      fireEvent.click(screen.getByTestId('history-export'))
+
+      expect(blobs).toHaveLength(1)
+      backup = JSON.parse(await blobs[0].text())
+    } finally {
+      restoreStorage()
+      click.mockRestore()
+      if (createDescriptor === undefined) {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      } else {
+        Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+      }
+    }
+
+    // The store has none of it — the backup is the only copy, so it has to be
+    // the log on screen rather than what was readable from storage.
+    expect(stored()).toBeNull()
+    expect(backup?.days[today()]?.sec).toBeGreaterThanOrEqual(10)
   })
 
   it('does not subtract from the log when the session timer is reset', async () => {

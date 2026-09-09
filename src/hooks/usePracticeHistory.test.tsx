@@ -341,6 +341,47 @@ describe('usePracticeHistory', () => {
     }
   })
 
+  it('hands back the seconds a blocked store refused, rather than an empty log', () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    const restore = withBlockedStorage()
+    let snapshot: PracticeHistory | undefined
+    try {
+      // Under a flush, so only the snapshot's own commit can bank it.
+      act(() => {
+        result.current.trackElapsed(6_000)
+      })
+      act(() => {
+        snapshot = result.current.snapshot()
+      })
+
+      expect(result.current.persisted).toBe(false)
+    } finally {
+      restore()
+    }
+
+    // Nothing reached the store, but the snapshot still has the session.
+    expect(stored()).toBeNull()
+    expect(snapshot?.days[today()]?.sec).toBe(6)
+  })
+
+  it("keeps another tab's stored days in the snapshot", () => {
+    const { result } = renderHook(() => usePracticeHistory())
+
+    // The other tab flushed after this one read the store at mount.
+    foreignLog(300, 40)
+    act(() => {
+      result.current.trackElapsed(4_000)
+    })
+
+    let snapshot: PracticeHistory | undefined
+    act(() => {
+      snapshot = result.current.snapshot()
+    })
+
+    expect(snapshot?.days[today()]).toEqual({ sec: 304, notes: 40 })
+  })
+
   it('credits seconds banked after midnight to the new day', () => {
     vi.setSystemTime(new Date('2026-06-15T23:59:40'))
     const { result } = renderHook(() => usePracticeHistory())

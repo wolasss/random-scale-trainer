@@ -10,7 +10,7 @@ type HeroProps = {
   poolSize: number
   ringRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
-  message?: string
+  message?: string | undefined
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
   idlePreview?: IdlePreviewNote | null
   /**

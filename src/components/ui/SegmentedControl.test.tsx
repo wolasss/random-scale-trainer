@@ -105,7 +105,7 @@ describe('SegmentedControl', () => {
 
   it('steps a vertical-feeling group with ArrowDown and ArrowUp', () => {
     render(<SessionGoalGroup />)
-    const [five, ten, twenty] = options('session-goal')
+    const [five, ten, twenty, thirty] = options('session-goal')
 
     ten.focus()
     press('ArrowDown')
@@ -115,13 +115,18 @@ describe('SegmentedControl', () => {
 
     press('ArrowDown')
 
+    expect(thirty).toHaveFocus()
+    expect(thirty).toBeChecked()
+
+    press('ArrowDown')
+
     expect(five).toHaveFocus()
     expect(five).toBeChecked()
 
     press('ArrowUp')
 
-    expect(twenty).toHaveFocus()
-    expect(twenty).toBeChecked()
+    expect(thirty).toHaveFocus()
+    expect(thirty).toBeChecked()
   })
 
   it('leaves other keys to whoever else is listening', () => {

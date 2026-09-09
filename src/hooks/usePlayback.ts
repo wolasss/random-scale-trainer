@@ -24,9 +24,9 @@ export type UsePlaybackOptions = {
   onBeat?: (event: BeatEvent) => void
   /** Injectable for tests; defaults to a real AudioEngine. */
   audio?: PlaybackAudioPort
-  timers?: PlaybackTimers
-  frame?: FrameScheduler
-  random?: () => number
+  timers?: PlaybackTimers | undefined
+  frame?: FrameScheduler | undefined
+  random?: (() => number) | undefined
 }
 
 /**

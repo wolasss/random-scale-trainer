@@ -46,7 +46,7 @@ export const MIN_BLOCK_FLEX_SECONDS = 90
  */
 export const SCOREBOARD_RAIL_QUERY = '(min-width: 1024px)'
 
-export const SESSION_GOAL_OPTIONS = [5, 10, 20] as const
+export const SESSION_GOAL_OPTIONS = [5, 10, 20, 30] as const
 export const DEFAULT_SESSION_GOAL_MIN = 10
 
 /** Look-ahead scheduler tuning: the tick wakes every 25ms and keeps ~250ms of
@@ -84,6 +84,8 @@ export const STORAGE_KEYS = {
   rampTarget: 'fretboard-ramp-target',
   endSound: 'fretboard-end-sound',
   countIn: 'fretboard-count-in',
+  // Off leaves the called note on screen only, never spoken aloud.
+  speakNotes: 'fretboard-speak-notes',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
   // Pitch classes as comma-joined indices — '0,4,7'. Rejected as a whole
@@ -101,6 +103,11 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Which tuning the neck is drawn in, as a tuning id. An id that isn't one of
+  // the five we ship is rejected and the map is drawn in standard tuning.
+  tuning: 'fretboard-tuning',
+  // A left-handed neck, off unless it literally reads 'true'.
+  leftHanded: 'fretboard-left-handed',
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',

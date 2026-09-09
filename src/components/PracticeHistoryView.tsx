@@ -30,9 +30,9 @@ type PracticeHistoryViewProps = {
    * live through the first ten seconds of a first-ever session, when
    * `history` is still empty but there is practice waiting in refs.
    */
-  hasPendingPractice?: () => boolean
+  hasPendingPractice?: (() => boolean) | undefined
   /** Injectable for tests; otherwise pinned to the real calendar. */
-  today?: Date
+  today?: Date | undefined
 }
 
 const IMPORT_ERROR = "That file doesn't look like a practice-log backup — nothing was changed."

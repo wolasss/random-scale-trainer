@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { dayKey, readHistory, serializeBackup } from './lib/history'
 import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
+import { soundLog } from './test/fakeAudioEngine'
 import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
 vi.mock('./lib/audio/engine', async () => ({
@@ -377,15 +378,19 @@ describe('App integration', () => {
     expect(window.localStorage.getItem('fretboard-beats-per-note')).toBe('1')
   })
 
-  it('averages tap-tempo taps into the BPM', () => {
+  it('averages tap-tempo taps into the BPM', async () => {
     render(<App />)
 
     // 500ms between taps → 120 BPM; performance.now is faked, so advance it.
     const tap = () => fireEvent.click(screen.getByTestId('tap-tempo'))
     tap()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
     tap()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
     tap()
 
     expect(screen.getByTestId('bpm-value')).toHaveTextContent('120')
@@ -533,6 +538,22 @@ describe('App integration', () => {
     )
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Resume')
     expect(screen.getByTestId('now-playing').className).toContain('paused')
+  })
+
+  it('leaves the note on screen but silent when "Say the note" is stored off', async () => {
+    window.localStorage.setItem('fretboard-speak-notes', 'false')
+    soundLog.record()
+    render(<App />)
+
+    fireEvent.click(screen.getByTestId('play-toggle'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 2_000)
+    })
+
+    expect(soundLog.sounds.some((sound) => sound.kind === 'click')).toBe(true)
+    expect(soundLog.sounds.some((sound) => sound.kind === 'note')).toBe(false)
+    expect(screen.getByTestId('now-playing').className).toContain('active')
+    expect(screen.getByTestId('now-playing').textContent).toMatch(NOTE_PATTERN)
   })
 
   it('tracks the session goal, progress, and stats', async () => {

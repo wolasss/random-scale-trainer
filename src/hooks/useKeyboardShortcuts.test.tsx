@@ -238,10 +238,6 @@ describe('behind an open sheet', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    Reflect.deleteProperty(window, 'matchMedia')
-    document.documentElement.removeAttribute('data-stage')
-    document.documentElement.removeAttribute('data-theme')
-    window.localStorage.clear()
   })
 
   it('leaves the transport and the session alone once focus has dropped to the body', () => {

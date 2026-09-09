@@ -18,10 +18,9 @@ import {
   tempoBonus,
   type Bonus,
   type BonusKind,
-  type DifficultyInputs,
-  type PracticeMilestoneKind,
   type NoteVerdict,
   type NoteWindow,
+  type ScoredEvent,
   type Tally,
 } from '../lib/scoring'
 import type { HeardPitch } from './useMicPitch'
@@ -113,23 +112,7 @@ const createStore = (): ScoringStore => ({
   listeners: new Set(),
 })
 
-/**
- * One thing that landed, in the shape the shared board reports it in.
- *
- * `at` is the audio time — in seconds, on the same clock as a beat — of the note
- * this is about, which is the moment the *app* called it and not the moment a
- * callback happened to run. Response times vary by a couple of hundred
- * milliseconds either way, and at the fastest tempo the app offers two notes are
- * only 250 ms apart, so stamping these when they are observed would report
- * ordinary playing as two notes closer together than the app can possibly call
- * them. The call is the one timestamp with no jitter in it at all.
- */
-export type ScoredEvent =
-  /** A hit carries what it was called under, because that is what prices it. */
-  | { kind: 'hit'; at: number; difficulty: DifficultyInputs | null }
-  | { kind: 'miss'; at: number }
-  | { kind: 'bonus'; bonus: 'octaves' | 'tempo'; at: number }
-  | { kind: 'milestone'; milestone: PracticeMilestoneKind; at: number }
+export type { ScoredEvent } from '../lib/scoring'
 
 export type UseNoteScoringOptions = {
   engine: ScoringEngine

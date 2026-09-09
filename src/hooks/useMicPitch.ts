@@ -167,7 +167,13 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
     let capture: MicCapture | null = null
     let pollId: number | undefined
     let unwatch: (() => void) | undefined
-    let reacquired = false
+    /**
+     * A reacquire that has not yet read a frame off its new capture. It is
+     * cleared by the first poll, so this counts *consecutive* failures: a
+     * stream that dies before ever polling is the spin the guard below stops,
+     * while one that worked for a while and then dropped gets a fresh recovery.
+     */
+    let unprovenReacquire = false
     // Fresh per capture, reacquires included: a new microphone is a new room
     // to measure — `open` replaces it alongside the capture it belongs to.
     let gate = createSilenceGate()
@@ -189,6 +195,10 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
       if (capture === null) {
         return
       }
+
+      // A capture that delivers a frame is a working one, whatever it took to
+      // get here: from this point on the next 'ended' is a drop of its own.
+      unprovenReacquire = false
 
       // The statechange watchers cover a context that changes state; this
       // covers one that stays parked with its first resume refused — iOS can
@@ -282,12 +292,14 @@ export function useMicPitch({ engine, enabled, running, callId }: UseMicPitchOpt
         }
 
         teardown()
-        if (reacquired) {
+        // Only a stream that died without ever polling gets here — a mic that
+        // cannot stay open long enough to be read is not worth reopening.
+        if (unprovenReacquire) {
           setStatus('denied')
           return
         }
 
-        reacquired = true
+        unprovenReacquire = true
         // The mic is gone until the reacquire settles: leaving 'listening' up
         // would keep scoring live against a stream that no longer exists.
         setStatus('idle')

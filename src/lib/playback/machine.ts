@@ -85,9 +85,9 @@ export type PlaybackMachineDeps = {
   onSessionStart(): void
   /** Fired whenever playback stops counting practice time (pause or stop). */
   onSessionPause(): void
-  timers?: PlaybackTimers
-  frame?: FrameScheduler
-  random?: () => number
+  timers?: PlaybackTimers | undefined
+  frame?: FrameScheduler | undefined
+  random?: (() => number) | undefined
 }
 
 export type PlaybackMachine = {

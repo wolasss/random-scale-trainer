@@ -3,7 +3,7 @@
  * between four of them is most of what this file is.
  *
  * `useSettings` holds the practice settings, and they feed both `usePlayback`
- * (with `speakNotes` forced on) and `useRoutine`. There are two ways to write
+ * and `useRoutine`. There are two ways to write
  * to them. `userDispatch` takes the edits the user makes to the settings a
  * routine block owns — tempo, beats per note, the note pool, spelling, the
  * ramp — so the routine can tell someone drifting off a block from its own
@@ -72,6 +72,7 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useHiddenTimeout } from './hooks/useHiddenTimeout'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
+import { usePersistentStorage } from './hooks/usePersistentStorage'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
 import { describeSetup, readDayStanding, summarizeSession, type SessionSummary } from './lib/session'
@@ -161,8 +162,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    // The spoken note is always on; count-in and the rest ride the user's settings.
-    settings: { ...settings, speakNotes: true },
+    settings,
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -365,6 +365,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const boardRailFits = useMediaQuery(SCOREBOARD_RAIL_QUERY)
   const boardLayout: ScoreboardLayout = !display.stage && boardRailFits ? 'rail' : 'fold'
   const serviceWorker = useServiceWorker()
+  // An evicted origin loses both the offline shell and the practice log.
+  usePersistentStorage()
   const installPrompt = useInstallPrompt(display.standalone)
   const [setupOpen, setSetupOpen] = useState(false)
 
@@ -571,6 +573,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
+      tuning={settings.tuning}
+      leftHanded={settings.leftHanded}
+      onTuning={(id) => dispatch({ type: 'setTuning', id })}
+      onLeftHanded={(leftHanded) => dispatch({ type: 'setLeftHanded', leftHanded })}
     />
   ) : null
 
@@ -578,15 +584,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
   )
 
-  // Both backup paths go through here rather than through the log's own hook,
-  // which holds up to ten seconds of practice in refs and rewrites storage on
-  // every commit. Exporting banks the pending seconds first, so the file is
-  // never short of the session that is running as it is written.
-  const getPracticeBackup = () => {
-    practiceHistory.commit()
-
-    return serializeBackup(readHistory(), new Date())
-  }
+  // Taken from the hook rather than from the store: it banks the pending
+  // seconds first, so the file is never short of the session that is running as
+  // it is written, and it hands back the log it is holding — which is the whole
+  // of it when the store is refusing writes, exactly when a backup is worth
+  // most.
+  const getPracticeBackup = () => serializeBackup(practiceHistory.snapshot(), new Date())
 
   // A restore merges into what is stored and then reloads: the hook reads
   // storage once, on mount, so anything short of a reload would be overwritten

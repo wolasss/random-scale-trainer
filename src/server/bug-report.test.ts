@@ -46,7 +46,7 @@ const post = (
     pathname: BUG_REPORT_PREFIX,
     body: typeof body === 'string' ? body : JSON.stringify(body),
     client,
-    now,
+    ...(now === undefined ? {} : { now }),
   })
 
 const REPORT = { description: 'The metronome drifts after a tempo ramp.', token: 'solved-token', version: '1.26.1' }

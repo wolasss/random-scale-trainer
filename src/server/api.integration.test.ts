@@ -81,7 +81,7 @@ const request = async (
       ...(forwardedFor === undefined ? {} : { 'X-Forwarded-For': forwardedFor }),
       ...headers,
     },
-    body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+    ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
   })
 
   const raw = await response.text()
