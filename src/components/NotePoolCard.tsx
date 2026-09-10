@@ -161,7 +161,10 @@ export function NotePoolCard({
               aria-pressed={pool.includes(pc)}
               aria-disabled={locked || undefined}
               title={locked ? 'The last note stays selected — add another to remove this one' : undefined}
-              onClick={() => onTogglePc(pc)}
+              onClick={() => {
+                // aria-disabled keeps the chip focusable for its title but blocks nothing on its own.
+                if (!locked) onTogglePc(pc)
+              }}
             >
               {chipLabel(pc)}
             </button>

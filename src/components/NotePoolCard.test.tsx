@@ -112,6 +112,16 @@ describe('NotePoolCard', () => {
     expect(unselected).not.toHaveAttribute('aria-disabled')
     expect(unselected).not.toHaveAttribute('title')
   })
+
+  it('does not toggle the locked chip', () => {
+    const { props } = renderCard({ pool: [0], spelling: 'sharp' })
+
+    fireEvent.click(screen.getByTestId('note-chip-0'))
+    expect(props.onTogglePc).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('note-chip-4'))
+    expect(props.onTogglePc).toHaveBeenCalledWith(4)
+  })
 })
 
 describe('NotePoolCard saved presets', () => {
