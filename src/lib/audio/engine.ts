@@ -133,6 +133,8 @@ export class AudioEngine {
   private scheduledNodes = new Set<AudioScheduledSourceNode>()
   /** The end chime is tracked apart so a stop can spare it — see below. */
   private chimeNodes = new Set<AudioScheduledSourceNode>()
+  /** The chime's own cue, kept apart so a spared teardown can re-record it after pruning. */
+  private chimeCue: { start: number; end: number } | null = null
   /**
    * When each cue the app plays occupies the room. Kept as intervals rather
    * than a running "last cue" because the scheduler works up to SCHEDULE_AHEAD_S
@@ -268,12 +270,21 @@ export class AudioEngine {
     this.stopTracked(this.scheduledNodes)
     if (!keepSessionEndChime) {
       this.stopTracked(this.chimeNodes)
+      this.chimeCue = null
     }
+
+    const now = this.getCurrentTime()
 
     // A cue that was cancelled before it sounded never occupied the room, so it
     // must not go on suppressing the microphone — otherwise pressing stop would
-    // deafen the app for a phantom second of look-ahead.
-    this.cueLog.pruneCancelled(this.getCurrentTime())
+    // deafen the app for a phantom second of look-ahead. The chime this teardown
+    // spares is the one exception: it is still due to sound, so the prune below
+    // would otherwise take its cue away from under it.
+    this.cueLog.pruneCancelled(now)
+
+    if (keepSessionEndChime && this.chimeCue && this.chimeCue.start > now && this.chimeNodes.size > 0) {
+      this.recordCue(this.chimeCue.start, this.chimeCue.end, NOTE_DECAY_S)
+    }
   }
 
   /**
@@ -349,8 +360,9 @@ export class AudioEngine {
 
     const startTime = at ?? context.currentTime
 
-    const playTone = (frequency: number, offset: number, duration: number, peak: number) => {
+    const playTone = (frequency: number, offset: number, duration: number, peak: number): number => {
       const toneStart = startTime + offset
+      const stopAt = toneStart + duration + 0.03
 
       this.scheduleTone({
         type: 'triangle',
@@ -359,7 +371,7 @@ export class AudioEngine {
         attack: toneStart + 0.012,
         peak,
         decayEnd: toneStart + duration,
-        stopAt: toneStart + duration + 0.03,
+        stopAt,
         nodes: this.chimeNodes,
       })
       // An octave above and quieter, fading first: the bell on top of the body.
@@ -373,10 +385,16 @@ export class AudioEngine {
         stopAt: toneStart + duration * 0.9 + 0.03,
         nodes: this.chimeNodes,
       })
+
+      return stopAt
     }
 
-    playTone(783.99, 0, 0.24, 0.11)
-    playTone(523.25, 0.19, 0.34, 0.13)
+    // The chime is the app's own voice; it rings on well after this call
+    // returns, over what may still be the last note's open scoring window.
+    this.chimeCue = null
+    const end = Math.max(playTone(783.99, 0, 0.24, 0.11), playTone(523.25, 0.19, 0.34, 0.13))
+    this.chimeCue = { start: startTime, end }
+    this.recordCue(startTime, end, NOTE_DECAY_S)
   }
 
   async loadNoteBuffers(): Promise<void> {
