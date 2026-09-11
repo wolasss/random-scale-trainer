@@ -735,4 +735,54 @@ describe('AudioEngine cue bookkeeping', () => {
     expect(engine.isWithinCue(1)).toBe(false)
     expect(engine.getCueEndForBeat(1)).toBeNull()
   })
+
+  it('records the session-end chime for as long as it rings', async () => {
+    const engine = await readyEngine()
+
+    engine.playSessionEndChime(5)
+
+    // Second tone runs from 5.19 to 5.19 + 0.34 + 0.03 = 5.56; decay carries
+    // it on to 5.56 + 0.15 = 5.71.
+    expect(engine.isWithinCue(5)).toBe(true)
+    expect(engine.isWithinCue(5.3)).toBe(true)
+    expect(engine.isWithinCue(5.55)).toBe(true)
+    expect(engine.isWithinCue(4.99)).toBe(false)
+    expect(engine.isWithinCue(5.8)).toBe(false)
+  })
+
+  it("keeps the chime's cue through the teardown that spares it", async () => {
+    const engine = await readyEngine()
+    context.currentTime = 4.99
+
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds(true)
+    expect(engine.isWithinCue(5.3)).toBe(true)
+
+    // The player pressing stop, still before the chime's start, cancels it.
+    engine.stopScheduledSounds()
+    expect(engine.isWithinCue(5.3)).toBe(false)
+  })
+
+  it("does not bring back an old chime's cue", async () => {
+    const engine = await readyEngine()
+
+    engine.playSessionEndChime(5)
+    for (const result of context.createOscillator.mock.results) {
+      result.value.onended?.()
+    }
+
+    context.currentTime = 1
+    engine.stopScheduledSounds(true)
+    expect(engine.isWithinCue(5.3)).toBe(false)
+  })
+
+  it('forgets a chime cancelled before it sounded', async () => {
+    const engine = await readyEngine()
+    context.currentTime = 1
+
+    engine.playSessionEndChime(5)
+    engine.stopScheduledSounds()
+
+    expect(engine.isWithinCue(5.3)).toBe(false)
+  })
 })
