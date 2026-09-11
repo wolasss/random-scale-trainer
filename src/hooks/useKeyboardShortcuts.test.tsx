@@ -64,6 +64,17 @@ describe('useKeyboardShortcuts', () => {
     expect(handlers.onTempoUp).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['Space', 'onSpace'],
+    ['KeyR', 'onReset'],
+  ] as const)('does not fire %s on auto-repeat from a held key', (code, handlerName) => {
+    renderHook(() => useKeyboardShortcuts(handlers))
+
+    const event = press(code, { repeat: true })
+    expect(handlers[handlerName]).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   it('ignores unrelated keys', () => {
     renderHook(() => useKeyboardShortcuts(handlers))
 
