@@ -1,3 +1,17 @@
+## [1.31.1](https://github.com/wolasss/random-scale-trainer/compare/v1.31.0...v1.31.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **audio:** stop the mic from hearing the session-end chime as a played note ([#259](https://github.com/wolasss/random-scale-trainer/issues/259)) ([8f827a8](https://github.com/wolasss/random-scale-trainer/commit/8f827a821986fd748d2c088983c0fdc4a42d5df0))
+* **playback:** settle or resume the transport when the audio session is interrupted ([#244](https://github.com/wolasss/random-scale-trainer/issues/244)) ([a7376ea](https://github.com/wolasss/random-scale-trainer/commit/a7376ea5fc655723b43bd70ba479d7a3ddb65e63))
+* **shortcuts:** ignore auto-repeat on the play/pause and reset keys ([#256](https://github.com/wolasss/random-scale-trainer/issues/256)) ([42dd7ff](https://github.com/wolasss/random-scale-trainer/commit/42dd7ff9731a09a053d6975b3b62bd80e3562570))
+
+
+### Performance Improvements
+
+* **pitch:** reuse the detector's scratch buffers across mic frames ([#254](https://github.com/wolasss/random-scale-trainer/issues/254)) ([f3284b8](https://github.com/wolasss/random-scale-trainer/commit/f3284b8847cd537e1a20d95f8923f58790acd884))
+
 # [1.31.0](https://github.com/wolasss/random-scale-trainer/compare/v1.30.3...v1.31.0) (2026-09-08)
 
 
