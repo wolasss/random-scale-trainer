@@ -268,6 +268,10 @@ export const createBugReportHandler = ({ sendMail = null, verifyCaptcha = null, 
  * Answers null when there is no secret to check against — which is what makes
  * the whole feature opt-in rather than half-working.
  *
+ * TURNSTILE_HOSTNAME, when set, pins the verdict to this deployment's hostname,
+ * as Cloudflare's siteverify docs recommend, so a token solved on another host
+ * the sitekey admits fails here. Unset keeps the old behaviour.
+ *
  * @param {import('./bug-report.js').BugReportEnv} [env]
  * @param {typeof fetch} [fetchImpl]
  */
@@ -276,6 +280,7 @@ export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
   if (secret === '') {
     return null
   }
+  const hostname = typeof env.TURNSTILE_HOSTNAME === 'string' ? env.TURNSTILE_HOSTNAME.trim().toLowerCase() : ''
 
   /**
    * @param {string} token
@@ -300,12 +305,20 @@ export const createTurnstileVerifier = (env = {}, fetchImpl = fetch) => {
       }
 
       const payload = await response.json()
+      if (payload === null || typeof payload !== 'object') {
+        return false
+      }
 
-      return (
-        payload !== null &&
-        typeof payload === 'object' &&
-        /** @type {Record<string, unknown>} */ (payload).success === true
-      )
+      const record = /** @type {Record<string, unknown>} */ (payload)
+      if (record.success !== true) {
+        return false
+      }
+
+      if (hostname !== '') {
+        return typeof record.hostname === 'string' && record.hostname.toLowerCase() === hostname
+      }
+
+      return true
     } catch {
       return false
     }
