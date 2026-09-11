@@ -40,6 +40,27 @@ const twiddles = (size: number) => {
 }
 
 /**
+ * The transform scratch, one pair a size. `detectPitch` asks for the same size
+ * every frame of a session, so after the first frame this hands back the same
+ * two arrays for as long as the mic is open rather than allocating 64 KB of
+ * Float64 per 50 ms poll. Keyed by exact size, like the twiddles above, because
+ * `fftInPlace` reads the transform length off `re.length` — one oversized
+ * buffer would need a `subarray` view per call, which is the allocation back.
+ */
+const transformCache = new Map<number, { re: Float64Array; im: Float64Array }>()
+
+const transformBuffers = (size: number) => {
+  const cached = transformCache.get(size)
+  if (cached) {
+    return cached
+  }
+
+  const buffers = { re: new Float64Array(size), im: new Float64Array(size) }
+  transformCache.set(size, buffers)
+  return buffers
+}
+
+/**
  * The forward DFT of `re + i·im`, in place, for a power-of-two length.
  *
  * Iterative Cooley-Tukey: the bit-reversal permutation first, so that the
@@ -130,11 +151,25 @@ const nextPowerOfTwo = (value: number) => {
  * The second transform is a forward one, not an inverse: a power spectrum is
  * real and even, so its forward transform is its inverse scaled by the
  * transform length, and dividing that back out is the whole difference.
+ *
+ * The transform scratch is shared between calls, so this is not re-entrant:
+ * one call has to finish before the next starts. What it *returns* is the
+ * caller's own — either `out`, or a fresh array when no `out` is passed — so a
+ * later call can never overwrite a result already handed back.
  */
-export const autocorrelate = (frame: Float32Array, maxLag: number): Float64Array => {
+export const autocorrelate = (frame: Float32Array, maxLag: number, out?: Float64Array): Float64Array => {
   const size = nextPowerOfTwo(frame.length + maxLag + 1)
-  const re = new Float64Array(size)
-  const im = new Float64Array(size)
+  if (out && out.length < maxLag + 1) {
+    throw new Error(`autocorrelate: out must hold ${maxLag + 1} lags, got ${out.length}`)
+  }
+
+  const { re, im } = transformBuffers(size)
+  // Both clears matter, and for the same reason the padding exists: `im` still
+  // holds the last call's transform output, and `re` past the frame still holds
+  // the last call's samples. Zeroing them is what keeps the correlation linear
+  // rather than wrapping the frame's tail onto its own long lags.
+  im.fill(0)
+  re.fill(0, frame.length)
   re.set(frame)
 
   fftInPlace(re, im)
@@ -146,7 +181,7 @@ export const autocorrelate = (frame: Float32Array, maxLag: number): Float64Array
 
   fftInPlace(re, im)
 
-  const correlation = new Float64Array(maxLag + 1)
+  const correlation = out ?? new Float64Array(maxLag + 1)
   for (let lag = 0; lag <= maxLag; lag += 1) {
     correlation[lag] = re[lag] / size
   }

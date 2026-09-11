@@ -191,6 +191,25 @@ const interpolatePeak = (nsdf: Float32Array, lag: number, maxLag: number): numbe
 }
 
 /**
+ * The detector's working memory, kept between calls. At the 50 ms mic poll a
+ * freshly allocated prefix sum, NSDF and correlation per frame is tens of
+ * kilobytes a second of garbage on the main thread while the user is playing,
+ * for arrays whose contents never outlive the call that filled them.
+ *
+ * That makes `detectPitch` not re-entrant: it has exactly one live caller (the
+ * poll in src/hooks/useMicPitch.ts), and a second concurrent call would read
+ * the first one's half-written scratch. Anything wanting real parallelism gets
+ * its own module instance — a worker or another thread — rather than sharing this.
+ *
+ * Each buffer grows to the largest frame asked for so far and is never shrunk;
+ * a longer one is harmless, because every loop below is bounded by the current
+ * frame's own `size` and `maxLag`.
+ */
+let prefixScratch = new Float64Array(0)
+let nsdfScratch = new Float32Array(0)
+let correlationScratch = new Float64Array(0)
+
+/**
  * The pitch of one frame of samples, or null when there isn't one — silence,
  * noise, a chord, or anything else the gates above reject.
  *
@@ -205,7 +224,14 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
   // buys both the silence gate and every window energy the NSDF loop below
   // needs, which is what keeps that loop O(1) per lag in its energy term.
   // Float64 because a Float32 prefix would round each partial sum.
-  const prefix = new Float64Array(size + 1)
+  if (prefixScratch.length < size + 1) {
+    prefixScratch = new Float64Array(size + 1)
+  }
+
+  const prefix = prefixScratch
+  // The loop below writes prefix[1..size] and never index 0, which a reused
+  // buffer still holds the last frame's value in.
+  prefix[0] = 0
   for (let index = 0; index < size; index += 1) {
     prefix[index + 1] = prefix[index] + frame[index] * frame[index]
   }
@@ -226,9 +252,20 @@ export function detectPitch(frame: Float32Array, sampleRate: number, silenceRms:
   // Every lag's correlation in two transforms rather than one pass per lag:
   // summing them directly costs a multiply-add per sample per lag, which on a
   // 50 ms poll is over a million of them on the main thread every frame.
-  const correlation = autocorrelate(frame, maxLag)
+  if (correlationScratch.length < maxLag + 1) {
+    correlationScratch = new Float64Array(maxLag + 1)
+  }
 
-  const nsdf = new Float32Array(maxLag + 1)
+  if (nsdfScratch.length < maxLag + 1) {
+    nsdfScratch = new Float32Array(maxLag + 1)
+  }
+
+  const correlation = autocorrelate(frame, maxLag, correlationScratch)
+
+  // A buffer kept from a longer frame is allowed to be longer than this one
+  // needs: every loop and helper below is bounded by `maxLag`, so the stale
+  // tail past it is never read.
+  const nsdf = nsdfScratch
   // From lag 1, not from minLag: the lobe walk below needs the zero-lag lobe's
   // real extent rather than a guess at where it has ended by minLag.
   for (let lag = 1; lag <= maxLag; lag += 1) {
