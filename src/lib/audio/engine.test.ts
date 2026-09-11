@@ -32,10 +32,24 @@ const createFakeBufferSource = () => ({
 })
 
 const createFakeContext = (state: AudioContextState = 'running') => {
+  const listeners = new Set<() => void>()
   const context = {
     state,
     currentTime: 0,
     destination: {},
+    addEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') listeners.add(listener)
+    }),
+    removeEventListener: vi.fn((type: string, listener: () => void) => {
+      if (type === 'statechange') listeners.delete(listener)
+    }),
+    /** What the OS does to the context: parks it, then fires the event. */
+    setState: (next: string) => {
+      context.state = next as AudioContextState
+      for (const listener of [...listeners]) {
+        listener()
+      }
+    },
     resume: vi.fn(async () => {
       context.state = 'running'
     }),
@@ -126,6 +140,63 @@ describe('AudioEngine.ensureContext', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe('AudioEngine.getContextState', () => {
+  it('reports null before the first gesture opens a context', () => {
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(createFakeContext()) })
+    expect(engine.getContextState()).toBeNull()
+  })
+
+  it("reports Safari's nonstandard parked state", async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+
+    await engine.ensureContext()
+    context.state = 'interrupted' as AudioContextState
+    expect(engine.getContextState()).toBe('interrupted')
+  })
+})
+
+describe('AudioEngine.watchContextState', () => {
+  it('reports every state change on the context', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+    await engine.ensureContext()
+
+    const seen: string[] = []
+    engine.watchContextState((state) => seen.push(state))
+
+    context.setState('interrupted')
+    context.setState('running')
+
+    expect(seen).toEqual(['interrupted', 'running'])
+  })
+
+  it('stops reporting once the returned unwatch is called', async () => {
+    const context = createFakeContext()
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(context) })
+    await engine.ensureContext()
+
+    const seen: string[] = []
+    const unwatch = engine.watchContextState((state) => seen.push(state))
+
+    context.setState('suspended')
+    unwatch()
+    context.setState('interrupted')
+
+    expect(seen).toEqual(['suspended'])
+  })
+
+  it('is a harmless no-op before a context exists', () => {
+    const engine = new AudioEngine({ contextFactory: () => asAudioContext(createFakeContext()) })
+
+    const seen: string[] = []
+    const unwatch = engine.watchContextState((state) => seen.push(state))
+
+    expect(() => unwatch()).not.toThrow()
+    expect(seen).toEqual([])
   })
 })
 
