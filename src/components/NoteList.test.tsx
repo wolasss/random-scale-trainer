@@ -19,7 +19,6 @@ describe('NoteList', () => {
     render(<NoteList pool={[0, 4, 7]} spelling="flat" random={() => 0.99} />)
 
     expect(names()).toEqual(['C', 'E', 'G'])
-    expect(screen.getByText('Read left → right, top → bottom')).toBeInTheDocument()
   })
 
   it('keeps its order until Regenerate list is pressed', () => {

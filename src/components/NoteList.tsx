@@ -48,7 +48,6 @@ export function NoteList({
 
   return (
     <div className="note-list-block">
-      <p className="note-list-direction">Read left → right, top → bottom</p>
       <ol className="note-list" data-testid="note-list" aria-label="Practice note order">
         {notes.map((note) => (
           <li key={note.pc} className="note-list-item" data-testid="note-list-item">

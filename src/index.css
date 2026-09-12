@@ -721,12 +721,6 @@ h2 {
   min-height: 220px;
 }
 
-.note-list-direction {
-  margin: 0 0 -0.25rem;
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-}
-
 .note-list {
   display: flex;
   flex-wrap: wrap;
