@@ -1,3 +1,11 @@
+## [1.31.2](https://github.com/wolasss/random-scale-trainer/compare/v1.31.1...v1.31.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* **bug-report:** optionally pin Turnstile verdicts to this deployment's hostname ([#261](https://github.com/wolasss/random-scale-trainer/issues/261)) ([64fb65a](https://github.com/wolasss/random-scale-trainer/commit/64fb65afb7f25d3b57aa1b69cdc1e12b6da8a54f))
+* **challenge:** keep the unsaved-token warning up for as long as the claim lasts ([#262](https://github.com/wolasss/random-scale-trainer/issues/262)) ([9a26d27](https://github.com/wolasss/random-scale-trainer/commit/9a26d275fd2f5f74b0c4344fc23f7bcdb7780c7f))
+
 ## [1.31.1](https://github.com/wolasss/random-scale-trainer/compare/v1.31.0...v1.31.1) (2026-09-11)
 
 
