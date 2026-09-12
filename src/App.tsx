@@ -3,7 +3,7 @@
  * between four of them is most of what this file is.
  *
  * `useSettings` holds the practice settings, and they feed both `usePlayback`
- * and `useRoutine`. There are two ways to write
+ * (with note speech off in list-only mode) and `useRoutine`. There are two ways to write
  * to them. `userDispatch` takes the edits the user makes to the settings a
  * routine block owns — tempo, beats per note, the note pool, spelling, the
  * ramp — so the routine can tell someone drifting off a block from its own
@@ -31,6 +31,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
+import { ListWorkoutTimer } from './components/ListWorkoutTimer'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
@@ -124,6 +125,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // Off entirely unless '?challenge=' brought the user here — see useChallenge.
   // Declared above playback because the transport's pause is what banks a score.
   const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
+  // Challenge scoring needs one called note at a time. Keep the saved preference
+  // intact for ordinary practice, but never let it become the active reading of
+  // this challenge visit.
+  const listModeEnabled = settings.noteListMode && !challenge.active
+  const metronomeEnabled = !listModeEnabled || settings.listMetronomeEnabled
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -135,7 +141,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    settings,
+    // List-only keeps the saved regular-practice preferences intact while
+    // suppressing features that do not belong to a fixed visual exercise.
+    // Its beat events still run with the click off, because they drive the
+    // stopwatch and scheduler rather than the audio alone.
+    settings: {
+      ...settings,
+      continuousMode: listModeEnabled ? true : settings.continuousMode,
+      speakNotes: settings.speakNotes && !listModeEnabled,
+      showFretboard: settings.showFretboard && !listModeEnabled,
+      metronomeEnabled,
+    },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -175,7 +191,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // board of points, and points come from what the microphone hears. The switch
   // in setup still shows the stored preference, which is what it is for — it is
   // the challenge, not the setting, that is listening.
-  const micEnabled = (settings.micEnabled || challenge.active) && isMicSupported()
+  const micEnabled = (challenge.active || (settings.micEnabled && !listModeEnabled)) && isMicSupported()
 
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
@@ -336,6 +352,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     challenge.endSession()
   }
 
+  const restartListWorkout = () => {
+    resetSession()
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
   // The practice log's own control: it puts the session clock back to zero and
   // leaves everything else — playback, counters, the stored days — alone. A log
   // of what someone has actually practised is not something a stray click on a
@@ -366,14 +388,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     }
   }
 
-  useKeyboardShortcuts({
-    onSpace: playOrPause,
-    onTap: handleTapTempo,
-    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
-    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
-    onReset: resetSession,
-  })
-
   // Anything on the clock, in play, or a routine moved off block 0 — exactly
   // the state "Reset session" exists to unwind. Until then the transport shows
   // only Start, and the goal readout waits with it: a reset button at a zeroed
@@ -385,6 +399,40 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     sessionTimer.elapsedMs > 0 ||
     routine.blockIndex > 0 ||
     routine.finished
+
+  // Space always follows the primary action the list workout is showing. Once
+  // a result exists that means a fresh attempt on the same list; continuing an
+  // accidentally stopped attempt remains the explicit recovery action.
+  const listPrimaryAction = sessionTouched && !playback.isPlaying ? restartListWorkout : playOrPause
+  const listPrimaryShortcutLabel = playback.isPlaying
+    ? 'stop'
+    : sessionTouched
+      ? 'retry same list'
+      : 'start workout'
+
+  useKeyboardShortcuts({
+    onSpace: listModeEnabled ? listPrimaryAction : playOrPause,
+    onTap: handleTapTempo,
+    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
+    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
+    onReset: resetSession,
+  })
+
+  const listWorkoutTimer = listModeEnabled ? (
+    <ListWorkoutTimer
+      isPlaying={playback.isPlaying}
+      isPaused={playback.isPaused}
+      started={sessionTouched}
+      elapsedMs={sessionTimer.elapsedMs}
+      metronomeEnabled={settings.listMetronomeEnabled}
+      beatsPerNote={settings.beatsPerNote}
+      beatInSpan={playback.snapshot.beatInSpan}
+      countIn={playback.snapshot.countIn}
+      playbackMessage={playback.snapshot.message}
+      onToggle={playOrPause}
+      onRestart={restartListWorkout}
+    />
+  ) : null
 
   // The idle hero's ghost note. Gated on the machine's own status: 'playing'
   // covers the count-in too, so the ghost is gone from the first press.
@@ -455,7 +503,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
-  const fretboardCard = settings.showFretboard ? (
+  const fretboardCard = settings.showFretboard && !listModeEnabled ? (
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
@@ -467,7 +515,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   ) : null
 
   const practiceOptionsCard = (
-    <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
+    <PracticeOptionsCard
+      settings={settings}
+      listModeUnavailable={challenge.active}
+      onToggle={(key) => dispatch({ type: 'toggle', key })}
+    />
   )
 
   // Taken from the hook rather than from the store: it banks the pending
@@ -611,11 +663,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           <Hero
             variant="stage"
             snapshot={playback.snapshot}
+            bpm={settings.bpm}
+            metronomeEnabled={settings.listMetronomeEnabled}
             beatsPerNote={settings.beatsPerNote}
-            poolSize={settings.pool.length}
+            pool={settings.pool}
+            spelling={settings.spelling}
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
+            listOnly={listModeEnabled}
+            listWorkoutTimer={listWorkoutTimer}
+            listLocked={playback.isPlaying}
+            onListRegenerate={resetSession}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -641,6 +700,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             bpm={settings.bpm}
             onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
+            listOnly={listModeEnabled}
           />
         </main>
 
@@ -675,11 +735,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       <div className={`practice-stage-view ${fretboardCard !== null ? 'with-neck' : ''}`}>
         <Hero
           snapshot={playback.snapshot}
+          bpm={settings.bpm}
+          metronomeEnabled={settings.listMetronomeEnabled}
           beatsPerNote={settings.beatsPerNote}
-          poolSize={settings.pool.length}
+          pool={settings.pool}
+          spelling={settings.spelling}
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}
+          listOnly={listModeEnabled}
+          listWorkoutTimer={listWorkoutTimer}
+          listLocked={playback.isPlaying}
+          onListRegenerate={resetSession}
         />
 
         {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
@@ -691,17 +758,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
       {scoreboardFold}
 
-      <TransportBar
-        isPlaying={playback.isPlaying}
-        isPaused={playback.isPaused}
-        routineName={routine.selected?.name ?? null}
-        routineFinished={routine.finished}
-        onPlayPause={playOrPause}
-        onReset={resetSession}
-        started={sessionTouched}
-        elapsedMs={sessionTimer.elapsedMs}
-        goalMin={settings.sessionGoalMin}
-      />
+      {listModeEnabled ? null : (
+        <TransportBar
+          isPlaying={playback.isPlaying}
+          isPaused={playback.isPaused}
+          routineName={routine.selected?.name ?? null}
+          routineFinished={routine.finished}
+          onPlayPause={playOrPause}
+          onReset={resetSession}
+          started={sessionTouched}
+          elapsedMs={sessionTimer.elapsedMs}
+          goalMin={settings.sessionGoalMin}
+        />
+      )}
     </>
   )
 
@@ -713,6 +782,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
+          playShortcutLabel={listModeEnabled ? listPrimaryShortcutLabel : 'play / pause'}
+          resetShortcutLabel={listModeEnabled ? 'reset timer' : 'reset'}
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}

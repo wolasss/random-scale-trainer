@@ -28,6 +28,10 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Show one frozen shuffled list with no spoken calls. */
+  noteListMode: boolean
+  /** Play beat clicks in list-only; off leaves its workout stopwatch running. */
+  listMetronomeEnabled: boolean
   /** Which tuning the neck map is drawn in. */
   tuning: TuningId
   /** Draw the neck for a left-handed guitar: same frets, strings the other way up. */
@@ -94,6 +98,8 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  noteListMode: booleanCodec(STORAGE_KEYS.noteList),
+  listMetronomeEnabled: booleanCodec(STORAGE_KEYS.listMetronome),
   tuning: {
     storageKey: STORAGE_KEYS.tuning,
     deserialize: (raw) => (isTuningId(raw) ? raw : undefined),
@@ -140,6 +146,8 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: false,
+  noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: DEFAULT_TUNING_ID,
   leftHanded: false,
   micEnabled: false,

@@ -638,6 +638,188 @@ h2 {
   opacity: 1;
 }
 
+/* List-only keeps its clock inside the generated exercise. The notes lead
+   while practising; once stopped, the finished result takes over the hierarchy
+   long enough to be written down. */
+.list-workout-timer {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin: 0.1rem auto;
+}
+
+.list-workout-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.list-workout-readout {
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+}
+
+.list-workout-state {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.list-workout-time {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 4vw, 3.25rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+}
+
+.list-workout-timer.finished .list-workout-main {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.list-workout-timer.finished .list-workout-time {
+  font-size: clamp(3.25rem, 6vw, 4.25rem);
+}
+
+.list-workout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.list-workout-toggle {
+  min-width: 10.5rem;
+  min-height: 48px;
+}
+
+.list-workout-status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.list-workout-continue {
+  min-height: 44px;
+  margin: -0.35rem 0;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.list-workout-continue:hover {
+  color: var(--ink);
+}
+
+/* One fixed exercise card: note tiles keep the same twelve-across measure on a
+   wide practice surface, while shorter pools form a centered group instead of
+   occupying the left edge of an invisible twelve-column grid. */
+.note-list-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 220px;
+}
+
+.note-list-heading {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.note-list-summary,
+.note-list-pending,
+.note-list-lock {
+  margin: 0;
+}
+
+.note-list-summary {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.note-list-pending {
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.note-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.note-list-item {
+  display: grid;
+  flex: 0 1 calc((100% - 5.5rem) / 12);
+  min-width: 0;
+  height: clamp(4.25rem, 6vw, 5.5rem);
+  place-items: center;
+  padding: 0 0.25rem;
+  border: 1px solid var(--button-border);
+  border-radius: 14px;
+  background: var(--button-bg);
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.25vw, 3rem);
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+}
+
+.note-list-regenerate {
+  min-height: 44px;
+}
+
+.note-list-lock {
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 960px) {
+  .note-list-item {
+    flex-basis: calc((100% - 2.5rem) / 6);
+  }
+}
+
+@media (max-width: 560px) {
+  .note-list-item {
+    flex-basis: calc((100% - 1.5rem) / 4);
+    height: 3.75rem;
+    font-size: 1.8rem;
+  }
+
+  .list-workout-time {
+    font-size: 2.6rem;
+  }
+
+  .list-workout-timer.finished .list-workout-time {
+    font-size: 3.25rem;
+  }
+}
+
 .playback-message {
   width: 100%;
   margin: 0.6rem auto 0;
@@ -3549,6 +3731,15 @@ button.practice-history-cell {
   font-size: 0.9rem;
 }
 
+/* On the stand the fixed list takes over the room normally occupied by the glyph. */
+:root[data-stage] .note-list-block {
+  min-height: 40vh;
+}
+
+:root[data-stage] .note-list-item {
+  font-size: min(5vh, 7vw);
+}
+
 .stage-readout {
   display: flex;
   align-items: center;
@@ -4322,4 +4513,3 @@ button.practice-history-cell {
   border-color: var(--primary);
   color: var(--primary);
 }
-

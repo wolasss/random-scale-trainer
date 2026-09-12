@@ -1,5 +1,6 @@
 import {
   COUNT_IN_BEATS,
+  NOTE_LIST_LENGTH,
   PLAYBACK_MESSAGES,
   RESYNC_THRESHOLD_S,
   SCHEDULE_AHEAD_S,
@@ -24,6 +25,8 @@ export type PlaybackSettings = {
   /** The tempo the ramp climbs to and then holds at for the rest of the session. */
   rampTargetBpm: number
   speakNotes: boolean
+  /** Schedule audible beat clicks; beat events continue when this is off. */
+  metronomeEnabled: boolean
   endSoundEnabled: boolean
   /** The neck on screen. Scoring prices a note called without it higher. */
   showFretboard: boolean
@@ -35,6 +38,11 @@ export type PlaybackSnapshot = {
   currentNote: NoteCall | null
   /** Upcoming note — always previewable, even while idle. */
   nextNote: NoteCall | null
+  /**
+   * The notes queued behind `currentNote`, for the read-ahead list. Refreshed
+   * whenever `nextNote` is, so it previews the coming round while idle too.
+   */
+  upcomingNotes: NoteCall[]
   /** Count-in digit (4..1) during the count-in, else null. */
   countIn: number | null
   /** 0-based beat within the current note's span; drives the beat dots. */
@@ -122,6 +130,7 @@ export const INITIAL_PLAYBACK_SNAPSHOT: PlaybackSnapshot = {
   status: 'idle',
   currentNote: null,
   nextNote: null,
+  upcomingNotes: [],
   countIn: null,
   beatInSpan: 0,
   positionInCycle: null,
@@ -158,6 +167,28 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let sched = createSchedulingState()
   let schedulingDone = false
   const tempo = createTempoControl()
+
+  /**
+   * The read-ahead window, peeked without consuming: `count` notes from
+   * `offset`, stopping at whatever the deck can deal (an empty pool deals
+   * nothing). `peek` tops the deck up across bag boundaries on its own.
+   */
+  const peekWindow = (offset: number, count: number) => {
+    const notes: NoteCall[] = []
+    for (let index = 0; index < count; index += 1) {
+      const note = deck.peek(offset + index)
+      if (!note) {
+        break
+      }
+
+      notes.push(note)
+    }
+
+    return notes
+  }
+
+  /** The idle window: the head the NEXT chip names, plus what follows it. */
+  const idleWindow = () => peekWindow(0, NOTE_LIST_LENGTH)
 
   const emit = (partial: Partial<PlaybackSnapshot>) => {
     snapshot = { ...snapshot, ...partial }
@@ -221,6 +252,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       positionInCycle: null,
       message,
       nextNote: deck.peek(),
+      upcomingNotes: idleWindow(),
       // The ending cycle never emits its boundary beat, so count it here.
       cyclesCompleted: snapshot.cyclesCompleted + (countCycle ? 1 : 0),
     })
@@ -240,7 +272,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     // the settings say then would price it at a tempo it was never called at.
     const step = stepBeat(
       sched,
-      { head: deck.peek(0), following: deck.peek(1) },
+      { head: deck.peek(0), following: deck.peek(1), upcoming: peekWindow(1, NOTE_LIST_LENGTH - 1) },
       {
         time: nextBeatTime,
         beatsPerNote: settings.beatsPerNote,
@@ -290,7 +322,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     const { event } = step
-    audio.playClickAt(event.time, event.accent)
+    if (settings.metronomeEnabled) {
+      audio.playClickAt(event.time, event.accent)
+    }
     if (event.note && settings.speakNotes) {
       audio.playNoteAt(event.note.audioKey, event.time)
     }
@@ -369,6 +403,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
         countIn: null,
         currentNote: event.note,
         nextNote: event.nextNote,
+        upcomingNotes: event.upcomingNotes ?? [],
         beatInSpan: 0,
         positionInCycle: event.positionInCycle,
         cycleLength: event.note.bagSize,
@@ -569,12 +604,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       cyclesCompleted: 0,
       message: PLAYBACK_MESSAGES.idle,
       nextNote: deck.peek(),
+      upcomingNotes: idleWindow(),
     })
   }
 
   const invalidateDeck = () => {
     deck.invalidate()
-    emit({ nextNote: deck.peek() })
+    emit({ nextNote: deck.peek(), upcomingNotes: idleWindow() })
   }
 
   /**
@@ -596,8 +632,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     sessionStartQueued = false
   }
 
-  // Populate the preview so the NEXT chip works before the first start.
-  snapshot = { ...snapshot, nextNote: deck.peek() }
+  // Populate the preview so the NEXT chip and the read-ahead list both work
+  // before the first start.
+  snapshot = { ...snapshot, nextNote: deck.peek(), upcomingNotes: idleWindow() }
   onSnapshot(snapshot)
 
   return {

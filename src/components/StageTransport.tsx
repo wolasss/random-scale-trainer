@@ -18,6 +18,8 @@ type StageTransportProps = TransportState & {
   onNudgeBpm: (delta: number) => void
   /** The routine strip, kept in view directly above the controls. */
   strip?: ReactNode
+  /** List-only owns start, stop and elapsed time beside its note list. */
+  listOnly?: boolean
 }
 
 /**
@@ -37,6 +39,7 @@ export function StageTransport({
   bpm,
   onNudgeBpm,
   strip,
+  listOnly = false,
   ...transport
 }: StageTransportProps) {
   return (
@@ -73,7 +76,9 @@ export function StageTransport({
 
         {/* How far into the session, without opening the sheet — the same readout
             the desktop transport carries, and it waits for the first press with it. */}
-        {started ? <GoalReadout elapsedMs={elapsedMs} goalMin={goalMin} className="stage-readout-line" /> : null}
+        {started && !listOnly ? (
+          <GoalReadout elapsedMs={elapsedMs} goalMin={goalMin} className="stage-readout-line" />
+        ) : null}
       </div>
 
       <div className="stage-secondary">
@@ -86,7 +91,7 @@ export function StageTransport({
         >
           <FontAwesomeIcon icon={faSliders} /> <span className="stage-setup-label">Practice setup</span>
         </button>
-        {started ? (
+        {started && !listOnly ? (
           <button
             type="button"
             className="ghost-button stage-reset"
@@ -99,7 +104,7 @@ export function StageTransport({
         ) : null}
       </div>
 
-      <PlayToggle transport={transport} className="stage-play" onClick={onPlayPause} />
+      {listOnly ? null : <PlayToggle transport={transport} className="stage-play" onClick={onPlayPause} />}
     </div>
   )
 }

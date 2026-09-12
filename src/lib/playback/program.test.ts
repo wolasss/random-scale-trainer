@@ -22,7 +22,11 @@ const INPUTS: BeatProgramInputs = {
   pool: [0, 1, 2],
 }
 
-const view = (head: NoteCall | null, following: NoteCall | null = null): DeckView => ({ head, following })
+const view = (head: NoteCall | null, following: NoteCall | null = null, upcoming: NoteCall[] = []): DeckView => ({
+  head,
+  following,
+  upcoming,
+})
 
 describe('count-in beats', () => {
   it('accents only the first digit and counts down without moving the span', () => {
@@ -68,6 +72,30 @@ describe('note and filler beats', () => {
       // octave it could have been drawn from.
       pool: [0, 1, 2],
     })
+  })
+
+  it('carries the read-ahead window the note is called in front of', () => {
+    const queued = [note(1, false, 2), note(2, true, 2)]
+    const step = stepBeat(createSchedulingState(), view(note(0, true, 2), queued[0], queued), INPUTS)
+
+    if (step.kind !== 'beat') throw new Error('expected a beat')
+    expect(step.event.upcomingNotes).toEqual(queued)
+  })
+
+  it('moves no list along on a count-in click or a beat inside a span', () => {
+    // Neither calls a note, so neither shifts the list the last note set.
+    const queued = [note(1, false, 2)]
+    const counting = stepBeat(createSchedulingState(COUNT_IN_BEATS), view(note(0, true, 2), null, queued), INPUTS)
+    if (counting.kind !== 'beat') throw new Error('expected a beat')
+    expect(counting.event.upcomingNotes).toBeUndefined()
+
+    const inputs = { ...INPUTS, beatsPerNote: 2 }
+    const first = stepBeat(createSchedulingState(), view(note(0, true, 2), null, queued), inputs)
+    if (first.kind !== 'beat') throw new Error('expected a beat')
+
+    const filler = stepBeat(first.state, view(note(1, false, 2), null, queued), inputs)
+    if (filler.kind !== 'beat') throw new Error('expected a beat')
+    expect(filler.event.upcomingNotes).toBeUndefined()
   })
 
   it('prices nothing on a count-in click or a beat inside a span', () => {

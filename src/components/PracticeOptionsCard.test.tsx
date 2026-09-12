@@ -20,6 +20,8 @@ const SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: 120,
   showFretboard: true,
+  noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
@@ -29,8 +31,8 @@ const SETTINGS: Settings = {
   endSoundEnabled: true,
 }
 
-const renderCard = (overrides: Partial<Settings> = {}) => {
-  const props = { settings: { ...SETTINGS, ...overrides }, onToggle: vi.fn() }
+const renderCard = (overrides: Partial<Settings> = {}, listModeUnavailable = false) => {
+  const props = { settings: { ...SETTINGS, ...overrides }, onToggle: vi.fn(), listModeUnavailable }
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
 }
@@ -71,7 +73,7 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Keep going', 'Count in', 'Say the note', 'Fretboard map']) {
+    for (const name of ['Keep going', 'Count in', 'Say the note', 'List only', 'Fretboard map']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
@@ -79,12 +81,23 @@ describe('PracticeOptionsCard mic switch', () => {
       ['continuousMode'],
       ['countInEnabled'],
       ['speakNotes'],
+      ['noteListMode'],
       ['showFretboard'],
     ])
   })
 })
 
 describe('PracticeOptionsCard speak-notes switch', () => {
+  it('keeps List only as the first option when the mode changes', () => {
+    const { rerender, props } = renderCard()
+
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+
+    rerender(<PracticeOptionsCard {...props} settings={{ ...props.settings, noteListMode: true }} />)
+
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+  })
+
   it('renders checked from settings and reports its subtitle', () => {
     const { props } = renderCard({ speakNotes: false })
     const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
@@ -97,5 +110,37 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     fireEvent.click(speakSwitch)
 
     expect(props.onToggle).toHaveBeenCalledWith('speakNotes')
+  })
+
+  it('shows only controls that apply to list-only workouts', () => {
+    const { props } = renderCard({ noteListMode: true, micEnabled: true, showFretboard: true })
+
+    expect(screen.getByRole('switch', { name: 'List only' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Metronome' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Count in' })).toBeEnabled()
+    expect(screen.queryByRole('switch', { name: 'Keep going' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Say the note' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Fretboard map' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Metronome' }))
+    expect(props.onToggle).toHaveBeenCalledWith('listMetronomeEnabled')
+  })
+
+  it('disables list-only during a challenge without disabling spoken calls', () => {
+    const { props } = renderCard({ noteListMode: true, speakNotes: true }, true)
+    const listSwitch = screen.getByRole('switch', { name: 'List only' })
+    const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
+
+    expect(listSwitch).toBeDisabled()
+    expect(listSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(listSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where each called note is scored.',
+    )
+    expect(speakSwitch).toBeEnabled()
+    expect(speakSwitch).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(listSwitch)
+    expect(props.onToggle).not.toHaveBeenCalled()
   })
 })

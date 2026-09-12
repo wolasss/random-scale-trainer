@@ -9,6 +9,13 @@ export const RAMP_TARGET_STEP = 5
 /** How far above the current tempo a target lands when nobody has named one. */
 export const RAMP_TARGET_OFFSET = 40
 
+/**
+ * How many notes list-only shows at once. Long enough to read a phrase off the
+ * screen, short enough that the deck is never asked to deal much more than a
+ * bag ahead of the beat.
+ */
+export const NOTE_LIST_LENGTH = 7
+
 export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8, 12] as const
 export const DEFAULT_BEATS_PER_NOTE = 4
 
@@ -103,6 +110,12 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Whether playback uses the silent list-only reading. Off unless it reads
+  // 'true', like the rest of the toggles.
+  noteList: 'fretboard-note-list',
+  // List-only can run as a plain stopwatch. Kept apart from the regular
+  // metronome so leaving list mode restores the app's established playback.
+  listMetronome: 'fretboard-list-metronome',
   // Which tuning the neck is drawn in, as a tuning id. An id that isn't one of
   // the five we ship is rejected and the map is drawn in standard tuning.
   tuning: 'fretboard-tuning',

@@ -22,6 +22,13 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
+- List only: one shuffled list containing every selected note exactly once, with no spoken note calls.
+  Its in-place stopwatch starts and stops with the workout, holds the finished result for you to note
+  down, and locks the list while timing. Metronome ticks leave the order untouched; use New shuffled
+  list when you want a fresh order, or switch its metronome off for a silent timed workout. Note-pool
+  changes stay pending until then. Mic, spoken-note, and fretboard controls stay out of this focused
+  mode without changing their saved preferences. Unavailable in challenge mode, where each called note
+  must be scored individually
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
   E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
@@ -91,7 +98,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
   nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
-  your playing, and the fretboard map toggle. The spoken note name is always on
+  your playing, list-only mode, and the fretboard map toggle. Spoken note names are off in list-only
+  mode
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
   readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
