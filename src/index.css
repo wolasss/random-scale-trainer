@@ -708,9 +708,9 @@ h2 {
   margin-bottom: 0.3rem;
 }
 
-/* One fixed exercise card: twelve equal slots on a wide practice surface,
-   folding into even rows without turning short note names into circles and
-   accidentals into pills. */
+/* One fixed exercise card: note tiles keep the same twelve-across measure on a
+   wide practice surface, while shorter pools form a centered group instead of
+   occupying the left edge of an invisible twelve-column grid. */
 .note-list-block {
   display: flex;
   flex-direction: column;
@@ -728,8 +728,9 @@ h2 {
 }
 
 .note-list {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.5rem;
   width: min(100%, 72rem);
   margin: 0 auto;
@@ -739,6 +740,7 @@ h2 {
 
 .note-list-item {
   display: grid;
+  flex: 0 1 calc((100% - 5.5rem) / 12);
   min-width: 0;
   height: clamp(4.25rem, 6vw, 5.5rem);
   place-items: center;
@@ -765,17 +767,14 @@ h2 {
 }
 
 @media (max-width: 960px) {
-  .note-list {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+  .note-list-item {
+    flex-basis: calc((100% - 2.5rem) / 6);
   }
 }
 
 @media (max-width: 560px) {
-  .note-list {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
   .note-list-item {
+    flex-basis: calc((100% - 1.5rem) / 4);
     height: 3.75rem;
     font-size: 1.8rem;
   }
