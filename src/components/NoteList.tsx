@@ -90,6 +90,18 @@ export function NoteList({
             <p className="note-list-meta">{timingText}</p>
           )}
         </div>
+      </div>
+
+      <ol className="note-list" data-testid="note-list" aria-label="Practice note order">
+        {deal.notes.map((note) => (
+          <li key={note.pc} className="note-list-item" data-testid="note-list-item">
+            {note.display}
+          </li>
+        ))}
+      </ol>
+
+      <div className="note-list-command-bar" data-testid="note-list-command-bar">
+        {transport}
 
         <div className="note-list-action-slot">
           {locked ? (
@@ -111,16 +123,6 @@ export function NoteList({
           )}
         </div>
       </div>
-
-      <ol className="note-list" data-testid="note-list" aria-label="Practice note order">
-        {deal.notes.map((note) => (
-          <li key={note.pc} className="note-list-item" data-testid="note-list-item">
-            {note.display}
-          </li>
-        ))}
-      </ol>
-
-      {transport}
     </div>
   )
 }

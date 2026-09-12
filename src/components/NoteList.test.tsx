@@ -55,15 +55,18 @@ describe('NoteList', () => {
     expect(screen.queryByText('72 BPM')).toBeNull()
   })
 
-  it('keeps list actions in its header and the timer after the notes', () => {
+  it('keeps the timer and shuffle action together after the notes', () => {
     render(list({ pool: PITCH_CLASSES, spelling: 'sharp' }))
 
     const noteList = screen.getByTestId('note-list')
+    const commandBar = screen.getByTestId('note-list-command-bar')
     const timer = screen.getByTestId('timer-slot')
     const newList = screen.getByRole('button', { name: 'New shuffled list' })
 
-    expect(newList.compareDocumentPosition(noteList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(noteList.compareDocumentPosition(timer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(noteList.compareDocumentPosition(commandBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(commandBar).toContainElement(timer)
+    expect(commandBar).toContainElement(newList)
+    expect(timer.compareDocumentPosition(newList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('keeps its order until New shuffled list is pressed', () => {
