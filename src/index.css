@@ -774,12 +774,12 @@ h2 {
   min-width: 0;
   height: clamp(4.25rem, 6vw, 5.5rem);
   place-items: center;
-  padding: 0 0.25rem;
+  padding: 0 0.4rem;
   border: 1px solid var(--button-border);
   border-radius: 14px;
   background: var(--button-bg);
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 3.25vw, 3rem);
+  font-size: clamp(1.7rem, 3vw, 2.75rem);
   line-height: 1;
   text-align: center;
   color: var(--ink);
@@ -831,7 +831,7 @@ h2 {
   .note-list-item {
     flex-basis: calc((100% - 1.5rem) / 4);
     height: 3.75rem;
-    font-size: 1.8rem;
+    font-size: 1.65rem;
   }
 
   .list-workout-main {

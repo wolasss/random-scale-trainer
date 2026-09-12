@@ -15,7 +15,7 @@ const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 // The setup cards stay folded away until the first run, so a test that reaches
 // for a switch has to open them the way a first-time user would.
 const revealSetup = () => fireEvent.click(screen.getByTestId('setup-reveal'))
-const listOnlySwitch = () => screen.getByRole('switch', { name: 'List only' })
+const listOnlySwitch = () => screen.getByRole('switch', { name: 'List mode' })
 const metronomeSwitch = () => screen.getByRole('switch', { name: 'Metronome' })
 const notes = () => screen.getAllByTestId('note-list-item').map((item) => item.textContent)
 

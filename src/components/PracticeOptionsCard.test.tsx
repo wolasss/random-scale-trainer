@@ -73,7 +73,7 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Keep going', 'Count in', 'Say the note', 'List only', 'Fretboard map']) {
+    for (const name of ['Keep going', 'Count in', 'Say the note', 'List mode', 'Fretboard map']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
@@ -88,14 +88,14 @@ describe('PracticeOptionsCard mic switch', () => {
 })
 
 describe('PracticeOptionsCard speak-notes switch', () => {
-  it('keeps List only as the first option when the mode changes', () => {
+  it('keeps List mode as the first option when the mode changes', () => {
     const { rerender, props } = renderCard()
 
-    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List mode')
 
     rerender(<PracticeOptionsCard {...props} settings={{ ...props.settings, noteListMode: true }} />)
 
-    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List mode')
   })
 
   it('renders checked from settings and reports its subtitle', () => {
@@ -115,7 +115,7 @@ describe('PracticeOptionsCard speak-notes switch', () => {
   it('shows only controls that apply to list-only workouts', () => {
     const { props } = renderCard({ noteListMode: true, micEnabled: true, showFretboard: true })
 
-    expect(screen.getByRole('switch', { name: 'List only' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'List mode' })).toBeEnabled()
     expect(screen.getByRole('switch', { name: 'Metronome' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: 'Count in' })).toBeEnabled()
     expect(screen.queryByRole('switch', { name: 'Keep going' })).toBeNull()
@@ -129,7 +129,7 @@ describe('PracticeOptionsCard speak-notes switch', () => {
 
   it('disables list-only during a challenge without disabling spoken calls', () => {
     const { props } = renderCard({ noteListMode: true, speakNotes: true }, true)
-    const listSwitch = screen.getByRole('switch', { name: 'List only' })
+    const listSwitch = screen.getByRole('switch', { name: 'List mode' })
     const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
 
     expect(listSwitch).toBeDisabled()

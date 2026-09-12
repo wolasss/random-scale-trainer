@@ -24,7 +24,7 @@ export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = 
 
       <SwitchRow
         id="note-list"
-        label="List only"
+        label="List mode"
         subtitle={
           listModeUnavailable
             ? 'Unavailable during a challenge, where each called note is scored.'

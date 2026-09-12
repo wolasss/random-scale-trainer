@@ -176,7 +176,7 @@ describe('arriving on a challenge', () => {
     expect(screen.queryByTestId('list-workout-time')).toBeNull()
     expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
 
-    const listSwitch = screen.getByRole('switch', { name: 'List only' })
+    const listSwitch = screen.getByRole('switch', { name: 'List mode' })
     expect(listSwitch).toBeDisabled()
     expect(listSwitch).toHaveAttribute('aria-checked', 'false')
     expect(listSwitch).toHaveAccessibleDescription(
