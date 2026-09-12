@@ -16,6 +16,8 @@ const baseSettings = (): Settings => ({
   speedRampMode: false,
   rampTargetBpm: 112,
   showFretboard: true,
+  noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,

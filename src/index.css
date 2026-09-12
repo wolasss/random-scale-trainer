@@ -638,6 +638,220 @@ h2 {
   opacity: 1;
 }
 
+/* List-only keeps one compact transport footprint in every state. Its clock
+   and primary action never move when Start becomes Stop or Retry. */
+.list-workout-timer {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+
+.list-workout-main {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 10rem) minmax(11rem, 16rem);
+  width: 100%;
+  min-height: 68px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--button-border) 65%, transparent);
+  border-radius: 14px;
+}
+
+.list-workout-readout {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.35rem 0.8rem;
+}
+
+.list-workout-state {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.list-workout-time {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3.2vw, 2.5rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+}
+
+.list-workout-actions {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  padding: 0.55rem;
+  border-left: 1px solid color-mix(in srgb, var(--button-border) 65%, transparent);
+}
+
+.list-workout-toggle {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.list-workout-status {
+  width: 100%;
+  margin: 0.1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+/* One fixed exercise card: note tiles keep the same twelve-across measure on a
+   wide practice surface, while shorter pools form a centered group instead of
+   occupying the left edge of an invisible twelve-column grid. */
+.note-list-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  width: 100%;
+  min-height: 220px;
+}
+
+.note-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 72rem);
+  min-height: 44px;
+}
+
+.note-list-context {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.note-list-title,
+.note-list-meta,
+.note-list-pending,
+.note-list-lock {
+  margin: 0;
+}
+
+.note-list-title {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.note-list-meta {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.note-list-pending {
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.note-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.note-list-item {
+  display: grid;
+  flex: 0 1 calc((100% - 5.5rem) / 12);
+  min-width: 0;
+  height: clamp(4.25rem, 6vw, 5.5rem);
+  place-items: center;
+  padding: 0 0.4rem;
+  border: 1px solid var(--button-border);
+  border-radius: 14px;
+  background: var(--button-bg);
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3vw, 2.75rem);
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+}
+
+.note-list-command-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) 12rem;
+  gap: 0.6rem;
+  align-items: stretch;
+  width: min(100%, 38.6rem);
+  margin: 0.1rem auto;
+}
+
+.note-list-action-slot {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+  min-height: 68px;
+}
+
+.note-list-regenerate {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+}
+
+.note-list-lock {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  place-items: center;
+  padding: 0.65rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--button-border) 65%, transparent);
+  border-radius: 14px;
+  background: var(--button-bg);
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .note-list-item {
+    flex-basis: calc((100% - 2.5rem) / 6);
+  }
+}
+
+@media (max-width: 560px) {
+  .note-list-item {
+    flex-basis: calc((100% - 1.5rem) / 4);
+    height: 3.75rem;
+    font-size: 1.65rem;
+  }
+
+  .list-workout-main {
+    grid-template-columns: minmax(6.75rem, 0.8fr) minmax(10.5rem, 1.2fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .note-list-command-bar {
+    grid-template-columns: minmax(0, 1fr);
+    width: min(100%, 26rem);
+  }
+
+  .note-list-action-slot,
+  .note-list-regenerate,
+  .note-list-lock {
+    min-height: 48px;
+  }
+}
+
 .playback-message {
   width: 100%;
   margin: 0.6rem auto 0;
@@ -3549,6 +3763,15 @@ button.practice-history-cell {
   font-size: 0.9rem;
 }
 
+/* On the stand the fixed list takes over the room normally occupied by the glyph. */
+:root[data-stage] .note-list-block {
+  min-height: 40vh;
+}
+
+:root[data-stage] .note-list-item {
+  font-size: min(5vh, 7vw);
+}
+
 .stage-readout {
   display: flex;
   align-items: center;
@@ -4322,4 +4545,3 @@ button.practice-history-cell {
   border-color: var(--primary);
   color: var(--primary);
 }
-
