@@ -227,6 +227,36 @@ describe('arriving on a challenge', () => {
     expect(init.method).toBe('POST')
   })
 
+  /**
+   * The token is the only copy of the claim, so a storage failure on it must
+   * not be silent — and a collapsed rail must not hide the warning either.
+   */
+  it('brings a collapsed rail back with a warning when the token could not be saved', async () => {
+    installFetch(board(['ada', 300]))
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.challengeBoardHidden, JSON.stringify({ demo: true }))
+
+    const setItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === STORAGE_KEYS.challengeTokens) {
+        throw new DOMException('QuotaExceededError')
+      }
+
+      return setItem.call(this, key, value)
+    })
+
+    await renderApp()
+
+    fireEvent.change(await screen.findByTestId('nickname-input'), { target: { value: 'ada' } })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nickname-submit'))
+    })
+
+    const notice = await screen.findByTestId('scoreboard-notice')
+    expect(notice).toHaveTextContent('could not save')
+    expect(screen.queryByTestId('scoreboard-handle')).toBeNull()
+  })
+
   it('says so, and does not join, when the name is already somebody else’s', async () => {
     installGetUserMedia()
     vi.stubGlobal(

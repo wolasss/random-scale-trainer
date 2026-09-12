@@ -179,7 +179,9 @@ function ScoreboardNudge({ standing }: { standing: Standing | null }) {
  * browser does not own, a rate limit. All three leave the board readable and
  * say why nothing of yours is landing on it, which is more use than a row that
  * silently stops moving — so on the fold it sits under the summary strip
- * rather than inside the sheet, where a folded board would swallow it.
+ * rather than inside the sheet, where a folded board would swallow it. On the
+ * rail, a notice brings a collapsed board back until the player hides it
+ * again — a warning nobody can read is not a warning.
  */
 export function ScoreboardStrip({
   challenge,
@@ -198,6 +200,9 @@ export function ScoreboardStrip({
   })
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetRef = useRef<HTMLDivElement | null>(null)
+  // The notice on screen when the player last put the rail away, unpersisted:
+  // a reload with no notice must still open collapsed, exactly as before.
+  const [hiddenPast, setHiddenPast] = useState<string | null>(null)
 
   // A no-op while the sheet is shut, which is all of the time on a desktop.
   useFocusTrap(sheetRef, sheetOpen, () => setSheetOpen(false))
@@ -303,7 +308,7 @@ export function ScoreboardStrip({
     )
   }
 
-  if (hiddenMap[challenge] === true) {
+  if (hiddenMap[challenge] === true && (notice === null || notice === hiddenPast)) {
     return (
       <button
         type="button"
@@ -340,7 +345,10 @@ export function ScoreboardStrip({
           className="ghost-button scoreboard-hide"
           data-testid="scoreboard-hide"
           aria-label="Hide the board"
-          onClick={() => setHiddenMap((current) => ({ ...current, [challenge]: true }))}
+          onClick={() => {
+            setHiddenPast(notice)
+            setHiddenMap((current) => ({ ...current, [challenge]: true }))
+          }}
         >
           <FontAwesomeIcon icon={faAnglesRight} />
         </button>
