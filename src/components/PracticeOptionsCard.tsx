@@ -22,15 +22,23 @@ export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = 
         <h2>How it runs</h2>
       </div>
 
+      <SwitchRow
+        id="note-list"
+        label="List only"
+        subtitle={
+          listModeUnavailable
+            ? 'Unavailable during a challenge, where each called note is scored.'
+            : listModeActive
+              ? 'Shuffle all selected notes once; the list stays fixed until you replace it.'
+              : 'Shuffle all selected notes once; ticks continue until you regenerate.'
+        }
+        checked={listModeActive}
+        onChange={() => onToggle('noteListMode')}
+        disabled={listModeUnavailable}
+      />
+
       {listModeActive ? (
         <>
-          <SwitchRow
-            id="note-list"
-            label="List only"
-            subtitle="Shuffle all selected notes once; the list stays fixed until you replace it."
-            checked
-            onChange={() => onToggle('noteListMode')}
-          />
           <SwitchRow
             id="list-metronome"
             label="Metronome"
@@ -80,18 +88,6 @@ export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = 
             checked={settings.micEnabled && micSupported}
             onChange={() => onToggle('micEnabled')}
             disabled={!micSupported}
-          />
-          <SwitchRow
-            id="note-list"
-            label="List only"
-            subtitle={
-              listModeUnavailable
-                ? 'Unavailable during a challenge, where each called note is scored.'
-                : 'Shuffle all selected notes once; ticks continue until you regenerate.'
-            }
-            checked={false}
-            onChange={() => onToggle('noteListMode')}
-            disabled={listModeUnavailable}
           />
           <SwitchRow
             id="show-fretboard"

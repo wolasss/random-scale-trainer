@@ -88,6 +88,16 @@ describe('PracticeOptionsCard mic switch', () => {
 })
 
 describe('PracticeOptionsCard speak-notes switch', () => {
+  it('keeps List only as the first option when the mode changes', () => {
+    const { rerender, props } = renderCard()
+
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+
+    rerender(<PracticeOptionsCard {...props} settings={{ ...props.settings, noteListMode: true }} />)
+
+    expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('List only')
+  })
+
   it('renders checked from settings and reports its subtitle', () => {
     const { props } = renderCard({ speakNotes: false })
     const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
