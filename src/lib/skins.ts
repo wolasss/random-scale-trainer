@@ -4,15 +4,16 @@
  * Glass is the default and needs no attribute; the CSS for every skin lives in
  * `index.css` under the SKINS section.
  */
-export type Skin = 'glass' | 'instrument' | 'editorial' | 'warm'
+export type Skin = 'glass' | 'instrument' | 'editorial' | 'warm' | 'kwinta'
 
-export const SKINS: readonly Skin[] = ['glass', 'instrument', 'editorial', 'warm']
+export const SKINS: readonly Skin[] = ['glass', 'instrument', 'editorial', 'warm', 'kwinta']
 
 export const SKIN_LABELS: Record<Skin, string> = {
   glass: 'Atmospheric glass',
   instrument: 'Instrument',
   editorial: 'Editorial',
   warm: 'Warm',
+  kwinta: 'Kwinta workbench',
 }
 
 export const DEFAULT_SKIN: Skin = 'glass'
@@ -31,14 +32,17 @@ export const SKIN_GROUND: Record<Skin, { dark: string; light: string }> = {
   instrument: { dark: '#070809', light: '#d7dade' },
   editorial: { dark: '#141310', light: '#efece2' },
   warm: { dark: '#241a18', light: '#fff6ee' },
+  kwinta: { dark: '#02050b', light: '#f1f2ea' },
 }
 
 /**
  * Fonts the base document doesn't already load (Space Grotesk + Fraunces cover
- * glass and editorial). Instrument and warm each pull one extra family, added
- * lazily the first time that skin is chosen so the default never pays for them.
+ * glass and editorial). The other skins pull an extra family, added lazily the
+ * first time that skin is chosen so the default never pays for them.
  */
 export const SKIN_FONT_HREF: Partial<Record<Skin, string>> = {
   instrument: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
   warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
+  kwinta:
+    'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap',
 }

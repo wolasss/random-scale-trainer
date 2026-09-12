@@ -41,7 +41,7 @@
             theme = storedTheme
           }
           var storedSkin = localStorage.getItem('fretboard-skin')
-          var skins = { glass: 1, instrument: 1, editorial: 1, warm: 1 }
+          var skins = { glass: 1, instrument: 1, editorial: 1, warm: 1, kwinta: 1 }
           if (storedSkin && skins[storedSkin]) {
             skin = storedSkin
             document.documentElement.setAttribute('data-skin', skin)
@@ -49,6 +49,8 @@
               instrument:
                 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
               warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
+              kwinta:
+                'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap',
             }
             if (fonts[skin]) {
               var link = document.createElement('link')
@@ -64,6 +66,7 @@
           instrument: { dark: '#070809', light: '#d7dade' },
           editorial: { dark: '#141310', light: '#efece2' },
           warm: { dark: '#241a18', light: '#fff6ee' },
+          kwinta: { dark: '#02050b', light: '#f1f2ea' },
         }
         document.documentElement.setAttribute('data-theme', theme)
         document.documentElement.style.colorScheme = theme

@@ -28,10 +28,10 @@ describe('skin picker', () => {
 
   it('applies and stores a chosen skin', () => {
     render(<App />)
-    fireEvent.change(skinSelect(), { target: { value: 'editorial' } })
+    fireEvent.change(skinSelect(), { target: { value: 'kwinta' } })
 
-    expect(document.documentElement.getAttribute('data-skin')).toBe('editorial')
-    expect(window.localStorage.getItem(STORAGE_KEYS.skin)).toBe('editorial')
+    expect(document.documentElement.getAttribute('data-skin')).toBe('kwinta')
+    expect(window.localStorage.getItem(STORAGE_KEYS.skin)).toBe('kwinta')
   })
 
   it('lazily loads the webfont a skin needs, exactly once', () => {
