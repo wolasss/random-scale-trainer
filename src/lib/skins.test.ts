@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { JSDOM } from 'jsdom'
 import { describe, expect, it } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
 import { DEFAULT_SKIN, SKIN_FONT_HREF, SKIN_GROUND, SKINS } from './skins'
@@ -44,9 +45,9 @@ for (const m of groundsMatch[1].matchAll(
   grounds[m[1]] = { dark: m[2], light: m[3] }
 }
 
-const skinsMatch = /var skins = \{([^}]*)\}/.exec(script)
-if (!skinsMatch) throw new Error('no allowed-skins map found in the bootstrap script')
-const allowedSkins = [...skinsMatch[1].matchAll(/([A-Za-z]+):\s*1/g)].map((m) => m[1])
+const skinsMatch = /var skins = \[([^\]]*)\]/.exec(script)
+if (!skinsMatch) throw new Error('no allowed-skins list found in the bootstrap script')
+const allowedSkins = [...skinsMatch[1].matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1])
 
 const fontsMatch = /var fonts = \{([\s\S]*?)\n\s*\}/.exec(script)
 if (!fontsMatch) throw new Error('no font table found in the bootstrap script')
@@ -79,7 +80,7 @@ describe('skins mirrored in index.html and index.css', () => {
     expect(Object.keys(grounds).sort()).toEqual([...SKINS].sort())
   })
 
-  it('the bootstrap allowed-skins map lists exactly SKINS', () => {
+  it('the bootstrap allowed-skins list lists exactly SKINS', () => {
     expect(allowedSkins.sort()).toEqual([...SKINS].sort())
   })
 
@@ -94,5 +95,48 @@ describe('skins mirrored in index.html and index.css', () => {
 
   it('the static theme-color meta matches the default skin dark ground', () => {
     expect(staticThemeColor.toLowerCase()).toBe(SKIN_GROUND[DEFAULT_SKIN].dark)
+  })
+})
+
+/**
+ * The allowlist check above only proves the bootstrap's source text names the
+ * right skins — it doesn't prove a value that merely happens to be an
+ * inherited Object property (`__proto__`, `constructor`, `toString`,
+ * `valueOf`) is actually turned away at run time. This runs the shipped bytes
+ * in a real DOM to check that.
+ */
+const renderShell = (storedSkin: string | null): Document => {
+  const dom = new JSDOM(html, {
+    url: 'https://callnote.app/',
+    runScripts: 'dangerously',
+    beforeParse(window) {
+      if (storedSkin !== null) {
+        window.localStorage.setItem(STORAGE_KEYS.skin, storedSkin)
+      }
+    },
+  })
+  return dom.window.document
+}
+
+describe('the bootstrap rejects a stored skin that is only a prototype key', () => {
+  it.each(['__proto__', 'constructor', 'toString', 'valueOf'])('%s', (storedSkin) => {
+    const document = renderShell(storedSkin)
+
+    expect(document.documentElement.hasAttribute('data-skin')).toBe(false)
+    expect(document.querySelector('link[data-skin-font]')).toBeNull()
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
+      SKIN_GROUND[DEFAULT_SKIN].dark,
+    )
+  })
+
+  it('still applies a real stored skin, proving the harness executes the bootstrap', () => {
+    const document = renderShell('instrument')
+
+    expect(document.documentElement.getAttribute('data-skin')).toBe('instrument')
+    const link = document.querySelector('link[data-skin-font="instrument"]')
+    expect(link?.getAttribute('href')).toBe(SKIN_FONT_HREF.instrument)
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
+      SKIN_GROUND.instrument.dark,
+    )
   })
 })
