@@ -28,7 +28,7 @@ export type Settings = {
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
-  /** Show an unaccented note list with metronome ticks and no spoken calls. */
+  /** Show one frozen shuffled list with metronome ticks and no spoken calls. */
   noteListMode: boolean
   /** Which tuning the neck map is drawn in. */
   tuning: TuningId

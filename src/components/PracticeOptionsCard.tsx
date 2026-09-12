@@ -60,7 +60,7 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       <SwitchRow
         id="note-list"
         label="List only"
-        subtitle="Show the notes with metronome ticks and no spoken calls."
+        subtitle="Shuffle all selected notes once; ticks continue until you regenerate."
         checked={settings.noteListMode}
         onChange={() => onToggle('noteListMode')}
       />

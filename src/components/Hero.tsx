@@ -1,14 +1,16 @@
 import type { ReactNode, RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
+import type { SpellingPreference } from '../lib/notes'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
-import { NoteQueue } from './NoteQueue'
+import { NoteList } from './NoteList'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
   beatsPerNote: number
-  poolSize: number
+  pool: number[]
+  spelling: SpellingPreference
   ringRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string | undefined
@@ -83,7 +85,8 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
 export function Hero({
   snapshot,
   beatsPerNote,
-  poolSize,
+  pool,
+  spelling,
   ringRef,
   message,
   idlePreview,
@@ -104,9 +107,11 @@ export function Hero({
       : snapshot.message)
 
   const nowText =
-    currentNote && positionInCycle !== null
+    listOnly
+      ? `${pool.length}-note list`
+      : currentNote && positionInCycle !== null
       ? `note ${positionInCycle} of ${cycleLength}`
-      : `${poolSize} notes queued`
+      : `${pool.length} notes queued`
 
   // The glyph itself: identical in both readings, so the count-in digit and the
   // note share one element and one pop animation wherever they are shown.
@@ -135,18 +140,18 @@ export function Hero({
       </span>
     )
 
-  // Count-in still needs its numeral. Before and after it, list-only really is
-  // only the list: neither the large glyph nor NEXT singles out one note.
-  const noteLine =
-    !listOnly || countIn !== null ? (
+  // List-only never turns a beat into a visual call, including during count-in.
+  // The message and click still announce that phase without replacing the list.
+  const noteLine = !listOnly ? (
       <NoteLine
         className={`hero-note-line ${isStage ? 'stage-note-line ' : ''}${state}`}
         ringRef={ringRef}
         glyph={glyph}
       />
     ) : null
-  const noteQueue =
-    listOnly && countIn === null ? <NoteQueue current={currentNote} upcoming={snapshot.upcomingNotes} /> : null
+  const noteList = listOnly ? (
+    <NoteList key={`${spelling}:${pool.join(',')}`} pool={pool} spelling={spelling} />
+  ) : null
 
   if (isStage) {
     return (
@@ -155,7 +160,7 @@ export function Hero({
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
-        {noteQueue}
+        {noteList}
 
         <div className="stage-readout">
           {!listOnly ? (
@@ -188,7 +193,7 @@ export function Hero({
 
       {noteLine}
 
-      {noteQueue}
+      {noteList}
 
       <PlaybackMessage>{coachingLine}</PlaybackMessage>
 

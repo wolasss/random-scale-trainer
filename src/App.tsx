@@ -614,7 +614,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             variant="stage"
             snapshot={playback.snapshot}
             beatsPerNote={settings.beatsPerNote}
-            poolSize={settings.pool.length}
+            pool={settings.pool}
+            spelling={settings.spelling}
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
@@ -679,7 +680,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         <Hero
           snapshot={playback.snapshot}
           beatsPerNote={settings.beatsPerNote}
-          poolSize={settings.pool.length}
+          pool={settings.pool}
+          spelling={settings.spelling}
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}

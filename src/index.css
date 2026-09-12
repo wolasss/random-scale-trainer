@@ -638,33 +638,64 @@ h2 {
   opacity: 1;
 }
 
-/* List-only replaces the single large call, so the notes share its room and
-   every one receives exactly the same visual weight. */
-.note-queue {
+/* One fixed exercise card: twelve equal slots on a wide practice surface,
+   folding into even rows without turning short note names into circles and
+   accidentals into pills. */
+.note-list-block {
   display: flex;
-  flex: none;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  align-content: center;
-  gap: 0.75rem;
+  gap: 1rem;
   width: 100%;
   min-height: 220px;
-  margin: 0;
+}
+
+.note-list {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.5rem;
+  width: min(100%, 72rem);
+  margin: 0 auto;
   padding: 0;
   list-style: none;
 }
 
-.note-queue-chip {
-  min-width: 3.5rem;
-  padding: 0.45rem 0.8rem;
+.note-list-item {
+  display: grid;
+  min-width: 0;
+  height: clamp(4.25rem, 6vw, 5.5rem);
+  place-items: center;
+  padding: 0 0.25rem;
   border: 1px solid var(--button-border);
-  border-radius: 999px;
+  border-radius: 14px;
+  background: var(--button-bg);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  line-height: 1.15;
+  font-size: clamp(1.8rem, 3.25vw, 3rem);
+  line-height: 1;
   text-align: center;
   color: var(--ink);
+}
+
+.note-list-regenerate {
+  min-height: 44px;
+}
+
+@media (max-width: 960px) {
+  .note-list {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .note-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .note-list-item {
+    height: 3.75rem;
+    font-size: 1.8rem;
+  }
 }
 
 .playback-message {
@@ -3578,13 +3609,13 @@ button.practice-history-cell {
   font-size: 0.9rem;
 }
 
-/* On the stand the list takes over the room normally occupied by the glyph. */
-:root[data-stage] .note-queue {
+/* On the stand the fixed list takes over the room normally occupied by the glyph. */
+:root[data-stage] .note-list-block {
   min-height: 40vh;
 }
 
-:root[data-stage] .note-queue-chip {
-  font-size: min(7vh, 10vw);
+:root[data-stage] .note-list-item {
+  font-size: min(5vh, 7vw);
 }
 
 .stage-readout {

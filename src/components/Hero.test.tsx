@@ -4,6 +4,7 @@ import { Hero } from './Hero'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { TOUCH_INPUT_QUERY } from '../hooks/useHardwareKeyboard'
 import { INITIAL_PLAYBACK_SNAPSHOT } from '../lib/playback/machine'
+import { PITCH_CLASSES } from '../lib/notes'
 import { installMatchMedia } from '../test/matchMedia'
 
 /** jsdom's own matchMedia never matches anything, so each test says whether the
@@ -15,7 +16,8 @@ const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
     <Hero
       snapshot={INITIAL_PLAYBACK_SNAPSHOT}
       beatsPerNote={4}
-      poolSize={12}
+      pool={PITCH_CLASSES}
+      spelling="mixed"
       ringRef={{ current: null }}
       {...props}
     />,
