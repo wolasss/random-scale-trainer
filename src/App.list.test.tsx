@@ -48,7 +48,7 @@ describe('list-only mode', () => {
     expect(notes()).toHaveLength(12)
     expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note list')
     expect(screen.getByText('Metronome on · 72 BPM · accent every 4 beats')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Shuffle list' })).toBeEnabled()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByRole('button', { name: 'Start timed attempt' })).toBeEnabled()
     expect(screen.queryByTestId('beat-dots')).toBeNull()
@@ -151,7 +151,7 @@ describe('list-only mode', () => {
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
-    expect(screen.queryByRole('button', { name: 'New shuffled list' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Shuffle list' })).toBeNull()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
@@ -169,10 +169,10 @@ describe('list-only mode', () => {
     expect(screen.getByText('Result')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry same list' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Continue attempt' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Shuffle list' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Reset timer' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Shuffle list' }))
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByRole('button', { name: 'Start timed attempt' })).toBeEnabled()
   })

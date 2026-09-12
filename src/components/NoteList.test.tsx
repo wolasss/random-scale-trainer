@@ -61,7 +61,7 @@ describe('NoteList', () => {
     const noteList = screen.getByTestId('note-list')
     const commandBar = screen.getByTestId('note-list-command-bar')
     const timer = screen.getByTestId('timer-slot')
-    const newList = screen.getByRole('button', { name: 'New shuffled list' })
+    const newList = screen.getByRole('button', { name: 'Shuffle list' })
 
     expect(noteList.compareDocumentPosition(commandBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(commandBar).toContainElement(timer)
@@ -69,7 +69,7 @@ describe('NoteList', () => {
     expect(timer.compareDocumentPosition(newList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('keeps its order until New shuffled list is pressed', () => {
+  it('keeps its order until Shuffle list is pressed', () => {
     let randomCalls = 0
     const random = () => (randomCalls++ < PITCH_CLASSES.length - 1 ? 0.99 : 0)
     const { rerender } = render(list({ pool: PITCH_CLASSES, spelling: 'sharp', random }))
@@ -78,7 +78,7 @@ describe('NoteList', () => {
     rerender(list({ pool: PITCH_CLASSES, spelling: 'sharp', random }))
     expect(names()).toEqual(firstOrder)
 
-    fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Shuffle list' }))
     expect(names()).not.toEqual(firstOrder)
     expect(names()).toHaveLength(12)
   })
@@ -95,7 +95,7 @@ describe('NoteList', () => {
       'Settings changed · shuffle to apply',
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Shuffle list' }))
     expect(names()).toEqual(['D', 'F', 'A', 'B'])
     expect(screen.getByTestId('note-list-summary')).toHaveTextContent('4-note list')
     expect(screen.queryByTestId('note-list-pending')).toBeNull()
@@ -107,7 +107,7 @@ describe('NoteList', () => {
 
     rerender(list({ pool: PITCH_CLASSES, spelling: 'sharp', locked: true, random: () => 0.99 }))
 
-    expect(screen.queryByRole('button', { name: 'New shuffled list' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Shuffle list' })).toBeNull()
     expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
     expect(document.querySelector('.note-list-action-slot')).toBe(actionSlot)
   })
@@ -123,7 +123,7 @@ describe('NoteList', () => {
       }),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Shuffle list' }))
     expect(onRegenerate).toHaveBeenCalledOnce()
   })
 })

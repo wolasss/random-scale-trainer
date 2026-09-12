@@ -118,7 +118,7 @@ export function NoteList({
                 setDeal(createDeal(pool, spelling, random))
               }}
             >
-              <FontAwesomeIcon icon={faShuffle} aria-hidden="true" /> New shuffled list
+              <FontAwesomeIcon icon={faShuffle} aria-hidden="true" /> Shuffle list
             </button>
           )}
         </div>
