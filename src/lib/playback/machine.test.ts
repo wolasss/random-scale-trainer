@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   // Out of the way by default, so a test that cares about the ceiling sets one.
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
+  metronomeEnabled: true,
   endSoundEnabled: true,
   showFretboard: true,
 }
@@ -512,6 +513,16 @@ describe('note spans', () => {
 
     expect(silent.audio.notes).toHaveLength(0)
     expect(silent.audio.clicks.length).toBeGreaterThan(0)
+  })
+
+  it('keeps beat events moving when audible metronome clicks are disabled', async () => {
+    const silent = createHarness({ settings: { metronomeEnabled: false } })
+    await silent.machine.start()
+    silent.advanceTo(2.1)
+
+    expect(silent.audio.clicks).toHaveLength(0)
+    expect(silent.beats.length).toBeGreaterThan(0)
+    expect(silent.snapshot().currentNote).not.toBeNull()
   })
 
   it('spells spoken audio and display from the same call', async () => {

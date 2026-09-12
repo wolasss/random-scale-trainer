@@ -23,10 +23,12 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
 - List only: one shuffled list containing every selected note exactly once, with no spoken note calls.
-  Its in-place stopwatch starts and stops with the metronome, holds the finished result for you to note
+  Its in-place stopwatch starts and stops with the workout, holds the finished result for you to note
   down, and locks the list while timing. Metronome ticks leave the order untouched; use New shuffled
-  list when you want a fresh order. Note-pool changes stay pending until then. Switched on from "How it
-  runs" and unavailable in challenge mode, where each called note must be scored individually
+  list when you want a fresh order, or switch its metronome off for a silent timed workout. Note-pool
+  changes stay pending until then. Mic, spoken-note, and fretboard controls stay out of this focused
+  mode without changing their saved preferences. Unavailable in challenge mode, where each called note
+  must be scored individually
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
   E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a

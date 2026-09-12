@@ -25,6 +25,8 @@ export type PlaybackSettings = {
   /** The tempo the ramp climbs to and then holds at for the rest of the session. */
   rampTargetBpm: number
   speakNotes: boolean
+  /** Schedule audible beat clicks; beat events continue when this is off. */
+  metronomeEnabled: boolean
   endSoundEnabled: boolean
   /** The neck on screen. Scoring prices a note called without it higher. */
   showFretboard: boolean
@@ -309,7 +311,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     const { event } = step
-    audio.playClickAt(event.time, event.accent)
+    if (settings.metronomeEnabled) {
+      audio.playClickAt(event.time, event.accent)
+    }
     if (event.note && settings.speakNotes) {
       audio.playNoteAt(event.note.audioKey, event.time)
     }

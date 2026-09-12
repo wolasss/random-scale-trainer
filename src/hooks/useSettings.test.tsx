@@ -13,6 +13,7 @@ const baseSettings = (): Settings => ({
   rampTargetBpm: 112,
   showFretboard: true,
   noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
@@ -323,6 +324,20 @@ describe('useSettings persistence', () => {
     const { result } = renderHook(() => useSettings())
 
     expect(result.current[0].noteListMode).toBe(true)
+  })
+
+  it('keeps the list metronome on by default and persists its toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].listMetronomeEnabled).toBe(true)
+    expect(window.localStorage.getItem('fretboard-list-metronome')).toBe('true')
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'listMetronomeEnabled' })
+    })
+
+    expect(result.current[0].listMetronomeEnabled).toBe(false)
+    expect(window.localStorage.getItem('fretboard-list-metronome')).toBe('false')
   })
 
   it.each([

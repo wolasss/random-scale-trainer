@@ -6,10 +6,14 @@ import { NoteList } from './NoteList'
 
 const items = () => screen.getAllByTestId('note-list-item')
 const names = () => items().map((item) => item.textContent)
-type ListOverrides = Omit<ComponentProps<typeof NoteList>, 'bpm' | 'beatsPerNote' | 'transport'>
+type ListOverrides = Omit<
+  ComponentProps<typeof NoteList>,
+  'bpm' | 'metronomeEnabled' | 'beatsPerNote' | 'transport'
+>
 const list = (props: ListOverrides) => (
   <NoteList
     bpm={72}
+    metronomeEnabled
     beatsPerNote={4}
     transport={<div data-testid="timer-slot">Timer</div>}
     {...props}
@@ -33,6 +37,22 @@ describe('NoteList', () => {
 
     expect(names()).toEqual(['C', 'E', 'G'])
     expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout')
+  })
+
+  it('replaces irrelevant tempo detail when the metronome is off', () => {
+    render(
+      <NoteList
+        pool={[0, 4, 7]}
+        spelling="flat"
+        bpm={72}
+        metronomeEnabled={false}
+        beatsPerNote={4}
+        transport={<div data-testid="timer-slot">Timer</div>}
+      />,
+    )
+
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout · Metronome off')
+    expect(screen.getByTestId('note-list-summary')).not.toHaveTextContent('72 BPM')
   })
 
   it('keeps the list ahead of its timer and list action in the reading order', () => {

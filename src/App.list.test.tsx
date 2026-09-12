@@ -16,6 +16,7 @@ const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 // for a switch has to open them the way a first-time user would.
 const revealSetup = () => fireEvent.click(screen.getByTestId('setup-reveal'))
 const listOnlySwitch = () => screen.getByRole('switch', { name: 'List only' })
+const metronomeSwitch = () => screen.getByRole('switch', { name: 'Metronome' })
 const notes = () => screen.getAllByTestId('note-list-item').map((item) => item.textContent)
 
 describe('list-only mode', () => {
@@ -83,6 +84,46 @@ describe('list-only mode', () => {
 
     expect(soundLog.sounds.some((sound) => sound.kind === 'click')).toBe(true)
     expect(soundLog.sounds.some((sound) => sound.kind === 'note')).toBe(false)
+  })
+
+  it('runs the stopwatch silently when its metronome is switched off', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.setupRevealed, 'true')
+    render(<App />)
+
+    fireEvent.click(metronomeSwitch())
+    expect(metronomeSwitch()).toHaveAttribute('aria-checked', 'false')
+    expect(window.localStorage.getItem(STORAGE_KEYS.listMetronome)).toBe('false')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note workout · Metronome off')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
+    })
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:01')
+    expect(screen.getByText('Metronome off')).toBeInTheDocument()
+    expect(soundLog.sounds).toEqual([])
+  })
+
+  it('hides incompatible controls and content without changing their saved preferences', () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.setupRevealed, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.micListen, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'true')
+    render(<App />)
+
+    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Fretboard map' })).toBeNull()
+    expect(screen.queryByTestId('fretboard')).toBeNull()
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('true')
+    expect(window.localStorage.getItem(STORAGE_KEYS.showFretboard)).toBe('true')
+
+    fireEvent.click(listOnlySwitch())
+
+    expect(screen.getByRole('switch', { name: 'Listen for my playing' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Fretboard map' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByTestId('fretboard')).toBeInTheDocument()
   })
 
   it('keeps the generated list unchanged while the metronome runs', async () => {

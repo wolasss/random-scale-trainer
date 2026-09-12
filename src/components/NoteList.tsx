@@ -8,6 +8,7 @@ type NoteListProps = {
   pool: number[]
   spelling: SpellingPreference
   bpm: number
+  metronomeEnabled: boolean
   beatsPerNote: number
   transport: ReactNode
   locked?: boolean
@@ -61,6 +62,7 @@ export function NoteList({
   pool,
   spelling,
   bpm,
+  metronomeEnabled,
   beatsPerNote,
   transport,
   locked = false,
@@ -69,13 +71,15 @@ export function NoteList({
 }: NoteListProps) {
   const [deal, setDeal] = useState(() => createDeal(pool, spelling, random))
   const settingsChanged = deal.spelling !== spelling || !samePool(deal.pool, pool)
-  const accentText = beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`
+  const timingText = metronomeEnabled
+    ? `${bpm} BPM · ${beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`}`
+    : 'Metronome off'
 
   return (
     <div className="note-list-block">
       <div className="note-list-heading">
         <p className="note-list-summary" data-testid="note-list-summary">
-          {deal.notes.length}-note workout · {bpm} BPM · {accentText}
+          {deal.notes.length}-note workout · {timingText}
         </p>
         {settingsChanged ? (
           <p className="note-list-pending" data-testid="note-list-pending" role="status">

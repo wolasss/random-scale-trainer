@@ -129,6 +129,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // intact for ordinary practice, but never let it become the active reading of
   // this challenge visit.
   const listModeEnabled = settings.noteListMode && !challenge.active
+  const metronomeEnabled = !listModeEnabled || settings.listMetronomeEnabled
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -140,9 +141,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    // List-only is the silent reading: the metronome still schedules every
-    // beat, while regular playback still respects the separate speech switch.
-    settings: { ...settings, speakNotes: settings.speakNotes && !listModeEnabled },
+    // List-only keeps the saved regular-practice preferences intact while
+    // suppressing features that do not belong to a fixed visual exercise.
+    // Its beat events still run with the click off, because they drive the
+    // stopwatch and scheduler rather than the audio alone.
+    settings: {
+      ...settings,
+      continuousMode: listModeEnabled ? true : settings.continuousMode,
+      speakNotes: settings.speakNotes && !listModeEnabled,
+      showFretboard: settings.showFretboard && !listModeEnabled,
+      metronomeEnabled,
+    },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -182,7 +191,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // board of points, and points come from what the microphone hears. The switch
   // in setup still shows the stored preference, which is what it is for — it is
   // the challenge, not the setting, that is listening.
-  const micEnabled = (settings.micEnabled || challenge.active) && isMicSupported()
+  const micEnabled = (challenge.active || (settings.micEnabled && !listModeEnabled)) && isMicSupported()
 
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
@@ -415,6 +424,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       isPaused={playback.isPaused}
       started={sessionTouched}
       elapsedMs={sessionTimer.elapsedMs}
+      metronomeEnabled={settings.listMetronomeEnabled}
       beatsPerNote={settings.beatsPerNote}
       beatInSpan={playback.snapshot.beatInSpan}
       countIn={playback.snapshot.countIn}
@@ -493,7 +503,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
-  const fretboardCard = settings.showFretboard ? (
+  const fretboardCard = settings.showFretboard && !listModeEnabled ? (
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
@@ -654,6 +664,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             variant="stage"
             snapshot={playback.snapshot}
             bpm={settings.bpm}
+            metronomeEnabled={settings.listMetronomeEnabled}
             beatsPerNote={settings.beatsPerNote}
             pool={settings.pool}
             spelling={settings.spelling}
@@ -725,6 +736,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         <Hero
           snapshot={playback.snapshot}
           bpm={settings.bpm}
+          metronomeEnabled={settings.listMetronomeEnabled}
           beatsPerNote={settings.beatsPerNote}
           pool={settings.pool}
           spelling={settings.spelling}

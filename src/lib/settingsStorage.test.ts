@@ -172,6 +172,8 @@ describe('writeChangedSettings', () => {
     STORAGE_KEYS.sessionGoal,
     STORAGE_KEYS.showFretboard,
     STORAGE_KEYS.micListen,
+    STORAGE_KEYS.noteList,
+    STORAGE_KEYS.listMetronome,
   ]
 
   it('writes every key when previous is null', () => {

@@ -9,6 +9,7 @@ import { NoteList } from './NoteList'
 type HeroProps = {
   snapshot: PlaybackSnapshot
   bpm: number
+  metronomeEnabled: boolean
   beatsPerNote: number
   pool: number[]
   spelling: SpellingPreference
@@ -91,6 +92,7 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
 export function Hero({
   snapshot,
   bpm,
+  metronomeEnabled,
   beatsPerNote,
   pool,
   spelling,
@@ -166,6 +168,7 @@ export function Hero({
       pool={pool}
       spelling={spelling}
       bpm={bpm}
+      metronomeEnabled={metronomeEnabled}
       beatsPerNote={beatsPerNote}
       transport={listWorkoutTimer}
       locked={listLocked}

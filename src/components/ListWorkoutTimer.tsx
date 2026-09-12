@@ -9,6 +9,7 @@ type ListWorkoutTimerProps = {
   isPaused: boolean
   started: boolean
   elapsedMs: number
+  metronomeEnabled: boolean
   beatsPerNote: number
   beatInSpan: number
   countIn: number | null
@@ -34,6 +35,7 @@ export function ListWorkoutTimer({
   isPaused,
   started,
   elapsedMs,
+  metronomeEnabled,
   beatsPerNote,
   beatInSpan,
   countIn,
@@ -60,12 +62,12 @@ export function ListWorkoutTimer({
   const status = problem ?? (isLoading
     ? PLAYBACK_MESSAGES.loadingAudio
     : isCountingIn
-      ? 'Count-in'
+      ? metronomeEnabled ? 'Count-in' : 'Silent count-in'
       : isPlaying
-        ? `Beat ${beatInSpan + 1} of ${beatsPerNote}`
+        ? metronomeEnabled ? `Beat ${beatInSpan + 1} of ${beatsPerNote}` : 'Metronome off'
         : hasStoppedResult
           ? 'Result ready to note down'
-          : 'Starts the timer and metronome')
+          : metronomeEnabled ? 'Starts the timer and metronome' : 'Starts the workout timer')
   const action = isPlaying ? 'Stop' : hasStoppedResult ? 'Retry same list' : 'Start workout'
   const handlePrimary = hasStoppedResult ? onRestart : onToggle
 

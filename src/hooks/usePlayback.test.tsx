@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   // Out of the way by default, so a test that cares about the ceiling sets one.
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
+  metronomeEnabled: true,
   endSoundEnabled: true,
   showFretboard: true,
 }

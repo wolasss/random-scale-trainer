@@ -13,6 +13,7 @@ export type SettingsToggleKey =
   | 'speakNotes'
   | 'showFretboard'
   | 'noteListMode'
+  | 'listMetronomeEnabled'
   | 'micEnabled'
 
 export type SettingsAction =

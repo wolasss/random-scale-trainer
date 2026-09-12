@@ -21,6 +21,7 @@ const SETTINGS: Settings = {
   rampTargetBpm: 120,
   showFretboard: true,
   noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
@@ -101,17 +102,19 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     expect(props.onToggle).toHaveBeenCalledWith('speakNotes')
   })
 
-  it('is visibly unavailable while list-only mode owns the audio behavior', () => {
-    const { props } = renderCard({ noteListMode: true, speakNotes: true })
-    const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
+  it('shows only controls that apply to list-only workouts', () => {
+    const { props } = renderCard({ noteListMode: true, micEnabled: true, showFretboard: true })
 
-    expect(speakSwitch).toBeDisabled()
-    expect(speakSwitch).toHaveAttribute('aria-checked', 'false')
-    expect(speakSwitch).toHaveAccessibleDescription('List-only mode keeps note calls silent.')
+    expect(screen.getByRole('switch', { name: 'List only' })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: 'Metronome' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Count in' })).toBeEnabled()
+    expect(screen.queryByRole('switch', { name: 'Keep going' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Say the note' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Fretboard map' })).toBeNull()
 
-    fireEvent.click(speakSwitch)
-
-    expect(props.onToggle).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('switch', { name: 'Metronome' }))
+    expect(props.onToggle).toHaveBeenCalledWith('listMetronomeEnabled')
   })
 
   it('disables list-only during a challenge without disabling spoken calls', () => {

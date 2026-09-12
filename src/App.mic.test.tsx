@@ -95,6 +95,21 @@ describe('listening for the player', () => {
     expect(screen.queryByTestId('mic-readout')).toBeNull()
   })
 
+  it('keeps a saved microphone preference dormant in list-only mode', async () => {
+    window.localStorage.setItem('fretboard-note-list', 'true')
+    window.localStorage.setItem('fretboard-mic-listen', 'true')
+    const getUserMedia = installGetUserMedia(async () => ({}) as MediaStream)
+    render(<App />)
+
+    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByTestId('mic-readout')).toBeNull()
+
+    await start()
+
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('true')
+  })
+
   /**
    * A setting stored by a browser that could listen, carried to one that
    * cannot: the switch is the only thing that may speak for it, so the readout

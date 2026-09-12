@@ -11,6 +11,7 @@ const renderTimer = (
     isPaused: false,
     started: false,
     elapsedMs: 0,
+    metronomeEnabled: true,
     beatsPerNote: 4,
     beatInSpan: 0,
     countIn: null,
@@ -20,13 +21,13 @@ const renderTimer = (
     ...overrides,
   }
 
-  render(<ListWorkoutTimer {...props} />)
-  return props
+  const view = render(<ListWorkoutTimer {...props} />)
+  return { ...view, props }
 }
 
 describe('ListWorkoutTimer', () => {
   it('starts as a plain stopwatch coupled to the metronome', () => {
-    const props = renderTimer()
+    const { props } = renderTimer()
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByText('Starts the timer and metronome')).toBeInTheDocument()
@@ -51,7 +52,7 @@ describe('ListWorkoutTimer', () => {
   })
 
   it('puts the stop action beside the running time and beat state', () => {
-    const props = renderTimer({ isPlaying: true, started: true, elapsedMs: 42_000, beatInSpan: 1 })
+    const { props } = renderTimer({ isPlaying: true, started: true, elapsedMs: 42_000, beatInSpan: 1 })
 
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:42')
@@ -61,7 +62,7 @@ describe('ListWorkoutTimer', () => {
   })
 
   it('holds a finished result and distinguishes a fresh start from recovery', () => {
-    const props = renderTimer({ isPaused: true, started: true, elapsedMs: 42_000 })
+    const { props } = renderTimer({ isPaused: true, started: true, elapsedMs: 42_000 })
 
     expect(screen.getByText('Finished in')).toBeInTheDocument()
     expect(screen.getByText('Result ready to note down')).toBeInTheDocument()
@@ -77,5 +78,30 @@ describe('ListWorkoutTimer', () => {
 
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText('Failed to load audio. Please reload the page.')).toBeInTheDocument()
+  })
+
+  it('describes a silent workout without implying the metronome will sound', () => {
+    const { rerender } = renderTimer({ metronomeEnabled: false })
+
+    expect(screen.getByText('Starts the workout timer')).toBeInTheDocument()
+    expect(screen.queryByText('Starts the timer and metronome')).toBeNull()
+
+    rerender(
+      <ListWorkoutTimer
+        isPlaying
+        isPaused={false}
+        started
+        elapsedMs={2_000}
+        metronomeEnabled={false}
+        beatsPerNote={4}
+        beatInSpan={2}
+        countIn={null}
+        playbackMessage="Calling notes."
+        onToggle={vi.fn()}
+        onRestart={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Metronome off')).toBeInTheDocument()
   })
 })

@@ -113,6 +113,9 @@ export const STORAGE_KEYS = {
   // Whether playback uses the silent list-only reading. Off unless it reads
   // 'true', like the rest of the toggles.
   noteList: 'fretboard-note-list',
+  // List-only can run as a plain stopwatch. Kept apart from the regular
+  // metronome so leaving list mode restores the app's established playback.
+  listMetronome: 'fretboard-list-metronome',
   // Which tuning the neck is drawn in, as a tuning id. An id that isn't one of
   // the five we ship is rejected and the map is drawn in standard tuning.
   tuning: 'fretboard-tuning',
