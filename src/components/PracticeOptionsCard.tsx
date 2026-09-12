@@ -5,13 +5,16 @@ import { SwitchRow } from './ui/SwitchRow'
 type PracticeOptionsCardProps = {
   settings: Settings
   onToggle: (key: SettingsToggleKey) => void
+  /** Challenges call and score one note at a time, so a static list cannot run there. */
+  listModeUnavailable?: boolean
 }
 
-export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardProps) {
+export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = false }: PracticeOptionsCardProps) {
   // A browser with no microphone API is a dead end the user would otherwise
   // only find on pressing play, so the reason takes the subtitle's place and
   // the switch — which describes itself with it — explains why it is off.
   const micSupported = isMicSupported()
+  const listModeActive = settings.noteListMode && !listModeUnavailable
 
   return (
     <section className="panel practice-options-card">
@@ -37,13 +40,13 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
         id="speak-notes"
         label="Say the note"
         subtitle={
-          settings.noteListMode
+          listModeActive
             ? 'List-only mode keeps note calls silent.'
             : 'Off leaves the note on screen only — name it yourself before checking.'
         }
-        checked={settings.speakNotes && !settings.noteListMode}
+        checked={settings.speakNotes && !listModeActive}
         onChange={() => onToggle('speakNotes')}
-        disabled={settings.noteListMode}
+        disabled={listModeActive}
       />
       <SwitchRow
         id="mic-listen"
@@ -60,9 +63,14 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       <SwitchRow
         id="note-list"
         label="List only"
-        subtitle="Shuffle all selected notes once; ticks continue until you regenerate."
-        checked={settings.noteListMode}
+        subtitle={
+          listModeUnavailable
+            ? 'Unavailable during a challenge, where each called note is scored.'
+            : 'Shuffle all selected notes once; ticks continue until you regenerate.'
+        }
+        checked={listModeActive}
         onChange={() => onToggle('noteListMode')}
+        disabled={listModeUnavailable}
       />
       <SwitchRow
         id="show-fretboard"

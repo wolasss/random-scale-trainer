@@ -30,8 +30,8 @@ const SETTINGS: Settings = {
   endSoundEnabled: true,
 }
 
-const renderCard = (overrides: Partial<Settings> = {}) => {
-  const props = { settings: { ...SETTINGS, ...overrides }, onToggle: vi.fn() }
+const renderCard = (overrides: Partial<Settings> = {}, listModeUnavailable = false) => {
+  const props = { settings: { ...SETTINGS, ...overrides }, onToggle: vi.fn(), listModeUnavailable }
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
 }
@@ -111,6 +111,23 @@ describe('PracticeOptionsCard speak-notes switch', () => {
 
     fireEvent.click(speakSwitch)
 
+    expect(props.onToggle).not.toHaveBeenCalled()
+  })
+
+  it('disables list-only during a challenge without disabling spoken calls', () => {
+    const { props } = renderCard({ noteListMode: true, speakNotes: true }, true)
+    const listSwitch = screen.getByRole('switch', { name: 'List only' })
+    const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
+
+    expect(listSwitch).toBeDisabled()
+    expect(listSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(listSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where each called note is scored.',
+    )
+    expect(speakSwitch).toBeEnabled()
+    expect(speakSwitch).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(listSwitch)
     expect(props.onToggle).not.toHaveBeenCalled()
   })
 })

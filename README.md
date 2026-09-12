@@ -25,7 +25,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - List only: one shuffled list containing every selected note exactly once, with no spoken note calls.
   Its in-place stopwatch starts and stops with the metronome, holds the result until reset, and locks
   the list while timing. Metronome ticks leave the order untouched; use Regenerate list when you want
-  a fresh order. Switched on from "How it runs"
+  a fresh order. Switched on from "How it runs" and unavailable in challenge mode, where each called
+  note must be scored individually
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
   E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a

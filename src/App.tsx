@@ -125,6 +125,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // Off entirely unless '?challenge=' brought the user here — see useChallenge.
   // Declared above playback because the transport's pause is what banks a score.
   const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
+  // Challenge scoring needs one called note at a time. Keep the saved preference
+  // intact for ordinary practice, but never let it become the active reading of
+  // this challenge visit.
+  const listModeEnabled = settings.noteListMode && !challenge.active
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -138,7 +142,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const playback = usePlayback({
     // List-only is the silent reading: the metronome still schedules every
     // beat, while regular playback still respects the separate speech switch.
-    settings: { ...settings, speakNotes: settings.speakNotes && !settings.noteListMode },
+    settings: { ...settings, speakNotes: settings.speakNotes && !listModeEnabled },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -395,7 +399,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     routine.blockIndex > 0 ||
     routine.finished
 
-  const listWorkoutTimer = settings.noteListMode ? (
+  const listWorkoutTimer = listModeEnabled ? (
     <ListWorkoutTimer
       isPlaying={playback.isPlaying}
       isPaused={playback.isPaused}
@@ -493,7 +497,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   ) : null
 
   const practiceOptionsCard = (
-    <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
+    <PracticeOptionsCard
+      settings={settings}
+      listModeUnavailable={challenge.active}
+      onToggle={(key) => dispatch({ type: 'toggle', key })}
+    />
   )
 
   // Taken from the hook rather than from the store: it banks the pending
@@ -643,7 +651,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
-            listOnly={settings.noteListMode}
+            listOnly={listModeEnabled}
             listWorkoutTimer={listWorkoutTimer}
             listLocked={playback.isPlaying}
             listHasResult={sessionTouched && !playback.isPlaying}
@@ -673,7 +681,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             bpm={settings.bpm}
             onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
-            listOnly={settings.noteListMode}
+            listOnly={listModeEnabled}
           />
         </main>
 
@@ -714,7 +722,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}
-          listOnly={settings.noteListMode}
+          listOnly={listModeEnabled}
           listWorkoutTimer={listWorkoutTimer}
           listLocked={playback.isPlaying}
           listHasResult={sessionTouched && !playback.isPlaying}
@@ -730,7 +738,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
       {scoreboardFold}
 
-      {settings.noteListMode ? null : (
+      {listModeEnabled ? null : (
         <TransportBar
           isPlaying={playback.isPlaying}
           isPaused={playback.isPaused}
@@ -754,8 +762,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
-          playShortcutLabel={settings.noteListMode ? 'start / stop' : 'play / pause'}
-          resetShortcutLabel={settings.noteListMode ? 'reset timer' : 'reset'}
+          playShortcutLabel={listModeEnabled ? 'start / stop' : 'play / pause'}
+          resetShortcutLabel={listModeEnabled ? 'reset timer' : 'reset'}
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}

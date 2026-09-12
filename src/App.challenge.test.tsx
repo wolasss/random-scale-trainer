@@ -165,6 +165,27 @@ describe('arriving on a challenge', () => {
     expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
   })
 
+  it('disables a saved list-only preference for challenge play', async () => {
+    installFetch()
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+
+    await renderApp()
+
+    expect(screen.queryByTestId('note-list')).toBeNull()
+    expect(screen.queryByTestId('list-workout-time')).toBeNull()
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+
+    const listSwitch = screen.getByRole('switch', { name: 'List only' })
+    expect(listSwitch).toBeDisabled()
+    expect(listSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(listSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where each called note is scored.',
+    )
+    // The user's ordinary-practice preference survives the challenge visit.
+    expect(window.localStorage.getItem(STORAGE_KEYS.noteList)).toBe('true')
+  })
+
   it('shows the board that is already there, in a rail beside the note', async () => {
     installFetch(board(['ada', 300], ['bo', 120]))
     installGetUserMedia()
