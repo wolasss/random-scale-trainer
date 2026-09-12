@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/wolasss/random-scale-trainer/compare/v1.31.2...v1.32.0) (2026-09-12)
+
+
+### Features
+
+* **hero:** add a note list that shows the upcoming notes, not just the current one ([#233](https://github.com/wolasss/random-scale-trainer/issues/233)) ([f78da77](https://github.com/wolasss/random-scale-trainer/commit/f78da7765c24f2ca07476a56e9cc4cfa016248b2))
+
 ## [1.31.2](https://github.com/wolasss/random-scale-trainer/compare/v1.31.1...v1.31.2) (2026-09-12)
 
 
