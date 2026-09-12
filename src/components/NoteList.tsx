@@ -72,20 +72,44 @@ export function NoteList({
   const [deal, setDeal] = useState(() => createDeal(pool, spelling, random))
   const settingsChanged = deal.spelling !== spelling || !samePool(deal.pool, pool)
   const timingText = metronomeEnabled
-    ? `${bpm} BPM · ${beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`}`
+    ? `Metronome on · ${bpm} BPM · ${beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`}`
     : 'Metronome off'
 
   return (
     <div className="note-list-block">
       <div className="note-list-heading">
-        <p className="note-list-summary" data-testid="note-list-summary">
-          {deal.notes.length}-note workout · {timingText}
-        </p>
-        {settingsChanged ? (
-          <p className="note-list-pending" data-testid="note-list-pending" role="status">
-            Settings changed · your next shuffled list will use them.
+        <div className="note-list-context">
+          <p className="note-list-title" data-testid="note-list-summary">
+            {deal.notes.length}-note list
           </p>
-        ) : null}
+          {settingsChanged ? (
+            <p className="note-list-pending" data-testid="note-list-pending" role="status">
+              Settings changed · {locked ? 'stop, then shuffle to apply' : 'shuffle to apply'}
+            </p>
+          ) : (
+            <p className="note-list-meta">{timingText}</p>
+          )}
+        </div>
+
+        <div className="note-list-action-slot">
+          {locked ? (
+            <p className="note-list-lock" data-testid="note-list-lock" role="status">
+              Shuffle unavailable
+            </p>
+          ) : (
+            <button
+              type="button"
+              className="ghost-button note-list-regenerate"
+              data-testid="note-list-regenerate"
+              onClick={() => {
+                onRegenerate?.()
+                setDeal(createDeal(pool, spelling, random))
+              }}
+            >
+              <FontAwesomeIcon icon={faShuffle} aria-hidden="true" /> New shuffled list
+            </button>
+          )}
+        </div>
       </div>
 
       <ol className="note-list" data-testid="note-list" aria-label="Practice note order">
@@ -97,24 +121,6 @@ export function NoteList({
       </ol>
 
       {transport}
-
-      {locked ? (
-        <p className="note-list-lock" data-testid="note-list-lock" role="status">
-          List locked during attempt
-        </p>
-      ) : (
-        <button
-          type="button"
-          className="ghost-button note-list-regenerate"
-          data-testid="note-list-regenerate"
-          onClick={() => {
-            onRegenerate?.()
-            setDeal(createDeal(pool, spelling, random))
-          }}
-        >
-          <FontAwesomeIcon icon={faShuffle} aria-hidden="true" /> New shuffled list
-        </button>
-      )}
     </div>
   )
 }

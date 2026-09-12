@@ -75,7 +75,7 @@ describe('the stand reading', () => {
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getAllByTestId('play-toggle')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Start workout' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start timed attempt' })).toBeInTheDocument()
     expect(screen.getByTestId('open-setup')).toBeInTheDocument()
     expect(document.querySelector('.stage-play')).toBeNull()
   })

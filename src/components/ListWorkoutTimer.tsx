@@ -6,12 +6,8 @@ import { formatElapsed } from '../lib/time'
 
 type ListWorkoutTimerProps = {
   isPlaying: boolean
-  isPaused: boolean
   started: boolean
   elapsedMs: number
-  metronomeEnabled: boolean
-  beatsPerNote: number
-  beatInSpan: number
   countIn: number | null
   playbackMessage: string
   onToggle: () => void
@@ -32,12 +28,8 @@ const PLAYBACK_PROBLEMS = new Set<string>([
  */
 export function ListWorkoutTimer({
   isPlaying,
-  isPaused,
   started,
   elapsedMs,
-  metronomeEnabled,
-  beatsPerNote,
-  beatInSpan,
   countIn,
   playbackMessage,
   onToggle,
@@ -51,24 +43,15 @@ export function ListWorkoutTimer({
   const label = problem
     ? 'Needs attention'
     : isLoading
-    ? 'Preparing audio'
+    ? 'Preparing'
     : isCountingIn
       ? `Starting in ${countIn}`
       : isPlaying
-        ? 'In progress'
+        ? 'Running'
         : hasStoppedResult
-          ? 'Finished in'
-          : 'Workout time'
-  const status = problem ?? (isLoading
-    ? PLAYBACK_MESSAGES.loadingAudio
-    : isCountingIn
-      ? metronomeEnabled ? 'Count-in' : 'Silent count-in'
-      : isPlaying
-        ? metronomeEnabled ? `Beat ${beatInSpan + 1} of ${beatsPerNote}` : 'Metronome off'
-        : hasStoppedResult
-          ? 'Result ready to note down'
-          : metronomeEnabled ? 'Starts the timer and metronome' : 'Starts the workout timer')
-  const action = isPlaying ? 'Stop' : hasStoppedResult ? 'Retry same list' : 'Start workout'
+          ? 'Result'
+          : 'Ready'
+  const action = isPlaying ? 'Stop' : hasStoppedResult ? 'Retry same list' : 'Start timed attempt'
   const handlePrimary = hasStoppedResult ? onRestart : onToggle
 
   return (
@@ -102,13 +85,11 @@ export function ListWorkoutTimer({
         </div>
       </div>
 
-      {hasStoppedResult && isPaused ? (
-        <button type="button" className="list-workout-continue" onClick={onToggle}>
-          Continue attempt
-        </button>
+      {problem ? (
+        <p className="list-workout-status" role="alert">
+          {problem}
+        </p>
       ) : null}
-
-      <p className="list-workout-status">{status}</p>
     </section>
   )
 }

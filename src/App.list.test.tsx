@@ -46,12 +46,11 @@ describe('list-only mode', () => {
 
     expect(screen.getByTestId('note-list')).toBeInTheDocument()
     expect(notes()).toHaveLength(12)
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent(
-      '12-note workout · 72 BPM · accent every 4 beats',
-    )
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note list')
+    expect(screen.getByText('Metronome on · 72 BPM · accent every 4 beats')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
-    expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Start timed attempt' })).toBeEnabled()
     expect(screen.queryByTestId('beat-dots')).toBeNull()
     expect(document.querySelector('.transport-bar')).toBeNull()
     expect(screen.queryByTestId('current-note')).toBeNull()
@@ -94,15 +93,15 @@ describe('list-only mode', () => {
     fireEvent.click(metronomeSwitch())
     expect(metronomeSwitch()).toHaveAttribute('aria-checked', 'false')
     expect(window.localStorage.getItem(STORAGE_KEYS.listMetronome)).toBe('false')
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note workout · Metronome off')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note list')
+    expect(screen.getByText('Metronome off')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start timed attempt' }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
     })
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:01')
-    expect(screen.getByText('Metronome off')).toBeInTheDocument()
     expect(soundLog.sounds).toEqual([])
   })
 
@@ -147,11 +146,11 @@ describe('list-only mode', () => {
     window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start timed attempt' }))
     await act(async () => {})
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
-    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
     expect(screen.queryByRole('button', { name: 'New shuffled list' })).toBeNull()
 
     await act(async () => {
@@ -167,23 +166,22 @@ describe('list-only mode', () => {
     })
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent(stoppedAt ?? '')
-    expect(screen.getByText('Finished in')).toBeInTheDocument()
-    expect(screen.getByText('Result ready to note down')).toBeInTheDocument()
+    expect(screen.getByText('Result')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry same list' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Continue attempt' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Continue attempt' })).toBeNull()
     expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Reset timer' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
-    expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Start timed attempt' })).toBeEnabled()
   })
 
   it('starts a fresh timed attempt from a held result', async () => {
     window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start timed attempt' }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
     })
@@ -195,14 +193,14 @@ describe('list-only mode', () => {
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
-    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
   })
 
   it('makes Space follow the visible primary action after a result', async () => {
     window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start timed attempt' }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
     })
@@ -214,6 +212,6 @@ describe('list-only mode', () => {
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
-    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
   })
 })

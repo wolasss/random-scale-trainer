@@ -358,6 +358,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     void playback.start()
   }
 
+  // List-only is a start/stop stopwatch rather than a pauseable transport.
+  // Stop finalises the visible result; the next primary action starts a fresh
+  // attempt against the same list.
+  const toggleListWorkout = () => {
+    if (playback.isPlaying) {
+      playback.stop()
+      return
+    }
+
+    playOrPause()
+  }
+
   // The practice log's own control: it puts the session clock back to zero and
   // leaves everything else — playback, counters, the stored days — alone. A log
   // of what someone has actually practised is not something a stray click on a
@@ -400,15 +412,13 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     routine.blockIndex > 0 ||
     routine.finished
 
-  // Space always follows the primary action the list workout is showing. Once
-  // a result exists that means a fresh attempt on the same list; continuing an
-  // accidentally stopped attempt remains the explicit recovery action.
-  const listPrimaryAction = sessionTouched && !playback.isPlaying ? restartListWorkout : playOrPause
+  // Space always follows the primary action the list workout is showing.
+  const listPrimaryAction = sessionTouched && !playback.isPlaying ? restartListWorkout : toggleListWorkout
   const listPrimaryShortcutLabel = playback.isPlaying
     ? 'stop'
     : sessionTouched
       ? 'retry same list'
-      : 'start workout'
+      : 'start timed attempt'
 
   useKeyboardShortcuts({
     onSpace: listModeEnabled ? listPrimaryAction : playOrPause,
@@ -421,15 +431,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const listWorkoutTimer = listModeEnabled ? (
     <ListWorkoutTimer
       isPlaying={playback.isPlaying}
-      isPaused={playback.isPaused}
       started={sessionTouched}
       elapsedMs={sessionTimer.elapsedMs}
-      metronomeEnabled={settings.listMetronomeEnabled}
-      beatsPerNote={settings.beatsPerNote}
-      beatInSpan={playback.snapshot.beatInSpan}
       countIn={playback.snapshot.countIn}
       playbackMessage={playback.snapshot.message}
-      onToggle={playOrPause}
+      onToggle={toggleListWorkout}
       onRestart={restartListWorkout}
     />
   ) : null

@@ -27,16 +27,15 @@ describe('NoteList', () => {
     expect(names()).toEqual(['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'])
     expect(items()).toHaveLength(12)
     expect(items().every((item) => item.className === 'note-list-item')).toBe(true)
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent(
-      '12-note workout · 72 BPM · accent every 4 beats',
-    )
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('12-note list')
+    expect(screen.getByText('Metronome on · 72 BPM · accent every 4 beats')).toBeInTheDocument()
   })
 
   it('uses the selected pool rather than padding a short list with repeats', () => {
     render(list({ pool: [0, 4, 7], spelling: 'flat', random: () => 0.99 }))
 
     expect(names()).toEqual(['C', 'E', 'G'])
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note list')
   })
 
   it('replaces irrelevant tempo detail when the metronome is off', () => {
@@ -51,19 +50,20 @@ describe('NoteList', () => {
       />,
     )
 
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout · Metronome off')
-    expect(screen.getByTestId('note-list-summary')).not.toHaveTextContent('72 BPM')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note list')
+    expect(screen.getByText('Metronome off')).toBeInTheDocument()
+    expect(screen.queryByText('72 BPM')).toBeNull()
   })
 
-  it('keeps the list ahead of its timer and list action in the reading order', () => {
+  it('keeps list actions in its header and the timer after the notes', () => {
     render(list({ pool: PITCH_CLASSES, spelling: 'sharp' }))
 
     const noteList = screen.getByTestId('note-list')
     const timer = screen.getByTestId('timer-slot')
     const newList = screen.getByRole('button', { name: 'New shuffled list' })
 
+    expect(newList.compareDocumentPosition(noteList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(noteList.compareDocumentPosition(timer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(timer.compareDocumentPosition(newList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('keeps its order until New shuffled list is pressed', () => {
@@ -83,26 +83,30 @@ describe('NoteList', () => {
   it('identifies pending setup edits until explicit regeneration applies them', () => {
     const { rerender } = render(list({ pool: [0, 4, 7], spelling: 'sharp', random: () => 0.99 }))
     expect(names()).toEqual(['C', 'E', 'G'])
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note list')
 
     rerender(list({ pool: [2, 5, 9, 11], spelling: 'flat', random: () => 0.99 }))
     expect(names()).toEqual(['C', 'E', 'G'])
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note workout')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note list')
     expect(screen.getByTestId('note-list-pending')).toHaveTextContent(
-      'Settings changed · your next shuffled list will use them.',
+      'Settings changed · shuffle to apply',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
     expect(names()).toEqual(['D', 'F', 'A', 'B'])
-    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('4-note workout')
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent('4-note list')
     expect(screen.queryByTestId('note-list-pending')).toBeNull()
   })
 
-  it('protects a running attempt with passive lock feedback', () => {
-    render(list({ pool: PITCH_CLASSES, spelling: 'sharp', locked: true, random: () => 0.99 }))
+  it('protects a running attempt without moving the list action slot', () => {
+    const { rerender } = render(list({ pool: PITCH_CLASSES, spelling: 'sharp', random: () => 0.99 }))
+    const actionSlot = document.querySelector('.note-list-action-slot')
+
+    rerender(list({ pool: PITCH_CLASSES, spelling: 'sharp', locked: true, random: () => 0.99 }))
 
     expect(screen.queryByRole('button', { name: 'New shuffled list' })).toBeNull()
-    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('Shuffle unavailable')
+    expect(document.querySelector('.note-list-action-slot')).toBe(actionSlot)
   })
 
   it('notifies the session before dealing a new list', () => {
