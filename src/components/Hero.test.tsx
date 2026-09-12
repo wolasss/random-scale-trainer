@@ -15,6 +15,7 @@ const renderHero = (props: Partial<Parameters<typeof Hero>[0]> = {}) =>
   render(
     <Hero
       snapshot={INITIAL_PLAYBACK_SNAPSHOT}
+      bpm={72}
       beatsPerNote={4}
       pool={PITCH_CLASSES}
       spelling="mixed"

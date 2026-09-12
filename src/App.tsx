@@ -379,14 +379,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     }
   }
 
-  useKeyboardShortcuts({
-    onSpace: playOrPause,
-    onTap: handleTapTempo,
-    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
-    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
-    onReset: resetSession,
-  })
-
   // Anything on the clock, in play, or a routine moved off block 0 — exactly
   // the state "Reset session" exists to unwind. Until then the transport shows
   // only Start, and the goal readout waits with it: a reset button at a zeroed
@@ -399,20 +391,36 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     routine.blockIndex > 0 ||
     routine.finished
 
+  // Space always follows the primary action the list workout is showing. Once
+  // a result exists that means a fresh attempt on the same list; continuing an
+  // accidentally stopped attempt remains the explicit recovery action.
+  const listPrimaryAction = sessionTouched && !playback.isPlaying ? restartListWorkout : playOrPause
+  const listPrimaryShortcutLabel = playback.isPlaying
+    ? 'stop'
+    : sessionTouched
+      ? 'retry same list'
+      : 'start workout'
+
+  useKeyboardShortcuts({
+    onSpace: listModeEnabled ? listPrimaryAction : playOrPause,
+    onTap: handleTapTempo,
+    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
+    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
+    onReset: resetSession,
+  })
+
   const listWorkoutTimer = listModeEnabled ? (
     <ListWorkoutTimer
       isPlaying={playback.isPlaying}
       isPaused={playback.isPaused}
       started={sessionTouched}
       elapsedMs={sessionTimer.elapsedMs}
-      bpm={settings.bpm}
       beatsPerNote={settings.beatsPerNote}
       beatInSpan={playback.snapshot.beatInSpan}
       countIn={playback.snapshot.countIn}
       playbackMessage={playback.snapshot.message}
       onToggle={playOrPause}
       onRestart={restartListWorkout}
-      onReset={resetSession}
     />
   ) : null
 
@@ -645,6 +653,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           <Hero
             variant="stage"
             snapshot={playback.snapshot}
+            bpm={settings.bpm}
             beatsPerNote={settings.beatsPerNote}
             pool={settings.pool}
             spelling={settings.spelling}
@@ -654,7 +663,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             listOnly={listModeEnabled}
             listWorkoutTimer={listWorkoutTimer}
             listLocked={playback.isPlaying}
-            listHasResult={sessionTouched && !playback.isPlaying}
             onListRegenerate={resetSession}
           />
 
@@ -716,6 +724,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       <div className={`practice-stage-view ${fretboardCard !== null ? 'with-neck' : ''}`}>
         <Hero
           snapshot={playback.snapshot}
+          bpm={settings.bpm}
           beatsPerNote={settings.beatsPerNote}
           pool={settings.pool}
           spelling={settings.spelling}
@@ -725,7 +734,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           listOnly={listModeEnabled}
           listWorkoutTimer={listWorkoutTimer}
           listLocked={playback.isPlaying}
-          listHasResult={sessionTouched && !playback.isPlaying}
           onListRegenerate={resetSession}
         />
 
@@ -762,7 +770,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
-          playShortcutLabel={listModeEnabled ? 'start / stop' : 'play / pause'}
+          playShortcutLabel={listModeEnabled ? listPrimaryShortcutLabel : 'play / pause'}
           resetShortcutLabel={listModeEnabled ? 'reset timer' : 'reset'}
         />
 

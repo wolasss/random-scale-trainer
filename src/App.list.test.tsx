@@ -45,9 +45,13 @@ describe('list-only mode', () => {
 
     expect(screen.getByTestId('note-list')).toBeInTheDocument()
     expect(notes()).toHaveLength(12)
-    expect(screen.getByRole('button', { name: 'Regenerate list' })).toBeEnabled()
+    expect(screen.getByTestId('note-list-summary')).toHaveTextContent(
+      '12-note workout · 72 BPM · accent every 4 beats',
+    )
+    expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
+    expect(screen.queryByTestId('beat-dots')).toBeNull()
     expect(document.querySelector('.transport-bar')).toBeNull()
     expect(screen.queryByTestId('current-note')).toBeNull()
     expect(screen.queryByTestId('next-note')).toBeNull()
@@ -106,7 +110,8 @@ describe('list-only mode', () => {
     await act(async () => {})
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
-    expect(screen.getByRole('button', { name: 'List locked while timing' })).toBeDisabled()
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+    expect(screen.queryByRole('button', { name: 'New shuffled list' })).toBeNull()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
@@ -122,11 +127,13 @@ describe('list-only mode', () => {
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent(stoppedAt ?? '')
     expect(screen.getByText('Finished in')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start again' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Continue this attempt' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'New list · Reset timer' })).toBeEnabled()
+    expect(screen.getByText('Result ready to note down')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry same list' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Continue attempt' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'New shuffled list' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Reset timer' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset timer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New shuffled list' }))
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
   })
@@ -142,11 +149,30 @@ describe('list-only mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:01')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry same list' }))
     await act(async () => {})
 
     expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
     expect(screen.getByText('Starting in 4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'List locked while timing' })).toBeDisabled()
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
+  })
+
+  it('makes Space follow the visible primary action after a result', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(screen.getByRole('button', { name: 'Retry same list' })).toBeEnabled()
+
+    fireEvent.keyDown(window, { code: 'Space' })
+    await act(async () => {})
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getByText('Starting in 4')).toBeInTheDocument()
+    expect(screen.getByTestId('note-list-lock')).toHaveTextContent('List locked during attempt')
   })
 })

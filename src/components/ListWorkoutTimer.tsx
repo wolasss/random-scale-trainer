@@ -1,6 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlay } from '@fortawesome/free-solid-svg-icons/faPlay'
-import { faRotateLeft } from '@fortawesome/free-solid-svg-icons/faRotateLeft'
 import { faStop } from '@fortawesome/free-solid-svg-icons/faStop'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { formatElapsed } from '../lib/time'
@@ -10,15 +9,20 @@ type ListWorkoutTimerProps = {
   isPaused: boolean
   started: boolean
   elapsedMs: number
-  bpm: number
   beatsPerNote: number
   beatInSpan: number
   countIn: number | null
   playbackMessage: string
   onToggle: () => void
   onRestart: () => void
-  onReset: () => void
 }
+
+const PLAYBACK_PROBLEMS = new Set<string>([
+  PLAYBACK_MESSAGES.noNotes,
+  PLAYBACK_MESSAGES.audioUnsupported,
+  PLAYBACK_MESSAGES.audioLoadFailed,
+  PLAYBACK_MESSAGES.hiddenTooLong,
+])
 
 /**
  * List-only presents the existing session clock as an attempt stopwatch. It
@@ -30,20 +34,21 @@ export function ListWorkoutTimer({
   isPaused,
   started,
   elapsedMs,
-  bpm,
   beatsPerNote,
   beatInSpan,
   countIn,
   playbackMessage,
   onToggle,
   onRestart,
-  onReset,
 }: ListWorkoutTimerProps) {
   const hasStoppedResult = started && !isPlaying
   const isLoading = isPlaying && playbackMessage === PLAYBACK_MESSAGES.loadingAudio
   const isCountingIn = isPlaying && countIn !== null
+  const problem = PLAYBACK_PROBLEMS.has(playbackMessage) ? playbackMessage : null
 
-  const label = isLoading
+  const label = problem
+    ? 'Needs attention'
+    : isLoading
     ? 'Preparing audio'
     : isCountingIn
       ? `Starting in ${countIn}`
@@ -52,47 +57,52 @@ export function ListWorkoutTimer({
         : hasStoppedResult
           ? 'Finished in'
           : 'Workout time'
-  const status = isLoading
+  const status = problem ?? (isLoading
     ? PLAYBACK_MESSAGES.loadingAudio
     : isCountingIn
-      ? `${bpm} BPM · Count-in`
+      ? 'Count-in'
       : isPlaying
-        ? `${bpm} BPM · Beat ${beatInSpan + 1} of ${beatsPerNote}`
+        ? `Beat ${beatInSpan + 1} of ${beatsPerNote}`
         : hasStoppedResult
-          ? `${bpm} BPM · Result stays here until reset`
-          : `${bpm} BPM · Starts the timer and metronome`
-  const action = isPlaying ? 'Stop' : hasStoppedResult ? 'Start again' : 'Start workout'
+          ? 'Result ready to note down'
+          : 'Starts the timer and metronome')
+  const action = isPlaying ? 'Stop' : hasStoppedResult ? 'Retry same list' : 'Start workout'
   const handlePrimary = hasStoppedResult ? onRestart : onToggle
 
   return (
-    <section className="list-workout-timer" aria-label="List workout timer">
-      <span className="list-workout-state" aria-live="polite">
-        {label}
-      </span>
-      <output className="list-workout-time" data-testid="list-workout-time" aria-label={`Elapsed time ${formatElapsed(elapsedMs)}`}>
-        {formatElapsed(elapsedMs)}
-      </output>
+    <section
+      className={`list-workout-timer ${hasStoppedResult ? 'finished' : isPlaying ? 'running' : 'ready'}`}
+      aria-label="List workout timer"
+    >
+      <div className="list-workout-main">
+        <div className="list-workout-readout">
+          <span className="list-workout-state" aria-live="polite">
+            {label}
+          </span>
+          <output
+            className="list-workout-time"
+            data-testid="list-workout-time"
+            aria-label={`Elapsed time ${formatElapsed(elapsedMs)}`}
+          >
+            {formatElapsed(elapsedMs)}
+          </output>
+        </div>
 
-      <div className="list-workout-actions">
-        <button
-          type="button"
-          className="list-workout-toggle primary-button"
-          data-testid="play-toggle"
-          onClick={handlePrimary}
-        >
-          <FontAwesomeIcon icon={isPlaying ? faStop : faPlay} aria-hidden="true" /> {action}
-        </button>
-
-        {hasStoppedResult ? (
-          <button type="button" className="ghost-button list-workout-reset" data-testid="reset" onClick={onReset}>
-            <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" /> Reset timer
+        <div className="list-workout-actions">
+          <button
+            type="button"
+            className="list-workout-toggle primary-button"
+            data-testid="play-toggle"
+            onClick={handlePrimary}
+          >
+            <FontAwesomeIcon icon={isPlaying ? faStop : faPlay} aria-hidden="true" /> {action}
           </button>
-        ) : null}
+        </div>
       </div>
 
       {hasStoppedResult && isPaused ? (
         <button type="button" className="list-workout-continue" onClick={onToggle}>
-          Continue this attempt
+          Continue attempt
         </button>
       ) : null}
 
