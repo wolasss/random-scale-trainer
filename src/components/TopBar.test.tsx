@@ -38,4 +38,20 @@ describe('TopBar key hints', () => {
     expect(document.querySelector('.key-hints')).not.toBeNull()
     expect(screen.getByText('Space')).toBeInTheDocument()
   })
+
+  it('can name list-workout shortcut semantics without changing the keys', () => {
+    installTouchInput(false)
+
+    render(
+      <TopBar
+        theme="dark"
+        onToggleTheme={() => undefined}
+        playShortcutLabel="start / stop"
+        resetShortcutLabel="reset timer"
+      />,
+    )
+
+    expect(screen.getByText(/start \/ stop/)).toBeInTheDocument()
+    expect(screen.getByText(/reset timer/)).toBeInTheDocument()
+  })
 })

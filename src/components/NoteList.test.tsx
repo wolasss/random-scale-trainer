@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PITCH_CLASSES } from '../lib/notes'
 import { NoteList } from './NoteList'
 
@@ -19,6 +19,7 @@ describe('NoteList', () => {
     render(<NoteList pool={[0, 4, 7]} spelling="flat" random={() => 0.99} />)
 
     expect(names()).toEqual(['C', 'E', 'G'])
+    expect(screen.getByText('Read left → right, top → bottom')).toBeInTheDocument()
   })
 
   it('keeps its order until Regenerate list is pressed', () => {
@@ -33,5 +34,38 @@ describe('NoteList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate list' }))
     expect(names()).not.toEqual(firstOrder)
     expect(names()).toHaveLength(12)
+  })
+
+  it('waits for an explicit regeneration before applying setup edits', () => {
+    const { rerender } = render(<NoteList pool={[0, 4, 7]} spelling="sharp" random={() => 0.99} />)
+    expect(names()).toEqual(['C', 'E', 'G'])
+
+    rerender(<NoteList pool={[2, 5, 9]} spelling="flat" random={() => 0.99} />)
+    expect(names()).toEqual(['C', 'E', 'G'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate list' }))
+    expect(names()).toEqual(['D', 'F', 'A'])
+  })
+
+  it('protects a running attempt from regeneration', () => {
+    render(<NoteList pool={PITCH_CLASSES} spelling="sharp" locked random={() => 0.99} />)
+
+    expect(screen.getByRole('button', { name: 'List locked while timing' })).toBeDisabled()
+  })
+
+  it('makes it explicit that a new list clears the held timer result', () => {
+    const onRegenerate = vi.fn()
+    render(
+      <NoteList
+        pool={PITCH_CLASSES}
+        spelling="sharp"
+        hasResult
+        onRegenerate={onRegenerate}
+        random={() => 0.99}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'New list · Reset timer' }))
+    expect(onRegenerate).toHaveBeenCalledOnce()
   })
 })

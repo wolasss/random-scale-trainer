@@ -31,6 +31,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
+import { ListWorkoutTimer } from './components/ListWorkoutTimer'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
@@ -338,6 +339,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     challenge.endSession()
   }
 
+  const restartListWorkout = () => {
+    resetSession()
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
   // The practice log's own control: it puts the session clock back to zero and
   // leaves everything else — playback, counters, the stored days — alone. A log
   // of what someone has actually practised is not something a stray click on a
@@ -387,6 +394,23 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     sessionTimer.elapsedMs > 0 ||
     routine.blockIndex > 0 ||
     routine.finished
+
+  const listWorkoutTimer = settings.noteListMode ? (
+    <ListWorkoutTimer
+      isPlaying={playback.isPlaying}
+      isPaused={playback.isPaused}
+      started={sessionTouched}
+      elapsedMs={sessionTimer.elapsedMs}
+      bpm={settings.bpm}
+      beatsPerNote={settings.beatsPerNote}
+      beatInSpan={playback.snapshot.beatInSpan}
+      countIn={playback.snapshot.countIn}
+      playbackMessage={playback.snapshot.message}
+      onToggle={playOrPause}
+      onRestart={restartListWorkout}
+      onReset={resetSession}
+    />
+  ) : null
 
   // The idle hero's ghost note. Gated on the machine's own status: 'playing'
   // covers the count-in too, so the ghost is gone from the first press.
@@ -620,6 +644,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             message={heroMessage}
             idlePreview={idlePreview}
             listOnly={settings.noteListMode}
+            listWorkoutTimer={listWorkoutTimer}
+            listLocked={playback.isPlaying}
+            listHasResult={sessionTouched && !playback.isPlaying}
+            onListRegenerate={resetSession}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -645,6 +673,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             bpm={settings.bpm}
             onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
+            listOnly={settings.noteListMode}
           />
         </main>
 
@@ -686,6 +715,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           message={heroMessage}
           idlePreview={idlePreview}
           listOnly={settings.noteListMode}
+          listWorkoutTimer={listWorkoutTimer}
+          listLocked={playback.isPlaying}
+          listHasResult={sessionTouched && !playback.isPlaying}
+          onListRegenerate={resetSession}
         />
 
         {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
@@ -697,17 +730,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
       {scoreboardFold}
 
-      <TransportBar
-        isPlaying={playback.isPlaying}
-        isPaused={playback.isPaused}
-        routineName={routine.selected?.name ?? null}
-        routineFinished={routine.finished}
-        onPlayPause={playOrPause}
-        onReset={resetSession}
-        started={sessionTouched}
-        elapsedMs={sessionTimer.elapsedMs}
-        goalMin={settings.sessionGoalMin}
-      />
+      {settings.noteListMode ? null : (
+        <TransportBar
+          isPlaying={playback.isPlaying}
+          isPaused={playback.isPaused}
+          routineName={routine.selected?.name ?? null}
+          routineFinished={routine.finished}
+          onPlayPause={playOrPause}
+          onReset={resetSession}
+          started={sessionTouched}
+          elapsedMs={sessionTimer.elapsedMs}
+          goalMin={settings.sessionGoalMin}
+        />
+      )}
     </>
   )
 
@@ -719,6 +754,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
+          playShortcutLabel={settings.noteListMode ? 'start / stop' : 'play / pause'}
+          resetShortcutLabel={settings.noteListMode ? 'reset timer' : 'reset'}
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}

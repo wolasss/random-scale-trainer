@@ -46,6 +46,9 @@ describe('list-only mode', () => {
     expect(screen.getByTestId('note-list')).toBeInTheDocument()
     expect(notes()).toHaveLength(12)
     expect(screen.getByRole('button', { name: 'Regenerate list' })).toBeEnabled()
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
+    expect(document.querySelector('.transport-bar')).toBeNull()
     expect(screen.queryByTestId('current-note')).toBeNull()
     expect(screen.queryByTestId('next-note')).toBeNull()
   })
@@ -93,5 +96,57 @@ describe('list-only mode', () => {
 
     expect(notes()).toEqual(generated)
     expect(notes()).toHaveLength(12)
+  })
+
+  it('starts, stops and resets the workout beside the fixed list', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    await act(async () => {})
+    expect(screen.getByText('Starting in 4')).toBeInTheDocument()
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getByRole('button', { name: 'List locked while timing' })).toBeDisabled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
+    })
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:01')
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    const stoppedAt = screen.getByTestId('list-workout-time').textContent
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent(stoppedAt ?? '')
+    expect(screen.getByText('Finished in')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start again' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Continue this attempt' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'New list · Reset timer' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset timer' }))
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getByRole('button', { name: 'Start workout' })).toBeEnabled()
+  })
+
+  it('starts a fresh timed attempt from a held result', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start workout' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COUNT_IN_MS + 1_200)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:01')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start again' }))
+    await act(async () => {})
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getByText('Starting in 4')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List locked while timing' })).toBeDisabled()
   })
 })

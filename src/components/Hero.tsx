@@ -18,6 +18,13 @@ type HeroProps = {
   idlePreview?: IdlePreviewNote | null
   /** Replace called-note playback with an unaccented list of notes. */
   listOnly?: boolean
+  /** The list-only stopwatch, supplied by App so it shares the real transport. */
+  listWorkoutTimer?: ReactNode
+  /** A running attempt cannot be invalidated by reshuffling its list. */
+  listLocked?: boolean
+  /** A completed list result is reset if a different order replaces it. */
+  listHasResult?: boolean
+  onListRegenerate?: () => void
   /**
    * 'stage' is the installed-on-a-phone reading: the glyph takes the room the
    * browser chrome gave up, and the surrounding cards are gone. Everything the
@@ -91,6 +98,10 @@ export function Hero({
   message,
   idlePreview,
   listOnly = false,
+  listWorkoutTimer,
+  listLocked = false,
+  listHasResult = false,
+  onListRegenerate,
   variant = 'card',
 }: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
@@ -112,6 +123,15 @@ export function Hero({
       : currentNote && positionInCycle !== null
       ? `note ${positionInCycle} of ${cycleLength}`
       : `${pool.length} notes queued`
+  const listTimerHandlesMessage =
+    snapshot.message === PLAYBACK_MESSAGES.idle ||
+    snapshot.message === PLAYBACK_MESSAGES.idleTouch ||
+    snapshot.message === PLAYBACK_MESSAGES.loadingAudio ||
+    snapshot.message === PLAYBACK_MESSAGES.countingIn ||
+    snapshot.message === PLAYBACK_MESSAGES.playing ||
+    snapshot.message === PLAYBACK_MESSAGES.paused
+  const showPlaybackMessage = !listOnly || message !== undefined || !listTimerHandlesMessage
+  const activeBeat = currentNote && (!listOnly || status === 'playing') ? beatInSpan : -1
 
   // The glyph itself: identical in both readings, so the count-in digit and the
   // note share one element and one pop animation wherever they are shown.
@@ -150,28 +170,42 @@ export function Hero({
       />
     ) : null
   const noteList = listOnly ? (
-    <NoteList key={`${spelling}:${pool.join(',')}`} pool={pool} spelling={spelling} />
+    <NoteList
+      pool={pool}
+      spelling={spelling}
+      locked={listLocked}
+      hasResult={listHasResult}
+      {...(onListRegenerate === undefined ? {} : { onRegenerate: onListRegenerate })}
+    />
   ) : null
 
   if (isStage) {
     return (
       <section className={`stage-hero ${listOnly ? 'list-only' : ''}`}>
+        {listOnly ? (
+          <div className="stage-readout list-stage-heading">
+            <CyclePosition text={nowText} />
+          </div>
+        ) : null}
+
         {noteLine}
 
-        <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+        {listWorkoutTimer}
+
+        <BeatDots count={beatsPerNote} active={activeBeat} />
 
         {noteList}
 
-        <div className="stage-readout">
-          {!listOnly ? (
+        {!listOnly ? (
+          <div className="stage-readout">
             <span className="next-chip stage-next-chip">
               <NextChipContent nextNote={nextNote} />
             </span>
-          ) : null}
-          <CyclePosition text={nowText} />
-        </div>
+            <CyclePosition text={nowText} />
+          </div>
+        ) : null}
 
-        <PlaybackMessage>{coachingLine}</PlaybackMessage>
+        {showPlaybackMessage ? <PlaybackMessage>{coachingLine}</PlaybackMessage> : null}
       </section>
     )
   }
@@ -191,13 +225,17 @@ export function Hero({
         ) : null}
       </div>
 
+      {listWorkoutTimer}
+
+      {listOnly ? <BeatDots count={beatsPerNote} active={activeBeat} /> : null}
+
       {noteLine}
 
       {noteList}
 
-      <PlaybackMessage>{coachingLine}</PlaybackMessage>
+      {showPlaybackMessage ? <PlaybackMessage>{coachingLine}</PlaybackMessage> : null}
 
-      <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+      {!listOnly ? <BeatDots count={beatsPerNote} active={activeBeat} /> : null}
     </section>
   )
 }

@@ -23,8 +23,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
 - List only: one shuffled list containing every selected note exactly once, with no spoken note calls.
-  Metronome ticks leave the order untouched; use Regenerate list when you want a fresh order. Switched
-  on from "How it runs"
+  Its in-place stopwatch starts and stops with the metronome, holds the result until reset, and locks
+  the list while timing. Metronome ticks leave the order untouched; use Regenerate list when you want
+  a fresh order. Switched on from "How it runs"
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
   E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a

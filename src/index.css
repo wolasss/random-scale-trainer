@@ -638,6 +638,76 @@ h2 {
   opacity: 1;
 }
 
+/* List-only promotes the existing session clock into the exercise itself. The
+   clock owns no second timing model: its action is the same playback action
+   regular practice exposes in the transport below. */
+.list-workout-timer {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0.2rem auto 0.85rem;
+}
+
+.list-workout-state {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.list-workout-time {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(2.9rem, 6vw, 4.25rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+}
+
+.list-workout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.list-workout-toggle {
+  min-width: 10.5rem;
+}
+
+.list-workout-toggle,
+.list-workout-reset {
+  min-height: 48px;
+}
+
+.list-workout-status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.list-workout-continue {
+  min-height: 44px;
+  margin: -0.35rem 0;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.list-workout-continue:hover {
+  color: var(--ink);
+}
+
+.hero-card.list-only > .beat-dots {
+  margin-bottom: 0.3rem;
+}
+
 /* One fixed exercise card: twelve equal slots on a wide practice surface,
    folding into even rows without turning short note names into circles and
    accidentals into pills. */
@@ -649,6 +719,12 @@ h2 {
   gap: 1rem;
   width: 100%;
   min-height: 220px;
+}
+
+.note-list-direction {
+  margin: 0 0 -0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
 }
 
 .note-list {
@@ -681,6 +757,13 @@ h2 {
   min-height: 44px;
 }
 
+.note-list-regenerate:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  filter: none;
+}
+
 @media (max-width: 960px) {
   .note-list {
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -695,6 +778,10 @@ h2 {
   .note-list-item {
     height: 3.75rem;
     font-size: 1.8rem;
+  }
+
+  .list-workout-time {
+    font-size: 3rem;
   }
 }
 

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { STORAGE_KEYS } from './constants'
 import { COARSE_POINTER_QUERY, LANDSCAPE_QUERY, STANDALONE_QUERY } from './hooks/useDisplayMode'
 import { installMatchMedia } from './test/matchMedia'
 import { FAKE_CLOCKS } from './test/fakeTimers'
@@ -65,6 +66,18 @@ describe('the stand reading', () => {
     expect(screen.getByTestId('open-setup')).toBeInTheDocument()
     expect(screen.queryByTestId('bpm-value')).toBeNull()
     expect(screen.queryByTestId('practice-sheet')).toBeNull()
+  })
+
+  it('keeps list-only timing with the list while retaining stage setup access', () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    installMatchMedia(PHONE_PORTRAIT)
+    render(<App />)
+
+    expect(screen.getByTestId('list-workout-time')).toHaveTextContent('00:00')
+    expect(screen.getAllByTestId('play-toggle')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Start workout' })).toBeInTheDocument()
+    expect(screen.getByTestId('open-setup')).toBeInTheDocument()
+    expect(document.querySelector('.stage-play')).toBeNull()
   })
 
   it('brings tempo, notes, options and routine back on demand', () => {
