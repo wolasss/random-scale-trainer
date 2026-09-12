@@ -14,8 +14,8 @@ type HeroProps = {
   message?: string | undefined
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
   idlePreview?: IdlePreviewNote | null
-  /** Show the read-ahead strip of upcoming notes under the glyph. */
-  noteList?: boolean
+  /** Replace called-note playback with an unaccented list of notes. */
+  listOnly?: boolean
   /**
    * 'stage' is the installed-on-a-phone reading: the glyph takes the room the
    * browser chrome gave up, and the surrounding cards are gone. Everything the
@@ -87,7 +87,7 @@ export function Hero({
   ringRef,
   message,
   idlePreview,
-  noteList = false,
+  listOnly = false,
   variant = 'card',
 }: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
@@ -135,23 +135,34 @@ export function Hero({
       </span>
     )
 
-  // The same strip in both readings, so what you read ahead on a phone stand is
-  // what you read ahead on a desktop.
-  const noteQueue = noteList ? <NoteQueue current={currentNote} upcoming={snapshot.upcomingNotes} /> : null
+  // Count-in still needs its numeral. Before and after it, list-only really is
+  // only the list: neither the large glyph nor NEXT singles out one note.
+  const noteLine =
+    !listOnly || countIn !== null ? (
+      <NoteLine
+        className={`hero-note-line ${isStage ? 'stage-note-line ' : ''}${state}`}
+        ringRef={ringRef}
+        glyph={glyph}
+      />
+    ) : null
+  const noteQueue =
+    listOnly && countIn === null ? <NoteQueue current={currentNote} upcoming={snapshot.upcomingNotes} /> : null
 
   if (isStage) {
     return (
-      <section className="stage-hero">
-        <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      <section className={`stage-hero ${listOnly ? 'list-only' : ''}`}>
+        {noteLine}
 
         <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
 
         {noteQueue}
 
         <div className="stage-readout">
-          <span className="next-chip stage-next-chip">
-            <NextChipContent nextNote={nextNote} />
-          </span>
+          {!listOnly ? (
+            <span className="next-chip stage-next-chip">
+              <NextChipContent nextNote={nextNote} />
+            </span>
+          ) : null}
           <CyclePosition text={nowText} />
         </div>
 
@@ -163,17 +174,19 @@ export function Hero({
   // No card chrome of its own: the note is one half of the practice stage, and
   // the stage card around it draws the panel.
   return (
-    <section className="hero-card">
+    <section className={`hero-card ${listOnly ? 'list-only' : ''}`}>
       <div className="hero-top">
         <div className="now-chip">
           <CyclePosition text={nowText} />
         </div>
-        <div className="next-chip">
-          <NextChipContent nextNote={nextNote} />
-        </div>
+        {!listOnly ? (
+          <div className="next-chip">
+            <NextChipContent nextNote={nextNote} />
+          </div>
+        ) : null}
       </div>
 
-      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      {noteLine}
 
       {noteQueue}
 

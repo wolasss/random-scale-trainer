@@ -14,34 +14,23 @@ const note = (display: string, cycleStart = false): NoteCall => ({
 const chips = () => screen.getAllByTestId('note-queue-chip').map((chip) => chip.textContent)
 
 describe('NoteQueue', () => {
-  it('reads the called note first and the queue behind it', () => {
+  it('reads the head note first and gives every item the same style', () => {
     render(<NoteQueue current={note('C')} upcoming={[note('E♭'), note('G')]} />)
 
     expect(chips()).toEqual(['C', 'E♭', 'G'])
-    expect(screen.getAllByTestId('note-queue-chip')[0].className).toContain('current')
+    expect(screen.getAllByTestId('note-queue-chip').map((chip) => chip.className)).toEqual([
+      'note-queue-chip',
+      'note-queue-chip',
+      'note-queue-chip',
+    ])
   })
 
   it('shows only the queue while nothing is being called', () => {
-    // Idle and count-in both land here: there is no note on the glyph yet, so
-    // the strip must not highlight one.
+    // Idle and count-in both land here: the full strip is still to come.
     render(<NoteQueue current={null} upcoming={[note('E♭'), note('G')]} />)
 
     expect(chips()).toEqual(['E♭', 'G'])
-    expect(screen.getAllByTestId('note-queue-chip')[0].className).not.toContain('current')
-  })
-
-  it('marks where the next round begins', () => {
-    render(<NoteQueue current={note('C')} upcoming={[note('G'), note('A', true), note('D')]} />)
-
-    const marked = screen.getAllByTestId('note-queue-chip').map((chip) => chip.className.includes('cycle-start'))
-    expect(marked).toEqual([false, false, true, false])
-  })
-
-  /** The head of a fresh bag is where the strip starts, not a boundary in it. */
-  it('never marks the head of the strip as a boundary', () => {
-    render(<NoteQueue current={note('C', true)} upcoming={[note('G')]} />)
-
-    expect(screen.getAllByTestId('note-queue-chip')[0].className).not.toContain('cycle-start')
+    expect(screen.getAllByTestId('note-queue-chip')[0]).toHaveClass('note-queue-chip')
   })
 
   it('renders an empty strip when there is nothing queued', () => {

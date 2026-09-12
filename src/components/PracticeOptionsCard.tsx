@@ -36,9 +36,14 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       <SwitchRow
         id="speak-notes"
         label="Say the note"
-        subtitle="Off leaves the note on screen only — name it yourself before checking."
-        checked={settings.speakNotes}
+        subtitle={
+          settings.noteListMode
+            ? 'List-only mode keeps note calls silent.'
+            : 'Off leaves the note on screen only — name it yourself before checking.'
+        }
+        checked={settings.speakNotes && !settings.noteListMode}
         onChange={() => onToggle('speakNotes')}
+        disabled={settings.noteListMode}
       />
       <SwitchRow
         id="mic-listen"
@@ -54,8 +59,8 @@ export function PracticeOptionsCard({ settings, onToggle }: PracticeOptionsCardP
       />
       <SwitchRow
         id="note-list"
-        label="Note list"
-        subtitle="Show the next few notes so you can read ahead."
+        label="List only"
+        subtitle="Show the notes with metronome ticks and no spoken calls."
         checked={settings.noteListMode}
         onChange={() => onToggle('noteListMode')}
       />

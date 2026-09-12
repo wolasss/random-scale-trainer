@@ -3,7 +3,7 @@
  * between four of them is most of what this file is.
  *
  * `useSettings` holds the practice settings, and they feed both `usePlayback`
- * and `useRoutine`. There are two ways to write
+ * (with note speech off in list-only mode) and `useRoutine`. There are two ways to write
  * to them. `userDispatch` takes the edits the user makes to the settings a
  * routine block owns — tempo, beats per note, the note pool, spelling, the
  * ramp — so the routine can tell someone drifting off a block from its own
@@ -135,7 +135,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    settings,
+    // List-only is the silent reading: the metronome still schedules every
+    // beat, while regular playback still respects the separate speech switch.
+    settings: { ...settings, speakNotes: settings.speakNotes && !settings.noteListMode },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -616,7 +618,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
-            noteList={settings.noteListMode}
+            listOnly={settings.noteListMode}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -681,7 +683,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}
-          noteList={settings.noteListMode}
+          listOnly={settings.noteListMode}
         />
 
         {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}

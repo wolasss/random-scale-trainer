@@ -10,9 +10,9 @@ export const RAMP_TARGET_STEP = 5
 export const RAMP_TARGET_OFFSET = 40
 
 /**
- * How many notes the read-ahead list shows at once, the one being called
- * included. Long enough to read a phrase off the screen, short enough that the
- * deck is never asked to deal much more than a bag ahead of the beat.
+ * How many notes list-only shows at once. Long enough to read a phrase off the
+ * screen, short enough that the deck is never asked to deal much more than a
+ * bag ahead of the beat.
  */
 export const NOTE_LIST_LENGTH = 7
 
@@ -110,8 +110,8 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
-  // Whether the hero shows the upcoming notes as a list rather than only the
-  // one being called. Off unless it reads 'true', like the rest of the toggles.
+  // Whether playback uses the silent list-only reading. Off unless it reads
+  // 'true', like the rest of the toggles.
   noteList: 'fretboard-note-list',
   // Which tuning the neck is drawn in, as a tuning id. An id that isn't one of
   // the five we ship is rejected and the map is drawn in standard tuning.

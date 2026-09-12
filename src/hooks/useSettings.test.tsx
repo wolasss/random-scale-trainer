@@ -301,10 +301,9 @@ describe('useSettings persistence', () => {
   })
 
   /**
-   * The read-ahead list is a reading of the same practice, not a mode: it stays
-   * off until it is asked for, and comes back on for the next session.
+   * List-only is opt-in and comes back on for the next session.
    */
-  it('keeps the note list off by default and persists the toggle', () => {
+  it('keeps list-only off by default and persists the toggle', () => {
     const { result } = renderHook(() => useSettings())
 
     expect(result.current[0].noteListMode).toBe(false)
@@ -318,7 +317,7 @@ describe('useSettings persistence', () => {
     expect(window.localStorage.getItem('fretboard-note-list')).toBe('true')
   })
 
-  it('restores a stored note list setting', () => {
+  it('restores a stored list-only setting', () => {
     window.localStorage.setItem('fretboard-note-list', 'true')
 
     const { result } = renderHook(() => useSettings())
@@ -330,7 +329,7 @@ describe('useSettings persistence', () => {
     ['an empty value', ''],
     ['a capitalized value', 'True'],
     ['junk', 'sometimes'],
-  ])('keeps the note list off on %s', (_label, stored) => {
+  ])('keeps list-only off on %s', (_label, stored) => {
     window.localStorage.setItem('fretboard-note-list', stored)
 
     const { result } = renderHook(() => useSettings())

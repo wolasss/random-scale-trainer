@@ -72,7 +72,7 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Keep going', 'Count in', 'Say the note', 'Note list', 'Fretboard map']) {
+    for (const name of ['Keep going', 'Count in', 'Say the note', 'List only', 'Fretboard map']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
@@ -99,5 +99,18 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     fireEvent.click(speakSwitch)
 
     expect(props.onToggle).toHaveBeenCalledWith('speakNotes')
+  })
+
+  it('is visibly unavailable while list-only mode owns the audio behavior', () => {
+    const { props } = renderCard({ noteListMode: true, speakNotes: true })
+    const speakSwitch = screen.getByRole('switch', { name: 'Say the note' })
+
+    expect(speakSwitch).toBeDisabled()
+    expect(speakSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(speakSwitch).toHaveAccessibleDescription('List-only mode keeps note calls silent.')
+
+    fireEvent.click(speakSwitch)
+
+    expect(props.onToggle).not.toHaveBeenCalled()
   })
 })

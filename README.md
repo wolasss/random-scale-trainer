@@ -22,10 +22,9 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   (every 1/2/4/8/12 beats; the beat a new note lands on gets the accented click)
 - Drift-free Web Audio scheduling: clicks and spoken samples are scheduled at explicit
   AudioContext times by a look-ahead scheduler
-- Note list: a read-ahead strip under the note showing what is queued behind it, so you can read a
-  phrase off the screen instead of one note at a time. It is the very same queue the metronome is
-  calling from — spelling, pool edits and round boundaries all show up in it — and it is on the
-  idle screen too, previewing the round you are about to start. Switched on from "How it runs"
+- List only: an unaccented list of notes to read at the metronome's pace, with no spoken note calls.
+  It uses the same shuffled deck as regular playback and previews the coming notes before you start.
+  Switched on from "How it runs"
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
   E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
@@ -95,7 +94,8 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
   nothing about them is stored or shared
 - "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
-  your playing, the note list, and the fretboard map toggle. The spoken note name is always on
+  your playing, list-only mode, and the fretboard map toggle. Spoken note names are off in list-only
+  mode
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
   readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten
