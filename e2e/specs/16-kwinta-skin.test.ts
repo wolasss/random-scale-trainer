@@ -22,7 +22,7 @@ describe('Kwinta skin visual contracts', () => {
   })
 
   it('renders a flat checked switch with a contrasting knob', async () => {
-    await page().clickContinuousToggle()
+    assert.deepEqual(await page().getSwitchState('continuous'), { checked: true, disabled: false })
 
     assert.equal(await page().getComputedStyle('#continuous-mode', 'background-image'), 'none')
     assert.equal(await page().getComputedStyle('#continuous-mode', 'background-color'), 'rgb(212, 219, 64)')
