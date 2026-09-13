@@ -26,6 +26,7 @@ describe('skin picker', () => {
     render(<App />)
     expect(skinSelect().value).toBe('glass')
     expect(document.documentElement.getAttribute('data-skin')).toBe('glass')
+    expect(screen.getByRole('option', { name: 'kwinta' })).toBeInTheDocument()
   })
 
   it('applies and stores a chosen skin', () => {

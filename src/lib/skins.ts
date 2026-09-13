@@ -13,7 +13,7 @@ export const SKIN_LABELS: Record<Skin, string> = {
   instrument: 'Instrument',
   editorial: 'Editorial',
   warm: 'Warm',
-  kwinta: 'Kwinta workbench',
+  kwinta: 'kwinta',
 }
 
 export const DEFAULT_SKIN: Skin = 'glass'
