@@ -6,7 +6,7 @@ import {
   type PlaybackSettings,
   type PlaybackSnapshot,
 } from './machine'
-import { MAX_BPM, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
+import { MAX_BPM, NOTE_LIST_LENGTH, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
 import type { SpellingPreference } from '../notes'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
@@ -22,8 +22,25 @@ class FakeAudioPort implements PlaybackAudioPort {
   stopCalls = 0
   /** Stops that would have silenced a chime scheduled but not yet sounding. */
   chimeCancels = 0
+  /** What the context reports; 'interrupted' is what iOS parks it in. */
+  contextState = 'running'
+  /** Makes the next resume reject, the way iOS refuses one mid-interruption. */
+  resumeRejects = false
+  /** Whether a resume that resolves actually gets the context running again. */
+  resumeRestores = true
+  ensureContextCalls = 0
+  private stateWatchers = new Set<(state: string) => void>()
 
   async ensureContext() {
+    this.ensureContextCalls += 1
+    if (this.resumeRejects) {
+      throw new Error('resume refused')
+    }
+
+    if (this.resumeRestores) {
+      this.contextState = 'running'
+    }
+
     return this.contextAvailable ? {} : null
   }
   async loadNoteBuffers() {}
@@ -32,6 +49,22 @@ class FakeAudioPort implements PlaybackAudioPort {
   }
   getCurrentTime() {
     return this.time
+  }
+  getContextState() {
+    return this.contextState
+  }
+  watchContextState(listener: (state: string) => void) {
+    this.stateWatchers.add(listener)
+    return () => {
+      this.stateWatchers.delete(listener)
+    }
+  }
+  /** Test hook: parks (or revives) the context and fires the statechange. */
+  emitContextState(state: string) {
+    this.contextState = state
+    for (const listener of [...this.stateWatchers]) {
+      listener(state)
+    }
   }
   playClickAt(time: number, accent: boolean) {
     this.clicks.push({ time, accent })
@@ -59,6 +92,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   // Out of the way by default, so a test that cares about the ceiling sets one.
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
+  metronomeEnabled: true,
   endSoundEnabled: true,
   showFretboard: true,
 }
@@ -178,6 +212,17 @@ const createHarness = (options: HarnessOptions = {}) => {
     pumpFrame()
   }
 
+  /**
+   * Settles the microtasks a recovery attempt runs through. The context
+   * watcher resumes across an await, so a snapshot read without this still
+   * shows the transport as it was before the interruption was handled.
+   */
+  const flush = async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
   return {
     machine,
     audio,
@@ -189,6 +234,7 @@ const createHarness = (options: HarnessOptions = {}) => {
     counters,
     advanceTo,
     freezeAndWake,
+    flush,
     snapshot: () => machine.getSnapshot(),
   }
 }
@@ -204,6 +250,73 @@ describe('machine creation', () => {
       message: PLAYBACK_MESSAGES.idle,
     })
     expect(harness.snapshot().nextNote?.pc).toBe(0) // identity shuffle
+  })
+})
+
+describe('the read-ahead list', () => {
+  it('previews the coming notes before anything has started', () => {
+    const harness = createHarness({ pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+
+    // Identity shuffle, so the window is the pool in order and stops at the
+    // list length rather than at the bag.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([0, 1, 2, 3, 4, 5, 6])
+  })
+
+  it('deals a window no longer than the notes there are', () => {
+    const harness = createHarness({ pool: [3] })
+
+    // A one-note pool still tops up bag after bag, so the window fills with
+    // the only note it has rather than running short.
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
+    expect(new Set(harness.snapshot().upcomingNotes.map((note) => note.pc))).toEqual(new Set([3]))
+  })
+
+  it('leads with the note after the one being called', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([1, 2, 3, 4, 5, 6])
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([2, 3, 4, 5, 6, 7])
+  })
+
+  it('holds the list still through the beats inside a span', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 2 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    const dealt = harness.snapshot().upcomingNotes.map((note) => note.pc)
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual(dealt)
+  })
+
+  it('regenerates the idle window when the pool changes', () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+
+    harness.state.pool = [7, 8]
+    harness.machine.invalidateDeck()
+
+    // Bag after bag of the two new notes, with the deck's own no-repeat swap
+    // keeping the same one from opening a bag it just closed.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([7, 8, 7, 8, 7, 8, 7])
+  })
+
+  it('goes back to previewing the coming round once playback stops', async () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
+
+    harness.machine.reset()
+
+    expect(harness.snapshot().currentNote).toBeNull()
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
   })
 })
 
@@ -445,6 +558,16 @@ describe('note spans', () => {
 
     expect(silent.audio.notes).toHaveLength(0)
     expect(silent.audio.clicks.length).toBeGreaterThan(0)
+  })
+
+  it('keeps beat events moving when audible metronome clicks are disabled', async () => {
+    const silent = createHarness({ settings: { metronomeEnabled: false } })
+    await silent.machine.start()
+    silent.advanceTo(2.1)
+
+    expect(silent.audio.clicks).toHaveLength(0)
+    expect(silent.beats.length).toBeGreaterThan(0)
+    expect(silent.snapshot().currentNote).not.toBeNull()
   })
 
   it('spells spoken audio and display from the same call', async () => {
@@ -963,5 +1086,112 @@ describe('handleVisible', () => {
 
     harness.machine.handleVisible()
     expect(resumes).toBe(0)
+  })
+})
+
+describe('an audio session interrupted while the page stays visible', () => {
+  it('settles to paused when the resume is refused', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const pausesBefore = harness.counters.sessionPauses
+
+    // A call banner parks the context; iOS refuses the resume behind it.
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
+    expect(harness.counters.sessionPauses).toBe(pausesBefore + 1)
+
+    // And the transport really stopped: no further beats reach the audio.
+    const clicksAtPause = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks).toHaveLength(clicksAtPause)
+  })
+
+  it('settles to paused when the resume resolves but the context stays parked', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+
+    // resume() resolving is not the same as the context running again.
+    harness.audio.resumeRestores = false
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
+
+    const clicksAtPause = harness.audio.clicks.length
+    harness.advanceTo(5)
+    expect(harness.audio.clicks).toHaveLength(clicksAtPause)
+  })
+
+  it('keeps the beat scheduled when the resume succeeds', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const clicksAtInterruption = harness.audio.clicks.length
+
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot().status).toBe('playing')
+    expect(harness.snapshot().message).not.toBe(PLAYBACK_MESSAGES.audioInterrupted)
+
+    harness.advanceTo(4.1)
+    expect(harness.audio.clicks.length).toBeGreaterThan(clicksAtInterruption)
+  })
+
+  it('leaves a context that is merely reporting itself running alone', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    const calls = harness.audio.ensureContextCalls
+
+    harness.audio.emitContextState('running')
+    await harness.flush()
+
+    expect(harness.audio.ensureContextCalls).toBe(calls)
+    expect(harness.snapshot().status).toBe('playing')
+  })
+
+  it('stops watching once the transport is paused by hand', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+
+    harness.machine.pause()
+    const calls = harness.audio.ensureContextCalls
+
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.audio.ensureContextCalls).toBe(calls)
+    expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.paused)
+  })
+
+  it('watches again after a resume from paused', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+    harness.advanceTo(1.1)
+    harness.machine.pause()
+    await harness.machine.start()
+
+    harness.audio.resumeRejects = true
+    harness.audio.emitContextState('interrupted')
+    await harness.flush()
+
+    expect(harness.snapshot()).toMatchObject({
+      status: 'paused',
+      message: PLAYBACK_MESSAGES.audioInterrupted,
+    })
   })
 })

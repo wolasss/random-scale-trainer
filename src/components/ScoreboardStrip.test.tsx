@@ -303,4 +303,38 @@ describe('the notice line', () => {
 
     expect(screen.queryByTestId('scoreboard-notice')).toBeNull()
   })
+
+  /** A warning nobody can read is not a warning — the rail must reopen for it. */
+  it('brings a collapsed rail back rather than being folded away with it', () => {
+    window.localStorage.setItem(STORAGE_KEYS.challengeBoardHidden, JSON.stringify({ demo: true }))
+
+    rail({ notice: 'This browser could not save the name' })
+
+    expect(screen.getByTestId('scoreboard-notice')).toHaveTextContent('This browser could not save the name')
+    expect(screen.getByTestId('scoreboard')).toBeInTheDocument()
+    expect(screen.queryByTestId('scoreboard-handle')).toBeNull()
+  })
+
+  it('can still be hidden after the notice is read, and a new notice brings it back', () => {
+    window.localStorage.setItem(STORAGE_KEYS.challengeBoardHidden, JSON.stringify({ demo: true }))
+
+    const { rerender } = rail({ notice: 'This browser could not save the name' })
+
+    fireEvent.click(screen.getByTestId('scoreboard-hide'))
+    expect(screen.getByTestId('scoreboard-handle')).toBeInTheDocument()
+
+    rerender(
+      <ScoreboardStrip
+        challenge="demo"
+        nickname={null}
+        scores={SCORES}
+        status="ready"
+        layout="rail"
+        notice="That run timed out."
+      />,
+    )
+
+    expect(screen.getByTestId('scoreboard-notice')).toHaveTextContent('That run timed out.')
+    expect(screen.queryByTestId('scoreboard-handle')).toBeNull()
+  })
 })

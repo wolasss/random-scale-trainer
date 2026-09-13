@@ -2,6 +2,14 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RATE_LIMIT_RETRY_MS, SCOREBOARD_REFRESH_MS, useChallenge, type UseChallengeOptions } from './useChallenge'
 import { STORAGE_KEYS } from '../constants'
+import { writeRaw } from '../lib/storage'
+
+vi.mock('../lib/storage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/storage')>()
+  return { ...actual, writeRaw: vi.fn(actual.writeRaw) }
+})
+
+const actualWriteRaw = vi.mocked(writeRaw).getMockImplementation()!
 
 const CONFIG = { bpm: 72, beatsPerNote: 4 } as const
 const TOKEN = 'a'.repeat(64)
@@ -81,6 +89,7 @@ const render = (options: UseChallengeOptions) => renderHook(() => useChallenge({
 afterEach(() => {
   called = 0
   vi.restoreAllMocks()
+  vi.mocked(writeRaw).mockImplementation(actualWriteRaw)
   vi.useRealTimers()
 })
 
@@ -198,6 +207,44 @@ describe('on a challenge', () => {
 
     expect(result.current.nickname).toBe('ada')
     expect(result.current.notice).toContain('could not save')
+  })
+
+  /**
+   * The warning must survive past the first scored note — a browser that lost
+   * the token is unrecoverable for the whole run, not just for the moment the
+   * claim happened, so the notice a rate limit or an expiry would clear must
+   * not be the one carrying this.
+   */
+  it('keeps saying so through a session, not just at the moment of the claim', async () => {
+    vi.mocked(writeRaw).mockImplementation((key, value) =>
+      key === STORAGE_KEYS.challengeTokens ? false : actualWriteRaw(key, value),
+    )
+
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    await act(async () => result.current.join('ada'))
+
+    expect(result.current.nickname).toBe('ada')
+    expect(result.current.needsNickname).toBe(false)
+    expect(result.current.notice).toContain('could not save')
+
+    act(() => result.current.recordEvent(hit()))
+    await act(async () => result.current.flushEvents())
+
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 10 }])
+    expect(result.current.notice).toContain('could not save')
+  })
+
+  it('leaves the happy path untouched when the token is saved', async () => {
+    const { result } = render({ search: '?challenge=demo', fetchImpl: service() })
+    await act(async () => result.current.join('ada'))
+
+    expect(result.current.notice).toBeNull()
+
+    act(() => result.current.recordEvent(hit()))
+    await act(async () => result.current.flushEvents())
+
+    expect(result.current.scores).toEqual([{ nickname: 'ada', points: 10 }])
+    expect(result.current.notice).toBeNull()
   })
 
   it('reports a rate-limited claim as its own thing', async () => {

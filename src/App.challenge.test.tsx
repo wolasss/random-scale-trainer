@@ -165,6 +165,27 @@ describe('arriving on a challenge', () => {
     expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
   })
 
+  it('disables a saved list-only preference for challenge play', async () => {
+    installFetch()
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+
+    await renderApp()
+
+    expect(screen.queryByTestId('note-list')).toBeNull()
+    expect(screen.queryByTestId('list-workout-time')).toBeNull()
+    expect(screen.getByTestId('play-toggle')).toHaveTextContent('Start practice')
+
+    const listSwitch = screen.getByRole('switch', { name: 'List mode' })
+    expect(listSwitch).toBeDisabled()
+    expect(listSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(listSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where each called note is scored.',
+    )
+    // The user's ordinary-practice preference survives the challenge visit.
+    expect(window.localStorage.getItem(STORAGE_KEYS.noteList)).toBe('true')
+  })
+
   it('shows the board that is already there, in a rail beside the note', async () => {
     installFetch(board(['ada', 300], ['bo', 120]))
     installGetUserMedia()
@@ -225,6 +246,36 @@ describe('arriving on a challenge', () => {
     const [url, init] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit]
     expect(url).toBe('/api/scoreboard/demo/nickname')
     expect(init.method).toBe('POST')
+  })
+
+  /**
+   * The token is the only copy of the claim, so a storage failure on it must
+   * not be silent — and a collapsed rail must not hide the warning either.
+   */
+  it('brings a collapsed rail back with a warning when the token could not be saved', async () => {
+    installFetch(board(['ada', 300]))
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.challengeBoardHidden, JSON.stringify({ demo: true }))
+
+    const setItem = Storage.prototype.setItem
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (key === STORAGE_KEYS.challengeTokens) {
+        throw new DOMException('QuotaExceededError')
+      }
+
+      return setItem.call(this, key, value)
+    })
+
+    await renderApp()
+
+    fireEvent.change(await screen.findByTestId('nickname-input'), { target: { value: 'ada' } })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nickname-submit'))
+    })
+
+    const notice = await screen.findByTestId('scoreboard-notice')
+    expect(notice).toHaveTextContent('could not save')
+    expect(screen.queryByTestId('scoreboard-handle')).toBeNull()
   })
 
   it('says so, and does not join, when the name is already somebody else’s', async () => {
