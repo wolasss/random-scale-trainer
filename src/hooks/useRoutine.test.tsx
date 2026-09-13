@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { useEffect, useReducer, useRef } from 'react'
-import { describe, expect, it, vi } from 'vitest'
-import { STORAGE_KEYS } from '../constants'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ROUTINE_RESUME_WINDOW_MS, STORAGE_KEYS } from '../constants'
 import { matchPreset } from '../lib/presets'
 import { blockPool, type Routine, type RoutineBlock } from '../lib/routines'
-import { useRoutine } from './useRoutine'
+import { useRoutine, type RoutineController } from './useRoutine'
 import { settingsReducer, type SettingsAction, type Settings } from './useSettings'
 
 const baseSettings = (): Settings => ({
@@ -891,5 +891,156 @@ describe('removeBlock around the active block', () => {
     expect(activeBlockName(routine)).toBe('Second')
     expect(routine.blockElapsedMs).toBe(0)
     expect(settings).toMatchObject({ bpm: 80, beatsPerNote: 2, pool: [1, 3, 6, 8, 10] })
+  })
+})
+
+describe('resuming an interrupted workout', () => {
+  const NOW = new Date('2026-09-13T08:00:00Z').getTime()
+  const SETUP: Routine = { id: 'r-open', name: 'Open setup', blocks: [block('Only', { dur: null })] }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(document, 'visibilityState')
+  })
+
+  const stored = (overrides: Record<string, unknown> = {}) =>
+    JSON.stringify({ routineId: WORKOUT.id, blockIndex: 2, offsetMs: 70_000, savedAt: NOW - 60_000, ...overrides })
+
+  const storedRecord = () => window.localStorage.getItem(STORAGE_KEYS.routineResume)
+
+  /** A cold launch with this record waiting in storage and nothing selected. */
+  const launchWith = (raw: string | null, onFinish = vi.fn()) => {
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT, SETUP]))
+    if (raw !== null) {
+      window.localStorage.setItem(STORAGE_KEYS.routineResume, raw)
+    }
+
+    return renderHook(({ sessionElapsedMs }) => useRoutineHarness(sessionElapsedMs, onFinish), {
+      initialProps: { sessionElapsedMs: 0 },
+    })
+  }
+
+  const setVisibility = (state: DocumentVisibilityState) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+  }
+
+  it.each([
+    ['corrupt JSON', 'not json'],
+    ['truncated JSON', '{"routineId":"r-three-blocks","blockI'],
+    ['a routine no longer on the shelf', stored({ routineId: 'r-deleted' })],
+    ['an out-of-range block index', stored({ blockIndex: 3 })],
+    ['an out-of-range offset', stored({ offsetMs: 240_000 })],
+    ['a stale timestamp', stored({ savedAt: NOW - ROUTINE_RESUME_WINDOW_MS - 1 })],
+  ])('discards %s and starts at block 0', (_, raw) => {
+    const view = launchWith(raw)
+
+    expect(view.result.current.routine.resumeOffer).toBeNull()
+    expect(view.result.current.routine.blockIndex).toBe(0)
+    expect(storedRecord()).toBeNull()
+  })
+
+  it('carries on from the offset a hidden page left it at', () => {
+    const view = renderOnBlock(2)
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
+    view.unmount()
+
+    const onFinish = vi.fn()
+    const next = launchWith(null, onFinish)
+    expect(next.result.current.routine.resumeOffer).toMatchObject({ blockIndex: 2, offsetMs: 70_000 })
+    expect(next.result.current.routine.blockIndex).toBe(0)
+
+    act(() => {
+      next.result.current.routine.resume()
+    })
+
+    expect(next.result.current.routine.resumeOffer).toBeNull()
+    expect(next.result.current.routine.blockIndex).toBe(2)
+    expect(activeBlockName(next.result.current.routine)).toBe('Third')
+    expect(next.result.current.routine.blockElapsedMs).toBe(70_000)
+    expect(next.result.current.settings.bpm).toBe(100)
+    expect(storedRecord()).toBeNull()
+
+    // The block clock runs on from there, not from zero.
+    next.rerender({ sessionElapsedMs: 5_000 })
+    expect(next.result.current.routine.blockElapsedMs).toBe(75_000)
+
+    // And the workout still ends when the block's own four minutes are up.
+    act(() => {
+      next.result.current.routine.tick(170_000)
+    })
+    expect(next.result.current.routine.finished).toBe(true)
+    expect(onFinish).toHaveBeenCalledOnce()
+    expect(storedRecord()).toBeNull()
+  })
+
+  it('starts the offered workout over at block 0 with its settings', () => {
+    const view = launchWith(stored())
+    expect(view.result.current.routine.resumeOffer).not.toBeNull()
+
+    act(() => {
+      view.result.current.routine.startOver()
+    })
+
+    const { routine, settings } = view.result.current
+    expect(routine.selected?.id).toBe(WORKOUT.id)
+    expect(routine.blockIndex).toBe(0)
+    expect(settings.bpm).toBe(60)
+    expect(routine.resumeOffer).toBeNull()
+    expect(storedRecord()).toBeNull()
+  })
+
+  it.each<[string, (routine: RoutineController) => void]>([
+    ['another routine is selected', (routine) => routine.select(SETUP.id)],
+    ['the session is reset', (routine) => routine.reset()],
+    ['the offered workout is deleted', (routine) => routine.remove(WORKOUT.id)],
+  ])('drops the offer when %s', (_, act_) => {
+    const view = launchWith(stored())
+
+    act(() => {
+      act_(view.result.current.routine)
+    })
+
+    expect(view.result.current.routine.resumeOffer).toBeNull()
+    expect(storedRecord()).toBeNull()
+  })
+
+  it('saves on the way to the background and clears on the way back', () => {
+    const view = renderOnBlock(1)
+
+    setVisibility('hidden')
+    expect(JSON.parse(storedRecord()!)).toEqual({
+      routineId: WORKOUT.id,
+      blockIndex: 1,
+      offsetMs: 70_000,
+      savedAt: NOW,
+    })
+
+    setVisibility('visible')
+    expect(storedRecord()).toBeNull()
+    view.unmount()
+  })
+
+  it('writes nothing for a saved setup, which has no place to lose', () => {
+    const view = launchWith(null)
+    act(() => {
+      view.result.current.routine.select(SETUP.id)
+    })
+    view.rerender({ sessionElapsedMs: 30_000 })
+
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
+
+    expect(storedRecord()).toBeNull()
   })
 })

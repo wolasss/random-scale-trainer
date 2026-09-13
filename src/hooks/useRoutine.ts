@@ -5,6 +5,8 @@ import {
   blockPool,
   blockSpelling,
   createRoutineId,
+  isOpenEnded,
+  parseRoutineResume,
   parseRoutines,
   SEEDED_ROUTINES,
   suggestRoutineName,
@@ -16,7 +18,9 @@ import {
   type BlockSettings,
   type Routine,
   type RoutineBlock,
+  type RoutineResume,
 } from '../lib/routines'
+import { readRaw, removeRaw, writeRaw } from '../lib/storage'
 import type { Settings, SettingsAction } from './useSettings'
 import { usePersistentState } from './usePersistentState'
 
@@ -66,6 +70,12 @@ export type RoutineController = {
   restart: () => void
   /** Reset session — the block clock goes back to zero with it. */
   reset: () => void
+  /** A workout a reload or discarded tab interrupted moments ago, or null. */
+  resumeOffer: RoutineResume | null
+  /** Take the offer: load its block and carry on from where its clock stood. */
+  resume: () => void
+  /** Turn the offer down: load its workout at block 0 instead. */
+  startOver: () => void
   /** The session clock lost `removedMs`; the current block keeps its own time. */
   rebase: (removedMs: number) => void
   /** Wire to the session timer's tick: advances the block when its time is up. */
@@ -118,13 +128,17 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   })
   // Restored on launch so an installed app comes back to the routine it was
   // left on. Only the choice is restored — the block settings it implies were
-  // persisted in their own right, and the runtime starts fresh at block 0.
+  // persisted in their own right, and the runtime starts fresh at block 0 —
+  // unless a workout was interrupted moments ago and the offer below is taken.
   const [selectedId, setSelectedId] = usePersistentState<string | null>(STORAGE_KEYS.selectedRoutine, {
     defaultValue: null,
     deserialize: (raw) => (raw === '' ? null : raw),
     serialize: (value) => value ?? '',
   })
   const [runtime, setRuntime] = useState<RoutineRuntime>(IDLE_RUNTIME)
+  const [resumeOffer, setResumeOffer] = useState(() =>
+    parseRoutineResume(readRaw(STORAGE_KEYS.routineResume), routines, Date.now()),
+  )
 
   const selected = routines.find((routine) => routine.id === selectedId) ?? null
 
@@ -134,16 +148,81 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   const selectedRef = useRef(selected)
   const settingsRef = useRef(settings)
   const onFinishRef = useRef(onFinish)
+  const isPlayingRef = useRef(isPlaying)
+  const getSessionElapsedMsRef = useRef(getSessionElapsedMs)
+  const resumeOfferRef = useRef(resumeOffer)
 
   useEffect(() => {
     selectedRef.current = selected
     settingsRef.current = settings
     onFinishRef.current = onFinish
+    isPlayingRef.current = isPlaying
+    getSessionElapsedMsRef.current = getSessionElapsedMs
+    resumeOfferRef.current = resumeOffer
   })
 
   const commit = useCallback((next: RoutineRuntime) => {
     runtimeRef.current = next
     setRuntime(next)
+  }, [])
+
+  // --- resuming an interrupted workout -------------------------------------
+  // A record that didn't survive validation is gone for good, not re-read on
+  // every launch.
+  useEffect(() => {
+    if (resumeOfferRef.current === null) {
+      removeRaw(STORAGE_KEYS.routineResume)
+    }
+  }, [])
+
+  const forgetProgress = useCallback(() => {
+    removeRaw(STORAGE_KEYS.routineResume)
+    setResumeOffer(null)
+  }, [])
+
+  // Written on the way out, since a discarded tab gets no other warning; never
+  // on unmount, which is exactly what a reload looks like from in here.
+  useEffect(() => {
+    const save = () => {
+      const routine = selectedRef.current
+      const { blockIndex, blockStartMs, finished } = runtimeRef.current
+      if (routine === null || finished || isOpenEnded(routine)) {
+        return
+      }
+
+      const offsetMs = getSessionElapsedMsRef.current() - blockStartMs
+      if (!isPlayingRef.current && blockIndex === 0 && offsetMs <= 0) {
+        return
+      }
+
+      // A tick not yet run can leave a block a moment past its end; keep the
+      // record inside the block rather than have it rejected on the way back.
+      const dur = routine.blocks[blockIndex]?.dur
+      const record: RoutineResume = {
+        routineId: routine.id,
+        blockIndex,
+        offsetMs: Math.max(0, dur == null ? offsetMs : Math.min(offsetMs, dur * 1000 - 1)),
+        savedAt: Date.now(),
+      }
+      writeRaw(STORAGE_KEYS.routineResume, JSON.stringify(record))
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        save()
+      } else if (resumeOfferRef.current === null) {
+        // Back on screen, the live runtime is the truth again. An offer still
+        // waiting for an answer keeps its record, so a reload doesn't lose it.
+        removeRaw(STORAGE_KEYS.routineResume)
+      }
+    }
+
+    window.addEventListener('pagehide', save)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('pagehide', save)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [])
 
   const applyBlock = useCallback(
@@ -176,7 +255,8 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     selectedRef.current = null
     setSelectedId(null)
     commit(IDLE_RUNTIME)
-  }, [commit, setSelectedId])
+    forgetProgress()
+  }, [commit, forgetProgress, setSelectedId])
 
   // --- the block clock -----------------------------------------------------
   const blockElapsedMs = Math.max(0, sessionElapsedMs - runtime.blockStartMs)
@@ -198,6 +278,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       const nextIndex = blockIndex + 1
       if (nextIndex >= routine.blocks.length) {
         commit({ ...runtimeRef.current, finished: true })
+        forgetProgress()
         onFinishRef.current()
         return
       }
@@ -211,7 +292,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       })
       applyBlock(routine.blocks[nextIndex])
     },
-    [applyBlock, commit],
+    [applyBlock, commit, forgetProgress],
   )
 
   // --- drift ---------------------------------------------------------------
@@ -260,6 +341,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       return
     }
 
+    forgetProgress()
     setSelectedId(id)
     selectedRef.current = routine
     startAt(0, routine)
@@ -269,6 +351,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     setRoutines((list) => list.filter((routine) => routine.id !== id))
     if (id === selectedId) {
       detach()
+    }
+    if (id === resumeOffer?.routineId) {
+      forgetProgress()
     }
   }
 
@@ -303,6 +388,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       blocks: source.blocks.map((block) => ({ ...block, pool: block.pool === null ? null : [...block.pool] })),
     }
 
+    forgetProgress()
     setRoutines((list) => [...list, copy])
     setSelectedId(copy.id)
     selectedRef.current = copy
@@ -475,6 +561,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     const nextIndex = runtime.blockIndex + 1
     if (nextIndex >= selected.blocks.length) {
       commit({ ...runtime, finished: true })
+      forgetProgress()
       onFinish()
       return
     }
@@ -483,15 +570,59 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   }
 
   const restart = () => {
+    forgetProgress()
     if (selected !== null) {
       startAt(0, selected)
     }
   }
 
   const reset = () => {
+    forgetProgress()
     commit(IDLE_RUNTIME)
     if (selected !== null) {
       applyBlock(selected.blocks[0])
+    }
+  }
+
+  /** The offered workout, loaded and selected; null (and the offer dropped) if it has since gone. */
+  const takeOffer = (): { routine: Routine; offer: RoutineResume } | null => {
+    const offer = resumeOffer
+    const routine = offer === null ? undefined : routines.find((entry) => entry.id === offer.routineId)
+    // Anything could have happened to the shelf while the offer waited.
+    if (offer === null || routine === undefined || routine.blocks[offer.blockIndex] === undefined) {
+      forgetProgress()
+      return null
+    }
+
+    forgetProgress()
+    setSelectedId(routine.id)
+    selectedRef.current = routine
+    return { routine, offer }
+  }
+
+  const resume = () => {
+    const taken = takeOffer()
+    if (taken === null) {
+      return
+    }
+
+    const { routine, offer } = taken
+    // The same move rebase makes: the block started `offsetMs` before now, so
+    // its clock carries on from there once the session clock runs.
+    commit({
+      blockIndex: offer.blockIndex,
+      blockStartMs: getSessionElapsedMs() - offer.offsetMs,
+      finished: false,
+      adjusted: false,
+    })
+    applyBlock(routine.blocks[offer.blockIndex])
+  }
+
+  const startOver = () => {
+    const taken = takeOffer()
+    if (taken !== null) {
+      // The settings left in storage are the interrupted block's, not block 0's.
+      startAt(0, taken.routine)
     }
   }
 
@@ -532,6 +663,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     skipBlock,
     restart,
     reset,
+    resumeOffer,
+    resume,
+    startOver,
     rebase,
     tick,
     notifyManualChange,

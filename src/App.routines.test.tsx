@@ -831,4 +831,96 @@ describe('Routines', () => {
     expect(screen.getByTestId('routine-status')).toHaveTextContent('Block 2 of 3')
     expect(bpm()).toBe('76')
   })
+
+  describe('after a reload interrupts a workout', () => {
+    const stripStatus = () => screen.getByTestId('routine-strip-status').textContent
+
+    /** Thirty seconds into block 2 of the six-minute warm-up, then the page goes away. */
+    const interruptInBlockTwo = async () => {
+      const first = render(<App />)
+      selectRoutine('seed-warmup-6')
+      await startPractice(60)
+      await act(async () => {
+        vi.advanceTimersByTime(150_000)
+      })
+      expect(stripStatus()).toContain('block 2 of 3')
+
+      act(() => {
+        window.dispatchEvent(new Event('pagehide'))
+      })
+      first.unmount()
+    }
+
+    /**
+     * Lets the started playback through its count-in at `bpmValue`, then `ms`
+     * more — in separate steps, because the session clock only starts ticking
+     * once the render that follows the first note has landed.
+     */
+    const playFor = async (bpmValue: number, ms: number) => {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(4 * (60_000 / bpmValue) + 200)
+      })
+      await act(async () => {
+        vi.advanceTimersByTime(ms)
+      })
+    }
+
+    it('offers to pick the workout up where it was, and carries on from there', async () => {
+      await interruptInBlockTwo()
+      render(<App />)
+
+      expect(screen.getByTestId('routine-resume')).toHaveTextContent(
+        'Pick up Warm-up (6 min) at block 2 of 3, 0:30 in?',
+      )
+
+      fireEvent.click(screen.getByTestId('routine-resume-accept'))
+      await playFor(76, 10_000)
+
+      expect(transport()).toContain('Pause')
+      expect(screen.queryByTestId('routine-resume')).toBeNull()
+      // Resumed at 1:30 left; ten seconds on, the block clock has run down.
+      expect(stripStatus()).toMatch(/block 2 of 3 · 1:(19|20) left/)
+      expect(bpm()).toBe('76')
+      expect(window.localStorage.getItem('fretboard-routine-resume')).toBeNull()
+    })
+
+    it('starts the workout over from block 1 when asked', async () => {
+      await interruptInBlockTwo()
+      render(<App />)
+
+      fireEvent.click(screen.getByTestId('routine-resume-start-over'))
+      await playFor(60, 0)
+
+      expect(transport()).toContain('Pause')
+      expect(stripStatus()).toContain('block 1 of 3')
+      expect(bpm()).toBe('60')
+      expect(window.localStorage.getItem('fretboard-routine-resume')).toBeNull()
+    })
+
+    it('takes a plain Start as starting over', async () => {
+      await interruptInBlockTwo()
+      render(<App />)
+
+      fireEvent.click(screen.getByTestId('play-toggle'))
+      await playFor(60, 0)
+
+      expect(transport()).toContain('Pause')
+      expect(screen.queryByTestId('routine-resume')).toBeNull()
+      expect(stripStatus()).toContain('block 1 of 3')
+      expect(bpm()).toBe('60')
+    })
+
+    it('does not offer a workout interrupted too long ago', async () => {
+      await interruptInBlockTwo()
+      vi.setSystemTime(Date.now() + 11 * 60_000)
+      render(<App />)
+
+      expect(screen.queryByTestId('routine-resume')).toBeNull()
+      expect(stripStatus()).toContain('block 1 of 3')
+      expect(window.localStorage.getItem('fretboard-routine-resume')).toBeNull()
+    })
+  })
 })
