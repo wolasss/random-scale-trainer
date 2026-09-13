@@ -13,7 +13,9 @@ describe('skin picker', () => {
   beforeEach(() => {
     window.localStorage.clear()
     document.documentElement.removeAttribute('data-skin')
-    document.head.querySelectorAll('link[data-skin-font]').forEach((node) => node.remove())
+    document.head
+      .querySelectorAll('link[data-skin-font], link[data-skin-font-preload]')
+      .forEach((node) => node.remove())
   })
 
   afterEach(() => {
@@ -46,6 +48,24 @@ describe('skin picker', () => {
     fireEvent.change(skinSelect(), { target: { value: 'glass' } })
     fireEvent.change(skinSelect(), { target: { value: 'instrument' } })
     expect(link()).toHaveLength(1)
+  })
+
+  it('preloads Kwinta self-hosted fonts exactly once', () => {
+    render(<App />)
+    const links = () => [
+      ...document.head.querySelectorAll<HTMLLinkElement>('link[data-skin-font-preload="kwinta"]'),
+    ]
+
+    expect(links()).toHaveLength(0)
+    fireEvent.change(skinSelect(), { target: { value: 'kwinta' } })
+    expect(links().map((link) => link.getAttribute('href')).sort()).toEqual([
+      '/fonts/hanken-grotesk-latin.woff2',
+      '/fonts/spline-sans-mono-latin.woff2',
+    ])
+
+    fireEvent.change(skinSelect(), { target: { value: 'glass' } })
+    fireEvent.change(skinSelect(), { target: { value: 'kwinta' } })
+    expect(links()).toHaveLength(2)
   })
 
   it('restores a stored skin on mount', () => {

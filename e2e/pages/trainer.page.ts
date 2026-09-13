@@ -24,6 +24,7 @@ export const COUNT_IN_DIGIT = /^[1-4]$/
 
 export const STORAGE_KEYS = {
   theme: 'fretboard-theme',
+  skin: 'fretboard-skin',
   bpm: 'fretboard-bpm',
   continuousMode: 'fretboard-continuous-mode',
   speedRampMode: 'fretboard-speed-ramp-mode',
@@ -565,6 +566,16 @@ export class TrainerPage {
 
   async getViewportWidth(): Promise<number> {
     return this.driver.executeScript('return document.documentElement.clientWidth')
+  }
+
+  async getComputedStyle(selector: string, property: string): Promise<string> {
+    return this.driver.executeScript<string>(
+      `const element = document.querySelector(arguments[0]);
+       if (element === null) throw new Error('missing element: ' + arguments[0]);
+       return getComputedStyle(element).getPropertyValue(arguments[1]);`,
+      selector,
+      property,
+    )
   }
 
   /** @see OVERFLOW_SCRIPT */

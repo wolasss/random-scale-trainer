@@ -36,13 +36,21 @@ export const SKIN_GROUND: Record<Skin, { dark: string; light: string }> = {
 }
 
 /**
- * Fonts the base document doesn't already load (Space Grotesk + Fraunces cover
- * glass and editorial). The other skins pull an extra family, added lazily the
- * first time that skin is chosen so the default never pays for them.
+ * Remote fonts the base document doesn't already load (Space Grotesk and
+ * Fraunces cover glass and editorial). Instrument and warm add a stylesheet
+ * lazily; Kwinta's self-hosted faces are declared in CSS and preloaded below.
  */
 export const SKIN_FONT_HREF: Partial<Record<Skin, string>> = {
   instrument: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
   warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
-  kwinta:
-    'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap',
+}
+
+/**
+ * Self-hosted skin fonts worth preloading before their first use. Keeping this
+ * skin-scoped means the default never pays for Kwinta's two defining faces,
+ * while a restored Kwinta session still starts both local requests before the
+ * application bundle runs.
+ */
+export const SKIN_FONT_PRELOAD_HREFS: Partial<Record<Skin, readonly string[]>> = {
+  kwinta: ['/fonts/hanken-grotesk-latin.woff2', '/fonts/spline-sans-mono-latin.woff2'],
 }

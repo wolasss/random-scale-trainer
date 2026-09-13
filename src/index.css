@@ -1,6 +1,51 @@
-/* The webfont link lives in index.html so it can load off the critical path —
-   an @import here would block the first paint on a network the app otherwise
-   never needs. Every rule below keeps a system fallback in its stack. */
+/* Remote skin fonts load off the critical path through links created by the
+   appearance hook. Kwinta's faces are local PWA assets: @font-face only fetches
+   them when that skin uses them, and unicode-range keeps latin-ext on demand. */
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/hanken-grotesk-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/hanken-grotesk-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/spline-sans-mono-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/spline-sans-mono-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
 
 :root {
   --bg-deep: #06131a;
@@ -4560,7 +4605,7 @@ button.practice-history-cell {
   --primary: #d4db40;
   --primary-strong: #e4eb77;
   --primary-soft: rgba(212, 219, 64, 0.13);
-  --accent: #89d298;
+  --accent: #d4db40;
   --hit: #89d298;
   --miss: #ff837b;
   --shadow: none;
@@ -4573,6 +4618,8 @@ button.practice-history-cell {
   --kwinta-action: #d4db40;
   --kwinta-action-hover: #e4eb77;
   --kwinta-on-signal: #0c0c00;
+  --kwinta-stage: #040910;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root[data-skin='kwinta'][data-theme='light'] {
@@ -4587,7 +4634,7 @@ button.practice-history-cell {
   --primary: #5b7000;
   --primary-strong: #455700;
   --primary-soft: rgba(91, 112, 0, 0.12);
-  --accent: #247450;
+  --accent: #5b7000;
   --hit: #247450;
   --miss: #b8322d;
   --button-border: #b6bcae;
@@ -4595,6 +4642,11 @@ button.practice-history-cell {
   --control-border: #ccd1c3;
   --kwinta-action: #c6d332;
   --kwinta-action-hover: #d4df50;
+  --kwinta-stage: #f8f9f2;
+  /* The action stays bright while text accents darken for contrast. Keep the
+     call dot tied to the actual action, then outline it against the page. */
+  --brand-accent: var(--kwinta-action);
+  --brand-accent-glow: transparent;
 }
 
 /* The source system is a quiet field: no ambient wash, grid, blur or general
@@ -4609,18 +4661,31 @@ button.practice-history-cell {
 
 [data-skin='kwinta'] .panel {
   border: 0;
-  border-top: 1px solid var(--panel-border);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  animation: none;
+}
+
+[data-skin='kwinta'] .app-grid > .note-pool-card,
+[data-skin='kwinta'] .app-grid > .routine-card,
+[data-skin='kwinta'] .card-row > .panel,
+[data-skin='kwinta'] .sheet-body > .panel,
+[data-skin='kwinta'] .setup-reveal {
+  border-top: 1px solid var(--panel-border);
+}
+
+[data-skin='kwinta'] .setup-reveal:hover {
+  border-top-color: var(--primary);
+  transform: none;
 }
 
 /* Kwinta's dominant field is the one surface that earns an enclosure. */
 [data-skin='kwinta'] .practice-stage {
   padding: clamp(1.4rem, 3.8vw, 2.9rem);
-  border: 1px solid var(--panel-border);
+  border: 0;
   border-radius: 76px 18px 76px 18px;
-  background: var(--card);
+  background: var(--kwinta-stage);
   box-shadow: none;
   backdrop-filter: none;
 }
@@ -4629,17 +4694,13 @@ button.practice-history-cell {
   border: 0;
 }
 
-[data-skin='kwinta'] h1 {
-  max-width: 14ch;
-  font-size: clamp(2.25rem, 5vw, 3.75rem);
-  font-weight: 800;
-  line-height: 0.96;
-  letter-spacing: -0.045em;
-}
-
-[data-skin='kwinta'] h2 {
-  font-weight: 800;
-  letter-spacing: -0.025em;
+[data-skin='kwinta'] .panel-heading h2,
+[data-skin='kwinta'] .setup-reveal-title {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
 }
 
 [data-skin='kwinta'] .hero-note,
@@ -4667,9 +4728,38 @@ button.practice-history-cell {
 [data-skin='kwinta'] .practice-history-month-total,
 [data-skin='kwinta'] .routine-strip-status,
 [data-skin='kwinta'] .routine-segment-meta,
-[data-skin='kwinta'] .routine-segment-time {
+[data-skin='kwinta'] .routine-segment-time,
+[data-skin='kwinta'] .target-time,
+[data-skin='kwinta'] .mic-readout-total,
+[data-skin='kwinta'] .mic-readout-delta,
+[data-skin='kwinta'] .scoreboard-rank,
+[data-skin='kwinta'] .scoreboard-points,
+[data-skin='kwinta'] .practice-log-weekday,
+[data-skin='kwinta'] .routine-status {
   font-family: var(--kwinta-data);
   font-variant-numeric: tabular-nums;
+}
+
+/* Kwinta's accent is an active signal. Positive and failed outcomes retain
+   their own meanings instead of borrowing the general accent token. */
+[data-skin='kwinta'] .session-goal-reached {
+  color: var(--hit);
+}
+
+[data-skin='kwinta'] .session-progress-fill.done {
+  background: var(--hit);
+}
+
+[data-skin='kwinta'] .mic-readout[data-status='denied'],
+[data-skin='kwinta'] .nickname-prompt-error,
+[data-skin='kwinta'] .bug-report-error {
+  color: var(--miss);
+}
+
+[data-skin='kwinta'] .nickname-prompt-mic,
+[data-skin='kwinta'] .mic-readout-nudge,
+[data-skin='kwinta'] .scoreboard-nudge-icon {
+  color: var(--ink-soft);
 }
 
 [data-skin='kwinta'] .primary-button {
@@ -4685,6 +4775,20 @@ button.practice-history-cell {
   transform: none;
   background: var(--kwinta-action-hover);
   filter: none;
+}
+
+[data-skin='kwinta'] .switch[aria-checked='true'] {
+  border-color: var(--kwinta-action);
+  background: var(--kwinta-action);
+}
+
+[data-skin='kwinta'] .switch[aria-checked='true'] .switch-knob {
+  background: var(--kwinta-on-signal);
+}
+
+[data-skin='kwinta'] .segmented [role='radio'][aria-checked='true'] {
+  background: var(--kwinta-action);
+  color: var(--kwinta-on-signal);
 }
 
 [data-skin='kwinta'] .secondary-button,
@@ -4741,13 +4845,47 @@ button.practice-history-cell {
   box-shadow: none;
 }
 
+[data-skin='kwinta'] .brand-dot-call {
+  background: var(--kwinta-action);
+}
+
+:root[data-skin='kwinta'][data-theme='light'] .brand-dot-call {
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
 [data-skin='kwinta'] .routine-strip-fill,
 [data-skin='kwinta'] .session-progress-fill {
   background: var(--primary);
 }
 
-@media (max-width: 600px) {
+[data-skin='kwinta'] .routine-segment.done .routine-segment-fill {
+  background: var(--hit);
+}
+
+/* Open Workbench drops the desktop field on compact layouts rather than
+   squeezing its expressive corner geometry into a small card. */
+@media (max-width: 56.24rem) {
   [data-skin='kwinta'] .practice-stage {
-    border-radius: 40px 14px 40px 14px;
+    padding: 1.15rem 0;
+    border-radius: 0;
+    background: transparent;
   }
+}
+
+[data-skin='kwinta'] button,
+[data-skin='kwinta'] .note-chip,
+[data-skin='kwinta'] .switch,
+[data-skin='kwinta'] .switch-knob,
+[data-skin='kwinta'] .segmented [role='radio'] {
+  transition-duration: 100ms;
+}
+
+[data-skin='kwinta'] .hero-ghost-note {
+  animation: none;
+  opacity: 0.3;
+}
+
+[data-skin='kwinta'] :focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 4px var(--primary);
 }

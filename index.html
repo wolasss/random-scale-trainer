@@ -49,8 +49,6 @@
               instrument:
                 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
               warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
-              kwinta:
-                'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap',
             }
             if (fonts[skin]) {
               var link = document.createElement('link')
@@ -58,6 +56,20 @@
               link.href = fonts[skin]
               link.setAttribute('data-skin-font', skin)
               document.head.appendChild(link)
+            }
+            var fontPreloads = {
+              kwinta: ['/fonts/hanken-grotesk-latin.woff2', '/fonts/spline-sans-mono-latin.woff2'],
+            }
+            var preloadHrefs = fontPreloads[skin] || []
+            for (var i = 0; i < preloadHrefs.length; i += 1) {
+              var preload = document.createElement('link')
+              preload.rel = 'preload'
+              preload.as = 'font'
+              preload.type = 'font/woff2'
+              preload.crossOrigin = 'anonymous'
+              preload.href = preloadHrefs[i]
+              preload.setAttribute('data-skin-font-preload', skin)
+              document.head.appendChild(preload)
             }
           }
         } catch (e) {}
