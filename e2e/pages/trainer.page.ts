@@ -290,7 +290,10 @@ export class TrainerPage {
 
   async openBugReport(): Promise<void> {
     await this.driver.findElement(SELECTORS.reportBug).click()
-    await this.driver.wait(until.elementLocated(SELECTORS.bugReportModal), 5_000)
+    // The CI browser can briefly stall while its third-party widget frame is
+    // being initialized. Match the app-shell waits so that scheduling jitter
+    // does not turn a rendered modal into a false negative.
+    await this.driver.wait(until.elementLocated(SELECTORS.bugReportModal), 10_000)
   }
 
   async hasBugReportModal(): Promise<boolean> {
