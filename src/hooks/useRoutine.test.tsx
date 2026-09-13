@@ -1003,8 +1003,28 @@ describe('resuming an interrupted workout', () => {
     ['another routine is selected', (routine) => routine.select(SETUP.id)],
     ['the session is reset', (routine) => routine.reset()],
     ['the offered workout is deleted', (routine) => routine.remove(WORKOUT.id)],
+    ['a new setup is saved', (routine) => routine.save('Fresh')],
   ])('drops the offer when %s', (_, act_) => {
     const view = launchWith(stored())
+
+    act(() => {
+      act_(view.result.current.routine)
+    })
+
+    expect(view.result.current.routine.resumeOffer).toBeNull()
+    expect(storedRecord()).toBeNull()
+  })
+
+  it.each<[string, (routine: RoutineController) => void]>([
+    ['moved', (routine) => routine.moveBlock(2, -1)],
+    ['removed', (routine) => routine.removeBlock(1)],
+    ['retimed', (routine) => routine.setBlockDuration(2, 30)],
+    ['added', (routine) => routine.addBlock()],
+    ['inserted', (routine) => routine.insertBlock(0)],
+  ])('drops the offer when a block of the offered workout is %s', (_, act_) => {
+    window.localStorage.setItem(STORAGE_KEYS.selectedRoutine, WORKOUT.id)
+    const view = launchWith(stored())
+    expect(view.result.current.routine.resumeOffer).not.toBeNull()
 
     act(() => {
       act_(view.result.current.routine)

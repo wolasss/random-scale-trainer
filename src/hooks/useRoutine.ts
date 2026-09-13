@@ -366,6 +366,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
       blocks: [blockFromSettings(blockSettings, null)],
     }
 
+    forgetProgress()
     setRoutines((list) => [...list, routine])
     setSelectedId(routine.id)
     selectedRef.current = routine
@@ -415,6 +416,9 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   }
 
   const replaceSelected = (next: Routine) => {
+    // A block index and offset saved against the old order or timings could
+    // land in a different, or shorter, block now.
+    forgetProgress()
     selectedRef.current = next
     setRoutines((list) => list.map((routine) => (routine.id === next.id ? next : routine)))
   }

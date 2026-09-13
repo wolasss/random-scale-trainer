@@ -33,8 +33,8 @@ export function RoutineResumeOffer({
   onStartOver,
 }: RoutineResumeOfferProps) {
   return (
-    <div className="routine-strip" data-testid="routine-resume">
-      <span className="routine-strip-status">
+    <div className="routine-strip routine-resume" data-testid="routine-resume">
+      <span className="routine-strip-status routine-resume-prompt">
         Pick up {routineName || 'workout'} at block {blockIndex + 1} of {blockCount}, {formatClock(offsetMs / 1000)} in?
       </span>
 
