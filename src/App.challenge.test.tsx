@@ -186,6 +186,25 @@ describe('arriving on a challenge', () => {
     expect(window.localStorage.getItem(STORAGE_KEYS.noteList)).toBe('true')
   })
 
+  it('disables a saved fretboard-map preference for challenge play', async () => {
+    installFetch()
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'true')
+
+    await renderApp()
+
+    expect(screen.queryByTestId('fretboard')).toBeNull()
+
+    const fretboardSwitch = screen.getByRole('switch', { name: 'Fretboard map' })
+    expect(fretboardSwitch).toBeDisabled()
+    expect(fretboardSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(fretboardSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where the map would give each scored note away.',
+    )
+    // The user's ordinary-practice preference survives the challenge visit.
+    expect(window.localStorage.getItem(STORAGE_KEYS.showFretboard)).toBe('true')
+  })
+
   it('shows the board that is already there, in a rail beside the note', async () => {
     installFetch(board(['ada', 300], ['bo', 120]))
     installGetUserMedia()
