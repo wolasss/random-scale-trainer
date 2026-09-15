@@ -1,10 +1,10 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
-import { DEFAULT_SKIN, SKIN_FONT_HREF, SKIN_GROUND, SKINS } from './skins'
+import { DEFAULT_SKIN, SKIN_FONT_HREF, SKIN_FONT_PRELOAD_HREFS, SKIN_GROUND, SKINS } from './skins'
 
 /**
  * index.html's pre-paint bootstrap and src/index.css's --bg-deep tokens are
@@ -55,6 +55,13 @@ for (const m of fontsMatch[1].matchAll(/([A-Za-z]+):\s*\n?\s*'([^']+)'/g)) {
   fonts[m[1]] = m[2]
 }
 
+const preloadsMatch = /var fontPreloads = \{([\s\S]*?)\n\s*\}/.exec(script)
+if (!preloadsMatch) throw new Error('no font-preload table found in the bootstrap script')
+const fontPreloads: Record<string, string[]> = {}
+for (const m of preloadsMatch[1].matchAll(/([A-Za-z]+):\s*\[([^\]]*)\]/g)) {
+  fontPreloads[m[1]] = [...m[2].matchAll(/'([^']+)'/g)].map((value) => value[1])
+}
+
 const storedThemeMatch = /var storedTheme = localStorage\.getItem\('([^']*)'\)/.exec(script)
 if (!storedThemeMatch) throw new Error('no `storedTheme` localStorage read found in the bootstrap script')
 const storedThemeKey = storedThemeMatch[1]
@@ -85,6 +92,18 @@ describe('skins mirrored in index.html and index.css', () => {
 
   it('the bootstrap font table matches SKIN_FONT_HREF', () => {
     expect(fonts).toEqual(SKIN_FONT_HREF)
+  })
+
+  it('the bootstrap font-preload table matches SKIN_FONT_PRELOAD_HREFS', () => {
+    expect(fontPreloads).toEqual(SKIN_FONT_PRELOAD_HREFS)
+  })
+
+  it('every self-hosted skin font preload is shipped in public', () => {
+    for (const hrefs of Object.values(SKIN_FONT_PRELOAD_HREFS)) {
+      for (const href of hrefs) {
+        expect(existsSync(resolve(ROOT, 'public', href.replace(/^\//, '')))).toBe(true)
+      }
+    }
   })
 
   it('the bootstrap reads the theme and skin storage keys correctly', () => {

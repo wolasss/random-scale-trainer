@@ -1,6 +1,51 @@
-/* The webfont link lives in index.html so it can load off the critical path —
-   an @import here would block the first paint on a network the app otherwise
-   never needs. Every rule below keeps a system fallback in its stack. */
+/* Remote skin fonts load off the critical path through links created by the
+   appearance hook. Kwinta's faces are local PWA assets: @font-face only fetches
+   them when that skin uses them, and unicode-range keeps latin-ext on demand. */
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/hanken-grotesk-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/hanken-grotesk-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/spline-sans-mono-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/spline-sans-mono-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
 
 :root {
   --bg-deep: #06131a;
@@ -74,7 +119,7 @@
   --brand-accent: var(--primary);
   --brand-accent-glow: color-mix(in srgb, var(--primary) 45%, transparent);
   /* The guide's stated alternative to a border tone, and the one that holds
-     up across all four skins: --panel-border is near-invisible in warm's
+     up across all skins: --panel-border is near-invisible in warm's
      light theme, where the response dot still has to read as a dot. */
   --brand-dot-muted: color-mix(in srgb, var(--ink) 30%, transparent);
   /* Not a skin token: the wordmark is Gabarito in every skin, by definition. */
@@ -4589,4 +4634,303 @@ button.practice-history-cell {
   background: var(--primary-soft);
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* --- Kwinta: Open Workbench ------------------------------------------- */
+:root[data-skin='kwinta'] {
+  --bg-deep: #02050b;
+  --bg-mid: #050a12;
+  --bg-light: #08101a;
+  --ink: #ecece3;
+  --ink-soft: rgba(236, 236, 227, 0.68);
+  --panel: #060c14;
+  --panel-border: #18232d;
+  --card: #070e16;
+  --card-shadow: none;
+  --primary: #d4db40;
+  --primary-strong: #e4eb77;
+  --primary-soft: rgba(212, 219, 64, 0.13);
+  --accent: #d4db40;
+  --hit: #89d298;
+  --miss: #ff837b;
+  --shadow: none;
+  --button-border: #2b3947;
+  --button-bg: #131e29;
+  --control-border: #18232d;
+  --font-display: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+  --kwinta-data: 'Spline Sans Mono', ui-monospace, monospace;
+  --kwinta-action: #d4db40;
+  --kwinta-action-hover: #e4eb77;
+  --kwinta-on-signal: #0c0c00;
+  --kwinta-stage: #040910;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-skin='kwinta'][data-theme='light'] {
+  --bg-deep: #f1f2ea;
+  --bg-mid: #e9ebe1;
+  --bg-light: #dfe3d7;
+  --ink: #101720;
+  --ink-soft: rgba(16, 23, 32, 0.64);
+  --panel: #f8f9f2;
+  --panel-border: #ccd1c3;
+  --card: #fafbf5;
+  --primary: #5b7000;
+  --primary-strong: #455700;
+  --primary-soft: rgba(91, 112, 0, 0.12);
+  --accent: #5b7000;
+  --hit: #247450;
+  --miss: #b8322d;
+  --button-border: #b6bcae;
+  --button-bg: #e0e4d8;
+  --control-border: #ccd1c3;
+  --kwinta-action: #c6d332;
+  --kwinta-action-hover: #d4df50;
+  --kwinta-stage: #f8f9f2;
+  /* The action stays bright while text accents darken for contrast. Keep the
+     call dot tied to the actual action, then outline it against the page. */
+  --brand-accent: var(--kwinta-action);
+  --brand-accent-glow: transparent;
+}
+
+/* The source system is a quiet field: no ambient wash, grid, blur or general
+   elevation. Hierarchy comes from scale, spacing and structural rules. */
+[data-skin='kwinta'] body {
+  background: var(--bg-deep);
+}
+
+[data-skin='kwinta'] .backdrop {
+  background-image: none;
+}
+
+[data-skin='kwinta'] .panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+[data-skin='kwinta'] .app-grid > .note-pool-card,
+[data-skin='kwinta'] .app-grid > .routine-card,
+[data-skin='kwinta'] .card-row > .panel,
+[data-skin='kwinta'] .sheet-body > .panel,
+[data-skin='kwinta'] .setup-reveal {
+  border-top: 1px solid var(--panel-border);
+}
+
+[data-skin='kwinta'] .setup-reveal:hover {
+  border-top-color: var(--primary);
+  transform: none;
+}
+
+/* Kwinta's dominant field is the one surface that earns an enclosure. */
+[data-skin='kwinta'] .practice-stage {
+  padding: clamp(1.4rem, 3.8vw, 2.9rem);
+  border: 0;
+  border-radius: 76px 18px 76px 18px;
+  background: var(--kwinta-stage);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+[data-skin='kwinta'] .practice-stage-neck > .panel {
+  border: 0;
+}
+
+[data-skin='kwinta'] .panel-heading h2,
+[data-skin='kwinta'] .setup-reveal-title {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+[data-skin='kwinta'] .hero-note,
+[data-skin='kwinta'] .hero-ghost-note {
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  text-shadow: none;
+}
+
+[data-skin='kwinta'] .hero-ready-caption,
+[data-skin='kwinta'] .chip-label,
+[data-skin='kwinta'] .session-goal-label,
+[data-skin='kwinta'] .routine-group-label,
+[data-skin='kwinta'] .mic-readout-label {
+  font-family: var(--kwinta-data);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+}
+
+[data-skin='kwinta'] .tempo-readout output,
+[data-skin='kwinta'] .timer-face,
+[data-skin='kwinta'] .transport-readout,
+[data-skin='kwinta'] .session-stat-value,
+[data-skin='kwinta'] .practice-log-streak-value,
+[data-skin='kwinta'] .practice-history-month-total,
+[data-skin='kwinta'] .routine-strip-status,
+[data-skin='kwinta'] .routine-segment-meta,
+[data-skin='kwinta'] .routine-segment-time,
+[data-skin='kwinta'] .target-time,
+[data-skin='kwinta'] .mic-readout-total,
+[data-skin='kwinta'] .mic-readout-delta,
+[data-skin='kwinta'] .scoreboard-rank,
+[data-skin='kwinta'] .scoreboard-points,
+[data-skin='kwinta'] .practice-log-weekday,
+[data-skin='kwinta'] .routine-status {
+  font-family: var(--kwinta-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Kwinta's accent is an active signal. Positive and failed outcomes retain
+   their own meanings instead of borrowing the general accent token. */
+[data-skin='kwinta'] .session-goal-reached {
+  color: var(--hit);
+}
+
+[data-skin='kwinta'] .session-progress-fill.done {
+  background: var(--hit);
+}
+
+[data-skin='kwinta'] .mic-readout[data-status='denied'],
+[data-skin='kwinta'] .nickname-prompt-error,
+[data-skin='kwinta'] .bug-report-error {
+  color: var(--miss);
+}
+
+[data-skin='kwinta'] .nickname-prompt-mic,
+[data-skin='kwinta'] .mic-readout-nudge,
+[data-skin='kwinta'] .scoreboard-nudge-icon {
+  color: var(--ink-soft);
+}
+
+[data-skin='kwinta'] .primary-button {
+  border: 1px solid transparent;
+  border-radius: 12px 12px 30px 12px;
+  background: var(--kwinta-action);
+  color: var(--kwinta-on-signal) !important;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+[data-skin='kwinta'] .primary-button:hover {
+  transform: none;
+  background: var(--kwinta-action-hover);
+  filter: none;
+}
+
+[data-skin='kwinta'] .switch[aria-checked='true'] {
+  border-color: var(--kwinta-action);
+  background: var(--kwinta-action);
+}
+
+[data-skin='kwinta'] .switch[aria-checked='true'] .switch-knob {
+  background: var(--kwinta-on-signal);
+}
+
+[data-skin='kwinta'] .segmented [role='radio'][aria-checked='true'] {
+  background: var(--kwinta-action);
+  color: var(--kwinta-on-signal);
+}
+
+[data-skin='kwinta'] .secondary-button,
+[data-skin='kwinta'] .ghost-button,
+[data-skin='kwinta'] .preset-select,
+[data-skin='kwinta'] .note-chip,
+[data-skin='kwinta'] .control-block {
+  border-radius: 14px;
+}
+
+[data-skin='kwinta'] .control-block {
+  border-color: var(--control-border);
+  background: transparent;
+}
+
+[data-skin='kwinta'] .next-chip {
+  border-radius: 10px;
+  background: var(--button-bg);
+}
+
+[data-skin='kwinta'] .next-chip-value {
+  color: var(--ink);
+  font-family: var(--kwinta-data);
+  font-weight: 600;
+}
+
+[data-skin='kwinta'] .beat-dot {
+  border: 0;
+  background: var(--button-border);
+}
+
+[data-skin='kwinta'] .beat-dot.active {
+  background: var(--kwinta-action);
+  box-shadow: 0 0 14px var(--primary-soft);
+}
+
+[data-skin='kwinta'] .transport-reset {
+  background: var(--button-bg);
+  color: var(--ink);
+}
+
+[data-skin='kwinta'] .note-chip {
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+[data-skin='kwinta'] .note-chip[aria-pressed='true'] {
+  background: var(--kwinta-action);
+  border-color: var(--kwinta-action);
+  color: var(--kwinta-on-signal);
+}
+
+[data-skin='kwinta'] .fret-dot {
+  box-shadow: none;
+}
+
+[data-skin='kwinta'] .brand-dot-call {
+  background: var(--kwinta-action);
+}
+
+:root[data-skin='kwinta'][data-theme='light'] .brand-dot-call {
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+[data-skin='kwinta'] .routine-strip-fill,
+[data-skin='kwinta'] .session-progress-fill {
+  background: var(--primary);
+}
+
+[data-skin='kwinta'] .routine-segment.done .routine-segment-fill {
+  background: var(--hit);
+}
+
+/* Open Workbench drops the desktop field on compact layouts rather than
+   squeezing its expressive corner geometry into a small card. */
+@media (max-width: 56.24rem) {
+  [data-skin='kwinta'] .practice-stage {
+    padding: 1.15rem 0;
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+[data-skin='kwinta'] button,
+[data-skin='kwinta'] .note-chip,
+[data-skin='kwinta'] .switch,
+[data-skin='kwinta'] .switch-knob,
+[data-skin='kwinta'] .segmented [role='radio'] {
+  transition-duration: 100ms;
+}
+
+[data-skin='kwinta'] .hero-ghost-note {
+  animation: none;
+  opacity: 0.3;
+}
+
+[data-skin='kwinta'] :focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px var(--bg-deep), 0 0 0 4px var(--primary);
 }
