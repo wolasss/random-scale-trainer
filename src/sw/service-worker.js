@@ -36,18 +36,30 @@ const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 self.addEventListener('install', /** @type {EventListener} */ ((/** @type {ExtendableEvent} */ event) => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(CACHE_NAME)
-      // Deliberately not cache.addAll: that rejects as a unit, so one asset
-      // failing would leave the app with no offline shell at all. Each URL is
-      // added on its own and a miss is simply re-fetched later. cache: 'reload'
-      // forces the network so a new build cannot re-precache a week-old copy
-      // from the HTTP cache (nginx serves un-hashed public assets with a 7-day
-      // expiry).
-      await Promise.all(
-        PRECACHE_URLS.map((/** @type {string} */ url) =>
-          cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined),
-        ),
+      const replacesOlderCache = (await caches.keys()).some(
+        (name) => isOwnCache(name) && name !== CACHE_NAME,
       )
+      const cache = await caches.open(CACHE_NAME)
+      // Deliberately not cache.addAll: that rejects as a unit and stops at the
+      // first failure. Each URL is added on its own, and cache: 'reload' forces
+      // the network so a new build cannot re-precache a week-old copy from the
+      // HTTP cache (nginx serves un-hashed public assets with a 7-day expiry).
+      const results = await Promise.allSettled(
+        PRECACHE_URLS.map((/** @type {string} */ url) => cache.add(new Request(url, { cache: 'reload' }))),
+      )
+      // What a miss means depends on what this build would replace. A first
+      // install has nothing better to fall back on, so it takes what it got and
+      // a miss repairs itself on fetch. An update would replace a working
+      // offline cache with a broken one — activate deletes the old one — so it
+      // has to be complete. Rejecting here fails the install: skipWaiting and
+      // activate never run, the old worker keeps serving its own cache, and the
+      // browser retries on the next update check (useServiceWorker asks on
+      // every foreground). This build's half-filled cache is never served in
+      // the meantime; a retry of the same build reopens and completes it, and
+      // only a newer build's activate deletes it.
+      if (replacesOlderCache && results.some((result) => result.status === 'rejected')) {
+        throw new Error('precache incomplete; keeping the previous build')
+      }
       await /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (self).skipWaiting()
     })(),
   )
