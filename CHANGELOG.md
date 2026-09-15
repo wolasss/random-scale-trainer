@@ -1,3 +1,10 @@
+## [1.32.1](https://github.com/wolasss/random-scale-trainer/compare/v1.32.0...v1.32.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **challenge:** turn the fretboard map off while a challenge is running ([#267](https://github.com/wolasss/random-scale-trainer/issues/267)) ([2d05874](https://github.com/wolasss/random-scale-trainer/commit/2d05874560121bc8dcccda9e285225a6608fbfa7))
+
 # [1.32.0](https://github.com/wolasss/random-scale-trainer/compare/v1.31.2...v1.32.0) (2026-09-12)
 
 
