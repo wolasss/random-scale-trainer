@@ -135,6 +135,12 @@ export const STORAGE_KEYS = {
   // be judged against the shelf: one that no longer matches anything simply
   // resolves to no selection when it is looked up.
   selectedRoutine: 'fretboard-selected-routine',
+  // Where a timed workout was when the tab was hidden or unloaded, as JSON:
+  // `{ routineId, blockIndex, offsetMs, savedAt }`. Written only on the way
+  // out and cleared when the workout finishes or is stopped. Rejected as a
+  // whole — and removed on read — unless the routine is still on the shelf,
+  // the block and offset fit its current blocks, and it is fresh.
+  routineResume: 'fretboard-routine-resume',
   // Set the first time practice starts. Until then the browser layout keeps the
   // setup cards folded away, so a first run is a stage and a start button
   // rather than a page of controls.
@@ -189,6 +195,13 @@ export const IDLE_PREVIEW_MS = 2_750
  * gives up after this long off-screen rather than waiting to be found.
  */
 export const HIDDEN_STOP_MS = 60_000
+
+/**
+ * How recently a workout must have been interrupted for a launch to offer to
+ * pick it up. A reload or a discarded tab comes back well inside this; a
+ * next-day launch still starts at block 0.
+ */
+export const ROUTINE_RESUME_WINDOW_MS = 10 * 60_000
 
 /**
  * Background tabs throttle timers while the audio clock keeps running, so a

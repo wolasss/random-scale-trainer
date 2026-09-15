@@ -44,7 +44,7 @@ import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
-import { RoutineStrip } from './components/RoutineStrip'
+import { RoutineResumeOffer, RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
 import type { ScoreboardLayout } from './components/ScoreboardStrip'
@@ -334,6 +334,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       return
     }
 
+    // Start with an interrupted workout on offer is the deliberate fresh start.
+    if (routine.resumeOffer !== null) {
+      routine.startOver()
+    }
+
     // Starting a finished routine runs it again from block 0.
     if (routine.finished) {
       routine.restart()
@@ -341,6 +346,20 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
     // Practice has begun, so the setup below is no longer a page of questions
     // in front of the thing you came for. It stays out from here on.
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
+  // Either answer to the resume offer is a start: the block is applied first,
+  // then playback picks it up, the same order a restart takes above.
+  const resumeWorkout = () => {
+    routine.resume()
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
+  const startWorkoutOver = () => {
+    routine.startOver()
     setSetupRevealed(true)
     void playback.start()
   }
@@ -458,8 +477,20 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
   // Built once and placed by whichever reading is active. The installed app
   // rearranges where these sit; it never gets a different set of them.
+  const resumeOffer = routine.resumeOffer
+  const offeredRoutine =
+    resumeOffer === null ? undefined : routine.routines.find((entry) => entry.id === resumeOffer.routineId)
   const routineStrip =
-    routine.selected !== null ? (
+    resumeOffer !== null && offeredRoutine !== undefined ? (
+      <RoutineResumeOffer
+        routineName={offeredRoutine.name}
+        blockIndex={resumeOffer.blockIndex}
+        blockCount={offeredRoutine.blocks.length}
+        offsetMs={resumeOffer.offsetMs}
+        onResume={resumeWorkout}
+        onStartOver={startWorkoutOver}
+      />
+    ) : routine.selected !== null ? (
       <RoutineStrip
         routine={routine.selected}
         blockIndex={routine.blockIndex}
