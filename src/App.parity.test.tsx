@@ -241,4 +241,38 @@ describe('the board and the readout', () => {
 
     expect(topScores(store, CHALLENGE)).toEqual([{ nickname: NICKNAME, points: readoutPoints() }])
   })
+
+  /**
+   * A saved preference to show the fretboard map must not survive into a
+   * challenge: the map would show where every called note lives on the neck,
+   * handing the answer to whoever is being scored. Every hit reported to the
+   * server has to carry `showFretboard: false` regardless of what is stored.
+   */
+  it('prices every hit as map-hidden even with the map saved on', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'true')
+    const store = installServer()
+    await renderChallenge()
+
+    fireEvent.change(screen.getByTestId('nickname-input'), { target: { value: NICKNAME } })
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('nickname-submit'))
+    })
+
+    await toggle()
+    await playNotes(3)
+    await toggle()
+    await act(async () => {})
+
+    const hits = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => /\/session\/[^/]+\/events$/.test(String(url)))
+      .flatMap(([, init]) => JSON.parse(String((init as RequestInit).body)).events)
+      .filter((event: { kind: string }) => event.kind === 'hit')
+
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.every((hit: { difficulty: { showFretboard: boolean } }) => hit.difficulty.showFretboard === false)).toBe(
+      true,
+    )
+    expect(topScores(store, CHALLENGE)).toEqual([{ nickname: NICKNAME, points: readoutPoints() }])
+  })
 })

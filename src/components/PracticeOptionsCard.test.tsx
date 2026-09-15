@@ -31,8 +31,17 @@ const SETTINGS: Settings = {
   endSoundEnabled: true,
 }
 
-const renderCard = (overrides: Partial<Settings> = {}, listModeUnavailable = false) => {
-  const props = { settings: { ...SETTINGS, ...overrides }, onToggle: vi.fn(), listModeUnavailable }
+const renderCard = (
+  overrides: Partial<Settings> = {},
+  listModeUnavailable = false,
+  fretboardUnavailable = false,
+) => {
+  const props = {
+    settings: { ...SETTINGS, ...overrides },
+    onToggle: vi.fn(),
+    listModeUnavailable,
+    fretboardUnavailable,
+  }
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
 }
@@ -141,6 +150,20 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     expect(speakSwitch).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(listSwitch)
+    expect(props.onToggle).not.toHaveBeenCalled()
+  })
+
+  it('disables the fretboard map during a challenge', () => {
+    const { props } = renderCard({ showFretboard: true }, false, true)
+    const fretboardSwitch = screen.getByRole('switch', { name: 'Fretboard map' })
+
+    expect(fretboardSwitch).toBeDisabled()
+    expect(fretboardSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(fretboardSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where the map would give each scored note away.',
+    )
+
+    fireEvent.click(fretboardSwitch)
     expect(props.onToggle).not.toHaveBeenCalled()
   })
 })

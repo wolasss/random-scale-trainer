@@ -129,6 +129,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // intact for ordinary practice, but never let it become the active reading of
   // this challenge visit.
   const listModeEnabled = settings.noteListMode && !challenge.active
+  // The map would show where every scored note lives, so a challenge hides it
+  // the same way it forces list mode off — without touching the saved
+  // preference, which stays intact for ordinary practice.
+  const fretboardEnabled = settings.showFretboard && !listModeEnabled && !challenge.active
   const metronomeEnabled = !listModeEnabled || settings.listMetronomeEnabled
 
   // The block clock rides the session timer's tick, so it pauses with playback.
@@ -149,7 +153,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       ...settings,
       continuousMode: listModeEnabled ? true : settings.continuousMode,
       speakNotes: settings.speakNotes && !listModeEnabled,
-      showFretboard: settings.showFretboard && !listModeEnabled,
+      showFretboard: fretboardEnabled,
       metronomeEnabled,
     },
     pool: settings.pool,
@@ -509,7 +513,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
-  const fretboardCard = settings.showFretboard && !listModeEnabled ? (
+  const fretboardCard = fretboardEnabled ? (
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
@@ -524,6 +528,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     <PracticeOptionsCard
       settings={settings}
       listModeUnavailable={challenge.active}
+      fretboardUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
     />
   )

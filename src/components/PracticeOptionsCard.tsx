@@ -7,9 +7,16 @@ type PracticeOptionsCardProps = {
   onToggle: (key: SettingsToggleKey) => void
   /** Challenges call and score one note at a time, so a static list cannot run there. */
   listModeUnavailable?: boolean
+  /** The map would show where every scored note lives, so a challenge hides it. */
+  fretboardUnavailable?: boolean
 }
 
-export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = false }: PracticeOptionsCardProps) {
+export function PracticeOptionsCard({
+  settings,
+  onToggle,
+  listModeUnavailable = false,
+  fretboardUnavailable = false,
+}: PracticeOptionsCardProps) {
   // A browser with no microphone API is a dead end the user would otherwise
   // only find on pressing play, so the reason takes the subtitle's place and
   // the switch — which describes itself with it — explains why it is off.
@@ -92,9 +99,14 @@ export function PracticeOptionsCard({ settings, onToggle, listModeUnavailable = 
           <SwitchRow
             id="show-fretboard"
             label="Fretboard map"
-            subtitle="Show the On the neck card with every position."
-            checked={settings.showFretboard}
+            subtitle={
+              fretboardUnavailable
+                ? 'Unavailable during a challenge, where the map would give each scored note away.'
+                : 'Show the On the neck card with every position.'
+            }
+            checked={settings.showFretboard && !fretboardUnavailable}
             onChange={() => onToggle('showFretboard')}
+            disabled={fretboardUnavailable}
           />
         </>
       )}
