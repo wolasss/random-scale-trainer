@@ -1,3 +1,16 @@
+# [1.33.0](https://github.com/wolasss/random-scale-trainer/compare/v1.32.1...v1.33.0) (2026-09-15)
+
+
+### Bug Fixes
+
+* **pwa:** offer a reload when a challenge chunk fails to load ([#268](https://github.com/wolasss/random-scale-trainer/issues/268)) ([55d1183](https://github.com/wolasss/random-scale-trainer/commit/55d118305b87bd2b2bd371f625dec4c6696966f1))
+* **sw:** keep the working offline cache when an update's precache comes down incomplete ([#264](https://github.com/wolasss/random-scale-trainer/issues/264)) ([8009b28](https://github.com/wolasss/random-scale-trainer/commit/8009b28eaaf38cb77a8ae9162358da25e594f09e))
+
+
+### Features
+
+* **skins:** add Kwinta workbench theme ([#263](https://github.com/wolasss/random-scale-trainer/issues/263)) ([b4903ab](https://github.com/wolasss/random-scale-trainer/commit/b4903abd5519ddafadb9eea5d955ae8ff948a9e9))
+
 ## [1.32.1](https://github.com/wolasss/random-scale-trainer/compare/v1.32.0...v1.32.1) (2026-09-15)
 
 
