@@ -625,7 +625,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <ChunkErrorBoundary>
+      <ChunkErrorBoundary overlay>
         <Suspense fallback={null}>
           <NicknamePrompt
             challenge={challenge.name}

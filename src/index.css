@@ -2166,6 +2166,51 @@ input[type='range'] {
   gap: 0.6rem;
 }
 
+/* A lazy challenge chunk (nickname prompt or scoreboard) missing its cache
+   entry after a new build has activated. Compact and inline by default, so
+   it drops into whichever slot the chunk would have filled without
+   disturbing that slot's layout. */
+.chunk-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.chunk-error-copy {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+/* The nickname prompt's boundary has no box of its own on screen — it sits
+   inside the fixed-height, overflow-hidden stage shell — so this pins the
+   notice to the viewport instead, the same layer the sheet scrim uses. Kept
+   clear of `.update-chip`'s usual spot so the two don't land on each other. */
+.chunk-error-overlay {
+  position: fixed;
+  z-index: 70;
+  left: 50%;
+  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 2rem);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(13px);
+}
+
+/* In stage mode the transport docks fixed at the bottom (same reasoning as
+   `:root[data-stage] .update-chip`), so a bottom-anchored notice would land
+   on the play control instead of beside it. */
+:root[data-stage] .chunk-error-overlay {
+  top: calc(3.2rem + env(safe-area-inset-top, 0px));
+  bottom: auto;
+}
+
 /* The prompt reuses the practice sheet's scrim and layer; it is a question
    rather than a drawer, so it sits in the middle instead of on the bottom. */
 .nickname-layer {
