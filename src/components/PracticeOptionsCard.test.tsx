@@ -96,7 +96,7 @@ describe('PracticeOptionsCard layout', () => {
     )
     expect(
       screen.getByText(
-        'Repeat rounds, spoken notes, the mic, Skip ahead and the fretboard are paused in List mode. Their settings are kept.',
+        'Loop, spoken notes, the mic, Skip ahead and the fretboard are paused in List mode. Their settings are kept.',
       ),
     ).toBeInTheDocument()
   })
@@ -107,8 +107,8 @@ describe('PracticeOptionsCard layout', () => {
     expect(screen.getByRole('switch', { name: 'Count-in' })).toHaveAccessibleDescription(
       'Four clicks before the first note and each new round.',
     )
-    expect(screen.getByRole('switch', { name: 'Repeat rounds' })).toHaveAccessibleDescription(
-      'Reshuffle and go again after every note has come up. Off stops after one round. Needed for the speed ramp.',
+    expect(screen.getByRole('switch', { name: 'Loop' })).toHaveAccessibleDescription(
+      'Keep calling notes until you press stop, in a fresh order after each full set. Off stops once every note has been called. The speed ramp needs this on.',
     )
     expect(screen.getByRole('switch', { name: 'Show the fretboard' })).toHaveAccessibleDescription(
       'Show where the called note sits on the neck, open to 12th fret.',
@@ -161,7 +161,7 @@ describe('PracticeOptionsCard mic switch', () => {
     vi.mocked(isMicSupported).mockReturnValue(false)
     const { props } = renderCard()
 
-    for (const name of ['Repeat rounds', 'Count-in', 'Say the note aloud', 'List mode', 'Show the fretboard']) {
+    for (const name of ['Loop', 'Count-in', 'Say the note aloud', 'List mode', 'Show the fretboard']) {
       fireEvent.click(screen.getByRole('switch', { name }))
     }
 
@@ -212,7 +212,7 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     expect(screen.getByRole('switch', { name: 'List mode' })).toBeEnabled()
     expect(screen.getByRole('switch', { name: 'Metronome click' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: 'Count-in' })).toBeEnabled()
-    expect(screen.queryByRole('switch', { name: 'Repeat rounds' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Loop' })).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Say the note aloud' })).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Listen with the microphone' })).toBeNull()
     expect(screen.queryByRole('switch', { name: "Skip ahead once I've found it" })).toBeNull()

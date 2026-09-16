@@ -10,7 +10,7 @@ type SwitchRowProps = {
 /** A labelled switch (real knob-in-track control, not an On/Off pill). */
 export function SwitchRow({ id, label, subtitle, checked, onChange, disabled = false }: SwitchRowProps) {
   // The switch describes itself with its own subtitle, so a screen reader reads the
-  // reason — "Needs Repeat rounds switched on" — along with the control it explains.
+  // reason — "Needs Loop switched on" — along with the control it explains.
   const subtitleId = `${id}-subtitle`
 
   return (

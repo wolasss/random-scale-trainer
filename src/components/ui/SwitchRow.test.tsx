@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SwitchRow } from './SwitchRow'
 
 const ENABLED_SUBTITLE = 'Tempo climbs 5 BPM every time you get through all the notes.'
-const DISABLED_SUBTITLE = 'Needs Repeat rounds switched on — the ramp climbs between rounds.'
+const DISABLED_SUBTITLE = 'Needs Loop switched on — the ramp climbs between rounds.'
 
 /** The tempo card's speed-ramp row, in either of the two states it ships in. */
 function renderRow(disabled: boolean) {

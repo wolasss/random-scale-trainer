@@ -99,11 +99,11 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
   nothing about them is stored or shared
 - "How it runs", grouped by purpose. While playing: Count-in (four clicks before the first note),
-  Repeat rounds (reshuffle and go again once every note has come up) and Say the note aloud.
-  Feedback: Listen with the microphone, Skip ahead once I've found it (under the mic, which it needs)
-  and Show the fretboard. Or practise from a list: List mode. In List mode the card offers Metronome
-  click and Count-in; Repeat rounds, spoken notes, the mic, Skip ahead and the fretboard are paused
-  there, with their settings kept
+  Loop (keep calling notes until you press stop, in a fresh order after each full set) and Say the
+  note aloud. Feedback: Listen with the microphone, Skip ahead once I've found it (under the mic,
+  which it needs) and Show the fretboard. Or practise from a list: List mode. In List mode the card
+  offers Metronome click and Count-in; Loop, spoken notes, the mic, Skip ahead and the fretboard are
+  paused there, with their settings kept
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
   readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten

@@ -89,8 +89,7 @@ export function PracticeOptionsCard({
           </OptionGroup>
           {/* The hidden switches keep their stored values, so say they are waiting rather than gone. */}
           <p className="dashed-notice options-paused-notice">
-            Repeat rounds, spoken notes, the mic, Skip ahead and the fretboard are paused in List mode. Their settings
-            are kept.
+            Loop, spoken notes, the mic, Skip ahead and the fretboard are paused in List mode. Their settings are kept.
           </p>
         </>
       ) : (
@@ -105,8 +104,8 @@ export function PracticeOptionsCard({
             />
             <SwitchRow
               id="continuous-mode"
-              label="Repeat rounds"
-              subtitle="Reshuffle and go again after every note has come up. Off stops after one round. Needed for the speed ramp."
+              label="Loop"
+              subtitle="Keep calling notes until you press stop, in a fresh order after each full set. Off stops once every note has been called. The speed ramp needs this on."
               checked={settings.continuousMode}
               onChange={() => onToggle('continuousMode')}
             />
