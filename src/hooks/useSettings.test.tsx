@@ -17,6 +17,7 @@ const baseSettings = (): Settings => ({
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
+  advanceOnOctaves: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -288,6 +289,20 @@ describe('useSettings persistence', () => {
 
     expect(result.current[0].micEnabled).toBe(false)
     expect(window.localStorage.getItem('fretboard-mic-listen')).toBe('false')
+  })
+
+  it('leaves the early advance off by default and persists its toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].advanceOnOctaves).toBe(false)
+    expect(window.localStorage.getItem('fretboard-advance-on-octaves')).toBe('false')
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'advanceOnOctaves' })
+    })
+
+    expect(result.current[0].advanceOnOctaves).toBe(true)
+    expect(window.localStorage.getItem('fretboard-advance-on-octaves')).toBe('true')
   })
 
   it('persists the microphone toggle', () => {

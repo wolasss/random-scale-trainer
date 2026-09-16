@@ -25,6 +25,7 @@ const SETTINGS: Settings = {
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
+  advanceOnOctaves: false,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
   sessionGoalMin: 10,
@@ -35,12 +36,14 @@ const renderCard = (
   overrides: Partial<Settings> = {},
   listModeUnavailable = false,
   fretboardUnavailable = false,
+  earlyAdvanceUnavailable = false,
 ) => {
   const props = {
     settings: { ...SETTINGS, ...overrides },
     onToggle: vi.fn(),
     listModeUnavailable,
     fretboardUnavailable,
+    earlyAdvanceUnavailable,
   }
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
@@ -130,6 +133,7 @@ describe('PracticeOptionsCard speak-notes switch', () => {
     expect(screen.queryByRole('switch', { name: 'Keep going' })).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Say the note' })).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: "Move on when I've got it" })).toBeNull()
     expect(screen.queryByRole('switch', { name: 'Fretboard map' })).toBeNull()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Metronome' }))
@@ -165,5 +169,50 @@ describe('PracticeOptionsCard speak-notes switch', () => {
 
     fireEvent.click(fretboardSwitch)
     expect(props.onToggle).not.toHaveBeenCalled()
+  })
+})
+
+describe('PracticeOptionsCard early advance switch', () => {
+  const name = "Move on when I've got it"
+
+  beforeEach(() => {
+    vi.mocked(isMicSupported).mockReturnValue(true)
+  })
+
+  it('is off and unavailable until the mic is listening', () => {
+    const { props } = renderCard({ advanceOnOctaves: true })
+    const advance = screen.getByRole('switch', { name })
+
+    expect(advance).toBeDisabled()
+    expect(advance).toHaveAttribute('aria-checked', 'false')
+    expect(advance).toHaveAccessibleDescription('Needs Listen for my playing: the mic is what hears the two octaves.')
+
+    fireEvent.click(advance)
+    expect(props.onToggle).not.toHaveBeenCalled()
+  })
+
+  it('toggles once the mic is on', () => {
+    const { props } = renderCard({ micEnabled: true })
+    const advance = screen.getByRole('switch', { name })
+
+    expect(advance).toBeEnabled()
+    expect(advance).toHaveAttribute('aria-checked', 'false')
+    expect(advance).toHaveAccessibleDescription(
+      "Once you've played the note in two octaves, the next one comes on the next click.",
+    )
+
+    fireEvent.click(advance)
+    expect(props.onToggle).toHaveBeenCalledWith('advanceOnOctaves')
+  })
+
+  it('says why it is off during a challenge', () => {
+    renderCard({ micEnabled: true, advanceOnOctaves: true }, false, false, true)
+    const advance = screen.getByRole('switch', { name })
+
+    expect(advance).toBeDisabled()
+    expect(advance).toHaveAttribute('aria-checked', 'false')
+    expect(advance).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where every note runs its full length.',
+    )
   })
 })

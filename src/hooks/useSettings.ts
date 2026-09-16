@@ -15,6 +15,7 @@ export type SettingsToggleKey =
   | 'noteListMode'
   | 'listMetronomeEnabled'
   | 'micEnabled'
+  | 'advanceOnOctaves'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }

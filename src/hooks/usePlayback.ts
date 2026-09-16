@@ -81,6 +81,8 @@ export function usePlayback(options: UsePlaybackOptions) {
   // Stable, so the visibility listener that drives it binds once rather than
   // rebinding on every render.
   const handleVisible = useCallback(() => machineRef.current?.handleVisible(), [])
+  // Stable too: scoring holds it in a ref and calls it from the mic listener.
+  const advanceEarly = useCallback((callTime: number) => machineRef.current?.advanceEarly(callTime), [])
 
   const poolKey = options.pool.join(',')
   const spelling = options.spelling
@@ -97,5 +99,6 @@ export function usePlayback(options: UsePlaybackOptions) {
     stop: (message?: string) => getMachine().stop(message),
     reset: () => getMachine().reset(),
     handleVisible,
+    advanceEarly,
   }
 }

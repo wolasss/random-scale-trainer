@@ -361,6 +361,69 @@ describe('useNoteScoring', () => {
     expect(result.current.lastVerdict?.responseMs).toBeCloseTo(200, 3)
   })
 
+  it('asks for the next note once, the moment a note is held in two octaves', async () => {
+    const onOctavesHeard = vi.fn()
+    const { result, mic } = setup({ onOctavesHeard })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2)
+      mic.emit(3, 10.25)
+      mic.emit(3, 10.3)
+    })
+
+    // One octave, however long it is held, is not enough.
+    expect(onOctavesHeard).not.toHaveBeenCalled()
+
+    await act(async () => {
+      mic.emit(3, 10.5, 4)
+      mic.emit(3, 10.55, 4)
+      mic.emit(3, 10.6, 4)
+      mic.emit(3, 10.65, 3)
+      mic.emit(3, 10.7, 3)
+    })
+
+    expect(onOctavesHeard).toHaveBeenCalledTimes(1)
+    expect(onOctavesHeard).toHaveBeenCalledWith(10)
+  })
+
+  it('does not ask for the next note on a note played twice at the same pitch', async () => {
+    const onOctavesHeard = vi.fn()
+    const { result, mic } = setup({ onOctavesHeard })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(3, 10.2)
+      mic.emit(3, 10.25)
+      mic.emit(0, 10.4)
+      mic.emit(3, 10.6)
+      mic.emit(3, 10.65)
+    })
+
+    expect(onOctavesHeard).not.toHaveBeenCalled()
+  })
+
+  it('does not ask for the next note on a missed call', async () => {
+    const onOctavesHeard = vi.fn()
+    const { result, mic } = setup({ onOctavesHeard })
+
+    await act(async () => {
+      result.current.handleBeat(beat(10, 3))
+    })
+    await act(async () => {
+      mic.emit(5, 10.2, 3)
+      mic.emit(5, 10.25, 3)
+      mic.emit(5, 10.5, 4)
+      mic.emit(5, 10.55, 4)
+    })
+
+    expect(onOctavesHeard).not.toHaveBeenCalled()
+  })
+
   it('leaves a missed note unbonused however many octaves follow it', async () => {
     // The bonus only ever adds to a note already got right; nothing about it
     // can turn a note that was not played into one that was.

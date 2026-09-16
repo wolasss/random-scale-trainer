@@ -21,6 +21,7 @@ const baseSettings = (): Settings => ({
   tuning: 'standard',
   leftHanded: false,
   micEnabled: false,
+  advanceOnOctaves: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,

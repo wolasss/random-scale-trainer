@@ -124,6 +124,9 @@ export const STORAGE_KEYS = {
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',
+  // Call the next note early once the current one has been heard in two
+  // octaves. Off unless it literally reads 'true', like the mic it relies on.
+  advanceOnOctaves: 'fretboard-advance-on-octaves',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value

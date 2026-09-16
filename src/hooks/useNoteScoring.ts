@@ -7,6 +7,7 @@ import {
   claimBonus,
   difficultyMultiplier,
   EMPTY_TALLY,
+  heardBothOctaves,
   hitAward,
   isPracticeMilestone,
   judgeDetection,
@@ -139,6 +140,13 @@ export type UseNoteScoringOptions = {
    */
   onScored?: (event: ScoredEvent) => void
   /**
+   * Fired once per note, the moment it has been held in two octaves, with the
+   * time the note was called — the optional early advance hangs off this.
+   * Called from the microphone listener, never from `onBeat`, and it must only
+   * touch refs: it reaches straight into the playback machine.
+   */
+  onOctavesHeard?: ((callTime: number) => void) | undefined
+  /**
    * The session clock, raw — the caller does not need to adjust it around a
    * clear. `rebase` below folds a cleared amount back in so the milestones it
    * drives stay continuous across the reset.
@@ -230,6 +238,7 @@ export function useNoteScoring({
   active,
   running,
   onScored,
+  onOctavesHeard,
   sessionElapsedMs,
 }: UseNoteScoringOptions) {
   const storeRef = useRef<ScoringStore | null>(null)
@@ -238,10 +247,12 @@ export function useNoteScoring({
   const engineRef = useRef(engine)
   const activeRef = useRef(active)
   const scoredRef = useRef(onScored)
+  const octavesHeardRef = useRef(onOctavesHeard)
   useEffect(() => {
     engineRef.current = engine
     activeRef.current = active
     scoredRef.current = onScored
+    octavesHeardRef.current = onOctavesHeard
   })
 
   // Nothing published moved unless one of these two identities did, and a
@@ -379,6 +390,12 @@ export function useNoteScoring({
         const verdict = judged.verdict
         if (verdict === null || !verdict.hit) {
           return
+        }
+
+        // The crossing, not the state: later frames of the same two octaves
+        // must not ask for the next note again.
+        if (heardBothOctaves(judged) && !heardBothOctaves(previous)) {
+          octavesHeardRef.current?.(judged.beatTime)
         }
 
         if (previous.verdict !== null) {
