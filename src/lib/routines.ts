@@ -7,6 +7,7 @@ import {
   MIN_BPM,
   MIN_BLOCK_FLEX_SECONDS,
   OPEN_BLOCK_FLEX_SECONDS,
+  ROUTINE_RESUME_WINDOW_MS,
   type BeatsPerNote,
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
@@ -477,6 +478,63 @@ export const parseRoutines = (raw: string): Routine[] | undefined => {
   }
 
   return routines
+}
+
+/** Where an interrupted workout was: which block, and how far into it. */
+export type RoutineResume = {
+  routineId: string
+  blockIndex: number
+  offsetMs: number
+  /** Wall-clock time the record was written. */
+  savedAt: number
+}
+
+/**
+ * Returns null for anything that cannot be picked up as it stands: a value
+ * that isn't JSON, a routine no longer on the shelf, a block or offset that no
+ * longer fits that routine's blocks, or a record older than the resume window.
+ */
+export const parseRoutineResume = (raw: string | null, routines: Routine[], now: number): RoutineResume | null => {
+  if (raw === null) {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null
+  }
+
+  const { routineId, blockIndex, offsetMs, savedAt } = parsed as Record<string, unknown>
+  const routine = typeof routineId === 'string' ? routines.find((entry) => entry.id === routineId) : undefined
+  if (routine === undefined || typeof blockIndex !== 'number' || !Number.isInteger(blockIndex)) {
+    return null
+  }
+
+  const block = routine.blocks[blockIndex]
+  if (block === undefined || block.dur === null) {
+    return null
+  }
+
+  if (typeof offsetMs !== 'number' || !Number.isFinite(offsetMs) || offsetMs < 0 || offsetMs >= block.dur * 1000) {
+    return null
+  }
+
+  if (typeof savedAt !== 'number' || !Number.isFinite(savedAt)) {
+    return null
+  }
+
+  const age = now - savedAt
+  if (age < 0 || age > ROUTINE_RESUME_WINDOW_MS) {
+    return null
+  }
+
+  return { routineId: routine.id, blockIndex, offsetMs, savedAt }
 }
 
 /** How far one tap of the duration controls moves a block's clock. */

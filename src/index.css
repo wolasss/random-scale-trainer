@@ -2572,6 +2572,22 @@ input[type='range'] {
   }
 }
 
+/* The resume question carries a name of any length and two buttons after it,
+   so on a narrow screen it wraps rather than pushing them off the edge. */
+.routine-resume {
+  flex-wrap: wrap;
+}
+
+.routine-resume-prompt {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.routine-resume button {
+  flex: none;
+}
+
 .routine-card {
   min-width: 0;
 }
