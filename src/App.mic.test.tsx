@@ -103,7 +103,7 @@ describe('listening for the player', () => {
     const getUserMedia = installGetUserMedia(async () => ({}) as MediaStream)
     render(<App />)
 
-    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Listen with the microphone' })).toBeNull()
     expect(screen.queryByTestId('mic-readout')).toBeNull()
 
     await start()

@@ -16,7 +16,7 @@ const COUNT_IN_MS = 4 * (60_000 / 72) + 100
 // for a switch has to open them the way a first-time user would.
 const revealSetup = () => fireEvent.click(screen.getByTestId('setup-reveal'))
 const listOnlySwitch = () => screen.getByRole('switch', { name: 'List mode' })
-const metronomeSwitch = () => screen.getByRole('switch', { name: 'Metronome' })
+const metronomeSwitch = () => screen.getByRole('switch', { name: 'Metronome click' })
 const notes = () => screen.getAllByTestId('note-list-item').map((item) => item.textContent)
 
 describe('list-only mode', () => {
@@ -112,16 +112,16 @@ describe('list-only mode', () => {
     window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'true')
     render(<App />)
 
-    expect(screen.queryByRole('switch', { name: 'Listen for my playing' })).toBeNull()
-    expect(screen.queryByRole('switch', { name: 'Fretboard map' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Listen with the microphone' })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Show the fretboard' })).toBeNull()
     expect(screen.queryByTestId('fretboard')).toBeNull()
     expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('true')
     expect(window.localStorage.getItem(STORAGE_KEYS.showFretboard)).toBe('true')
 
     fireEvent.click(listOnlySwitch())
 
-    expect(screen.getByRole('switch', { name: 'Listen for my playing' })).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Fretboard map' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Listen with the microphone' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Show the fretboard' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByTestId('fretboard')).toBeInTheDocument()
   })
 

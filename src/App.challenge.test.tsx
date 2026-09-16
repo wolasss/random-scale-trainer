@@ -195,7 +195,7 @@ describe('arriving on a challenge', () => {
 
     expect(screen.queryByTestId('fretboard')).toBeNull()
 
-    const fretboardSwitch = screen.getByRole('switch', { name: 'Fretboard map' })
+    const fretboardSwitch = screen.getByRole('switch', { name: 'Show the fretboard' })
     expect(fretboardSwitch).toBeDisabled()
     expect(fretboardSwitch).toHaveAttribute('aria-checked', 'false')
     expect(fretboardSwitch).toHaveAccessibleDescription(
@@ -213,7 +213,7 @@ describe('arriving on a challenge', () => {
 
     await renderApp()
 
-    const advanceSwitch = screen.getByRole('switch', { name: "Move on when I've got it" })
+    const advanceSwitch = screen.getByRole('switch', { name: "Skip ahead once I've found it" })
     expect(advanceSwitch).toBeDisabled()
     expect(advanceSwitch).toHaveAttribute('aria-checked', 'false')
     expect(advanceSwitch).toHaveAccessibleDescription(

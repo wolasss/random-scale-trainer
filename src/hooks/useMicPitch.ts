@@ -69,7 +69,7 @@ export type MicEngine = {
 
 export type UseMicPitchOptions = {
   engine: MicEngine
-  /** The "Listen for my playing" setting. Off means no microphone is opened. */
+  /** The "Listen with the microphone" setting. Off means no microphone is opened. */
   enabled: boolean
   /** Playback is running. The microphone is only ever open alongside it. */
   running: boolean
