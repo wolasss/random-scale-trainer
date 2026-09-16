@@ -1,3 +1,10 @@
+## [1.34.1](https://github.com/wolasss/random-scale-trainer/compare/v1.34.0...v1.34.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **routines:** offer to resume a workout interrupted by a reload or tab discard ([#265](https://github.com/wolasss/random-scale-trainer/issues/265)) ([33bfe81](https://github.com/wolasss/random-scale-trainer/commit/33bfe812b8101416103c5a98b1c06243b29fff7c))
+
 ## Unreleased
 
 * Clearer names and descriptions for the How it runs switches; rows grouped by purpose.
