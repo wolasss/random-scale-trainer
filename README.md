@@ -24,13 +24,14 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   AudioContext times by a look-ahead scheduler
 - List only: one shuffled list containing every selected note exactly once, with no spoken note calls.
   Its in-place stopwatch starts and stops with the workout, holds the finished result for you to note
-  down, and locks the list while timing. Metronome ticks leave the order untouched; use New shuffled
-  list when you want a fresh order, or switch its metronome off for a silent timed workout. Note-pool
+  down, and locks the list while timing. Metronome clicks leave the order untouched; tap Shuffle list
+  when you want a fresh order, or switch Metronome click off for a silent timed workout. Note-pool
   changes stay pending until then. Mic, spoken-note, and fretboard controls stay out of this focused
   mode without changing their saved preferences. Unavailable in challenge mode, where each called note
   must be scored individually
 - "On the neck" fretboard map showing every position of the called note (frets 0–12) in Standard,
-  E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable from "How it runs"
+  E♭ standard, Drop D, DADGAD or Open G, flippable for a left-handed neck, hideable with
+  Show the fretboard in "How it runs"
 - Speed ramp, in the Tempo card: the tempo climbs 2 BPM every completed round until it reaches a
   target you choose, then holds there — so a session ends on a tempo you reached, not the first one
   you missed. Routine blocks own their own ramp and ceiling
@@ -45,7 +46,7 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   out under the calendar (today's until you pick one), totals across everything stored, and JSON backup
   export/import, where an import merges with what is already there (keeping the longer of any two days)
   rather than replacing it
-- Listen for my playing (off by default): with the setting on, the app opens the microphone
+- Listen with the microphone (off by default): with the setting on, the app opens the microphone
   alongside playback and shows the note it hears under the called one, with a tick when it is the
   note asked for and a cross when it isn't. How in tune the string was is left to a tuner. A note
   that matches the call is named the way the call named it — E♭ stays E♭ rather than turning into
@@ -97,9 +98,12 @@ Pick your notes and a tempo, press start, and it calls a note on the metronome c
   faster player up. Points sit beside the running
   `hits/scored` accuracy rather than replacing it, they last as long as the session does, and
   nothing about them is stored or shared
-- "How it runs": keep going (loop past the end of a cycle), a four-beat count-in, listening for
-  your playing, list-only mode, and the fretboard map toggle. Spoken note names are off in list-only
-  mode
+- "How it runs", grouped by purpose. While playing: Count-in (four clicks before the first note),
+  Repeat rounds (reshuffle and go again once every note has come up) and Say the note aloud.
+  Feedback: Listen with the microphone, Skip ahead once I've found it (under the mic, which it needs)
+  and Show the fretboard. Or practise from a list: List mode. In List mode the card offers Metronome
+  click and Count-in; Repeat rounds, spoken notes, the mic, Skip ahead and the fretboard are paused
+  there, with their settings kept
 - Session card with practice goal (5/10/20 min), progress bar, and notes/cycles stats; tap the goal
   readout to flip it between counting up and counting down the remaining time
 - Shared challenges: open the app at `/?challenge=<name>`, pick a nickname, and a top-ten

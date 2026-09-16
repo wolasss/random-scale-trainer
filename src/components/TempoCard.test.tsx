@@ -51,7 +51,7 @@ describe('TempoCard', () => {
   it('names the missing prerequisite when the ramp is out of reach', () => {
     renderCard({ rampAvailable: false })
 
-    expect(screen.getByText('Needs Keep going switched on — the ramp climbs between rounds.')).toBeInTheDocument()
+    expect(screen.getByText('Needs Repeat rounds switched on — the ramp climbs between rounds.')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: 'Speed ramp' })).toBeDisabled()
   })
 

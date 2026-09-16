@@ -1,3 +1,7 @@
+## Unreleased
+
+* Clearer names and descriptions for the How it runs switches; rows grouped by purpose.
+
 # [1.34.0](https://github.com/wolasss/random-scale-trainer/compare/v1.33.0...v1.34.0) (2026-09-16)
 
 

@@ -248,7 +248,7 @@ export function TempoCard({
           subtitle={
             rampAvailable
               ? `Tempo climbs ${RAMP_BPM_STEP} BPM every time you get through all the notes.`
-              : 'Needs Keep going switched on — the ramp climbs between rounds.'
+              : 'Needs Repeat rounds switched on — the ramp climbs between rounds.'
           }
           checked={rampEnabled}
           onChange={onRampToggle}

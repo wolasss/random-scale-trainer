@@ -540,7 +540,7 @@ describe('App integration', () => {
     expect(screen.getByTestId('now-playing').className).toContain('paused')
   })
 
-  it('leaves the note on screen but silent when "Say the note" is stored off', async () => {
+  it('leaves the note on screen but silent when "Say the note aloud" is stored off', async () => {
     window.localStorage.setItem('fretboard-speak-notes', 'false')
     soundLog.record()
     render(<App />)

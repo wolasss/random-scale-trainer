@@ -1180,7 +1180,8 @@ input[type='range'] {
 
 /* A caveat, not an error: dashed like the empty states rather than alarmed, so
    it reads as a note about the browser and not a failed save. */
-.preset-ephemeral-notice {
+/* A dashed aside: a caveat about the controls around it, not a control itself. */
+.dashed-notice {
   margin: 0 0 0.9rem;
   padding: 0.7rem 0.9rem;
   border-radius: 16px;
@@ -1456,6 +1457,30 @@ input[type='range'] {
 
 .switch-row-text label {
   font-weight: 500;
+}
+
+.option-group-label {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A switch that only works while the one above it is on hangs off that row. */
+.switch-row-nested {
+  margin-left: 0.35rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--control-border);
+}
+
+.switch-row + .switch-row-nested,
+.switch-row-nested + .switch-row {
+  margin-top: 0.55rem;
+}
+
+.options-paused-notice {
+  margin-bottom: 0;
 }
 
 .switch-subtitle {
