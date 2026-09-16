@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { detectPitch } from './lib/audio/pitch'
 import { FAKE_CLOCKS } from './test/fakeTimers'
+import { soundLog } from './test/fakeAudioEngine'
+import { STORAGE_KEYS } from './constants'
 
 // Only the detector is faked; the frequency-to-pitch-class arithmetic under it
 // is the real one, so a test that names a note has to name it the way the app
@@ -49,10 +51,10 @@ const INTO_A_NOTE_MS = NOTE_MS + 100
 // With the count-in on, the first note lands a beat after the fourth count.
 const COUNT_IN_MS = 4 * BEAT_MS
 
-/** The named pitch class, played in the fourth octave. */
-const play = (pitchClass: number) => {
+/** The named pitch class, played in the fourth octave unless another is named. */
+const play = (pitchClass: number, octave = 4) => {
   vi.mocked(detectPitch).mockReturnValue({
-    frequency: 440 * 2 ** ((60 + pitchClass - 69) / 12),
+    frequency: 440 * 2 ** ((12 * (octave + 1) + pitchClass - 69) / 12),
     clarity: 0.99,
   })
 }
@@ -367,5 +369,94 @@ describe('listening for the player', () => {
     // ...and goes when the question does.
     await advance(NOTE_MS)
     expect(screen.getByTestId('heard-note')).toHaveTextContent('nothing yet')
+  })
+
+  describe('moving on once a note is got', () => {
+    const MIC_STREAM = { getTracks: () => [{ stop() {}, addEventListener() {}, removeEventListener() {} }] }
+
+    /** A one-note pool, no count-in: a call every note span, spoken each time. */
+    const setUp = (advanceOnOctaves: boolean) => {
+      window.localStorage.setItem('fretboard-mic-listen', 'true')
+      window.localStorage.setItem('fretboard-advance-on-octaves', String(advanceOnOctaves))
+      window.localStorage.setItem('fretboard-note-pool', '3')
+      window.localStorage.setItem('fretboard-count-in', 'false')
+      installGetUserMedia(async () => MIC_STREAM as unknown as MediaStream)
+      soundLog.record()
+      render(<App />)
+    }
+
+    const spokenCalls = () => soundLog.sounds.filter((sound) => sound.kind === 'note').length
+
+    /** Into the second call, then the note held in two octaves. */
+    const playBothOctaves = async () => {
+      await start()
+      await advance(INTO_A_NOTE_MS)
+      expect(spokenCalls()).toBe(2)
+
+      play(calledPitchClass(), 4)
+      await advance(300)
+      play(calledPitchClass(), 5)
+      await advance(300)
+      hush()
+    }
+
+    it('calls the next note on the next click once the note is heard in two octaves', async () => {
+      setUp(true)
+      await playBothOctaves()
+
+      // One beat on, well short of the rest of the span.
+      await advance(BEAT_MS)
+      const calls = soundLog.sounds.filter((sound) => sound.kind === 'note')
+      expect(calls).toHaveLength(3)
+      // On the click straight after the second call's own — not one later.
+      expect(calls[2].time - calls[1].time).toBeCloseTo(BEAT_MS / 1000, 3)
+    })
+
+    it('waits out the span while the switch is off', async () => {
+      setUp(false)
+      await playBothOctaves()
+
+      await advance(BEAT_MS)
+      expect(spokenCalls()).toBe(2)
+    })
+
+    /**
+     * A challenge listens whatever the setting says, and prices every note at
+     * its full span — so a stored preference must not cut one short there.
+     */
+    it('waits out the span during a challenge, whatever is stored', async () => {
+      window.history.replaceState({}, '', '/?challenge=demo')
+      window.localStorage.setItem(
+        STORAGE_KEYS.challengeTokens,
+        JSON.stringify({ demo: { nickname: 'ada', token: 'a'.repeat(64) } }),
+      )
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ scores: [] }) }) as unknown as Response),
+      )
+      try {
+        setUp(true)
+        await playBothOctaves()
+
+        await advance(BEAT_MS)
+        expect(spokenCalls()).toBe(2)
+      } finally {
+        window.history.replaceState({}, '', '/')
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('waits out the span when the note is only heard in one octave', async () => {
+      setUp(true)
+      await start()
+      await advance(INTO_A_NOTE_MS)
+
+      play(calledPitchClass(), 4)
+      await advance(600)
+      hush()
+
+      await advance(BEAT_MS)
+      expect(spokenCalls()).toBe(2)
+    })
   })
 })

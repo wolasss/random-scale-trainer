@@ -78,6 +78,12 @@ export type BeatProgramInputs = {
   showFretboard: boolean
   /** The pitch classes this beat's note is being drawn from, which price it. */
   pool: readonly number[]
+  /**
+   * The player has already got the current note, so this beat calls the next
+   * one instead of ticking on through the span. A beat that starts a span, or a
+   * count-in click, is unchanged by it.
+   */
+  advanceNow?: boolean
 }
 
 /** What the shell should do with the beat the program just decided. */
@@ -122,7 +128,7 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
     }
   }
 
-  if (state.beatInSpan !== 0) {
+  if (state.beatInSpan !== 0 && !inputs.advanceNow) {
     return {
       kind: 'beat',
       state: { ...state, beatInSpan: advanceSpan(state.beatInSpan) },
@@ -162,7 +168,9 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
       // the clicks, then re-enter this boundary to draw the note.
       return {
         kind: 'armCountIn',
-        state: { ...atBoundary, countInRemaining: COUNT_IN_BEATS },
+        // From the top of a span: an early advance reaches this boundary from
+        // partway through one, and the rest of it must not follow the count-in.
+        state: { ...atBoundary, beatInSpan: 0, countInRemaining: COUNT_IN_BEATS },
         crossedBoundary,
       }
     }
@@ -174,7 +182,8 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
     kind: 'beat',
     state: {
       ...state,
-      beatInSpan: advanceSpan(state.beatInSpan),
+      // Always from the top: an early call starts a whole new span of its own.
+      beatInSpan: advanceSpan(0),
       positionInCycle,
       bagSize: head.bagSize,
       anyNoteScheduled: true,

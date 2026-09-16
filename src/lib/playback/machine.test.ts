@@ -596,6 +596,95 @@ describe('note spans', () => {
   })
 })
 
+describe('early advance', () => {
+  it('calls the next note on the next unscheduled beat and restarts the span there', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    // Beat 1.05 is already scheduled by now; 2.05 is the first one that is not.
+    harness.advanceTo(1.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(2.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05])
+    expect(harness.snapshot()).toMatchObject({ beatInSpan: 0, notesCalled: 2 })
+    expect(harness.snapshot().currentNote?.pc).toBe(1)
+    expect(harness.audio.clicks.find((click) => click.time === 2.05)?.accent).toBe(true)
+
+    // A whole span follows the early call, then the grid carries on as before.
+    harness.advanceTo(6.1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05, 6.05])
+  })
+
+  it('goes straight into the next round when an early call lands on a count-in', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { beatsPerNote: 4, countInEnabled: true } })
+    await harness.machine.start()
+
+    // Count-in 0.05–3.05, then notes at 4.05 and 8.05 — the last of the round.
+    harness.advanceTo(9.2)
+    harness.machine.advanceEarly(8.05)
+    // The early boundary arms a count-in at 10.05–13.05; the round starts at 14.05.
+    harness.advanceTo(13.5)
+    expect(harness.snapshot().countIn).toBe(1)
+
+    harness.advanceTo(14.1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([4.05, 8.05, 14.05])
+    expect(harness.snapshot()).toMatchObject({ countIn: null, beatInSpan: 0 })
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+  })
+
+  it('ignores a request for a note that is no longer the latest call', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(4.1)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(8.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 4.05, 8.05])
+  })
+
+  it('does nothing while idle or once playback has stopped', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    harness.machine.advanceEarly(0.05)
+    await harness.machine.start()
+    harness.advanceTo(1.2)
+
+    harness.machine.stop()
+    harness.machine.advanceEarly(0.05)
+    expect(harness.snapshot().status).toBe('idle')
+
+    await harness.machine.start()
+    harness.advanceTo(harness.audio.time + 1.5)
+    expect(harness.audio.notes).toHaveLength(2)
+  })
+
+  it('drops a pending request on pause', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(1.2)
+    harness.machine.advanceEarly(0.05)
+    harness.machine.pause()
+    await harness.machine.start()
+    // The resumed span picks up at 1.7 and 2.7; its next call is due at 3.7.
+    harness.advanceTo(3.4)
+
+    expect(harness.audio.notes).toHaveLength(1)
+  })
+
+  it('changes nothing at one beat per note', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 1 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(2.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.05, 2.05])
+  })
+})
+
 describe('speed ramp', () => {
   it('bumps the tempo once per completed cycle and uses it before React commits', async () => {
     const harness = createHarness({ pool: [0, 1], settings: { speedRampMode: true } })

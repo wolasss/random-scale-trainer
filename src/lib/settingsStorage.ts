@@ -38,6 +38,12 @@ export type Settings = {
   leftHanded: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
+  /**
+   * Call the next note on the next click once the current one has been heard
+   * in two octaves, rather than waiting out the span. Only acts while the mic
+   * is listening; off until asked for.
+   */
+  advanceOnOctaves: boolean
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
@@ -107,6 +113,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
+  advanceOnOctaves: booleanCodec(STORAGE_KEYS.advanceOnOctaves),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -151,6 +158,7 @@ const DEFAULT_SETTINGS: Settings = {
   tuning: DEFAULT_TUNING_ID,
   leftHanded: false,
   micEnabled: false,
+  advanceOnOctaves: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

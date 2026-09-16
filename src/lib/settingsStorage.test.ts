@@ -58,22 +58,26 @@ describe('initSettings', () => {
     window.localStorage.setItem(STORAGE_KEYS.speedRampMode, 'true')
     window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'true')
     window.localStorage.setItem(STORAGE_KEYS.micListen, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.advanceOnOctaves, 'true')
 
     const settings = initSettings()
     expect(settings.speedRampMode).toBe(true)
     expect(settings.showFretboard).toBe(true)
     expect(settings.micEnabled).toBe(true)
+    expect(settings.advanceOnOctaves).toBe(true)
   })
 
   it('keeps the default-off booleans off when garbage is stored', () => {
     window.localStorage.setItem(STORAGE_KEYS.speedRampMode, '1')
     window.localStorage.setItem(STORAGE_KEYS.showFretboard, 'yes')
     window.localStorage.setItem(STORAGE_KEYS.micListen, 'on')
+    window.localStorage.setItem(STORAGE_KEYS.advanceOnOctaves, 'yes')
 
     const settings = initSettings()
     expect(settings.speedRampMode).toBe(false)
     expect(settings.showFretboard).toBe(false)
     expect(settings.micEnabled).toBe(false)
+    expect(settings.advanceOnOctaves).toBe(false)
   })
 
   it('reads back a stored tuning id', () => {

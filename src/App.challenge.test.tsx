@@ -205,6 +205,23 @@ describe('arriving on a challenge', () => {
     expect(window.localStorage.getItem(STORAGE_KEYS.showFretboard)).toBe('true')
   })
 
+  it('disables a saved early-advance preference for challenge play', async () => {
+    installFetch()
+    installGetUserMedia()
+    window.localStorage.setItem(STORAGE_KEYS.micListen, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.advanceOnOctaves, 'true')
+
+    await renderApp()
+
+    const advanceSwitch = screen.getByRole('switch', { name: "Move on when I've got it" })
+    expect(advanceSwitch).toBeDisabled()
+    expect(advanceSwitch).toHaveAttribute('aria-checked', 'false')
+    expect(advanceSwitch).toHaveAccessibleDescription(
+      'Unavailable during a challenge, where every note runs its full length.',
+    )
+    expect(window.localStorage.getItem(STORAGE_KEYS.advanceOnOctaves)).toBe('true')
+  })
+
   it('shows the board that is already there, in a rail beside the note', async () => {
     installFetch(board(['ada', 300], ['bo', 120]))
     installGetUserMedia()

@@ -249,6 +249,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // Off a challenge this queues nothing: the shared board decides what a note
     // is worth, from the events themselves, and there is no board here to tell.
     onScored: challenge.recordEvent,
+    // Cutting a span short is a practice aid, not a way to call more notes a
+    // minute on the shared board, so a challenge never does it.
+    onOctavesHeard:
+      settings.advanceOnOctaves && micEnabled && !challenge.active
+        ? (callTime) => playbackRef.current?.advanceEarly(callTime)
+        : undefined,
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
@@ -529,6 +535,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       settings={settings}
       listModeUnavailable={challenge.active}
       fretboardUnavailable={challenge.active}
+      earlyAdvanceUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
     />
   )

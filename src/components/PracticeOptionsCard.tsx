@@ -9,6 +9,8 @@ type PracticeOptionsCardProps = {
   listModeUnavailable?: boolean
   /** The map would show where every scored note lives, so a challenge hides it. */
   fretboardUnavailable?: boolean
+  /** A challenge prices notes at their full span, so none may be cut short there. */
+  earlyAdvanceUnavailable?: boolean
 }
 
 export function PracticeOptionsCard({
@@ -16,12 +18,16 @@ export function PracticeOptionsCard({
   onToggle,
   listModeUnavailable = false,
   fretboardUnavailable = false,
+  earlyAdvanceUnavailable = false,
 }: PracticeOptionsCardProps) {
   // A browser with no microphone API is a dead end the user would otherwise
   // only find on pressing play, so the reason takes the subtitle's place and
   // the switch — which describes itself with it — explains why it is off.
   const micSupported = isMicSupported()
   const listModeActive = settings.noteListMode && !listModeUnavailable
+  const micOn = settings.micEnabled && micSupported
+  // Only the microphone can tell a note has been got, so the switch follows it.
+  const earlyAdvanceAvailable = micOn && !earlyAdvanceUnavailable
 
   return (
     <section className="panel practice-options-card">
@@ -92,9 +98,23 @@ export function PracticeOptionsCard({
                 ? 'The mic verifies each note you play, with instant feedback.'
                 : 'This browser has no microphone to listen with.'
             }
-            checked={settings.micEnabled && micSupported}
+            checked={micOn}
             onChange={() => onToggle('micEnabled')}
             disabled={!micSupported}
+          />
+          <SwitchRow
+            id="advance-on-octaves"
+            label="Move on when I've got it"
+            subtitle={
+              earlyAdvanceUnavailable
+                ? 'Unavailable during a challenge, where every note runs its full length.'
+                : micOn
+                  ? "Once you've played the note in two octaves, the next one comes on the next click."
+                  : 'Needs Listen for my playing: the mic is what hears the two octaves.'
+            }
+            checked={settings.advanceOnOctaves && earlyAdvanceAvailable}
+            onChange={() => onToggle('advanceOnOctaves')}
+            disabled={!earlyAdvanceAvailable}
           />
           <SwitchRow
             id="show-fretboard"

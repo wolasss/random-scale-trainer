@@ -109,6 +109,13 @@ export type PlaybackMachine = {
   reset(): void
   /** Pool or spelling changed: drop pending notes, refresh the preview. */
   invalidateDeck(): void
+  /**
+   * The note called at `callTime` has been got: call the next one on the next
+   * beat still to be scheduled instead of waiting out the span. Ignored unless
+   * that note is still the latest one called — the look-ahead may already have
+   * moved past it, and a stale request would skip a note nobody has seen.
+   */
+  advanceEarly(callTime: number): void
   /** The page came back on screen — recover a context the OS suspended. */
   handleVisible(): void
   getSnapshot(): PlaybackSnapshot
@@ -140,6 +147,9 @@ export const INITIAL_PLAYBACK_SNAPSHOT: PlaybackSnapshot = {
   message: PLAYBACK_MESSAGES.idle,
 }
 
+/** A beat's time comes back through scoring unchanged, but compare it as a float. */
+const CALL_TIME_EPSILON_S = 0.001
+
 export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachine => {
   const { audio, getSettings, getPool, getSpelling, onSnapshot, onBeat, onBpmChange, onSessionStart, onSessionPause } =
     deps
@@ -166,6 +176,10 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let nextBeatTime = 0
   let sched = createSchedulingState()
   let schedulingDone = false
+  /** When the latest note was scheduled to be called; null before one is. */
+  let lastCallTime: number | null = null
+  /** An early advance waiting for the next beat to be scheduled. */
+  let advancePending = false
   const tempo = createTempoControl()
 
   /**
@@ -219,6 +233,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   const haltScheduling = (keepSessionEndChime = false) => {
     active = false
     schedulingDone = false
+    advancePending = false
     clearTick()
     clearFrame()
     clearStopTimeout()
@@ -282,16 +297,23 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
         spelling: getSpelling(),
         showFretboard: settings.showFretboard,
         pool: getPool(),
+        advanceNow: advancePending,
       },
     )
 
     if (step.kind === 'dry') {
+      advancePending = false
       schedulingDone = true
       scheduleStopAt(nextBeatTime, PLAYBACK_MESSAGES.noNotes)
       return
     }
 
     sched = step.state
+    // Spent once the span it was cutting short is over, however it ended.
+    if (step.kind !== 'beat' || step.consumesNote) {
+      advancePending = false
+    }
+
     if (step.crossedBoundary) {
       const ramped = tempo.applyRamp({
         enabled: settings.continuousMode && settings.speedRampMode,
@@ -317,11 +339,12 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
+    const { event } = step
     if (step.consumesNote) {
       deck.draw()
+      lastCallTime = event.time
     }
 
-    const { event } = step
     if (settings.metronomeEnabled) {
       audio.playClickAt(event.time, event.accent)
     }
@@ -572,6 +595,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     tempo.reset(settings.bpm)
     sched = createSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
     schedulingDone = false
+    lastCallTime = null
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
@@ -583,6 +607,14 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     startLoops()
   }
 
+  const advanceEarly = (callTime: number) => {
+    if (!active || lastCallTime === null || Math.abs(callTime - lastCallTime) > CALL_TIME_EPSILON_S) {
+      return
+    }
+
+    advancePending = true
+  }
+
   const reset = () => {
     haltScheduling()
     if (snapshot.status !== 'idle') {
@@ -591,6 +623,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
     sessionStartQueued = false
     sched = createSchedulingState()
+    lastCallTime = null
     deck.reset()
 
     emit({
@@ -643,6 +676,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     stop,
     reset,
     invalidateDeck,
+    advanceEarly,
     handleVisible,
     getSnapshot: () => snapshot,
     dispose,
