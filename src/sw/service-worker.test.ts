@@ -199,6 +199,38 @@ describe('install', () => {
     expect(worker.skipWaiting).toHaveBeenCalled()
   })
 
+  it('refuses an update whose precache came down incomplete, keeping the previous cache', async () => {
+    const worker = makeWorker({ cacheNames: ['callnote-oldver'], failingAdd: '/assets/app.js' })
+    const previousShell = makeResponse('previous shell')
+    worker.caches.get('callnote-oldver')!.entries.set('/index.html', previousShell)
+
+    await expect(worker.dispatch('install').waited).rejects.toThrow()
+
+    // A failed install never takes over, so the old worker keeps serving a
+    // complete cache and the browser tries the update again later.
+    expect(worker.skipWaiting).not.toHaveBeenCalled()
+    expect(worker.caches.get('callnote-oldver')?.entries.get('/index.html')).toBe(previousShell)
+    expect(currentCache(worker).attempted).toEqual(PRECACHE_URLS)
+  })
+
+  it('refuses an incomplete update over a pre-rebrand cache too', async () => {
+    const worker = makeWorker({ cacheNames: ['note-trainer-abc'], failingAdd: '/assets/app.js' })
+
+    await expect(worker.dispatch('install').waited).rejects.toThrow()
+
+    expect(worker.skipWaiting).not.toHaveBeenCalled()
+    expect(worker.caches.has('note-trainer-abc')).toBe(true)
+  })
+
+  it('takes over from an older cache once every precache add succeeds', async () => {
+    const worker = makeWorker({ cacheNames: ['callnote-oldver'] })
+
+    await expect(worker.dispatch('install').waited).resolves.toBeUndefined()
+
+    expect([...currentCache(worker).entries.keys()]).toEqual(PRECACHE_URLS)
+    expect(worker.skipWaiting).toHaveBeenCalled()
+  })
+
   it('precaches each URL past the HTTP cache with a reload request', async () => {
     const worker = makeWorker()
 
