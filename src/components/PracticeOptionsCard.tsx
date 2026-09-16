@@ -105,7 +105,7 @@ export function PracticeOptionsCard({
             <SwitchRow
               id="continuous-mode"
               label="Loop"
-              subtitle="Keep calling notes until you press stop, in a fresh order after each full set. Off stops once every note has been called. The speed ramp needs this on."
+              subtitle="Keep calling notes until you press stop. The speed ramp needs this on."
               checked={settings.continuousMode}
               onChange={() => onToggle('continuousMode')}
             />

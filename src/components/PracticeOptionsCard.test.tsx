@@ -108,7 +108,7 @@ describe('PracticeOptionsCard layout', () => {
       'Four clicks before the first note and each new round.',
     )
     expect(screen.getByRole('switch', { name: 'Loop' })).toHaveAccessibleDescription(
-      'Keep calling notes until you press stop, in a fresh order after each full set. Off stops once every note has been called. The speed ramp needs this on.',
+      'Keep calling notes until you press stop. The speed ramp needs this on.',
     )
     expect(screen.getByRole('switch', { name: 'Show the fretboard' })).toHaveAccessibleDescription(
       'Show where the called note sits on the neck, open to 12th fret.',
