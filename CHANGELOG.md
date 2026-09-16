@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/wolasss/random-scale-trainer/compare/v1.33.0...v1.34.0) (2026-09-16)
+
+
+### Features
+
+* **mic:** optionally call the next note early once it's played in two octaves ([#269](https://github.com/wolasss/random-scale-trainer/issues/269)) ([bb0f4f8](https://github.com/wolasss/random-scale-trainer/commit/bb0f4f8e348dc08790f56669b5248d3f40e5e26d))
+
 # [1.33.0](https://github.com/wolasss/random-scale-trainer/compare/v1.32.1...v1.33.0) (2026-09-15)
 
 
