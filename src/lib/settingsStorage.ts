@@ -61,11 +61,19 @@ export type Settings = {
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
   /**
-   * Call the next note on the next click once the current one has been heard
-   * in two octaves, rather than waiting out the span. Only acts while the mic
-   * is listening; off until asked for.
+   * Call the next note the moment the current one has been heard in two
+   * octaves, rather than waiting out the span — no click in between, and no
+   * wait for one already scheduled. Only acts while the mic is listening; off
+   * until asked for.
    */
   advanceOnOctaves: boolean
+  /**
+   * The open-string MIDI note of whichever string `advanceOnOctaves` is
+   * currently timing, or null when it is timing none in particular. Reset to
+   * null whenever `tuning` changes, since a string chosen under one tuning is
+   * not a claim about another.
+   */
+  practiceStringMidi: number | null
   /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
@@ -138,6 +146,18 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   advanceOnOctaves: booleanCodec(STORAGE_KEYS.advanceOnOctaves),
+  practiceStringMidi: {
+    storageKey: STORAGE_KEYS.practiceStringMidi,
+    deserialize: (raw) => {
+      if (raw === 'none') {
+        return null
+      }
+
+      const stored = Number(raw)
+      return Number.isSafeInteger(stored) && stored > 0 ? stored : undefined
+    },
+    serialize: (value) => (value === null ? 'none' : String(value)),
+  },
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -183,6 +203,7 @@ const DEFAULT_SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  practiceStringMidi: null,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

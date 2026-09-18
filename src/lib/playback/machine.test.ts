@@ -597,23 +597,29 @@ describe('note spans', () => {
 })
 
 describe('early advance', () => {
-  it('calls the next note on the next unscheduled beat and restarts the span there', async () => {
+  it('calls the next note right away, cancelling what the look-ahead had already queued', async () => {
     const harness = createHarness({ settings: { beatsPerNote: 4 } })
     await harness.machine.start()
 
-    // Beat 1.05 is already scheduled by now; 2.05 is the first one that is not.
+    // Beat 1.05 has already sounded by now; 2.05 is queued but not reached.
     harness.advanceTo(1.2)
+    const stopCallsBefore = harness.audio.stopCalls
     harness.machine.advanceEarly(0.05)
-    harness.advanceTo(2.1)
 
-    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05])
+    // Cancelled rather than left to sound on its own schedule.
+    expect(harness.audio.stopCalls).toBe(stopCallsBefore + 1)
+
+    harness.advanceTo(1.3)
+
+    // Called at (roughly) the moment it was confirmed, not at 2.05.
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.22])
     expect(harness.snapshot()).toMatchObject({ beatInSpan: 0, notesCalled: 2 })
     expect(harness.snapshot().currentNote?.pc).toBe(1)
-    expect(harness.audio.clicks.find((click) => click.time === 2.05)?.accent).toBe(true)
+    expect(harness.audio.clicks.find((click) => click.time === 1.22)?.accent).toBe(true)
 
-    // A whole span follows the early call, then the grid carries on as before.
-    harness.advanceTo(6.1)
-    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05, 6.05])
+    // A whole span follows the early call, then the grid carries on from there.
+    harness.advanceTo(5.3)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.22, 5.22])
   })
 
   it('goes straight into the next round when an early call lands on a count-in', async () => {
@@ -623,12 +629,17 @@ describe('early advance', () => {
     // Count-in 0.05–3.05, then notes at 4.05 and 8.05 — the last of the round.
     harness.advanceTo(9.2)
     harness.machine.advanceEarly(8.05)
-    // The early boundary arms a count-in at 10.05–13.05; the round starts at 14.05.
-    harness.advanceTo(13.5)
+    // The early boundary re-anchors to 9.22 and arms a count-in there:
+    // 9.22–12.22, with the new round starting at 13.22.
+    harness.advanceTo(12.3)
     expect(harness.snapshot().countIn).toBe(1)
 
-    harness.advanceTo(14.1)
-    expect(harness.audio.notes.map((note) => note.time)).toEqual([4.05, 8.05, 14.05])
+    harness.advanceTo(13.3)
+    const noteTimes = harness.audio.notes.map((note) => note.time)
+    expect(noteTimes).toHaveLength(3)
+    expect(noteTimes[0]).toBeCloseTo(4.05, 6)
+    expect(noteTimes[1]).toBeCloseTo(8.05, 6)
+    expect(noteTimes[2]).toBeCloseTo(13.22, 6)
     expect(harness.snapshot()).toMatchObject({ countIn: null, beatInSpan: 0 })
     expect(harness.snapshot().currentNote?.pc).toBe(0)
   })
@@ -673,12 +684,17 @@ describe('early advance', () => {
     expect(harness.audio.notes).toHaveLength(1)
   })
 
-  it('changes nothing at one beat per note', async () => {
+  it('changes nothing at one beat per note, and cancels nothing to do it', async () => {
     const harness = createHarness({ settings: { beatsPerNote: 1 } })
     await harness.machine.start()
 
     harness.advanceTo(0.2)
+    const stopCallsBefore = harness.audio.stopCalls
     harness.machine.advanceEarly(0.05)
+
+    // Every beat already calls a note here, so there is no span to cut short.
+    expect(harness.audio.stopCalls).toBe(stopCallsBefore)
+
     harness.advanceTo(2.1)
 
     expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.05, 2.05])

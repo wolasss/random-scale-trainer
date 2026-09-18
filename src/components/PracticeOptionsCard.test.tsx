@@ -26,6 +26,7 @@ const SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  practiceStringMidi: null,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
   sessionGoalMin: 10,
@@ -41,6 +42,8 @@ const renderCard = (
   const props = {
     settings: { ...SETTINGS, ...overrides },
     onToggle: vi.fn(),
+    tuning: overrides.tuning ?? SETTINGS.tuning,
+    onPracticeString: vi.fn(),
     listModeUnavailable,
     fretboardUnavailable,
     earlyAdvanceUnavailable,
@@ -270,7 +273,7 @@ describe('PracticeOptionsCard early advance switch', () => {
     expect(advance).toBeDisabled()
     expect(advance).toHaveAttribute('aria-checked', 'false')
     expect(advance).toHaveAccessibleDescription(
-      'Once the mic hears the note in two octaves, the next one comes on the next click. Needs the microphone on.',
+      'Once the mic hears the note in two octaves, the next one comes right away — no click in between. Needs the microphone on.',
     )
 
     fireEvent.click(advance)
@@ -284,7 +287,7 @@ describe('PracticeOptionsCard early advance switch', () => {
     expect(advance).toBeEnabled()
     expect(advance).toHaveAttribute('aria-checked', 'false')
     expect(advance).toHaveAccessibleDescription(
-      'Once the mic hears the note in two octaves, the next one comes on the next click. Needs the microphone on.',
+      'Once the mic hears the note in two octaves, the next one comes right away — no click in between. Needs the microphone on.',
     )
 
     fireEvent.click(advance)
@@ -300,5 +303,78 @@ describe('PracticeOptionsCard early advance switch', () => {
     expect(advance).toHaveAccessibleDescription(
       'Unavailable during a challenge, where every note runs its full length.',
     )
+  })
+})
+
+describe('PracticeOptionsCard practice-string picker', () => {
+  const pickerName = 'Time it for'
+
+  beforeEach(() => {
+    vi.mocked(isMicSupported).mockReturnValue(true)
+  })
+
+  it('has an accessible label', () => {
+    renderCard({ micEnabled: true, advanceOnOctaves: true })
+    expect(screen.getByLabelText(pickerName)).toBe(screen.getByTestId('practice-string-select'))
+  })
+
+  it('is disabled until the switch above it is actually on', () => {
+    renderCard()
+    expect(screen.getByTestId('practice-string-select')).toBeDisabled()
+
+    renderCard({ micEnabled: true })
+    expect(screen.getAllByTestId('practice-string-select').at(-1)).toBeDisabled()
+
+    renderCard({ advanceOnOctaves: true })
+    expect(screen.getAllByTestId('practice-string-select').at(-1)).toBeDisabled()
+  })
+
+  it('lists the standard-tuning strings, ordinal first for the two that share a letter', () => {
+    renderCard({ micEnabled: true, advanceOnOctaves: true })
+    const picker = screen.getByTestId('practice-string-select')
+
+    expect(picker).toBeEnabled()
+    expect(within(picker).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'No particular string',
+      '1st string (e)',
+      '2nd string (B)',
+      '3rd string (G)',
+      '4th string (D)',
+      '5th string (A)',
+      '6th string (E)',
+    ])
+  })
+
+  it('tells DADGAD’s three D strings apart by ordinal', () => {
+    renderCard({ micEnabled: true, advanceOnOctaves: true, tuning: 'dadgad' })
+    const picker = screen.getByTestId('practice-string-select')
+
+    expect(within(picker).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'No particular string',
+      '1st string (d)',
+      '2nd string (A)',
+      '3rd string (G)',
+      '4th string (D)',
+      '5th string (A)',
+      '6th string (D)',
+    ])
+  })
+
+  it('reads the stored string back and reports a change', () => {
+    const { props } = renderCard({ micEnabled: true, advanceOnOctaves: true, practiceStringMidi: 40 })
+    const picker = screen.getByTestId('practice-string-select') as HTMLSelectElement
+
+    expect(picker.value).toBe('40')
+
+    fireEvent.change(picker, { target: { value: '45' } })
+    expect(props.onPracticeString).toHaveBeenCalledWith(45)
+  })
+
+  it('reports null for "No particular string"', () => {
+    const { props } = renderCard({ micEnabled: true, advanceOnOctaves: true, practiceStringMidi: 40 })
+    const picker = screen.getByTestId('practice-string-select')
+
+    fireEvent.change(picker, { target: { value: 'none' } })
+    expect(props.onPracticeString).toHaveBeenCalledWith(null)
   })
 })

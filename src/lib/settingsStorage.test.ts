@@ -80,6 +80,24 @@ describe('initSettings', () => {
     expect(settings.advanceOnOctaves).toBe(false)
   })
 
+  it('reads back a stored practiceStringMidi', () => {
+    window.localStorage.setItem(STORAGE_KEYS.practiceStringMidi, '40')
+    expect(initSettings().practiceStringMidi).toBe(40)
+  })
+
+  it("reads a literal 'none' as no string chosen", () => {
+    window.localStorage.setItem(STORAGE_KEYS.practiceStringMidi, 'none')
+    expect(initSettings().practiceStringMidi).toBeNull()
+  })
+
+  it.each(['0', '-1', '1.5', 'forty', ''])(
+    'rejects %j for practiceStringMidi and falls back to no string chosen',
+    (raw) => {
+      window.localStorage.setItem(STORAGE_KEYS.practiceStringMidi, raw)
+      expect(initSettings().practiceStringMidi).toBeNull()
+    },
+  )
+
   it('reads back a stored tuning id', () => {
     window.localStorage.setItem(STORAGE_KEYS.tuning, 'dadgad')
     expect(initSettings().tuning).toBe('dadgad')

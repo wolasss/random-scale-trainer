@@ -400,16 +400,21 @@ describe('listening for the player', () => {
       hush()
     }
 
-    it('calls the next note on the next click once the note is heard in two octaves', async () => {
+    it('calls the next note right away once it is heard in two octaves, not on the next click', async () => {
       setUp(true)
       await playBothOctaves()
 
-      // One beat on, well short of the rest of the span.
-      await advance(BEAT_MS)
-      const calls = soundLog.sounds.filter((sound) => sound.kind === 'note')
+      // Already called by the time the second octave lands — no click, and no
+      // wait for one already queued, is what "right away" rules out.
+      let calls = soundLog.sounds.filter((sound) => sound.kind === 'note')
       expect(calls).toHaveLength(3)
-      // On the click straight after the second call's own — not one later.
-      expect(calls[2].time - calls[1].time).toBeCloseTo(BEAT_MS / 1000, 3)
+      expect(calls[2].time - calls[1].time).toBeLessThan(BEAT_MS / 1000)
+
+      // A beat further on, the round grid has resumed from there rather than
+      // also calling a click-aligned note of its own.
+      await advance(BEAT_MS)
+      calls = soundLog.sounds.filter((sound) => sound.kind === 'note')
+      expect(calls).toHaveLength(3)
     })
 
     it('waits out the span while the switch is off', async () => {

@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react'
 import { isMicSupported } from '../lib/audio/mic'
 import type { Settings, SettingsToggleKey } from '../hooks/useSettings'
+import { neckStrings, type TuningId } from '../lib/tunings'
 import { SwitchRow } from './ui/SwitchRow'
 
 type PracticeOptionsCardProps = {
   settings: Settings
   onToggle: (key: SettingsToggleKey) => void
+  /** The neck the practice-string picker reads its options from. */
+  tuning: TuningId
+  onPracticeString: (midi: number | null) => void
   /** Challenges call and score one note at a time, so a static list cannot run there. */
   listModeUnavailable?: boolean
   /** The map would show where every scored note lives, so a challenge hides it. */
@@ -13,6 +17,16 @@ type PracticeOptionsCardProps = {
   /** A challenge prices notes at their full span, so none may be cut short there. */
   earlyAdvanceUnavailable?: boolean
 }
+
+/** No pitch class asked for — this is a picture of the strings, not the neck. */
+const PRACTICE_STRING_OPTIONS = (tuning: TuningId) =>
+  neckStrings(tuning, null, false).map((string) => ({
+    midi: string.midi,
+    // The ordinal is what keeps two same-lettered strings apart — DADGAD's
+    // three D's read as the same label otherwise, exactly the case
+    // `describePositions` (tunings.ts) already had to solve.
+    text: `${string.ordinal} string (${string.label})`,
+  }))
 
 /** A labelled run of switches that share a purpose, so the card reads as a few questions rather than one long list. */
 function OptionGroup({ id, label, children }: { id: string; label: string; children: ReactNode }) {
@@ -31,6 +45,8 @@ function OptionGroup({ id, label, children }: { id: string; label: string; child
 export function PracticeOptionsCard({
   settings,
   onToggle,
+  tuning,
+  onPracticeString,
   listModeUnavailable = false,
   fretboardUnavailable = false,
   earlyAdvanceUnavailable = false,
@@ -43,6 +59,7 @@ export function PracticeOptionsCard({
   const micOn = settings.micEnabled && micSupported
   // Only the microphone can tell a note has been got, so the switch follows it.
   const earlyAdvanceAvailable = micOn && !earlyAdvanceUnavailable
+  const practiceStringOptions = PRACTICE_STRING_OPTIONS(tuning)
 
   const listModeSwitch = (
     <SwitchRow
@@ -139,12 +156,39 @@ export function PracticeOptionsCard({
                 subtitle={
                   earlyAdvanceUnavailable
                     ? 'Unavailable during a challenge, where every note runs its full length.'
-                    : 'Once the mic hears the note in two octaves, the next one comes on the next click. Needs the microphone on.'
+                    : "Once the mic hears the note in two octaves, the next one comes right away — no click in between. Needs the microphone on."
                 }
                 checked={settings.advanceOnOctaves && earlyAdvanceAvailable}
                 onChange={() => onToggle('advanceOnOctaves')}
                 disabled={!earlyAdvanceAvailable}
               />
+              {/* Timed and logged per string, rather than for the neck as a
+                  whole: the mic can only say a pitch sounded, never which
+                  string it came off, so this names the string you are
+                  claiming rather than one the app can check. */}
+              <div className="control-block">
+                <label className="label" htmlFor="practice-string">
+                  Time it for
+                </label>
+                <select
+                  id="practice-string"
+                  className="preset-select"
+                  data-testid="practice-string-select"
+                  value={settings.practiceStringMidi === null ? 'none' : String(settings.practiceStringMidi)}
+                  onChange={(event) => {
+                    const { value } = event.target
+                    onPracticeString(value === 'none' ? null : Number(value))
+                  }}
+                  disabled={!settings.advanceOnOctaves || !earlyAdvanceAvailable}
+                >
+                  <option value="none">No particular string</option>
+                  {practiceStringOptions.map((option) => (
+                    <option key={option.midi} value={option.midi}>
+                      {option.text}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <SwitchRow
               id="show-fretboard"

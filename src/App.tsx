@@ -41,6 +41,7 @@ import { TempoCard } from './components/TempoCard'
 import { NotePoolCard } from './components/NotePoolCard'
 import { FretboardCard } from './components/FretboardCard'
 import { PracticeOptionsCard } from './components/PracticeOptionsCard'
+import { StringSpeedCard } from './components/StringSpeedCard'
 import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
@@ -75,6 +76,13 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { usePersistentStorage } from './hooks/usePersistentStorage'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
+import {
+  EMPTY_STRING_SPEED,
+  parseStringSpeed,
+  recordEarlyAdvance,
+  stringSpeedKey,
+  type StringSpeedLog,
+} from './lib/stringSpeed'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
 
 // Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
@@ -96,6 +104,13 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const [setupRevealed, setSetupRevealed] = usePersistentState<boolean>(STORAGE_KEYS.setupRevealed, {
     defaultValue: false,
     deserialize: (raw) => (raw === 'true' ? true : raw === 'false' ? false : undefined),
+  })
+  // How fast the early advance has found the called note, kept per string —
+  // see src/lib/stringSpeed.ts for what it can and cannot actually prove.
+  const [stringSpeed, setStringSpeed] = usePersistentState<StringSpeedLog>(STORAGE_KEYS.stringSpeed, {
+    defaultValue: EMPTY_STRING_SPEED,
+    deserialize: parseStringSpeed,
+    serialize: (log) => JSON.stringify(log),
   })
   // Held here rather than in NotePoolCard: the installed layout unmounts that
   // card with the practice sheet, and a preset localStorage refused to take
@@ -253,7 +268,23 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // minute on the shared board, so a challenge never does it.
     onOctavesHeard:
       settings.advanceOnOctaves && micEnabled && !challenge.active
-        ? (callTime) => playbackRef.current?.advanceEarly(callTime)
+        ? (callTime) => {
+            playbackRef.current?.advanceEarly(callTime)
+
+            // A string only gets timed while one is actually named — see
+            // src/lib/stringSpeed.ts for why naming one is a claim the mic
+            // itself can never confirm. `callTime` and `engine.getCurrentTime()`
+            // are both this same AudioContext's clock, so the difference is
+            // exactly how long the confirmed note took to sound after it was
+            // called, with nothing about the mic's own detection lag in it.
+            const midi = settings.practiceStringMidi
+            if (midi === null) {
+              return
+            }
+
+            const elapsedMs = (engine.getCurrentTime() - callTime) * 1000
+            setStringSpeed((log) => recordEarlyAdvance(log, stringSpeedKey(settings.tuning, midi), elapsedMs))
+          }
         : undefined,
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
@@ -564,12 +595,16 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const practiceOptionsCard = (
     <PracticeOptionsCard
       settings={settings}
+      tuning={settings.tuning}
       listModeUnavailable={challenge.active}
       fretboardUnavailable={challenge.active}
       earlyAdvanceUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
+      onPracticeString={(midi) => dispatch({ type: 'setPracticeString', midi })}
     />
   )
+
+  const stringSpeedCard = <StringSpeedCard log={stringSpeed} tuning={settings.tuning} />
 
   // Taken from the hook rather than from the store: it banks the pending
   // seconds first, so the file is never short of the session that is running as
@@ -761,6 +796,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           {sessionCard}
           {display.landscape ? null : fretboardCard}
           {practiceLogCard}
+          {stringSpeedCard}
           {/* The credits and the version have nowhere else to live once the
               page stops scrolling — the installed app loses nothing. */}
           <Footer skin={skin} onSkinChange={setSkin} theme={theme} onToggleTheme={toggleTheme} />
@@ -888,6 +924,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
               {practiceLogCard}
             </div>
+
+            {stringSpeedCard}
           </>
         ) : (
           <SetupReveal onReveal={() => setSetupRevealed(true)} />

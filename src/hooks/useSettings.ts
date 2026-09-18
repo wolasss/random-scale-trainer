@@ -36,6 +36,9 @@ export type SettingsAction =
   // both come from a control that names the value it is asking for.
   | { type: 'setTuning'; id: TuningId }
   | { type: 'setLeftHanded'; leftHanded: boolean }
+  // Which string the early advance is timing, by its open-string MIDI note;
+  // null clears it. Value-carrying for the same reason as the two above.
+  | { type: 'setPracticeString'; midi: number | null }
 
 // A tempo raised past its ramp target strands the target below the tempo, so
 // this hands it a fresh goal — mirroring 'setRamp's own fresh-goal rule. The
@@ -118,9 +121,14 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
     case 'setSessionGoal':
       return { ...state, sessionGoalMin: action.minutes }
     case 'setTuning':
-      return { ...state, tuning: action.id }
+      // A string chosen under the old tuning is not a claim about the new
+      // one — DADGAD's low D and standard's low E do not share a MIDI note,
+      // and even where two tunings do agree it is coincidence, not a promise.
+      return { ...state, tuning: action.id, practiceStringMidi: null }
     case 'setLeftHanded':
       return { ...state, leftHanded: action.leftHanded }
+    case 'setPracticeString':
+      return { ...state, practiceStringMidi: action.midi }
   }
 }
 

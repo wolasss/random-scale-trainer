@@ -110,10 +110,11 @@ export type PlaybackMachine = {
   /** Pool or spelling changed: drop pending notes, refresh the preview. */
   invalidateDeck(): void
   /**
-   * The note called at `callTime` has been got: call the next one on the next
-   * beat still to be scheduled instead of waiting out the span. Ignored unless
-   * that note is still the latest one called — the look-ahead may already have
-   * moved past it, and a stale request would skip a note nobody has seen.
+   * The note called at `callTime` has been got: call the next one right away
+   * instead of waiting out the span, or for the click that was due next.
+   * Ignored unless that note is still the latest one called — the look-ahead
+   * may already have moved past it, and a stale request would skip a note
+   * nobody has seen.
    */
   advanceEarly(callTime: number): void
   /** The page came back on screen — recover a context the OS suspended. */
@@ -149,6 +150,13 @@ export const INITIAL_PLAYBACK_SNAPSHOT: PlaybackSnapshot = {
 
 /** A beat's time comes back through scoring unchanged, but compare it as a float. */
 const CALL_TIME_EPSILON_S = 0.001
+
+/**
+ * How soon "now" is scheduled for once an early advance re-anchors the
+ * clock — the same small pickup `start()`'s resume path and `resyncIfBehind`
+ * already give a beat that owes nothing to a grid it is stepping past.
+ */
+const EARLY_ADVANCE_LEAD_S = 0.02
 
 export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachine => {
   const { audio, getSettings, getPool, getSpelling, onSnapshot, onBeat, onBpmChange, onSessionStart, onSessionPause } =
@@ -613,6 +621,27 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     advancePending = true
+
+    // At one beat per note every beat already calls a note — there is no span
+    // being cut short, so re-anchoring the clock below would only yank a
+    // metronome nobody asked to speed up. Leaving `advancePending` set is
+    // harmless: the next beat draws a note regardless of it.
+    if (sched.beatInSpan === 0) {
+      return
+    }
+
+    // Cancel whatever the look-ahead already queued for the span this is
+    // cutting short — clicks included — and re-anchor to right now, the same
+    // move resyncIfBehind makes to drop a backlog rather than catch up on it.
+    // Without this the request still lands, but only once the click already
+    // scheduled ahead of this moment gets there first; that click, and the
+    // wait behind it, is exactly what "as soon as it's heard" rules out. The
+    // note that was just confirmed is in no danger from the cancellation: two
+    // octaves take a good deal longer to sound than the cue tail on a call
+    // this recent.
+    audio.stopScheduledSounds()
+    visualQueue = []
+    nextBeatTime = audio.getCurrentTime() + EARLY_ADVANCE_LEAD_S
   }
 
   const reset = () => {

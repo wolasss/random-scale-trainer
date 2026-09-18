@@ -18,6 +18,7 @@ const baseSettings = (): Settings => ({
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  practiceStringMidi: null,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -144,6 +145,23 @@ describe('settingsReducer', () => {
     expect(flipped.leftHanded).toBe(true)
     expect(flipped.tuning).toBe('dadgad')
     expect(settingsReducer(flipped, { type: 'setLeftHanded', leftHanded: false }).leftHanded).toBe(false)
+  })
+
+  it('sets and clears which string the early advance is timing', () => {
+    const state = baseSettings()
+
+    const chosen = settingsReducer(state, { type: 'setPracticeString', midi: 40 })
+    expect(chosen.practiceStringMidi).toBe(40)
+
+    expect(settingsReducer(chosen, { type: 'setPracticeString', midi: null }).practiceStringMidi).toBeNull()
+  })
+
+  it('clears the chosen string when the tuning changes', () => {
+    const state = { ...baseSettings(), practiceStringMidi: 40 }
+
+    const retuned = settingsReducer(state, { type: 'setTuning', id: 'dadgad' })
+    expect(retuned.practiceStringMidi).toBeNull()
+    expect(retuned.tuning).toBe('dadgad')
   })
 })
 

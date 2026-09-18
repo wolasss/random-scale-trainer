@@ -127,6 +127,16 @@ export const STORAGE_KEYS = {
   // Call the next note early once the current one has been heard in two
   // octaves. Off unless it literally reads 'true', like the mic it relies on.
   advanceOnOctaves: 'fretboard-advance-on-octaves',
+  // Which physical string an early advance is currently being timed for, as
+  // its open-string MIDI note — 'none' or unset means it isn't. Rejected back
+  // to unset unless it is literally 'none' or a positive integer; whether that
+  // string still exists is the current tuning's question, not this codec's.
+  practiceStringMidi: 'fretboard-practice-string-midi',
+  // How fast an early advance has found the called note, kept per string, as
+  // JSON: '<tuning>:<midi>' → { count, bestMs, lastMs }. Salvaged entry by
+  // entry like the routines shelf — an open key space, unlike noteStats.ts's
+  // fixed twelve, so a bad entry is dropped and the rest of the log stands.
+  stringSpeed: 'fretboard-string-speed',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value
