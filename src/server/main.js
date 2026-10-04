@@ -19,6 +19,7 @@
  *
  *   TURNSTILE_SITE_KEY    the public half of the Cloudflare Turnstile pair
  *   TURNSTILE_SECRET_KEY  the half that never leaves this process
+ *   TURNSTILE_HOSTNAME    optional; when set, a token solved on any other host fails
  *   MAILGUN_API_KEY       likewise
  *   MAILGUN_DOMAIN        the Mailgun sending domain
  *   MAILGUN_API_BASE      optional; the EU region needs api.eu.mailgun.net

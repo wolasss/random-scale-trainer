@@ -3,7 +3,7 @@
  * between four of them is most of what this file is.
  *
  * `useSettings` holds the practice settings, and they feed both `usePlayback`
- * and `useRoutine`. There are two ways to write
+ * (with note speech off in list-only mode) and `useRoutine`. There are two ways to write
  * to them. `userDispatch` takes the edits the user makes to the settings a
  * routine block owns — tempo, beats per note, the note pool, spelling, the
  * ramp — so the routine can tell someone drifting off a block from its own
@@ -31,6 +31,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar'
 import { Hero } from './components/Hero'
+import { ListWorkoutTimer } from './components/ListWorkoutTimer'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
 import { PracticeSheet } from './components/PracticeSheet'
@@ -43,7 +44,7 @@ import { PracticeOptionsCard } from './components/PracticeOptionsCard'
 import { SessionCard } from './components/SessionCard'
 import { PracticeLogCard } from './components/PracticeLogCard'
 import { RoutineCard } from './components/RoutineCard'
-import { RoutineStrip } from './components/RoutineStrip'
+import { RoutineResumeOffer, RoutineStrip } from './components/RoutineStrip'
 import { SetupReveal } from './components/SetupReveal'
 import { MicReadout, type BoardStanding } from './components/MicReadout'
 import type { ScoreboardLayout } from './components/ScoreboardStrip'
@@ -124,6 +125,15 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // Off entirely unless '?challenge=' brought the user here — see useChallenge.
   // Declared above playback because the transport's pause is what banks a score.
   const challenge = useChallenge({ config: { bpm: settings.bpm, beatsPerNote: settings.beatsPerNote } })
+  // Challenge scoring needs one called note at a time. Keep the saved preference
+  // intact for ordinary practice, but never let it become the active reading of
+  // this challenge visit.
+  const listModeEnabled = settings.noteListMode && !challenge.active
+  // The map would show where every scored note lives, so a challenge hides it
+  // the same way it forces list mode off — without touching the saved
+  // preference, which stays intact for ordinary practice.
+  const fretboardEnabled = settings.showFretboard && !listModeEnabled && !challenge.active
+  const metronomeEnabled = !listModeEnabled || settings.listMetronomeEnabled
 
   // The block clock rides the session timer's tick, so it pauses with playback.
   const sessionTimer = useSessionTimer({
@@ -135,7 +145,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const beatPulse = useBeatPulse()
 
   const playback = usePlayback({
-    settings,
+    // List-only keeps the saved regular-practice preferences intact while
+    // suppressing features that do not belong to a fixed visual exercise.
+    // Its beat events still run with the click off, because they drive the
+    // stopwatch and scheduler rather than the audio alone.
+    settings: {
+      ...settings,
+      continuousMode: listModeEnabled ? true : settings.continuousMode,
+      speakNotes: settings.speakNotes && !listModeEnabled,
+      showFretboard: fretboardEnabled,
+      metronomeEnabled,
+    },
     pool: settings.pool,
     spelling: settings.spelling,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
@@ -175,7 +195,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // board of points, and points come from what the microphone hears. The switch
   // in setup still shows the stored preference, which is what it is for — it is
   // the challenge, not the setting, that is listening.
-  const micEnabled = (settings.micEnabled || challenge.active) && isMicSupported()
+  const micEnabled = (challenge.active || (settings.micEnabled && !listModeEnabled)) && isMicSupported()
 
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
@@ -229,6 +249,12 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // Off a challenge this queues nothing: the shared board decides what a note
     // is worth, from the events themselves, and there is no board here to tell.
     onScored: challenge.recordEvent,
+    // Cutting a span short is a practice aid, not a way to call more notes a
+    // minute on the shared board, so a challenge never does it.
+    onOctavesHeard:
+      settings.advanceOnOctaves && micEnabled && !challenge.active
+        ? (callTime) => playbackRef.current?.advanceEarly(callTime)
+        : undefined,
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
@@ -314,6 +340,11 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       return
     }
 
+    // Start with an interrupted workout on offer is the deliberate fresh start.
+    if (routine.resumeOffer !== null) {
+      routine.startOver()
+    }
+
     // Starting a finished routine runs it again from block 0.
     if (routine.finished) {
       routine.restart()
@@ -321,6 +352,20 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
     // Practice has begun, so the setup below is no longer a page of questions
     // in front of the thing you came for. It stays out from here on.
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
+  // Either answer to the resume offer is a start: the block is applied first,
+  // then playback picks it up, the same order a restart takes above.
+  const resumeWorkout = () => {
+    routine.resume()
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
+  const startWorkoutOver = () => {
+    routine.startOver()
     setSetupRevealed(true)
     void playback.start()
   }
@@ -334,6 +379,24 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     // session the old one opened.
     scoring.reset()
     challenge.endSession()
+  }
+
+  const restartListWorkout = () => {
+    resetSession()
+    setSetupRevealed(true)
+    void playback.start()
+  }
+
+  // List-only is a start/stop stopwatch rather than a pauseable transport.
+  // Stop finalises the visible result; the next primary action starts a fresh
+  // attempt against the same list.
+  const toggleListWorkout = () => {
+    if (playback.isPlaying) {
+      playback.stop()
+      return
+    }
+
+    playOrPause()
   }
 
   // The practice log's own control: it puts the session clock back to zero and
@@ -366,14 +429,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     }
   }
 
-  useKeyboardShortcuts({
-    onSpace: playOrPause,
-    onTap: handleTapTempo,
-    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
-    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
-    onReset: resetSession,
-  })
-
   // Anything on the clock, in play, or a routine moved off block 0 — exactly
   // the state "Reset session" exists to unwind. Until then the transport shows
   // only Start, and the goal readout waits with it: a reset button at a zeroed
@@ -385,6 +440,34 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     sessionTimer.elapsedMs > 0 ||
     routine.blockIndex > 0 ||
     routine.finished
+
+  // Space always follows the primary action the list workout is showing.
+  const listPrimaryAction = sessionTouched && !playback.isPlaying ? restartListWorkout : toggleListWorkout
+  const listPrimaryShortcutLabel = playback.isPlaying
+    ? 'stop'
+    : sessionTouched
+      ? 'retry same list'
+      : 'start timed attempt'
+
+  useKeyboardShortcuts({
+    onSpace: listModeEnabled ? listPrimaryAction : playOrPause,
+    onTap: handleTapTempo,
+    onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
+    onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
+    onReset: resetSession,
+  })
+
+  const listWorkoutTimer = listModeEnabled ? (
+    <ListWorkoutTimer
+      isPlaying={playback.isPlaying}
+      started={sessionTouched}
+      elapsedMs={sessionTimer.elapsedMs}
+      countIn={playback.snapshot.countIn}
+      playbackMessage={playback.snapshot.message}
+      onToggle={toggleListWorkout}
+      onRestart={restartListWorkout}
+    />
+  ) : null
 
   // The idle hero's ghost note. Gated on the machine's own status: 'playing'
   // covers the count-in too, so the ghost is gone from the first press.
@@ -400,8 +483,20 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
   // Built once and placed by whichever reading is active. The installed app
   // rearranges where these sit; it never gets a different set of them.
+  const resumeOffer = routine.resumeOffer
+  const offeredRoutine =
+    resumeOffer === null ? undefined : routine.routines.find((entry) => entry.id === resumeOffer.routineId)
   const routineStrip =
-    routine.selected !== null ? (
+    resumeOffer !== null && offeredRoutine !== undefined ? (
+      <RoutineResumeOffer
+        routineName={offeredRoutine.name}
+        blockIndex={resumeOffer.blockIndex}
+        blockCount={offeredRoutine.blocks.length}
+        offsetMs={resumeOffer.offsetMs}
+        onResume={resumeWorkout}
+        onStartOver={startWorkoutOver}
+      />
+    ) : routine.selected !== null ? (
       <RoutineStrip
         routine={routine.selected}
         blockIndex={routine.blockIndex}
@@ -455,7 +550,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     />
   )
 
-  const fretboardCard = settings.showFretboard ? (
+  const fretboardCard = fretboardEnabled ? (
     <FretboardCard
       currentPc={playback.snapshot.currentNote?.pc ?? null}
       currentDisplay={playback.snapshot.currentNote?.display ?? null}
@@ -467,7 +562,13 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   ) : null
 
   const practiceOptionsCard = (
-    <PracticeOptionsCard settings={settings} onToggle={(key) => dispatch({ type: 'toggle', key })} />
+    <PracticeOptionsCard
+      settings={settings}
+      listModeUnavailable={challenge.active}
+      fretboardUnavailable={challenge.active}
+      earlyAdvanceUnavailable={challenge.active}
+      onToggle={(key) => dispatch({ type: 'toggle', key })}
+    />
   )
 
   // Taken from the hook rather than from the store: it banks the pending
@@ -562,7 +663,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // ?challenge= in the URL this feature does not exist".
   const nicknamePrompt =
     challenge.needsNickname && challenge.name !== null ? (
-      <ChunkErrorBoundary>
+      <ChunkErrorBoundary overlay>
         <Suspense fallback={null}>
           <NicknamePrompt
             challenge={challenge.name}
@@ -611,11 +712,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           <Hero
             variant="stage"
             snapshot={playback.snapshot}
+            bpm={settings.bpm}
+            metronomeEnabled={settings.listMetronomeEnabled}
             beatsPerNote={settings.beatsPerNote}
-            poolSize={settings.pool.length}
+            pool={settings.pool}
+            spelling={settings.spelling}
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
+            listOnly={listModeEnabled}
+            listWorkoutTimer={listWorkoutTimer}
+            listLocked={playback.isPlaying}
+            onListRegenerate={resetSession}
           />
 
           {/* Landscape is the stand's natural orientation and the only place the
@@ -641,6 +749,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             bpm={settings.bpm}
             onNudgeBpm={(delta) => userDispatch({ type: 'nudgeBpm', delta })}
             strip={routineStrip}
+            listOnly={listModeEnabled}
           />
         </main>
 
@@ -675,11 +784,18 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       <div className={`practice-stage-view ${fretboardCard !== null ? 'with-neck' : ''}`}>
         <Hero
           snapshot={playback.snapshot}
+          bpm={settings.bpm}
+          metronomeEnabled={settings.listMetronomeEnabled}
           beatsPerNote={settings.beatsPerNote}
-          poolSize={settings.pool.length}
+          pool={settings.pool}
+          spelling={settings.spelling}
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}
+          listOnly={listModeEnabled}
+          listWorkoutTimer={listWorkoutTimer}
+          listLocked={playback.isPlaying}
+          onListRegenerate={resetSession}
         />
 
         {fretboardCard !== null ? <div className="practice-stage-neck">{fretboardCard}</div> : null}
@@ -691,17 +807,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
       {scoreboardFold}
 
-      <TransportBar
-        isPlaying={playback.isPlaying}
-        isPaused={playback.isPaused}
-        routineName={routine.selected?.name ?? null}
-        routineFinished={routine.finished}
-        onPlayPause={playOrPause}
-        onReset={resetSession}
-        started={sessionTouched}
-        elapsedMs={sessionTimer.elapsedMs}
-        goalMin={settings.sessionGoalMin}
-      />
+      {listModeEnabled ? null : (
+        <TransportBar
+          isPlaying={playback.isPlaying}
+          isPaused={playback.isPaused}
+          routineName={routine.selected?.name ?? null}
+          routineFinished={routine.finished}
+          onPlayPause={playOrPause}
+          onReset={resetSession}
+          started={sessionTouched}
+          elapsedMs={sessionTimer.elapsedMs}
+          goalMin={settings.sessionGoalMin}
+        />
+      )}
     </>
   )
 
@@ -713,6 +831,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           theme={theme}
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
+          playShortcutLabel={listModeEnabled ? listPrimaryShortcutLabel : 'play / pause'}
+          resetShortcutLabel={listModeEnabled ? 'reset timer' : 'reset'}
         />
 
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}

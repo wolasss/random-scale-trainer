@@ -192,6 +192,8 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState<JoinError | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  /** A claim went through, but the token behind it never made it to storage. */
+  const [tokenUnsaved, setTokenUnsaved] = useState(false)
 
   const fetchRef = useRef(fetchImpl)
   const configRef = useRef(config)
@@ -298,6 +300,7 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
         ownerRef.current = null
         setOwner(null)
         setPromptDismissed(false)
+        setTokenUnsaved(false)
       }
 
       setNotice(failure === 'error' ? null : NOTICES[failure])
@@ -329,8 +332,9 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
         // Storage full, or blocked in a private window. The name is claimed and
         // this browser can play under it, but nothing has written the only copy
         // of the token down — and after a reload the name is gone for good, so
-        // that is said now rather than discovered then.
-        setNotice(saved ? null : UNSAVED_TOKEN_NOTICE)
+        // that is said now, and stays said for as long as the claim does.
+        setTokenUnsaved(!saved)
+        setNotice(null)
       })
     },
     [active, joining, name],
@@ -581,7 +585,7 @@ export function useChallenge({ search, fetchImpl, config }: UseChallengeOptions 
     status,
     joining,
     joinError,
-    notice,
+    notice: notice ?? (tokenUnsaved ? UNSAVED_TOKEN_NOTICE : null),
     join,
     dismissPrompt,
     recordEvent,

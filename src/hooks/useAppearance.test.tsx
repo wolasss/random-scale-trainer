@@ -13,6 +13,9 @@ const colorScheme = () => document.documentElement.style.colorScheme
 afterEach(() => {
   document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.remove())
   document.documentElement.style.colorScheme = ''
+  document.documentElement.removeAttribute('data-theme')
+  document.documentElement.removeAttribute('data-skin')
+  document.querySelectorAll('link[data-skin-font-preload]').forEach((link) => link.remove())
   vi.restoreAllMocks()
 })
 
@@ -102,12 +105,17 @@ describe('index.html bootstrap', () => {
 
   it('applies the stored theme and skin before first paint', () => {
     localStorage.setItem(STORAGE_KEYS.theme, 'light')
-    localStorage.setItem(STORAGE_KEYS.skin, 'warm')
+    localStorage.setItem(STORAGE_KEYS.skin, 'kwinta')
     run()
 
-    expect(themeColor()).toBe(SKIN_GROUND.warm.light)
+    expect(themeColor()).toBe(SKIN_GROUND.kwinta.light)
     expect(colorScheme()).toBe('light')
-    expect(document.documentElement.getAttribute('data-skin')).toBe('warm')
+    expect(document.documentElement.getAttribute('data-skin')).toBe('kwinta')
+    expect(
+      [...document.querySelectorAll<HTMLLinkElement>('link[data-skin-font-preload="kwinta"]')].map((link) =>
+        link.getAttribute('href'),
+      ),
+    ).toEqual(['/fonts/hanken-grotesk-latin.woff2', '/fonts/spline-sans-mono-latin.woff2'])
   })
 
   it('still declares a scheme when storage is blocked', () => {

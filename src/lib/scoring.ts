@@ -568,12 +568,19 @@ export function judgeDetection(
 }
 
 /**
+ * Whether two different octaves of the called note have each been held. The
+ * set only ever grows, so a window crosses this line once — which is what lets
+ * the optional early advance fire on the crossing without keeping any state.
+ */
+export const heardBothOctaves = (noteWindow: NoteWindow): boolean => noteWindow.octaves.size >= 2
+
+/**
  * The octaves bonus, once two different octaves of the called note have each
  * been held: two octaves of pitch, which is all a microphone can testify to.
  * Null until then. Whether it is allowed to be paid is `claimBonus`'s question.
  */
 export const octavesBonus = (noteWindow: NoteWindow): Bonus | null =>
-  noteWindow.octaves.size >= 2 ? { kind: 'octaves', points: OCTAVES_BONUS_POINTS } : null
+  heardBothOctaves(noteWindow) ? { kind: 'octaves', points: OCTAVES_BONUS_POINTS } : null
 
 /**
  * The tempo bonus, for a string struck close enough to a click. `struckAt` is

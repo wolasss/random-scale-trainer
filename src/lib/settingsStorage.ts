@@ -13,30 +13,64 @@ import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
 import { DEFAULT_TUNING_ID, isTuningId, type TuningId } from './tunings'
 
+/**
+ * Owns every persisted practice setting: one codec per key, read on mount by
+ * `initSettings` and written back by `writeChangedSettings`. The contract a
+ * `deserialize` implements is reject, don't repair — returning `undefined`
+ * rejects the stored value outright and leaves the default in place, which is
+ * the rule several past bugs turned out to be a violation of. `bpm` and
+ * `rampTargetBpm` are the two exceptions: a finite number is clamped into
+ * range rather than rejected. `rampTargetBpm` is deliberately not re-floored
+ * against the stored `bpm` on read (see the codec below for why). The pool is
+ * validated segment by segment as text, so a blank or gappy value like ''
+ * or '1,,3' can't coerce its way into a pool holding C. `initSettings` also
+ * applies one cross-field invariant: a stored speed ramp is discarded when
+ * `continuousMode` is off. `writeChangedSettings(null, next)` is the
+ * mount-time write-back that normalizes the store (e.g. a clamped BPM comes
+ * back clamped) and the e2e suite relies on it running. What each
+ * `STORAGE_KEYS` entry holds is documented there, in `src/constants.ts`.
+ */
+
 export type SessionGoalMin = (typeof SESSION_GOAL_OPTIONS)[number]
 
 export type Settings = {
+  /** The practice tempo; clamped into range rather than rejected on read. */
   bpm: number
+  /** How many clicks each note gets; one of `BEAT_SPAN_OPTIONS`. */
   beatsPerNote: BeatsPerNote
+  /** Loop through new notes indefinitely instead of running once through the pool; gates `speedRampMode`. */
   continuousMode: boolean
   /** A four-beat count-in before the first note and each new cycle. */
   countInEnabled: boolean
   /** Speak each called note; off makes it a reading drill. */
   speakNotes: boolean
+  /** Climb the tempo toward `rampTargetBpm` as rounds complete; forced off when `continuousMode` is off. */
   speedRampMode: boolean
   /** The tempo the ramp climbs to and then holds; never below `bpm`. */
   rampTargetBpm: number
   /** Whether the "On the neck" card is shown at all. */
   showFretboard: boolean
+  /** Show one frozen shuffled list with no spoken calls. */
+  noteListMode: boolean
+  /** Play beat clicks in list-only; off leaves its workout stopwatch running. */
+  listMetronomeEnabled: boolean
   /** Which tuning the neck map is drawn in. */
   tuning: TuningId
   /** Draw the neck for a left-handed guitar: same frets, strings the other way up. */
   leftHanded: boolean
   /** Listen through the microphone while practice runs. Off until asked for. */
   micEnabled: boolean
+  /**
+   * Call the next note on the next click once the current one has been heard
+   * in two octaves, rather than waiting out the span. Only acts while the mic
+   * is listening; off until asked for.
+   */
+  advanceOnOctaves: boolean
+  /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
+  /** The session-timer goal in minutes; one of `SESSION_GOAL_OPTIONS`. */
   sessionGoalMin: SessionGoalMin
   /** Stored setting without UI: deliberately kept read-only. */
   endSoundEnabled: boolean
@@ -94,6 +128,8 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
     serialize: String,
   },
   showFretboard: booleanCodec(STORAGE_KEYS.showFretboard),
+  noteListMode: booleanCodec(STORAGE_KEYS.noteList),
+  listMetronomeEnabled: booleanCodec(STORAGE_KEYS.listMetronome),
   tuning: {
     storageKey: STORAGE_KEYS.tuning,
     deserialize: (raw) => (isTuningId(raw) ? raw : undefined),
@@ -101,6 +137,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
+  advanceOnOctaves: booleanCodec(STORAGE_KEYS.advanceOnOctaves),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -140,9 +177,12 @@ const DEFAULT_SETTINGS: Settings = {
   speedRampMode: false,
   rampTargetBpm: defaultRampTarget(DEFAULT_BPM),
   showFretboard: false,
+  noteListMode: false,
+  listMetronomeEnabled: true,
   tuning: DEFAULT_TUNING_ID,
   leftHanded: false,
   micEnabled: false,
+  advanceOnOctaves: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

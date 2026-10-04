@@ -6,7 +6,7 @@ import {
   type PlaybackSettings,
   type PlaybackSnapshot,
 } from './machine'
-import { MAX_BPM, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
+import { MAX_BPM, NOTE_LIST_LENGTH, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
 import type { SpellingPreference } from '../notes'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
@@ -92,6 +92,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   // Out of the way by default, so a test that cares about the ceiling sets one.
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
+  metronomeEnabled: true,
   endSoundEnabled: true,
   showFretboard: true,
 }
@@ -249,6 +250,73 @@ describe('machine creation', () => {
       message: PLAYBACK_MESSAGES.idle,
     })
     expect(harness.snapshot().nextNote?.pc).toBe(0) // identity shuffle
+  })
+})
+
+describe('the read-ahead list', () => {
+  it('previews the coming notes before anything has started', () => {
+    const harness = createHarness({ pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] })
+
+    // Identity shuffle, so the window is the pool in order and stops at the
+    // list length rather than at the bag.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([0, 1, 2, 3, 4, 5, 6])
+  })
+
+  it('deals a window no longer than the notes there are', () => {
+    const harness = createHarness({ pool: [3] })
+
+    // A one-note pool still tops up bag after bag, so the window fills with
+    // the only note it has rather than running short.
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
+    expect(new Set(harness.snapshot().upcomingNotes.map((note) => note.pc))).toEqual(new Set([3]))
+  })
+
+  it('leads with the note after the one being called', async () => {
+    const harness = createHarness()
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([1, 2, 3, 4, 5, 6])
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([2, 3, 4, 5, 6, 7])
+  })
+
+  it('holds the list still through the beats inside a span', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 2 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.1)
+    const dealt = harness.snapshot().upcomingNotes.map((note) => note.pc)
+
+    harness.advanceTo(1.1)
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual(dealt)
+  })
+
+  it('regenerates the idle window when the pool changes', () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+
+    harness.state.pool = [7, 8]
+    harness.machine.invalidateDeck()
+
+    // Bag after bag of the two new notes, with the deck's own no-repeat swap
+    // keeping the same one from opening a bag it just closed.
+    expect(harness.snapshot().upcomingNotes.map((note) => note.pc)).toEqual([7, 8, 7, 8, 7, 8, 7])
+  })
+
+  it('goes back to previewing the coming round once playback stops', async () => {
+    const harness = createHarness({ pool: [0, 1, 2] })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
+
+    harness.machine.reset()
+
+    expect(harness.snapshot().currentNote).toBeNull()
+    expect(harness.snapshot().upcomingNotes[0]).toEqual(harness.snapshot().nextNote)
+    expect(harness.snapshot().upcomingNotes).toHaveLength(NOTE_LIST_LENGTH)
   })
 })
 
@@ -492,6 +560,16 @@ describe('note spans', () => {
     expect(silent.audio.clicks.length).toBeGreaterThan(0)
   })
 
+  it('keeps beat events moving when audible metronome clicks are disabled', async () => {
+    const silent = createHarness({ settings: { metronomeEnabled: false } })
+    await silent.machine.start()
+    silent.advanceTo(2.1)
+
+    expect(silent.audio.clicks).toHaveLength(0)
+    expect(silent.beats.length).toBeGreaterThan(0)
+    expect(silent.snapshot().currentNote).not.toBeNull()
+  })
+
   it('spells spoken audio and display from the same call', async () => {
     const harness = createHarness({ spelling: 'flat' })
     await harness.machine.start()
@@ -515,6 +593,95 @@ describe('note spans', () => {
     expect(harness.snapshot().currentNote?.pc).toBe(1)
     expect(harness.snapshot().nextNote?.pc).toBe(2)
     expect(harness.snapshot().positionInCycle).toBe(2)
+  })
+})
+
+describe('early advance', () => {
+  it('calls the next note on the next unscheduled beat and restarts the span there', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    // Beat 1.05 is already scheduled by now; 2.05 is the first one that is not.
+    harness.advanceTo(1.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(2.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05])
+    expect(harness.snapshot()).toMatchObject({ beatInSpan: 0, notesCalled: 2 })
+    expect(harness.snapshot().currentNote?.pc).toBe(1)
+    expect(harness.audio.clicks.find((click) => click.time === 2.05)?.accent).toBe(true)
+
+    // A whole span follows the early call, then the grid carries on as before.
+    harness.advanceTo(6.1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.05, 6.05])
+  })
+
+  it('goes straight into the next round when an early call lands on a count-in', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { beatsPerNote: 4, countInEnabled: true } })
+    await harness.machine.start()
+
+    // Count-in 0.05–3.05, then notes at 4.05 and 8.05 — the last of the round.
+    harness.advanceTo(9.2)
+    harness.machine.advanceEarly(8.05)
+    // The early boundary arms a count-in at 10.05–13.05; the round starts at 14.05.
+    harness.advanceTo(13.5)
+    expect(harness.snapshot().countIn).toBe(1)
+
+    harness.advanceTo(14.1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([4.05, 8.05, 14.05])
+    expect(harness.snapshot()).toMatchObject({ countIn: null, beatInSpan: 0 })
+    expect(harness.snapshot().currentNote?.pc).toBe(0)
+  })
+
+  it('ignores a request for a note that is no longer the latest call', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(4.1)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(8.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 4.05, 8.05])
+  })
+
+  it('does nothing while idle or once playback has stopped', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    harness.machine.advanceEarly(0.05)
+    await harness.machine.start()
+    harness.advanceTo(1.2)
+
+    harness.machine.stop()
+    harness.machine.advanceEarly(0.05)
+    expect(harness.snapshot().status).toBe('idle')
+
+    await harness.machine.start()
+    harness.advanceTo(harness.audio.time + 1.5)
+    expect(harness.audio.notes).toHaveLength(2)
+  })
+
+  it('drops a pending request on pause', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+
+    harness.advanceTo(1.2)
+    harness.machine.advanceEarly(0.05)
+    harness.machine.pause()
+    await harness.machine.start()
+    // The resumed span picks up at 1.7 and 2.7; its next call is due at 3.7.
+    harness.advanceTo(3.4)
+
+    expect(harness.audio.notes).toHaveLength(1)
+  })
+
+  it('changes nothing at one beat per note', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 1 } })
+    await harness.machine.start()
+
+    harness.advanceTo(0.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(2.1)
+
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.05, 2.05])
   })
 })
 

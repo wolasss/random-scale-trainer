@@ -4,6 +4,7 @@ import {
   createSilenceGate,
   detectPitch,
   frequencyToPitch,
+  MIN_PITCH_HZ,
   SILENCE_ABOVE_FLOOR,
   SILENCE_RMS_MIN,
 } from './pitch'
@@ -254,18 +255,54 @@ describe('detectPitch with a gate-supplied cutoff', () => {
 /**
  * The mic poll runs `detectPitch` on the main thread every 50 ms for a whole
  * practice session, so the cost per frame competes with metronome scheduling
- * and rendering. This is a regression guard, not a measurement: the ceiling is
- * loose enough to survive a busy CI box, tight enough that going back to an
- * O(frame x lag) correlation would blow straight through it.
+ * and rendering. This is a regression guard, not a wall-clock measurement: a
+ * single long-run mean dies to one scheduler stall on a busy box, and an
+ * absolute millisecond ceiling dies to a slower machine outright.
  *
- * Measured on the development machine: 2.31 ms/frame when every lag was summed
- * sample by sample, 0.58 ms/frame with the FFT autocorrelation. A slower box
- * moves both numbers together, which is what the headroom below is for.
+ * So instead of timing one long run, this times several short batches and
+ * keeps only the fastest of each kind — a batch that eats a stall is simply
+ * outrun by a cleaner one, rather than dragging a single mean up — and it
+ * compares detectPitch's fastest batch against a naive O(frame x lag)
+ * correlation's fastest batch, timed in this same process right alongside it.
+ * Host load moves both numbers together, so the ceiling below is a ratio
+ * between them rather than an absolute number: a slower box moves the whole
+ * picture down without tripping the guard.
+ *
+ * Measured on the development machine: around 13 ms/frame for the naive
+ * correlation, around 0.7 ms/frame for the FFT autocorrelation — a ratio of
+ * about 0.05. The ceiling leaves generous headroom over that, while still
+ * being tight enough that going back to an O(frame x lag) correlation
+ * (ratio ~1, since it would then time itself against itself) blows straight
+ * through it.
  */
-const MS_PER_FRAME_CEILING = 1.5
+const FFT_TO_NAIVE_RATIO_CEILING = 0.75
+
+const naiveMaxLag = Math.min(Math.floor(FRAME_SIZE / 2), Math.ceil(SAMPLE_RATE / MIN_PITCH_HZ))
+const naiveScratch = new Float64Array(naiveMaxLag + 1)
+
+/** The correlation `detectPitch` replaced: every lag summed sample by sample, not by FFT. */
+const naiveCorrelate = (frame: Float32Array): Float64Array => {
+  for (let lag = 1; lag <= naiveMaxLag; lag += 1) {
+    let sum = 0
+    for (let index = 0; index < frame.length - lag; index += 1) {
+      sum += frame[index] * frame[index + lag]
+    }
+    naiveScratch[lag] = sum
+  }
+  return naiveScratch
+}
+
+/** Mean ms/call over one batch. `work` varies with `index` so nothing memoises. */
+const timeBatch = (work: (index: number) => void, runs: number): number => {
+  const started = performance.now()
+  for (let index = 0; index < runs; index += 1) {
+    work(index)
+  }
+  return (performance.now() - started) / runs
+}
 
 describe('detectPitch performance', () => {
-  it('stays well inside its per-frame budget', () => {
+  it('stays well inside a naive correlation cost, batch stalls aside', () => {
     // Distinct frames so nothing can be memoised away, and harmonic-rich ones
     // so the peak walk has real lobes to climb rather than one clean sine.
     const frames = [82.41, 110, 146.83, 196, 246.94, 329.63, 440].flatMap((frequency, index) => [
@@ -273,18 +310,27 @@ describe('detectPitch performance', () => {
       sawtooth(frequency, 0.3 + index * 0.01),
     ])
 
+    const runDetect = (index: number) => detectPitch(frames[index % frames.length], SAMPLE_RATE)
+    const runNaive = (index: number) => naiveCorrelate(frames[index % frames.length])
+
     for (let index = 0; index < 20; index += 1) {
-      detectPitch(frames[index % frames.length], SAMPLE_RATE)
+      runDetect(index)
+      runNaive(index)
     }
 
-    const runs = 300
-    const started = performance.now()
-    for (let index = 0; index < runs; index += 1) {
-      detectPitch(frames[index % frames.length], SAMPLE_RATE)
+    // Interleaved so a mid-test load change hits both measurements alike.
+    const BATCHES = 10
+    let fastestDetectMs = Infinity
+    let fastestNaiveMs = Infinity
+    for (let batch = 0; batch < BATCHES; batch += 1) {
+      fastestDetectMs = Math.min(fastestDetectMs, timeBatch(runDetect, 30))
+      fastestNaiveMs = Math.min(fastestNaiveMs, timeBatch(runNaive, 10))
     }
-    const msPerFrame = (performance.now() - started) / runs
 
-    console.info(`detectPitch: ${msPerFrame.toFixed(3)} ms/frame`)
-    expect(msPerFrame).toBeLessThan(MS_PER_FRAME_CEILING)
+    const ratio = fastestDetectMs / fastestNaiveMs
+    console.info(
+      `detectPitch: ${fastestDetectMs.toFixed(3)} ms/frame, naive: ${fastestNaiveMs.toFixed(3)} ms/frame, ratio: ${ratio.toFixed(3)}`,
+    )
+    expect(ratio).toBeLessThan(FFT_TO_NAIVE_RATIO_CEILING)
   })
 })

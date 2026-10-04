@@ -1,3 +1,56 @@
+## [1.34.1](https://github.com/wolasss/random-scale-trainer/compare/v1.34.0...v1.34.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* **routines:** offer to resume a workout interrupted by a reload or tab discard ([#265](https://github.com/wolasss/random-scale-trainer/issues/265)) ([33bfe81](https://github.com/wolasss/random-scale-trainer/commit/33bfe812b8101416103c5a98b1c06243b29fff7c))
+
+## Unreleased
+
+* Clearer names and descriptions for the How it runs switches; rows grouped by purpose.
+
+# [1.34.0](https://github.com/wolasss/random-scale-trainer/compare/v1.33.0...v1.34.0) (2026-09-16)
+
+
+### Features
+
+* **mic:** optionally call the next note early once it's played in two octaves ([#269](https://github.com/wolasss/random-scale-trainer/issues/269)) ([bb0f4f8](https://github.com/wolasss/random-scale-trainer/commit/bb0f4f8e348dc08790f56669b5248d3f40e5e26d))
+
+# [1.33.0](https://github.com/wolasss/random-scale-trainer/compare/v1.32.1...v1.33.0) (2026-09-15)
+
+
+### Bug Fixes
+
+* **pwa:** offer a reload when a challenge chunk fails to load ([#268](https://github.com/wolasss/random-scale-trainer/issues/268)) ([55d1183](https://github.com/wolasss/random-scale-trainer/commit/55d118305b87bd2b2bd371f625dec4c6696966f1))
+* **sw:** keep the working offline cache when an update's precache comes down incomplete ([#264](https://github.com/wolasss/random-scale-trainer/issues/264)) ([8009b28](https://github.com/wolasss/random-scale-trainer/commit/8009b28eaaf38cb77a8ae9162358da25e594f09e))
+
+
+### Features
+
+* **skins:** add Kwinta workbench theme ([#263](https://github.com/wolasss/random-scale-trainer/issues/263)) ([b4903ab](https://github.com/wolasss/random-scale-trainer/commit/b4903abd5519ddafadb9eea5d955ae8ff948a9e9))
+
+## [1.32.1](https://github.com/wolasss/random-scale-trainer/compare/v1.32.0...v1.32.1) (2026-09-15)
+
+
+### Bug Fixes
+
+* **challenge:** turn the fretboard map off while a challenge is running ([#267](https://github.com/wolasss/random-scale-trainer/issues/267)) ([2d05874](https://github.com/wolasss/random-scale-trainer/commit/2d05874560121bc8dcccda9e285225a6608fbfa7))
+
+# [1.32.0](https://github.com/wolasss/random-scale-trainer/compare/v1.31.2...v1.32.0) (2026-09-12)
+
+
+### Features
+
+* **hero:** add a note list that shows the upcoming notes, not just the current one ([#233](https://github.com/wolasss/random-scale-trainer/issues/233)) ([f78da77](https://github.com/wolasss/random-scale-trainer/commit/f78da7765c24f2ca07476a56e9cc4cfa016248b2))
+
+## [1.31.2](https://github.com/wolasss/random-scale-trainer/compare/v1.31.1...v1.31.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* **bug-report:** optionally pin Turnstile verdicts to this deployment's hostname ([#261](https://github.com/wolasss/random-scale-trainer/issues/261)) ([64fb65a](https://github.com/wolasss/random-scale-trainer/commit/64fb65afb7f25d3b57aa1b69cdc1e12b6da8a54f))
+* **challenge:** keep the unsaved-token warning up for as long as the claim lasts ([#262](https://github.com/wolasss/random-scale-trainer/issues/262)) ([9a26d27](https://github.com/wolasss/random-scale-trainer/commit/9a26d275fd2f5f74b0c4344fc23f7bcdb7780c7f))
+
 ## [1.31.1](https://github.com/wolasss/random-scale-trainer/compare/v1.31.0...v1.31.1) (2026-09-11)
 
 

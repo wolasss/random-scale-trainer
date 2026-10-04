@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
+import { ROUTINE_RESUME_WINDOW_MS } from '../constants'
 import {
   blockCycleSeconds,
   blockFill,
@@ -11,6 +12,7 @@ import {
   blockSpelling,
   formatClock,
   isOpenEnded,
+  parseRoutineResume,
   parseRoutines,
   routineMeta,
   routineProgress,
@@ -670,5 +672,47 @@ describe('parseRoutines', () => {
       const parsed = parseRoutines(workoutWith(120, 180, 240))!
       expect(parsed[0].blocks.map((block) => block.dur)).toEqual([120, 180, 240])
     })
+  })
+})
+
+describe('parseRoutineResume', () => {
+  const NOW = 1_800_000_000_000
+  const workout: Routine = { id: 'r-x', name: 'Workout', blocks: [block({ dur: 120 }), block({ dur: 180 })] }
+  const setup: Routine = { id: 'r-open', name: 'Setup', blocks: [block({ dur: null })] }
+  const shelf = [workout, setup]
+
+  const stored = (overrides: Record<string, unknown> = {}) =>
+    JSON.stringify({ routineId: 'r-x', blockIndex: 1, offsetMs: 70_000, savedAt: NOW - 60_000, ...overrides })
+
+  it('accepts a fresh record that fits the routine', () => {
+    expect(parseRoutineResume(stored(), shelf, NOW)).toEqual({
+      routineId: 'r-x',
+      blockIndex: 1,
+      offsetMs: 70_000,
+      savedAt: NOW - 60_000,
+    })
+  })
+
+  it('accepts a record right at the edge of the window', () => {
+    expect(parseRoutineResume(stored({ savedAt: NOW - ROUTINE_RESUME_WINDOW_MS }), shelf, NOW)).not.toBeNull()
+  })
+
+  it.each([
+    ['nothing stored', null],
+    ['truncated JSON', '{"routineId":"r-x","blockI'],
+    ['a value that is not JSON', 'not json'],
+    ['a value that is not an object', '42'],
+    ['a routine no longer on the shelf', stored({ routineId: 'r-gone' })],
+    ['a block index below the first', stored({ blockIndex: -1 })],
+    ['a block index past the last', stored({ blockIndex: 2 })],
+    ['a fractional block index', stored({ blockIndex: 1.5 })],
+    ['an untimed block', stored({ routineId: 'r-open', blockIndex: 0, offsetMs: 0 })],
+    ['a negative offset', stored({ offsetMs: -1 })],
+    ['an offset at the end of the block', stored({ offsetMs: 180_000 })],
+    ['an offset that is not a number', stored({ offsetMs: '70000' })],
+    ['a record older than the window', stored({ savedAt: NOW - ROUTINE_RESUME_WINDOW_MS - 1 })],
+    ['a record from the future', stored({ savedAt: NOW + 1 })],
+  ])('rejects %s', (_, raw) => {
+    expect(parseRoutineResume(raw, shelf, NOW)).toBeNull()
   })
 })

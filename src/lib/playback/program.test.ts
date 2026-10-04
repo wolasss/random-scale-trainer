@@ -22,7 +22,11 @@ const INPUTS: BeatProgramInputs = {
   pool: [0, 1, 2],
 }
 
-const view = (head: NoteCall | null, following: NoteCall | null = null): DeckView => ({ head, following })
+const view = (head: NoteCall | null, following: NoteCall | null = null, upcoming: NoteCall[] = []): DeckView => ({
+  head,
+  following,
+  upcoming,
+})
 
 describe('count-in beats', () => {
   it('accents only the first digit and counts down without moving the span', () => {
@@ -70,6 +74,30 @@ describe('note and filler beats', () => {
     })
   })
 
+  it('carries the read-ahead window the note is called in front of', () => {
+    const queued = [note(1, false, 2), note(2, true, 2)]
+    const step = stepBeat(createSchedulingState(), view(note(0, true, 2), queued[0], queued), INPUTS)
+
+    if (step.kind !== 'beat') throw new Error('expected a beat')
+    expect(step.event.upcomingNotes).toEqual(queued)
+  })
+
+  it('moves no list along on a count-in click or a beat inside a span', () => {
+    // Neither calls a note, so neither shifts the list the last note set.
+    const queued = [note(1, false, 2)]
+    const counting = stepBeat(createSchedulingState(COUNT_IN_BEATS), view(note(0, true, 2), null, queued), INPUTS)
+    if (counting.kind !== 'beat') throw new Error('expected a beat')
+    expect(counting.event.upcomingNotes).toBeUndefined()
+
+    const inputs = { ...INPUTS, beatsPerNote: 2 }
+    const first = stepBeat(createSchedulingState(), view(note(0, true, 2), null, queued), inputs)
+    if (first.kind !== 'beat') throw new Error('expected a beat')
+
+    const filler = stepBeat(first.state, view(note(1, false, 2), null, queued), inputs)
+    if (filler.kind !== 'beat') throw new Error('expected a beat')
+    expect(filler.event.upcomingNotes).toBeUndefined()
+  })
+
   it('prices nothing on a count-in click or a beat inside a span', () => {
     // Neither calls a note, and a beat that called nothing has no price.
     const counting = stepBeat(createSchedulingState(COUNT_IN_BEATS), view(note(0, true, 2)), INPUTS)
@@ -102,6 +130,76 @@ describe('note and filler beats', () => {
     if (last.kind !== 'beat') throw new Error('expected a beat')
     expect(last.event.beatInSpan).toBe(2)
     expect(last.state.beatInSpan).toBe(0) // the span wraps back to a note beat
+  })
+})
+
+describe('an early advance', () => {
+  it('calls the head partway through a span and starts a fresh span from it', () => {
+    const inputs = { ...INPUTS, beatsPerNote: 4 }
+    const first = stepBeat(createSchedulingState(), view(note(0, true, 3), note(1, false, 3)), inputs)
+    if (first.kind !== 'beat') throw new Error('expected a beat')
+    const filler = stepBeat(first.state, view(note(1, false, 3)), inputs)
+    if (filler.kind !== 'beat') throw new Error('expected a beat')
+    expect(filler.state.beatInSpan).toBe(2)
+
+    const early = stepBeat(filler.state, view(note(1, false, 3), note(2, false, 3)), { ...inputs, advanceNow: true })
+
+    expect(early).toMatchObject({ kind: 'beat', consumesNote: true })
+    if (early.kind !== 'beat') throw new Error('expected a beat')
+    expect(early.event).toMatchObject({ accent: true, beatInSpan: 0, positionInCycle: 2 })
+    expect(early.event.note?.pc).toBe(1)
+    expect(early.event.difficulty).toBeDefined()
+    expect(early.state.beatInSpan).toBe(1)
+  })
+
+  it('changes nothing on a beat that already starts a span', () => {
+    const inputs = { ...INPUTS, beatsPerNote: 4 }
+    const plain = stepBeat(createSchedulingState(), view(note(0, true, 2)), inputs)
+    const early = stepBeat(createSchedulingState(), view(note(0, true, 2)), { ...inputs, advanceNow: true })
+
+    expect(early).toEqual(plain)
+  })
+
+  it('does not cut a count-in short', () => {
+    const early = stepBeat(createSchedulingState(COUNT_IN_BEATS), view(note(0, true, 2)), {
+      ...INPUTS,
+      beatsPerNote: 4,
+      advanceNow: true,
+    })
+
+    expect(early).toMatchObject({ kind: 'beat', consumesNote: false })
+  })
+
+  it('starts the next round from the top when it reaches a count-in partway through a span', () => {
+    const inputs = { ...INPUTS, beatsPerNote: 4, countInEnabled: true }
+    const lastOfRound = { ...createSchedulingState(), beatInSpan: 2, positionInCycle: 2, bagSize: 2, anyNoteScheduled: true }
+    const armed = stepBeat(lastOfRound, view(note(0, true, 2)), { ...inputs, advanceNow: true })
+
+    expect(armed).toMatchObject({ kind: 'armCountIn' })
+    if (armed.kind !== 'armCountIn') throw new Error('expected a count-in')
+    expect(armed.state.beatInSpan).toBe(0)
+
+    let state = armed.state
+    for (let i = 0; i < COUNT_IN_BEATS; i++) {
+      const click = stepBeat(state, view(note(0, true, 2)), inputs)
+      if (click.kind !== 'beat') throw new Error('expected a beat')
+      state = click.state
+    }
+
+    // No leftover filler beats: the note comes straight after the count-in.
+    expect(stepBeat(state, view(note(0, true, 2)), inputs)).toMatchObject({ kind: 'beat', consumesNote: true })
+  })
+
+  it('ends the session when the note it cuts short was the last of the round', () => {
+    const lastOfRound = { ...createSchedulingState(), beatInSpan: 2, positionInCycle: 2, bagSize: 2, anyNoteScheduled: true }
+    const step = stepBeat(lastOfRound, view(note(0, true, 2)), {
+      ...INPUTS,
+      beatsPerNote: 4,
+      continuousMode: false,
+      advanceNow: true,
+    })
+
+    expect(step).toMatchObject({ kind: 'end', crossedBoundary: true })
   })
 })
 

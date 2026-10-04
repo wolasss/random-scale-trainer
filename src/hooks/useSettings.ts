@@ -7,7 +7,15 @@ import { initSettings, writeChangedSettings, type Settings, type SessionGoalMin 
 
 export type { BeatsPerNote, Settings, SessionGoalMin, TuningId }
 
-export type SettingsToggleKey = 'continuousMode' | 'countInEnabled' | 'speakNotes' | 'showFretboard' | 'micEnabled'
+export type SettingsToggleKey =
+  | 'continuousMode'
+  | 'countInEnabled'
+  | 'speakNotes'
+  | 'showFretboard'
+  | 'noteListMode'
+  | 'listMetronomeEnabled'
+  | 'micEnabled'
+  | 'advanceOnOctaves'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }

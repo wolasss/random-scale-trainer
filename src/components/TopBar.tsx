@@ -10,9 +10,17 @@ type TopBarProps = {
   onToggleTheme: () => void
   /** The install button, when the browser has an install prompt to offer. */
   install?: ReactNode
+  playShortcutLabel?: string
+  resetShortcutLabel?: string
 }
 
-export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
+export function TopBar({
+  theme,
+  onToggleTheme,
+  install,
+  playShortcutLabel = 'play / pause',
+  resetShortcutLabel = 'reset',
+}: TopBarProps) {
   // The hints name keys a touch-only browser has no way to press: keep them for
   // the machines that can act on them.
   const hasKeyboard = useHardwareKeyboard()
@@ -30,13 +38,13 @@ export function TopBar({ theme, onToggleTheme, install }: TopBarProps) {
         {hasKeyboard && (
           <div className="key-hints">
             <span>
-              <kbd>Space</kbd> play / pause
+              <kbd>Space</kbd> {playShortcutLabel}
             </span>
             <span>
               <kbd>←</kbd> <kbd>→</kbd> tempo
             </span>
             <span>
-              <kbd>R</kbd> reset
+              <kbd>R</kbd> {resetShortcutLabel}
             </span>
           </div>
         )}

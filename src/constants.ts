@@ -9,6 +9,13 @@ export const RAMP_TARGET_STEP = 5
 /** How far above the current tempo a target lands when nobody has named one. */
 export const RAMP_TARGET_OFFSET = 40
 
+/**
+ * How many notes list-only shows at once. Long enough to read a phrase off the
+ * screen, short enough that the deck is never asked to deal much more than a
+ * bag ahead of the beat.
+ */
+export const NOTE_LIST_LENGTH = 7
+
 export const BEAT_SPAN_OPTIONS = [1, 2, 4, 8, 12] as const
 export const DEFAULT_BEATS_PER_NOTE = 4
 
@@ -103,6 +110,12 @@ export const STORAGE_KEYS = {
   // 'elapsed'. Anything else is rejected and the readout counts up.
   goalCountdown: 'fretboard-goal-countdown',
   showFretboard: 'fretboard-show-neck',
+  // Whether playback uses the silent list-only reading. Off unless it reads
+  // 'true', like the rest of the toggles.
+  noteList: 'fretboard-note-list',
+  // List-only can run as a plain stopwatch. Kept apart from the regular
+  // metronome so leaving list mode restores the app's established playback.
+  listMetronome: 'fretboard-list-metronome',
   // Which tuning the neck is drawn in, as a tuning id. An id that isn't one of
   // the five we ship is rejected and the map is drawn in standard tuning.
   tuning: 'fretboard-tuning',
@@ -111,6 +124,9 @@ export const STORAGE_KEYS = {
   // Off unless it literally reads 'true'. The microphone is the one setting
   // where a value we did not write must never be read as consent.
   micListen: 'fretboard-mic-listen',
+  // Call the next note early once the current one has been heard in two
+  // octaves. Off unless it literally reads 'true', like the mic it relies on.
+  advanceOnOctaves: 'fretboard-advance-on-octaves',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value
@@ -122,6 +138,12 @@ export const STORAGE_KEYS = {
   // be judged against the shelf: one that no longer matches anything simply
   // resolves to no selection when it is looked up.
   selectedRoutine: 'fretboard-selected-routine',
+  // Where a timed workout was when the tab was hidden or unloaded, as JSON:
+  // `{ routineId, blockIndex, offsetMs, savedAt }`. Written only on the way
+  // out and cleared when the workout finishes or is stopped. Rejected as a
+  // whole — and removed on read — unless the routine is still on the shelf,
+  // the block and offset fit its current blocks, and it is fresh.
+  routineResume: 'fretboard-routine-resume',
   // Set the first time practice starts. Until then the browser layout keeps the
   // setup cards folded away, so a first run is a stage and a start button
   // rather than a page of controls.
@@ -176,6 +198,13 @@ export const IDLE_PREVIEW_MS = 2_750
  * gives up after this long off-screen rather than waiting to be found.
  */
 export const HIDDEN_STOP_MS = 60_000
+
+/**
+ * How recently a workout must have been interrupted for a launch to offer to
+ * pick it up. A reload or a discarded tab comes back well inside this; a
+ * next-day launch still starts at block 0.
+ */
+export const ROUTINE_RESUME_WINDOW_MS = 10 * 60_000
 
 /**
  * Background tabs throttle timers while the audio clock keeps running, so a

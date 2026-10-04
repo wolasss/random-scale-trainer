@@ -236,7 +236,7 @@ export function NotePoolCard({
       {/* Reports on this list's own last write, so a store that had room for
           everything else but not for the presets still gets caught. */}
       {saveOffered && !savedPersisted ? (
-        <p className="preset-ephemeral-notice" data-testid="preset-ephemeral-notice">
+        <p className="dashed-notice" data-testid="preset-ephemeral-notice">
           Your browser is blocking saved data — this preset will work now, but it won't be here after you close the tab.
         </p>
       ) : null}

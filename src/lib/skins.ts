@@ -4,15 +4,16 @@
  * Glass is the default and needs no attribute; the CSS for every skin lives in
  * `index.css` under the SKINS section.
  */
-export type Skin = 'glass' | 'instrument' | 'editorial' | 'warm'
+export type Skin = 'glass' | 'instrument' | 'editorial' | 'warm' | 'kwinta'
 
-export const SKINS: readonly Skin[] = ['glass', 'instrument', 'editorial', 'warm']
+export const SKINS: readonly Skin[] = ['glass', 'instrument', 'editorial', 'warm', 'kwinta']
 
 export const SKIN_LABELS: Record<Skin, string> = {
   glass: 'Atmospheric glass',
   instrument: 'Instrument',
   editorial: 'Editorial',
   warm: 'Warm',
+  kwinta: 'kwinta',
 }
 
 export const DEFAULT_SKIN: Skin = 'glass'
@@ -31,14 +32,25 @@ export const SKIN_GROUND: Record<Skin, { dark: string; light: string }> = {
   instrument: { dark: '#070809', light: '#d7dade' },
   editorial: { dark: '#141310', light: '#efece2' },
   warm: { dark: '#241a18', light: '#fff6ee' },
+  kwinta: { dark: '#02050b', light: '#f1f2ea' },
 }
 
 /**
- * Fonts the base document doesn't already load (Space Grotesk + Fraunces cover
- * glass and editorial). Instrument and warm each pull one extra family, added
- * lazily the first time that skin is chosen so the default never pays for them.
+ * Remote fonts the base document doesn't already load (Space Grotesk and
+ * Fraunces cover glass and editorial). Instrument and warm add a stylesheet
+ * lazily; Kwinta's self-hosted faces are declared in CSS and preloaded below.
  */
 export const SKIN_FONT_HREF: Partial<Record<Skin, string>> = {
   instrument: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
   warm: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
+}
+
+/**
+ * Self-hosted skin fonts worth preloading before their first use. Keeping this
+ * skin-scoped means the default never pays for Kwinta's two defining faces,
+ * while a restored Kwinta session still starts both local requests before the
+ * application bundle runs.
+ */
+export const SKIN_FONT_PRELOAD_HREFS: Partial<Record<Skin, readonly string[]>> = {
+  kwinta: ['/fonts/hanken-grotesk-latin.woff2', '/fonts/spline-sans-mono-latin.woff2'],
 }

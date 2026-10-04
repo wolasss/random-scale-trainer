@@ -1,18 +1,30 @@
 import type { ReactNode, RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
+import type { SpellingPreference } from '../lib/notes'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
+import { NoteList } from './NoteList'
 
 type HeroProps = {
   snapshot: PlaybackSnapshot
+  bpm: number
+  metronomeEnabled: boolean
   beatsPerNote: number
-  poolSize: number
+  pool: number[]
+  spelling: SpellingPreference
   ringRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string | undefined
   /** The idle ghost note — null while playing, paused, or the pool is empty. */
   idlePreview?: IdlePreviewNote | null
+  /** Replace called-note playback with an unaccented list of notes. */
+  listOnly?: boolean
+  /** The list-only stopwatch, supplied by App so it shares the real transport. */
+  listWorkoutTimer?: ReactNode
+  /** A running attempt cannot be invalidated by reshuffling its list. */
+  listLocked?: boolean
+  onListRegenerate?: () => void
   /**
    * 'stage' is the installed-on-a-phone reading: the glyph takes the room the
    * browser chrome gave up, and the surrounding cards are gone. Everything the
@@ -77,7 +89,22 @@ function PlaybackMessage({ children }: { children: ReactNode }) {
   )
 }
 
-export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idlePreview, variant = 'card' }: HeroProps) {
+export function Hero({
+  snapshot,
+  bpm,
+  metronomeEnabled,
+  beatsPerNote,
+  pool,
+  spelling,
+  ringRef,
+  message,
+  idlePreview,
+  listOnly = false,
+  listWorkoutTimer,
+  listLocked = false,
+  onListRegenerate,
+  variant = 'card',
+}: HeroProps) {
   const { status, currentNote, nextNote, countIn, beatInSpan, positionInCycle, cycleLength } = snapshot
   const state = status === 'playing' ? 'active' : status === 'paused' ? 'paused' : 'idle'
   const isStage = variant === 'stage'
@@ -94,7 +121,11 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   const nowText =
     currentNote && positionInCycle !== null
       ? `note ${positionInCycle} of ${cycleLength}`
-      : `${poolSize} notes queued`
+      : `${pool.length} notes queued`
+  // List-only reports loading, count-in, beat and audio failures beside its own
+  // action. Only a routine's explicit block message still sits outside it.
+  const showPlaybackMessage = !listOnly || message !== undefined
+  const activeBeat = currentNote ? beatInSpan : -1
 
   // The glyph itself: identical in both readings, so the count-in digit and the
   // note share one element and one pop animation wherever they are shown.
@@ -123,21 +154,47 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
       </span>
     )
 
+  // List-only never turns a beat into a visual call, including during count-in.
+  // The message and click still announce that phase without replacing the list.
+  const noteLine = !listOnly ? (
+      <NoteLine
+        className={`hero-note-line ${isStage ? 'stage-note-line ' : ''}${state}`}
+        ringRef={ringRef}
+        glyph={glyph}
+      />
+    ) : null
+  const noteList = listOnly ? (
+    <NoteList
+      pool={pool}
+      spelling={spelling}
+      bpm={bpm}
+      metronomeEnabled={metronomeEnabled}
+      beatsPerNote={beatsPerNote}
+      transport={listWorkoutTimer}
+      locked={listLocked}
+      {...(onListRegenerate === undefined ? {} : { onRegenerate: onListRegenerate })}
+    />
+  ) : null
+
   if (isStage) {
     return (
-      <section className="stage-hero">
-        <NoteLine className={`hero-note-line stage-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      <section className={`stage-hero ${listOnly ? 'list-only' : ''}`}>
+        {noteLine}
 
-        <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+        {!listOnly ? <BeatDots count={beatsPerNote} active={activeBeat} /> : null}
 
-        <div className="stage-readout">
-          <span className="next-chip stage-next-chip">
-            <NextChipContent nextNote={nextNote} />
-          </span>
-          <CyclePosition text={nowText} />
-        </div>
+        {noteList}
 
-        <PlaybackMessage>{coachingLine}</PlaybackMessage>
+        {!listOnly ? (
+          <div className="stage-readout">
+            <span className="next-chip stage-next-chip">
+              <NextChipContent nextNote={nextNote} />
+            </span>
+            <CyclePosition text={nowText} />
+          </div>
+        ) : null}
+
+        {showPlaybackMessage ? <PlaybackMessage>{coachingLine}</PlaybackMessage> : null}
       </section>
     )
   }
@@ -145,21 +202,25 @@ export function Hero({ snapshot, beatsPerNote, poolSize, ringRef, message, idleP
   // No card chrome of its own: the note is one half of the practice stage, and
   // the stage card around it draws the panel.
   return (
-    <section className="hero-card">
-      <div className="hero-top">
-        <div className="now-chip">
-          <CyclePosition text={nowText} />
+    <section className={`hero-card ${listOnly ? 'list-only' : ''}`}>
+      {!listOnly ? (
+        <div className="hero-top">
+          <div className="now-chip">
+            <CyclePosition text={nowText} />
+          </div>
+          <div className="next-chip">
+            <NextChipContent nextNote={nextNote} />
+          </div>
         </div>
-        <div className="next-chip">
-          <NextChipContent nextNote={nextNote} />
-        </div>
-      </div>
+      ) : null}
 
-      <NoteLine className={`hero-note-line ${state}`} ringRef={ringRef} glyph={glyph} />
+      {noteLine}
 
-      <PlaybackMessage>{coachingLine}</PlaybackMessage>
+      {noteList}
 
-      <BeatDots count={beatsPerNote} active={currentNote ? beatInSpan : -1} />
+      {showPlaybackMessage ? <PlaybackMessage>{coachingLine}</PlaybackMessage> : null}
+
+      {!listOnly ? <BeatDots count={beatsPerNote} active={activeBeat} /> : null}
     </section>
   )
 }

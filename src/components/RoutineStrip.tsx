@@ -11,6 +11,44 @@ type RoutineStripProps = {
   onClear: () => void
 }
 
+type RoutineResumeOfferProps = {
+  routineName: string
+  blockIndex: number
+  blockCount: number
+  offsetMs: number
+  onResume: () => void
+  onStartOver: () => void
+}
+
+/**
+ * Stands in for the strip after a reload or a discarded tab cut a workout
+ * short: the one question worth asking before anything else is pressed.
+ */
+export function RoutineResumeOffer({
+  routineName,
+  blockIndex,
+  blockCount,
+  offsetMs,
+  onResume,
+  onStartOver,
+}: RoutineResumeOfferProps) {
+  return (
+    <div className="routine-strip routine-resume" data-testid="routine-resume">
+      <span className="routine-strip-status routine-resume-prompt">
+        Pick up {routineName || 'workout'} at block {blockIndex + 1} of {blockCount}, {formatClock(offsetMs / 1000)} in?
+      </span>
+
+      <button type="button" data-testid="routine-resume-accept" onClick={onResume}>
+        Resume
+      </button>
+
+      <button type="button" data-testid="routine-resume-start-over" onClick={onStartOver}>
+        Start over
+      </button>
+    </div>
+  )
+}
+
 /**
  * The routine card lives at the bottom of the page, so the hero carries this
  * strip: whatever is running stays readable without scrolling back down.

@@ -289,6 +289,53 @@ describe('the Turnstile verifier', () => {
       }) as unknown as typeof fetch)!('t', ''),
     ).toBe(false)
   })
+
+  it('accepts any hostname when TURNSTILE_HOSTNAME is unset', async () => {
+    const secret = { TURNSTILE_SECRET_KEY: 'secret' }
+
+    expect(
+      await createTurnstileVerifier(secret, reply({ success: true, hostname: 'elsewhere.example' }))!('t', ''),
+    ).toBe(true)
+    expect(await createTurnstileVerifier(secret, reply({ success: true }))!('t', '')).toBe(true)
+  })
+
+  it('accepts a verdict for the pinned hostname', async () => {
+    const env = { TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_HOSTNAME: 'callnote.example.com' }
+
+    expect(
+      await createTurnstileVerifier(env, reply({ success: true, hostname: 'callnote.example.com' }))!('t', ''),
+    ).toBe(true)
+    expect(
+      await createTurnstileVerifier(env, reply({ success: true, hostname: 'CallNote.Example.com' }))!('t', ''),
+    ).toBe(true)
+    expect(
+      await createTurnstileVerifier(
+        { TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_HOSTNAME: '  callnote.example.com  ' },
+        reply({ success: true, hostname: 'callnote.example.com' }),
+      )!('t', ''),
+    ).toBe(true)
+  })
+
+  it('rejects a verdict solved on another host, or with no hostname, once pinned', async () => {
+    const env = { TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_HOSTNAME: 'callnote.example.com' }
+
+    expect(await createTurnstileVerifier(env, reply({ success: true, hostname: 'evil.example' }))!('t', '')).toBe(
+      false,
+    )
+    expect(await createTurnstileVerifier(env, reply({ success: true }))!('t', '')).toBe(false)
+    expect(await createTurnstileVerifier(env, reply({ success: true, hostname: 42 }))!('t', '')).toBe(false)
+    expect(
+      await createTurnstileVerifier(env, reply({ success: false, hostname: 'callnote.example.com' }))!('t', ''),
+    ).toBe(false)
+  })
+
+  it('treats a blank TURNSTILE_HOSTNAME as unset', async () => {
+    const env = { TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_HOSTNAME: '   ' }
+
+    expect(await createTurnstileVerifier(env, reply({ success: true, hostname: 'anything.example' }))!('t', '')).toBe(
+      true,
+    )
+  })
 })
 
 describe('the Mailgun sender', () => {
