@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { BEAT_SPAN_OPTIONS, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
+import { BEAT_SPAN_OPTIONS, clampBpm, MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import { TAP_RESET_MS } from '../lib/tapTempo'
 import type { BeatsPerNote } from '../hooks/useSettings'
@@ -201,6 +201,11 @@ export function TempoCard({
   onRampToggle,
   onRampTargetNudge,
 }: TempoCardProps) {
+  const tempoActions = [
+    { label: 'Half time', destination: clampBpm(bpm / 2), boundary: `Already at minimum ${MIN_BPM} BPM` },
+    { label: 'Double time', destination: clampBpm(bpm * 2), boundary: `Already at maximum ${MAX_BPM} BPM` },
+  ]
+
   return (
     <section className="panel tempo-card">
       <div className="panel-heading">
@@ -223,6 +228,27 @@ export function TempoCard({
         >
           <TapTempoButton onTap={onTap} />
         </TempoStepper>
+
+        <div className="tempo-actions">
+          {tempoActions.map(({ label, destination, boundary }) => {
+            const disabled = destination === bpm
+            const explanation = `${label}: ${boundary}`
+
+            return (
+              <button
+                key={label}
+                type="button"
+                className="ghost-button tempo-action"
+                disabled={disabled}
+                title={disabled ? explanation : undefined}
+                aria-label={disabled ? explanation : label}
+                onClick={() => onBpmChange(destination)}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
 
         <input
           id="bpm-slider"
