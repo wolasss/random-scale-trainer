@@ -54,4 +54,24 @@ describe('TopBar key hints', () => {
     expect(screen.getByText(/start \/ stop/)).toBeInTheDocument()
     expect(screen.getByText(/reset timer/)).toBeInTheDocument()
   })
+
+  it('shows the mic shortcut hint when it is available', () => {
+    installTouchInput(false)
+
+    render(<TopBar theme="dark" onToggleTheme={() => undefined} micShortcutAvailable />)
+
+    expect(screen.getByText('M')).toBeInTheDocument()
+    expect(screen.getByText(/mic/)).toBeInTheDocument()
+  })
+
+  it('omits the mic shortcut hint when it is not available', () => {
+    installTouchInput(false)
+
+    renderTopBar()
+
+    expect(screen.queryByText('M')).toBeNull()
+    expect(screen.queryByText(/mic/)).toBeNull()
+    expect(screen.getByText('Space')).toBeInTheDocument()
+    expect(screen.getByText('R')).toBeInTheDocument()
+  })
 })

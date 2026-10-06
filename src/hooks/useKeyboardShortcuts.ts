@@ -6,6 +6,7 @@ export type KeyboardShortcutHandlers = {
   onTempoUp: () => void
   onTempoDown: () => void
   onReset: () => void
+  onToggleMic: () => void
 }
 
 const TEMPO_UP_CODES = new Set(['ArrowUp', 'ArrowRight'])
@@ -112,6 +113,14 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
         event.preventDefault()
         if (!event.repeat) {
           handlersRef.current.onReset()
+        }
+        return
+      }
+
+      if (event.code === 'KeyM') {
+        event.preventDefault()
+        if (!event.repeat) {
+          handlersRef.current.onToggleMic()
         }
       }
     }
