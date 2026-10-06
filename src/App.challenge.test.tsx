@@ -165,6 +165,27 @@ describe('arriving on a challenge', () => {
     expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
   })
 
+  it('leaves the microphone switch alone during a challenge, even with the M key', async () => {
+    installFetch()
+    installGetUserMedia()
+    owning()
+    window.localStorage.setItem(STORAGE_KEYS.micListen, 'false')
+
+    await renderApp()
+    await screen.findByTestId('scoreboard')
+
+    expect(document.querySelector('[aria-modal="true"]')).toBeNull()
+    expect(screen.queryByTestId('nickname-prompt')).toBeNull()
+    expect(document.querySelector('.key-hints')).not.toContainHTML('<kbd>M</kbd>')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM' })
+    })
+
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('false')
+  })
+
   it('disables a saved list-only preference for challenge play', async () => {
     installFetch()
     installGetUserMedia()
