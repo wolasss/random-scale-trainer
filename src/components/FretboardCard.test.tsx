@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { FretboardCard } from './FretboardCard'
+import { useKeyboardShortcuts, type KeyboardShortcutHandlers } from '../hooks/useKeyboardShortcuts'
 
 const renderCard = (props: Partial<Parameters<typeof FretboardCard>[0]> = {}) =>
   render(
@@ -117,5 +118,135 @@ describe('FretboardCard', () => {
 
     expect(scroller).toHaveProperty('tabIndex', 0)
     expect(scroller).toContainElement(screen.getByRole('img'))
+  })
+
+  it('lists every string under a closed-by-default disclosure, and opens on click', async () => {
+    const user = userEvent.setup()
+    renderCard({ currentPc: 0, currentDisplay: 'C' })
+
+    const disclosure = screen.getByTestId('fretboard-positions')
+    expect(disclosure).not.toHaveAttribute('open')
+    const summary = screen.getByText('Read fret positions')
+    for (const entry of screen.getAllByRole('listitem')) {
+      expect(entry).not.toBeVisible()
+    }
+
+    await user.click(summary)
+
+    const entries = screen.getAllByRole('listitem')
+    expect(entries.map((entry) => entry.textContent)).toEqual([
+      '1st string (e) fret 8',
+      '2nd string (B) fret 1',
+      '3rd string (G) fret 5',
+      '4th string (D) fret 10',
+      '5th string (A) fret 3',
+      '6th string (E) fret 8',
+    ])
+    // Opening the disclosure doesn't touch the map's own label.
+    expect(screen.getByRole('img')).toHaveAccessibleName(
+      'Fretboard map: C at 1st string (e) fret 8, 2nd string (B) fret 1, 3rd string (G) fret 5, ' +
+        '4th string (D) fret 10, 5th string (A) fret 3, 6th string (E) fret 8',
+    )
+  })
+
+  it('updates the disclosure entries when the called note changes', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderCard({ currentPc: 0, currentDisplay: 'C' })
+    await user.click(screen.getByText('Read fret positions'))
+
+    rerender(
+      <FretboardCard
+        currentPc={4}
+        currentDisplay="E"
+        tuning="standard"
+        leftHanded={false}
+        onTuning={() => {}}
+        onLeftHanded={() => {}}
+      />,
+    )
+
+    expect(screen.getAllByRole('listitem').map((entry) => entry.textContent)).toEqual([
+      '1st string (e) open and fret 12',
+      '2nd string (B) fret 5',
+      '3rd string (G) fret 9',
+      '4th string (D) fret 2',
+      '5th string (A) fret 7',
+      '6th string (E) open and fret 12',
+    ])
+  })
+
+  it('reads the disclosure in the tuning the neck is in', async () => {
+    const user = userEvent.setup()
+    renderCard({ currentPc: 0, currentDisplay: 'C', tuning: 'dropD' })
+    await user.click(screen.getByText('Read fret positions'))
+
+    const entries = screen.getAllByRole('listitem')
+    expect(entries[5].textContent).toBe('6th string (D) fret 10')
+  })
+
+  it('orders the disclosure 6th string first when left-handed', async () => {
+    const user = userEvent.setup()
+    renderCard({ currentPc: 0, currentDisplay: 'C', leftHanded: true })
+    await user.click(screen.getByText('Read fret positions'))
+
+    expect(screen.getAllByRole('listitem').map((entry) => entry.textContent)).toEqual([
+      '6th string (E) fret 8',
+      '5th string (A) fret 3',
+      '4th string (D) fret 10',
+      '3rd string (G) fret 5',
+      '2nd string (B) fret 1',
+      '1st string (e) fret 8',
+    ])
+  })
+
+  it('shows the idle explanation in the disclosure when no note is called', async () => {
+    const user = userEvent.setup()
+    renderCard()
+    await user.click(screen.getByText('Read fret positions'))
+
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+    expect(screen.getByText('No note called — all six strings, standard tuning')).toBeVisible()
+  })
+
+  it('leaves Space and Enter on the disclosure summary alone, not the transport', async () => {
+    const user = userEvent.setup()
+    const handlers: KeyboardShortcutHandlers = {
+      onSpace: vi.fn(),
+      onTap: vi.fn(),
+      onTempoUp: vi.fn(),
+      onTempoDown: vi.fn(),
+      onReset: vi.fn(),
+    }
+
+    function Wrapper() {
+      useKeyboardShortcuts(handlers)
+      return (
+        <FretboardCard
+          currentPc={0}
+          currentDisplay="C"
+          tuning="standard"
+          leftHanded={false}
+          onTuning={() => {}}
+          onLeftHanded={() => {}}
+        />
+      )
+    }
+
+    render(<Wrapper />)
+    const summary = screen.getByText('Read fret positions')
+
+    for (let tabs = 0; tabs < 20 && document.activeElement !== summary; tabs += 1) {
+      await user.tab()
+    }
+    expect(summary).toHaveFocus()
+
+    await user.keyboard(' ')
+    await user.keyboard('{Enter}')
+
+    expect(handlers.onSpace).not.toHaveBeenCalled()
+    expect(handlers.onTap).not.toHaveBeenCalled()
+    expect(handlers.onTempoUp).not.toHaveBeenCalled()
+    expect(handlers.onTempoDown).not.toHaveBeenCalled()
+    expect(handlers.onReset).not.toHaveBeenCalled()
   })
 })
