@@ -21,6 +21,17 @@ export const DEFAULT_BEATS_PER_NOTE = 4
 
 export type BeatsPerNote = (typeof BEAT_SPAN_OPTIONS)[number]
 
+export const CLICK_VOLUME_OPTIONS = ['soft', 'normal', 'loud'] as const
+
+export type ClickVolume = (typeof CLICK_VOLUME_OPTIONS)[number]
+
+/** `normal` must stay exactly 1 — today's click level, unchanged by the setting's default. */
+export const CLICK_VOLUME_FACTORS: Record<ClickVolume, number> = {
+  soft: 0.5,
+  normal: 1,
+  loud: 2,
+}
+
 export const clampBpm = (value: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(value)))
 
 /**
@@ -127,6 +138,9 @@ export const STORAGE_KEYS = {
   // Call the next note early once the current one has been heard in two
   // octaves. Off unless it literally reads 'true', like the mic it relies on.
   advanceOnOctaves: 'fretboard-advance-on-octaves',
+  // How loud the metronome click plays, as one of CLICK_VOLUME_OPTIONS
+  // ('soft' | 'normal' | 'loud'). Anything else is rejected back to 'normal'.
+  clickVolume: 'fretboard-click-volume',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value

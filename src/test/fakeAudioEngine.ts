@@ -86,6 +86,10 @@ export class FakeAudioEngine {
     }
   }
   playSessionEndChime() {}
+  clickVolume = 1
+  setClickVolume(factor: number) {
+    this.clickVolume = factor
+  }
   stopScheduledSounds() {
     if (recording) {
       soundLog.stopScheduledCalls += 1
