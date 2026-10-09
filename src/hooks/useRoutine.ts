@@ -35,6 +35,7 @@ export type UseRoutineOptions = {
   isPlaying: boolean
   /** The last timed block ran out: stop playback cleanly. */
   onFinish: () => void
+  onBlockAdvance?: () => void
 }
 
 export type RoutineController = {
@@ -141,6 +142,15 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   )
 
   const selected = routines.find((routine) => routine.id === selectedId) ?? null
+
+  // Notify only after playback has received the committed block settings.
+  const blockAdvancePending = useRef(false)
+  useEffect(() => {
+    if (blockAdvancePending.current) {
+      blockAdvancePending.current = false
+      options.onBlockAdvance?.()
+    }
+  })
 
   // The timer tick fires outside React's render, so what it reads has to be
   // current the instant it is written — hence refs written alongside state.
@@ -291,6 +301,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
         adjusted: false,
       })
       applyBlock(routine.blocks[nextIndex])
+      blockAdvancePending.current = true
     },
     [applyBlock, commit, forgetProgress],
   )
@@ -571,6 +582,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     }
 
     startAt(nextIndex, selected)
+    blockAdvancePending.current = true
   }
 
   const restart = () => {

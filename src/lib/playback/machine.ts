@@ -30,6 +30,7 @@ export type PlaybackSettings = {
   endSoundEnabled: boolean
   /** The neck on screen. Scoring prices a note called without it higher. */
   showFretboard: boolean
+  waitUntilPlayed: boolean
 }
 
 export type PlaybackSnapshot = {
@@ -116,6 +117,8 @@ export type PlaybackMachine = {
    * moved past it, and a stale request would skip a note nobody has seen.
    */
   advanceEarly(callTime: number): void
+  /** Abandon an unscorable held call on the next unscheduled beat. */
+  releaseHeldNote(): void
   /** The page came back on screen — recover a context the OS suspended. */
   handleVisible(): void
   getSnapshot(): PlaybackSnapshot
@@ -180,6 +183,10 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
   let lastCallTime: number | null = null
   /** An early advance waiting for the next beat to be scheduled. */
   let advancePending = false
+  // Captured at call time: turning the switch on cannot trap an already-scored call.
+  let waitingArmed = false
+  // Scoring drops interrupted windows, so resume must abandon this call.
+  let resumeAdvancePending = false
   const tempo = createTempoControl()
 
   /**
@@ -257,6 +264,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
 
   const finishStop = (message: string, countCycle = false, keepSessionEndChime = false) => {
     haltScheduling(keepSessionEndChime)
+    waitingArmed = false
+    resumeAdvancePending = false
+    lastCallTime = null
     sessionStartQueued = false
     onSessionPause()
     emit({
@@ -298,6 +308,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
         showFretboard: settings.showFretboard,
         pool: getPool(),
         advanceNow: advancePending,
+        holdNote: waitingArmed && settings.waitUntilPlayed,
       },
     )
 
@@ -311,6 +322,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     sched = step.state
     // Spent once the span it was cutting short is over, however it ended.
     if (step.kind !== 'beat' || step.consumesNote) {
+      waitingArmed = false
+      lastCallTime = null
       advancePending = false
     }
 
@@ -343,6 +356,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     if (step.consumesNote) {
       deck.draw()
       lastCallTime = event.time
+      waitingArmed = settings.waitUntilPlayed
     }
 
     if (settings.metronomeEnabled) {
@@ -488,6 +502,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
+    resumeAdvancePending = waitingArmed && (getSettings().waitUntilPlayed || advancePending)
     haltScheduling()
     onSessionPause()
     emit({ status: 'paused', countIn: null, message })
@@ -543,6 +558,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       }
 
       active = true
+      advancePending = resumeAdvancePending
+      resumeAdvancePending = false
       // Resume without a count-in: a half-beat pickup, then the beat resumes
       // from wherever the span left off.
       nextBeatTime = audio.getCurrentTime() + tempo.beatDuration() * 0.5
@@ -596,6 +613,9 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     sched = createSchedulingState(settings.countInEnabled ? COUNT_IN_BEATS : 0)
     schedulingDone = false
     lastCallTime = null
+    waitingArmed = false
+    resumeAdvancePending = false
+    advancePending = false
     active = true
     nextBeatTime = audio.getCurrentTime() + 0.05
 
@@ -615,6 +635,15 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     advancePending = true
   }
 
+  const releaseHeldNote = () => {
+    if (
+      active && waitingArmed && getSettings().waitUntilPlayed && sched.countInRemaining === 0
+      && lastCallTime !== null && lastCallTime <= audio.getCurrentTime()
+    ) {
+      advancePending = true
+    }
+  }
+
   const reset = () => {
     haltScheduling()
     if (snapshot.status !== 'idle') {
@@ -624,6 +653,8 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     sessionStartQueued = false
     sched = createSchedulingState()
     lastCallTime = null
+    waitingArmed = false
+    resumeAdvancePending = false
     deck.reset()
 
     emit({
@@ -677,6 +708,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     reset,
     invalidateDeck,
     advanceEarly,
+    releaseHeldNote,
     handleVisible,
     getSnapshot: () => snapshot,
     dispose,
