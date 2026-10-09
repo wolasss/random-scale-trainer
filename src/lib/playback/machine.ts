@@ -381,6 +381,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     stopTimeoutId = timers.set(() => finishStop(message, countCycle, true), delayMs)
   }
 
+  const abandonDiscardedCall = (event: BeatEvent) => {
+    if (waitingArmed && event.note && event.time === lastCallTime) {
+      // Scoring never receives this call, so it cannot release the hold.
+      advancePending = true
+    }
+  }
+
   /**
    * Background tabs throttle setTimeout and requestAnimationFrame; the audio
    * clock is unaffected. So a page that comes back after being hidden finds the
@@ -398,6 +405,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     }
 
     audio.stopScheduledSounds()
+    visualQueue.forEach(abandonDiscardedCall)
     visualQueue = []
     nextBeatTime = now + 0.05
   }
@@ -407,7 +415,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       return
     }
 
-    tempo.reconcile(getSettings().bpm)
+    const settings = getSettings()
+    // Observe disabling between beats too. Keep an already queued release
+    // armed until consumed so pause can still retain it.
+    if (!settings.waitUntilPlayed && !advancePending) {
+      waitingArmed = false
+    }
+    tempo.reconcile(settings.bpm)
     if (!schedulingDone) {
       resyncIfBehind()
     }
@@ -463,6 +477,7 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
       // whose audio has already gone by. Those notes were never heard: showing
       // them now would flash a burst through the hero and inflate the count.
       if (now - event.time > RESYNC_THRESHOLD_S) {
+        abandonDiscardedCall(event)
         continue
       }
 
