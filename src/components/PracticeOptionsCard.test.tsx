@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PracticeOptionsCard } from './PracticeOptionsCard'
@@ -26,6 +27,7 @@ const SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  waitUntilPlayed: false,
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
   sessionGoalMin: 10,
@@ -36,14 +38,14 @@ const renderCard = (
   overrides: Partial<Settings> = {},
   listModeUnavailable = false,
   fretboardUnavailable = false,
-  earlyAdvanceUnavailable = false,
+  micTimingUnavailable = false,
 ) => {
   const props = {
     settings: { ...SETTINGS, ...overrides },
     onToggle: vi.fn(),
     listModeUnavailable,
     fretboardUnavailable,
-    earlyAdvanceUnavailable,
+    micTimingUnavailable,
   }
 
   return { ...render(<PracticeOptionsCard {...props} />), props }
@@ -68,7 +70,7 @@ describe('PracticeOptionsCard layout', () => {
     expect(screen.getByRole('group', { name: 'Feedback' })).toBe(groups[1])
     expect(screen.getByRole('group', { name: 'Or practise from a list' })).toBe(groups[2])
     expect(names(groups[0])).toEqual(['count-in', 'continuous-mode', 'speak-notes'])
-    expect(names(groups[1])).toEqual(['mic-listen', 'advance-on-octaves', 'show-fretboard'])
+    expect(names(groups[1])).toEqual(['mic-listen', 'advance-on-octaves', 'wait-until-played', 'show-fretboard'])
     expect(names(groups[2])).toEqual(['note-list'])
     expect(screen.getByText('Switches for every session. Tempo and notes live in their own cards.')).toBeInTheDocument()
     expect(screen.queryByText(/are paused in List mode/)).toBeNull()
@@ -300,5 +302,50 @@ describe('PracticeOptionsCard early advance switch', () => {
     expect(advance).toHaveAccessibleDescription(
       'Unavailable during a challenge, where every note runs its full length.',
     )
+  })
+})
+
+describe('wait-until-played switch', () => {
+  const name = 'Wait until I play it'
+  beforeEach(() => vi.mocked(isMicSupported).mockReturnValue(true))
+
+  it('starts off, describes its behavior, and accepts Tab, Space and Enter', async () => {
+    const user = userEvent.setup()
+    const { props } = renderCard({ micEnabled: true })
+    const control = screen.getByRole('switch', { name })
+    expect(control).toHaveAttribute('aria-checked', 'false')
+    expect(control).toHaveAccessibleDescription(
+      'Clicks keep time while the note waits. Once the mic confirms it in one octave, the next note comes on the next click.',
+    )
+    for (let index = 0; index < 6; index += 1) await user.tab()
+    expect(control).toHaveFocus()
+    await user.keyboard(' {Enter}')
+    expect(props.onToggle.mock.calls).toEqual([['waitUntilPlayed'], ['waitUntilPlayed']])
+  })
+
+  it.each([
+    [false, true, false, 'Turn on the microphone to wait for the note you play.'],
+    [true, false, false, 'This browser has no microphone to listen with.'],
+    [true, true, true, 'Unavailable during a challenge, where every note runs its full length.'],
+  ] as const)('explains unavailability with mic %s, support %s, challenge %s', (micEnabled, supported, challenge, description) => {
+    vi.mocked(isMicSupported).mockReturnValue(supported)
+    const { props } = renderCard({ micEnabled, waitUntilPlayed: true }, false, false, challenge)
+    const control = screen.getByRole('switch', { name })
+    expect(control).toBeDisabled()
+    expect(control).toHaveAttribute('aria-checked', 'false')
+    expect(control).toHaveAccessibleDescription(description)
+    expect(control).toHaveAttribute('aria-describedby', 'wait-until-played-subtitle')
+    fireEvent.click(control)
+    expect(props.onToggle).not.toHaveBeenCalled()
+  })
+
+  it('retains the preference while hidden in list mode or disabled with the mic off', () => {
+    const { props, rerender } = renderCard({ micEnabled: true, waitUntilPlayed: true })
+    rerender(<PracticeOptionsCard {...props} settings={{ ...props.settings, noteListMode: true }} />)
+    expect(screen.queryByRole('switch', { name })).toBeNull()
+    rerender(<PracticeOptionsCard {...props} settings={{ ...props.settings, micEnabled: false }} />)
+    expect(screen.getByRole('switch', { name })).toHaveAttribute('aria-checked', 'false')
+    rerender(<PracticeOptionsCard {...props} />)
+    expect(screen.getByRole('switch', { name })).toHaveAttribute('aria-checked', 'true')
   })
 })

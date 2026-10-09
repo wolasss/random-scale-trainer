@@ -127,6 +127,7 @@ export const STORAGE_KEYS = {
   // Call the next note early once the current one has been heard in two
   // octaves. Off unless it literally reads 'true', like the mic it relies on.
   advanceOnOctaves: 'fretboard-advance-on-octaves',
+  waitUntilPlayed: 'fretboard-wait-until-played',
   // A JSON array of the saved setups and workouts on the shelf. The exception
   // to whole-value rejection: `parseRoutines` salvages entry by entry, keeping
   // every routine (and block) it can read and dropping the rest. Only a value

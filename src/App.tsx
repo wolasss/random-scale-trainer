@@ -144,6 +144,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   })
   const beatPulse = useBeatPulse()
 
+  // One value for "the mic is on", read by the hook, the readout and the switch
+  // alike: a browser with no microphone API cannot listen, whatever a setting
+  // stored by a browser that could says, and a readout the switch reports as
+  // off is one the user has no way to be rid of.
+  //
+  // A shared challenge turns it on regardless of the setting: the board is a
+  // board of points, and points come from what the microphone hears. The switch
+  // in setup still shows the stored preference, which is what it is for — it is
+  // the challenge, not the setting, that is listening.
+  const micEnabled = (challenge.active || (settings.micEnabled && !listModeEnabled)) && isMicSupported()
+
+  const waitUntilPlayed = settings.waitUntilPlayed && micEnabled && !challenge.active && !listModeEnabled
+
   const playback = usePlayback({
     // List-only keeps the saved regular-practice preferences intact while
     // suppressing features that do not belong to a fixed visual exercise.
@@ -155,6 +168,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       speakNotes: settings.speakNotes && !listModeEnabled,
       showFretboard: fretboardEnabled,
       metronomeEnabled,
+      waitUntilPlayed,
     },
     pool: settings.pool,
     spelling: settings.spelling,
@@ -185,17 +199,6 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     },
     audio: engine,
   })
-
-  // One value for "the mic is on", read by the hook, the readout and the switch
-  // alike: a browser with no microphone API cannot listen, whatever a setting
-  // stored by a browser that could says, and a readout the switch reports as
-  // off is one the user has no way to be rid of.
-  //
-  // A shared challenge turns it on regardless of the setting: the board is a
-  // board of points, and points come from what the microphone hears. The switch
-  // in setup still shows the stored preference, which is what it is for — it is
-  // the challenge, not the setting, that is listening.
-  const micEnabled = (challenge.active || (settings.micEnabled && !listModeEnabled)) && isMicSupported()
 
   // ...and the browser's permission dialog is asked for on arrival rather than
   // at the first note, so it lands on a setup screen instead of on top of the
@@ -246,9 +249,13 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     subscribe: mic.subscribe,
     active: micEnabled && mic.status === 'listening',
     running: playback.isPlaying,
-    // Off a challenge this queues nothing: the shared board decides what a note
-    // is worth, from the events themselves, and there is no board here to tell.
-    onScored: challenge.recordEvent,
+    // Keep forwarding every score; practice hits can also release the current call.
+    onScored: (event) => {
+      challenge.recordEvent(event)
+      if (waitUntilPlayed && event.kind === 'hit') {
+        playbackRef.current?.advanceEarly(event.at)
+      }
+    },
     // Cutting a span short is a practice aid, not a way to call more notes a
     // minute on the shared board, so a challenge never does it.
     onOctavesHeard:
@@ -258,6 +265,17 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     sessionElapsedMs: sessionTimer.elapsedMs,
   })
 
+  const { isPlaying, releaseHeldNote } = playback
+  const listening = micEnabled && mic.status === 'listening'
+  // A returning stream cannot score the interrupted call; the next call opens a fresh window.
+  const wasListening = useRef(false)
+  useEffect(() => {
+    if (listening && !wasListening.current && waitUntilPlayed && isPlaying) {
+      releaseHeldNote()
+    }
+    wasListening.current = listening
+  }, [listening, waitUntilPlayed, isPlaying, releaseHeldNote])
+
   const routine = useRoutine({
     settings,
     dispatch,
@@ -265,6 +283,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     getSessionElapsedMs: sessionTimer.getElapsedMs,
     isPlaying: playback.isPlaying,
     onFinish: useCallback(() => playbackRef.current?.stop(PLAYBACK_MESSAGES.routineComplete), []),
+    onBlockAdvance: playback.releaseHeldNote,
   })
 
   useEffect(() => {
@@ -566,7 +585,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       settings={settings}
       listModeUnavailable={challenge.active}
       fretboardUnavailable={challenge.active}
-      earlyAdvanceUnavailable={challenge.active}
+      micTimingUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
     />
   )

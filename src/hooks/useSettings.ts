@@ -16,6 +16,7 @@ export type SettingsToggleKey =
   | 'listMetronomeEnabled'
   | 'micEnabled'
   | 'advanceOnOctaves'
+  | 'waitUntilPlayed'
 
 export type SettingsAction =
   | { type: 'setBpm'; bpm: number }
