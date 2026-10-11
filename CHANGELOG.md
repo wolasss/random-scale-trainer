@@ -1,3 +1,11 @@
+## [1.34.2](https://github.com/wolasss/random-scale-trainer/compare/v1.34.1...v1.34.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **skins:** keep the Instrument next-chip label legible in light theme ([#285](https://github.com/wolasss/random-scale-trainer/issues/285)) ([c2eb23c](https://github.com/wolasss/random-scale-trainer/commit/c2eb23c15a01e47e355b24168c84a3d136f72530))
+* **ui:** make disabled outline buttons look disabled ([#284](https://github.com/wolasss/random-scale-trainer/issues/284)) ([4b68251](https://github.com/wolasss/random-scale-trainer/commit/4b682519458d564cd179c34bbfa3a5aed07f6b88))
+
 ## [1.34.1](https://github.com/wolasss/random-scale-trainer/compare/v1.34.0...v1.34.1) (2026-09-16)
 
 
