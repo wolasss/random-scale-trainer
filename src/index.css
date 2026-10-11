@@ -4308,10 +4308,12 @@ button.practice-history-cell {
   --button-bg: #1a1d21;
   --control-border: #23262c;
   --font-display: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
-  /* Instrument-only tokens. The readout glass stays dark in both themes. */
+  /* Instrument-only tokens. The readout glass stays dark in both themes, and
+     so does the ink printed on it. */
   --ink-on-amber: #0a0b0d;
   --lcd-bg: #050607;
   --lcd-amber: #ffb020;
+  --lcd-ink-soft: rgba(231, 228, 219, 0.58);
 }
 
 :root[data-skin='instrument'][data-theme='light'] {
@@ -4421,6 +4423,10 @@ button.practice-history-cell {
 
 [data-skin='instrument'] .next-chip-value {
   color: var(--lcd-amber);
+}
+
+[data-skin='instrument'] .next-chip .chip-label {
+  color: var(--lcd-ink-soft);
 }
 
 [data-skin='instrument'] .primary-button,
