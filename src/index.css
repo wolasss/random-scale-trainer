@@ -1617,13 +1617,14 @@ input[type='range'] {
 
 .primary-button:hover,
 .secondary-button:hover,
-.ghost-button:hover {
+.ghost-button:not(:disabled):hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
 }
 
 .primary-button:disabled,
-.secondary-button:disabled {
+.secondary-button:disabled,
+.ghost-button:disabled {
   opacity: 0.45;
   transform: none;
   filter: none;
