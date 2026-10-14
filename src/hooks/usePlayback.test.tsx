@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { usePlayback, type UsePlaybackOptions } from './usePlayback'
 import { MAX_BPM, RAMP_BPM_STEP } from '../constants'
@@ -141,7 +142,7 @@ type PlaybackProps = {
   onBpmChange: (bpm: number) => void
 }
 
-const renderPlayback = (initial: Partial<PlaybackProps> = {}) => {
+const renderPlayback = (initial: Partial<PlaybackProps> = {}, options: { strict?: boolean } = {}) => {
   const ports = createPorts()
   const onSessionStart = vi.fn()
   const onSessionPause = vi.fn()
@@ -156,7 +157,7 @@ const renderPlayback = (initial: Partial<PlaybackProps> = {}) => {
 
   const view = renderHook(
     (props: PlaybackProps) => {
-      const options: UsePlaybackOptions = {
+      const hookOptions: UsePlaybackOptions = {
         settings: props.settings,
         pool: props.pool,
         spelling: props.spelling,
@@ -169,9 +170,9 @@ const renderPlayback = (initial: Partial<PlaybackProps> = {}) => {
         random: () => IDENTITY,
       }
 
-      return usePlayback(options)
+      return usePlayback(hookOptions)
     },
-    { initialProps },
+    { initialProps, ...(options.strict ? { wrapper: StrictMode } : {}) },
   )
 
   return { ...view, ...ports, initialProps, onSessionStart, onSessionPause }
@@ -250,5 +251,80 @@ describe('usePlayback', () => {
 
     expect(latest).toHaveBeenCalledWith(DEFAULT_SETTINGS.bpm + RAMP_BPM_STEP)
     expect(first).not.toHaveBeenCalled()
+  })
+
+  it('survives StrictMode dev-time unmount/remount and stays restartable', async () => {
+    const { result, audio, advanceTo } = renderPlayback({}, { strict: true })
+
+    // The remount already happened by the time renderHook returns; the
+    // machine's preview survived it.
+    expect(result.current.snapshot.status).toBe('idle')
+    expect(result.current.snapshot.nextNote).not.toBeNull()
+
+    await act(async () => {
+      await result.current.start()
+    })
+    expect(result.current.snapshot.status).toBe('playing')
+
+    advanceTo(2.1)
+    // Clicks at 0.05, 1.05 and 2.05 — scheduling still runs after the remount.
+    expect(audio.clicks.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('reschedules the next clicks at a new tempo without recreating the machine', async () => {
+    const { result, rerender, initialProps, audio, advanceTo } = renderPlayback({
+      settings: { ...DEFAULT_SETTINGS, bpm: 60 },
+    })
+
+    await act(async () => {
+      await result.current.start()
+    })
+    // First beat at 0.05 landed; the next isn't scheduled yet (look-ahead is 0.25s).
+    advanceTo(0.1)
+
+    rerender({ ...initialProps, settings: { ...DEFAULT_SETTINGS, bpm: 120 } })
+
+    const clicksBefore = audio.clicks.length
+    advanceTo(2.2)
+
+    const post = audio.clicks.slice(clicksBefore)
+    // 1.05 was already queued at the old spacing; 1.55 and 2.05 land at the new one.
+    expect(post.length).toBeGreaterThanOrEqual(3)
+    for (let i = 1; i < post.length; i += 1) {
+      expect(post[i] - post[i - 1]).toBeCloseTo(0.5)
+    }
+
+    expect(audio.stopCalls).toBe(0)
+    expect(result.current.snapshot.status).toBe('playing')
+  })
+
+  it('deals the edited pool into the next note, not the one already sounding', async () => {
+    const { result, rerender, initialProps, advanceTo } = renderPlayback({ pool: [0] })
+
+    await act(async () => {
+      await result.current.start()
+    })
+    advanceTo(0.1)
+    expect(result.current.snapshot.currentNote?.display).toBe('C')
+
+    rerender({ ...initialProps, pool: [4] })
+
+    expect(result.current.snapshot.currentNote?.display).toBe('C')
+    expect(result.current.snapshot.nextNote?.display).toBe('E')
+
+    advanceTo(1.1)
+    expect(result.current.snapshot.currentNote?.display).toBe('E')
+  })
+
+  it('keeps handleVisible and advanceEarly identity across rerenders', () => {
+    const { result, rerender, initialProps } = renderPlayback()
+
+    const handleVisible = result.current.handleVisible
+    const advanceEarly = result.current.advanceEarly
+
+    rerender({ ...initialProps, pool: [4] })
+
+    expect(result.current.handleVisible).toBe(handleVisible)
+    expect(result.current.advanceEarly).toBe(advanceEarly)
   })
 })
