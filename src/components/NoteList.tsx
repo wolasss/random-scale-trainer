@@ -36,6 +36,7 @@ const dealList = (pool: number[], spelling: SpellingPreference, random?: () => n
 
 type NoteListDeal = {
   notes: NoteCall[]
+  foundPitchClasses: Set<number>
   pool: number[]
   spelling: SpellingPreference
 }
@@ -46,6 +47,7 @@ const createDeal = (
   random?: () => number,
 ): NoteListDeal => ({
   notes: dealList(pool, spelling, random),
+  foundPitchClasses: new Set(),
   pool: [...pool],
   spelling,
 })
@@ -70,6 +72,17 @@ export function NoteList({
   random,
 }: NoteListProps) {
   const [deal, setDeal] = useState(() => createDeal(pool, spelling, random))
+  const toggleFound = (pitchClass: number) => {
+    setDeal((currentDeal) => {
+      const foundPitchClasses = new Set(currentDeal.foundPitchClasses)
+      if (foundPitchClasses.has(pitchClass)) {
+        foundPitchClasses.delete(pitchClass)
+      } else {
+        foundPitchClasses.add(pitchClass)
+      }
+      return { ...currentDeal, foundPitchClasses }
+    })
+  }
   const settingsChanged = deal.spelling !== spelling || !samePool(deal.pool, pool)
   const timingText = metronomeEnabled
     ? `Metronome on · ${bpm} BPM · ${beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`}`
@@ -80,7 +93,7 @@ export function NoteList({
       <div className="note-list-heading">
         <div className="note-list-context">
           <p className="note-list-title" data-testid="note-list-summary">
-            {deal.notes.length}-note list
+            {deal.notes.length}-note list · {deal.foundPitchClasses.size} of {deal.notes.length} found
           </p>
           {settingsChanged ? (
             <p className="note-list-pending" data-testid="note-list-pending" role="status">
@@ -95,7 +108,15 @@ export function NoteList({
       <ol className="note-list" data-testid="note-list" aria-label="Practice note order">
         {deal.notes.map((note) => (
           <li key={note.pc} className="note-list-item" data-testid="note-list-item">
-            {note.display}
+            <button
+              type="button"
+              className="note-list-toggle"
+              aria-pressed={deal.foundPitchClasses.has(note.pc)}
+              aria-label={`${note.display}, ${deal.foundPitchClasses.has(note.pc) ? 'found' : 'not found'}`}
+              onClick={() => toggleFound(note.pc)}
+            >
+              {note.display}
+            </button>
           </li>
         ))}
       </ol>
