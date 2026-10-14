@@ -135,6 +135,8 @@ export class AudioEngine {
   private chimeNodes = new Set<AudioScheduledSourceNode>()
   /** The chime's own cue, kept apart so a spared teardown can re-record it after pruning. */
   private chimeCue: { start: number; end: number } | null = null
+  /** Scales only the click tones' peak gain; spoken notes and the chime never read this. */
+  private clickVolume = 1
   /**
    * When each cue the app plays occupies the room. Kept as intervals rather
    * than a running "last cue" because the scheduler works up to SCHEDULE_AHEAD_S
@@ -370,6 +372,11 @@ export class AudioEngine {
     this.track(oscillator, nodes ?? this.scheduledNodes)
   }
 
+  /** Scales the click's peak gain only; spoken notes and the chime are untouched. */
+  setClickVolume(factor: number): void {
+    this.clickVolume = factor
+  }
+
   playClickAt(startTime: number, accent: boolean): void {
     const context = this.context
     if (!context) return
@@ -379,7 +386,7 @@ export class AudioEngine {
       frequency: accent ? 1320 : 880,
       startTime,
       attack: startTime + 0.01,
-      peak: accent ? 0.12 : 0.08,
+      peak: (accent ? 0.12 : 0.08) * this.clickVolume,
       decayEnd: startTime + 0.12,
       stopAt: startTime + CLICK_DURATION_S,
     })
