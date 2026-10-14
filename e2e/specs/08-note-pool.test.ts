@@ -26,11 +26,11 @@ describe('note pool', () => {
     for (const pc of [0, 2, 4, 7]) {
       await page().toggleChip(pc)
     }
-    assert.match(await page().getPoolGuarantee(), /you get all 1 before any repeats/)
+    assert.match(await page().getPoolGuarantee(), /One note — it repeats until you add another/)
 
     await page().toggleChip(9)
     assert.equal(await page().isChipSelected(9), true)
-    assert.match(await page().getPoolGuarantee(), /you get all 1 before any repeats/)
+    assert.match(await page().getPoolGuarantee(), /One note — it repeats until you add another/)
   })
 
   it('presets apply to the chips and persist across a reload', async () => {
