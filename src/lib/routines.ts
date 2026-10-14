@@ -368,7 +368,8 @@ export const SEEDED_ROUTINES: Routine[] = [
   },
 ]
 
-const isPoolKey = (value: unknown): value is PoolKey => typeof value === 'string' && value in POOL_LABELS
+const isPoolKey = (value: unknown): value is PoolKey =>
+  typeof value === 'string' && Object.hasOwn(POOL_LABELS, value)
 
 const isAcc = (value: unknown): value is RoutineAccidental =>
   value === 'flats' || value === 'sharps' || value === 'mixed'
@@ -461,7 +462,12 @@ export const parseRoutines = (raw: string): Routine[] | undefined => {
     }
 
     const candidate = entry as Record<string, unknown>
-    if (typeof candidate.id !== 'string' || candidate.id.trim() === '' || typeof candidate.name !== 'string') {
+    if (
+      typeof candidate.id !== 'string' ||
+      candidate.id.trim() === '' ||
+      typeof candidate.name !== 'string' ||
+      candidate.name.trim() === ''
+    ) {
       continue
     }
 
@@ -473,7 +479,7 @@ export const parseRoutines = (raw: string): Routine[] | undefined => {
     const blocks = normalizeBlocks(parsedBlocks)
     if (blocks.length > 0) {
       seenIds.add(candidate.id)
-      routines.push({ id: candidate.id, name: candidate.name, blocks })
+      routines.push({ id: candidate.id, name: candidate.name.trim(), blocks })
     }
   }
 
