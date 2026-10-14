@@ -10,8 +10,8 @@ type PracticeOptionsCardProps = {
   listModeUnavailable?: boolean
   /** The map would show where every scored note lives, so a challenge hides it. */
   fretboardUnavailable?: boolean
-  /** A challenge prices notes at their full span, so none may be cut short there. */
-  earlyAdvanceUnavailable?: boolean
+  /** Challenges keep the note timing fixed, so neither mic timing aid applies. */
+  micTimingUnavailable?: boolean
 }
 
 /** A labelled run of switches that share a purpose, so the card reads as a few questions rather than one long list. */
@@ -33,7 +33,7 @@ export function PracticeOptionsCard({
   onToggle,
   listModeUnavailable = false,
   fretboardUnavailable = false,
-  earlyAdvanceUnavailable = false,
+  micTimingUnavailable = false,
 }: PracticeOptionsCardProps) {
   // A browser with no microphone API is a dead end the user would otherwise
   // only find on pressing play, so the reason takes the subtitle's place and
@@ -42,7 +42,7 @@ export function PracticeOptionsCard({
   const listModeActive = settings.noteListMode && !listModeUnavailable
   const micOn = settings.micEnabled && micSupported
   // Only the microphone can tell a note has been got, so the switch follows it.
-  const earlyAdvanceAvailable = micOn && !earlyAdvanceUnavailable
+  const micTimingAvailable = micOn && !micTimingUnavailable
 
   const listModeSwitch = (
     <SwitchRow
@@ -137,13 +137,29 @@ export function PracticeOptionsCard({
                 id="advance-on-octaves"
                 label="Skip ahead once I've found it"
                 subtitle={
-                  earlyAdvanceUnavailable
+                  micTimingUnavailable
                     ? 'Unavailable during a challenge, where every note runs its full length.'
                     : 'Once the mic hears the note in two octaves, the next one comes on the next click. Needs the microphone on.'
                 }
-                checked={settings.advanceOnOctaves && earlyAdvanceAvailable}
+                checked={settings.advanceOnOctaves && micTimingAvailable}
                 onChange={() => onToggle('advanceOnOctaves')}
-                disabled={!earlyAdvanceAvailable}
+                disabled={!micTimingAvailable}
+              />
+              <SwitchRow
+                id="wait-until-played"
+                label="Wait until I play it"
+                subtitle={
+                  micTimingUnavailable
+                    ? 'Unavailable during a challenge, where every note runs its full length.'
+                    : !micSupported
+                      ? 'This browser has no microphone to listen with.'
+                      : !micOn
+                        ? 'Turn on the microphone to wait for the note you play.'
+                        : 'Clicks keep time while the note waits. Once the mic confirms it in one octave, the next note comes on the next click.'
+                }
+                checked={settings.waitUntilPlayed && micTimingAvailable}
+                onChange={() => onToggle('waitUntilPlayed')}
+                disabled={!micTimingAvailable}
               />
             </div>
             <SwitchRow

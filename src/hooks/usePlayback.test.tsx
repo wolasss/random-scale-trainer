@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
   metronomeEnabled: true,
+  waitUntilPlayed: false,
   endSoundEnabled: true,
   showFretboard: true,
 }

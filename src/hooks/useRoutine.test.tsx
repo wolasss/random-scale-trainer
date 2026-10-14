@@ -22,6 +22,7 @@ const baseSettings = (): Settings => ({
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  waitUntilPlayed: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -53,7 +54,7 @@ const WORKOUT: Routine = {
 }
 
 /** The routine against a live settings reducer, so applied blocks really land. */
-const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPlaying = true) => {
+const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPlaying = true, onBlockAdvance?: (settings: Settings) => void) => {
   const [settings, dispatch] = useReducer(settingsReducer, null, baseSettings)
   const sessionElapsedMsRef = useRef(sessionElapsedMs)
   useEffect(() => {
@@ -66,6 +67,7 @@ const useRoutineHarness = (sessionElapsedMs: number, onFinish: () => void, isPla
     getSessionElapsedMs: () => sessionElapsedMsRef.current,
     isPlaying,
     onFinish,
+    onBlockAdvance: () => onBlockAdvance?.(settings),
   })
 
   return { settings, dispatch, routine }
@@ -1063,5 +1065,31 @@ describe('resuming an interrupted workout', () => {
     })
 
     expect(storedRecord()).toBeNull()
+  })
+})
+
+describe('committed block advance notifications', () => {
+  it.each(['timed', 'manual'])('notifies after %s transitions, including identical settings, but not renumbering', (transition) => {
+    const workout = { ...WORKOUT, blocks: [WORKOUT.blocks[0], WORKOUT.blocks[0], WORKOUT.blocks[1]] }
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([workout]))
+    const onFinish = vi.fn()
+    const onBlockAdvance = vi.fn()
+    const { result } = renderHook(() => useRoutineHarness(0, onFinish, true, onBlockAdvance))
+    act(() => result.current.routine.select(workout.id))
+    expect(onBlockAdvance).not.toHaveBeenCalled()
+    act(() => {
+      if (transition === 'timed') result.current.routine.tick(120_000)
+      else result.current.routine.skipBlock()
+    })
+    expect(onBlockAdvance).toHaveBeenCalledTimes(1)
+    expect(onBlockAdvance.mock.calls[0][0]).toMatchObject({ bpm: 60, pool: blockPool(workout.blocks[1]) })
+    act(() => result.current.routine.removeBlock(0))
+    expect(onBlockAdvance).toHaveBeenCalledTimes(1)
+    act(() => result.current.routine.skipBlock())
+    expect(onBlockAdvance).toHaveBeenCalledTimes(2)
+    expect(onBlockAdvance.mock.calls[1][0]).toMatchObject({ bpm: 80, pool: blockPool(workout.blocks[2]) })
+    act(() => result.current.routine.skipBlock())
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    expect(onBlockAdvance).toHaveBeenCalledTimes(2)
   })
 })
