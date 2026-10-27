@@ -12,6 +12,7 @@ type TopBarProps = {
   install?: ReactNode
   playShortcutLabel?: string
   resetShortcutLabel?: string
+  micShortcutAvailable?: boolean
 }
 
 export function TopBar({
@@ -20,6 +21,7 @@ export function TopBar({
   install,
   playShortcutLabel = 'play / pause',
   resetShortcutLabel = 'reset',
+  micShortcutAvailable = false,
 }: TopBarProps) {
   // The hints name keys a touch-only browser has no way to press: keep them for
   // the machines that can act on them.
@@ -46,6 +48,11 @@ export function TopBar({
             <span>
               <kbd>R</kbd> {resetShortcutLabel}
             </span>
+            {micShortcutAvailable && (
+              <span>
+                <kbd>M</kbd> mic
+              </span>
+            )}
           </div>
         )}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />

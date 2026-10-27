@@ -449,12 +449,19 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       ? 'retry same list'
       : 'start timed attempt'
 
+  const micToggleAvailable = !challenge.active && !listModeEnabled && isMicSupported()
+
   useKeyboardShortcuts({
     onSpace: listModeEnabled ? listPrimaryAction : playOrPause,
     onTap: handleTapTempo,
     onTempoUp: () => userDispatch({ type: 'nudgeBpm', delta: 1 }),
     onTempoDown: () => userDispatch({ type: 'nudgeBpm', delta: -1 }),
     onReset: resetSession,
+    onToggleMic: () => {
+      if (micToggleAvailable) {
+        dispatch({ type: 'toggle', key: 'micEnabled' })
+      }
+    },
   })
 
   const listWorkoutTimer = listModeEnabled ? (
@@ -832,6 +839,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           onToggleTheme={toggleTheme}
           install={installPrompt.canInstall ? <InstallButton onInstall={installPrompt.install} /> : null}
           playShortcutLabel={listModeEnabled ? listPrimaryShortcutLabel : 'play / pause'}
+          micShortcutAvailable={micToggleAvailable}
           resetShortcutLabel={listModeEnabled ? 'reset timer' : 'reset'}
         />
 
