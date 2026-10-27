@@ -1074,6 +1074,25 @@ input[type='range'] {
   font-weight: 700;
 }
 
+.tempo-card .tempo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.tempo-card .tempo-action {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.tempo-card .tempo-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+
 .control-block + .control-block {
   margin-top: 1rem;
 }
