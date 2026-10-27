@@ -84,6 +84,8 @@ export type BeatProgramInputs = {
    * count-in click, is unchanged by it.
    */
   advanceNow?: boolean
+  /** Keep the current call at its span boundary until an advance arrives. */
+  holdNote?: boolean
 }
 
 /** What the shell should do with the beat the program just decided. */
@@ -128,16 +130,17 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
     }
   }
 
-  if (state.beatInSpan !== 0 && !inputs.advanceNow) {
+  const held = inputs.holdNote && state.anyNoteScheduled && !state.boundaryProcessed && state.beatInSpan === 0
+  if ((state.beatInSpan !== 0 || held) && !inputs.advanceNow) {
     return {
       kind: 'beat',
-      state: { ...state, beatInSpan: advanceSpan(state.beatInSpan) },
+      state: held ? state : { ...state, beatInSpan: advanceSpan(state.beatInSpan) },
       event: {
         time: inputs.time,
         accent: false,
         isCountIn: false,
         nextNote: view.head,
-        beatInSpan: state.beatInSpan,
+        beatInSpan: held ? Math.max(0, inputs.beatsPerNote - 1) : state.beatInSpan,
         positionInCycle: state.positionInCycle,
         completedCycle: false,
       },

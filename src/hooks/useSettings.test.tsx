@@ -18,6 +18,7 @@ const baseSettings = (): Settings => ({
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  waitUntilPlayed: false,
   spelling: 'mixed',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
@@ -303,6 +304,20 @@ describe('useSettings persistence', () => {
 
     expect(result.current[0].advanceOnOctaves).toBe(true)
     expect(window.localStorage.getItem('fretboard-advance-on-octaves')).toBe('true')
+  })
+
+  it('leaves the wait-until-played preference off by default and persists its toggle', () => {
+    const { result } = renderHook(() => useSettings())
+
+    expect(result.current[0].waitUntilPlayed).toBe(false)
+    expect(window.localStorage.getItem('fretboard-wait-until-played')).toBe('false')
+
+    act(() => {
+      result.current[1]({ type: 'toggle', key: 'waitUntilPlayed' })
+    })
+
+    expect(result.current[0].waitUntilPlayed).toBe(true)
+    expect(window.localStorage.getItem('fretboard-wait-until-played')).toBe('true')
   })
 
   it('persists the microphone toggle', () => {
