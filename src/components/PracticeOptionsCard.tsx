@@ -1,11 +1,20 @@
 import type { ReactNode } from 'react'
+import { CLICK_VOLUME_OPTIONS, type ClickVolume } from '../constants'
 import { isMicSupported } from '../lib/audio/mic'
 import type { Settings, SettingsToggleKey } from '../hooks/useSettings'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { SwitchRow } from './ui/SwitchRow'
+
+const CLICK_VOLUME_LABELS: Record<ClickVolume, string> = {
+  soft: 'Soft',
+  normal: 'Normal',
+  loud: 'Loud',
+}
 
 type PracticeOptionsCardProps = {
   settings: Settings
   onToggle: (key: SettingsToggleKey) => void
+  onClickVolumeChange: (value: ClickVolume) => void
   /** Challenges call and score one note at a time, so a static list cannot run there. */
   listModeUnavailable?: boolean
   /** The map would show where every scored note lives, so a challenge hides it. */
@@ -31,6 +40,7 @@ function OptionGroup({ id, label, children }: { id: string; label: string; child
 export function PracticeOptionsCard({
   settings,
   onToggle,
+  onClickVolumeChange,
   listModeUnavailable = false,
   fretboardUnavailable = false,
   earlyAdvanceUnavailable = false,
@@ -61,6 +71,22 @@ export function PracticeOptionsCard({
     />
   )
 
+  const clickVolumeControl = (
+    <div className="control-block">
+      <div className="control-label-row">
+        <span className="label">Click volume</span>
+      </div>
+      <SegmentedControl
+        ariaLabel="Click volume"
+        testId="click-volume"
+        options={CLICK_VOLUME_OPTIONS.map((value) => ({ value, label: CLICK_VOLUME_LABELS[value] }))}
+        value={settings.clickVolume}
+        onChange={onClickVolumeChange}
+      />
+      <p className="control-subtitle">Normal is today's level — Soft for quiet practice, Loud to sit over an amp.</p>
+    </div>
+  )
+
   return (
     <section className="panel practice-options-card">
       <div className="panel-heading">
@@ -79,6 +105,7 @@ export function PracticeOptionsCard({
               checked={settings.listMetronomeEnabled}
               onChange={() => onToggle('listMetronomeEnabled')}
             />
+            {clickVolumeControl}
             <SwitchRow
               id="count-in"
               label="Count-in"
@@ -102,6 +129,7 @@ export function PracticeOptionsCard({
               checked={settings.countInEnabled}
               onChange={() => onToggle('countInEnabled')}
             />
+            {clickVolumeControl}
             <SwitchRow
               id="continuous-mode"
               label="Loop"
