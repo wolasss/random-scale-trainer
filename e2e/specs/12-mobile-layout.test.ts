@@ -19,6 +19,15 @@ import { useTrainerSession } from '../session.ts'
  */
 const WIDTHS = [320, 390, 430]
 
+/**
+ * A full note-strengths record: twelve `[scored, hits, responseMsTotal]`
+ * triples, each with the longest wording the card has — a three-digit count and
+ * a two-digit average beside a dual-spelled accidental. The card is only on the
+ * page once there is a record, so without seeding one the walks below would
+ * only ever measure it absent.
+ */
+const FULL_NOTE_STATS = JSON.stringify(Array.from({ length: 12 }, () => [128, 99, 1_212_000]))
+
 const describeOverflow = (where: string, width: number, overflow: Overflow): string => {
   const worst = overflow.offenders.map(({ label, over }) => `${label} (+${over}px)`).join(', ')
   return `${where} scrolls sideways at ${width}px — over the edge: ${worst || 'none identified'}`
@@ -45,6 +54,12 @@ describe('mobile layout', () => {
         assert.equal(await page().getViewportWidth(), width)
         assertNoOverflow('the page', width, await page().measureOverflow(OVERFLOW_ROOTS.page))
       })
+
+      it(`fits the page with a full note-strengths card in a ${width}px browser window`, async () => {
+        await page().seedStorageAndReload(STORAGE_KEYS.noteStats, FULL_NOTE_STATS)
+
+        assertNoOverflow('the page with note strengths', width, await page().measureOverflow(OVERFLOW_ROOTS.page))
+      })
     })
 
     describe(`a ${width}px installed app`, () => {
@@ -68,6 +83,17 @@ describe('mobile layout', () => {
 
         await page().openSetupSheet()
         assertNoOverflow('the practice sheet', width, await page().measureOverflow(OVERFLOW_ROOTS.sheet))
+      })
+
+      it(`fits a full note-strengths card in the sheet on a ${width}px installed app`, async () => {
+        await page().seedStorageAndReload(STORAGE_KEYS.noteStats, FULL_NOTE_STATS)
+        await page().openSetupSheet()
+
+        assertNoOverflow(
+          'the practice sheet with note strengths',
+          width,
+          await page().measureOverflow(OVERFLOW_ROOTS.sheet),
+        )
       })
 
       it(`fits the stage with a scored mic readout on a ${width}px installed app`, async () => {
