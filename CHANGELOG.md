@@ -1,3 +1,10 @@
+## [1.34.3](https://github.com/wolasss/random-scale-trainer/compare/v1.34.2...v1.34.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **security:** rebuild the image on Node patched for the October 2026 security release ([#291](https://github.com/wolasss/random-scale-trainer/issues/291)) ([8c479fd](https://github.com/wolasss/random-scale-trainer/commit/8c479fde3effba7a37b5b0a1149b361ba3921055))
+
 ## [1.34.2](https://github.com/wolasss/random-scale-trainer/compare/v1.34.1...v1.34.2) (2026-10-11)
 
 
