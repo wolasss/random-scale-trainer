@@ -13,6 +13,10 @@ RUN npm run build
 # Serve static files with nginx, plus the one thing that is not a static file:
 # the shared-challenge scoreboard. node is here to run it — it is stdlib-only,
 # so there is nothing to install beside it.
+#
+# The tag floats on the 1.30 stable line on purpose: nothing in this repo bumps
+# image versions, so a pinned patch would go stale. Any rebuild takes the
+# current nginx security fixes; 1.30.7 is the floor (November 2026 advisories).
 FROM nginx:1.30-alpine AS runtime
 RUN apk add --no-cache nodejs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
