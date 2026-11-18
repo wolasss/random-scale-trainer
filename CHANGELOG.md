@@ -1,3 +1,10 @@
+## [1.34.4](https://github.com/wolasss/random-scale-trainer/compare/v1.34.3...v1.34.4) (2026-11-18)
+
+
+### Bug Fixes
+
+* **security:** rebuild the image on nginx 1.30.7 ([#294](https://github.com/wolasss/random-scale-trainer/issues/294)) ([a672594](https://github.com/wolasss/random-scale-trainer/commit/a6725946cb281b463363dcf566ee3c1804cd7ed8))
+
 ## [1.34.3](https://github.com/wolasss/random-scale-trainer/compare/v1.34.2...v1.34.3) (2026-10-27)
 
 
