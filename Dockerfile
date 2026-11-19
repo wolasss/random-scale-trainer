@@ -17,7 +17,7 @@ RUN npm run build
 # The tag floats on the 1.30 stable line on purpose: nothing in this repo bumps
 # image versions, so a pinned patch would go stale. Any rebuild takes the
 # current nginx security fixes; 1.30.7 is the floor (November 2026 advisories).
-FROM nginx:1.30-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 RUN apk add --no-cache nodejs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
