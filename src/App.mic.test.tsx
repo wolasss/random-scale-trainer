@@ -160,6 +160,67 @@ describe('listening for the player', () => {
     expect(screen.queryByTestId('mic-readout')).toBeNull()
   })
 
+  it('flips the microphone switch with the M key', async () => {
+    installGetUserMedia(async () => ({}) as MediaStream)
+    render(<App />)
+
+    expect(document.querySelector('.key-hints')).toContainHTML('<kbd>M</kbd>')
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM' })
+    })
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'true')
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('true')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM' })
+    })
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('false')
+  })
+
+  it('ignores an auto-repeated M', async () => {
+    installGetUserMedia(async () => ({}) as MediaStream)
+    render(<App />)
+
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM', repeat: true })
+    })
+    expect(document.getElementById('mic-listen')).toHaveAttribute('aria-checked', 'false')
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).not.toBe('true')
+  })
+
+  it('leaves the microphone switch alone in list mode', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteList, 'true')
+    window.localStorage.setItem(STORAGE_KEYS.micListen, 'false')
+    installGetUserMedia(async () => ({}) as MediaStream)
+    render(<App />)
+
+    expect(document.querySelector('[aria-modal="true"]')).toBeNull()
+    expect(document.querySelector('.key-hints')).not.toContainHTML('<kbd>M</kbd>')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM' })
+    })
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('false')
+  })
+
+  it('leaves the microphone switch alone where the browser has no microphone API', async () => {
+    window.localStorage.setItem(STORAGE_KEYS.micListen, 'false')
+    render(<App />)
+
+    expect(document.querySelector('[aria-modal="true"]')).toBeNull()
+    expect(document.querySelector('.key-hints')).not.toContainHTML('<kbd>M</kbd>')
+
+    await act(async () => {
+      fireEvent.keyDown(window, { code: 'KeyM' })
+    })
+    expect(window.localStorage.getItem(STORAGE_KEYS.micListen)).toBe('false')
+  })
+
   /**
    * On the default 'mixed' spelling the call is a coin flip between E♭ and D♯,
    * and a readout that flips it again reads as a wrong note to the player who

@@ -22,6 +22,7 @@ const createHandlers = (): KeyboardShortcutHandlers => ({
   onTempoUp: vi.fn(),
   onTempoDown: vi.fn(),
   onReset: vi.fn(),
+  onToggleMic: vi.fn(),
 })
 
 const press = (code: string, init: KeyboardEventInit = {}, target: EventTarget = window) => {
@@ -45,6 +46,7 @@ describe('useKeyboardShortcuts', () => {
     ['ArrowDown', 'onTempoDown'],
     ['ArrowLeft', 'onTempoDown'],
     ['KeyR', 'onReset'],
+    ['KeyM', 'onToggleMic'],
   ] as const)('dispatches %s to %s and prevents default', (code, handlerName) => {
     renderHook(() => useKeyboardShortcuts(handlers))
 
@@ -67,6 +69,7 @@ describe('useKeyboardShortcuts', () => {
   it.each([
     ['Space', 'onSpace'],
     ['KeyR', 'onReset'],
+    ['KeyM', 'onToggleMic'],
   ] as const)('does not fire %s on auto-repeat from a held key', (code, handlerName) => {
     renderHook(() => useKeyboardShortcuts(handlers))
 
@@ -92,6 +95,9 @@ describe('useKeyboardShortcuts', () => {
 
     press('KeyT', { [modifier]: true })
     expect(handlers.onTap).not.toHaveBeenCalled()
+
+    press('KeyM', { [modifier]: true })
+    expect(handlers.onToggleMic).not.toHaveBeenCalled()
   })
 
   it.each([['input'], ['textarea'], ['select']] as const)(
@@ -105,6 +111,8 @@ describe('useKeyboardShortcuts', () => {
       expect(handlers.onSpace).not.toHaveBeenCalled()
       press('KeyT', {}, element)
       expect(handlers.onTap).not.toHaveBeenCalled()
+      press('KeyM', {}, element)
+      expect(handlers.onToggleMic).not.toHaveBeenCalled()
       element.remove()
     },
   )
@@ -141,7 +149,7 @@ describe('useKeyboardShortcuts', () => {
     const element = create()
     document.body.appendChild(element)
 
-    for (const code of ['Space', 'ArrowRight', 'KeyT'] as const) {
+    for (const code of ['Space', 'ArrowRight', 'KeyT', 'KeyM'] as const) {
       const event = press(code, {}, element)
       expect(event.defaultPrevented).toBe(false)
     }
@@ -209,7 +217,7 @@ describe('useKeyboardShortcuts', () => {
     it('ignores every shortcut while focus has dropped to the body', () => {
       renderHook(() => useKeyboardShortcuts(handlers))
 
-      for (const code of ['Space', 'KeyR', 'KeyT', 'ArrowUp'] as const) {
+      for (const code of ['Space', 'KeyR', 'KeyT', 'ArrowUp', 'KeyM'] as const) {
         const event = press(code, {}, document.body)
         expect(event.defaultPrevented).toBe(false)
       }
