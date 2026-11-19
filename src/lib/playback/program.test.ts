@@ -254,3 +254,42 @@ describe('an empty deck', () => {
     expect(stepBeat(createSchedulingState(), view(null), INPUTS)).toEqual({ kind: 'dry' })
   })
 })
+
+describe('holding at the span boundary', () => {
+  const boundary = { ...createSchedulingState(), positionInCycle: 2, bagSize: 2, anyNoteScheduled: true }
+
+  it('emits only filler beats and leaves the cursor at the boundary', () => {
+    const inputs = { ...INPUTS, holdNote: true, beatsPerNote: 4, countInEnabled: true }
+    const step = stepBeat(boundary, view(note(0, true, 2)), inputs)
+    expect(step).toEqual({
+      kind: 'beat', state: boundary, crossedBoundary: false, consumesNote: false,
+      event: {
+        time: inputs.time, accent: false, isCountIn: false, nextNote: note(0, true, 2),
+        beatInSpan: 3, positionInCycle: 2, completedCycle: false,
+      },
+    })
+  })
+
+  it.each([false, true])('releases the final note with looping %s', (continuousMode) => {
+    const step = stepBeat(boundary, view(note(0, true, 2)), {
+      ...INPUTS, holdNote: true, advanceNow: true, continuousMode,
+    })
+    expect(step).toMatchObject({ kind: continuousMode ? 'beat' : 'end', crossedBoundary: true })
+  })
+
+  it('finishes a released between-cycle count-in without holding the old note again', () => {
+    const inputs = { ...INPUTS, holdNote: true, countInEnabled: true }
+    const released = stepBeat(boundary, view(note(0, true, 2)), { ...inputs, advanceNow: true })
+    if (released.kind !== 'armCountIn') throw new Error('expected count-in')
+    let state = released.state
+    for (let index = 0; index < COUNT_IN_BEATS; index += 1) {
+      const step = stepBeat(state, view(note(0, true, 2)), inputs)
+      if (step.kind !== 'beat') throw new Error('expected beat')
+      expect(step.event.isCountIn).toBe(true)
+      state = step.state
+    }
+    expect(stepBeat(state, view(note(0, true, 2)), inputs)).toMatchObject({
+      kind: 'beat', consumesNote: true, crossedBoundary: false,
+    })
+  })
+})

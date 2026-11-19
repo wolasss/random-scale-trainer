@@ -84,6 +84,8 @@ export function usePlayback(options: UsePlaybackOptions) {
   // Stable too: scoring holds it in a ref and calls it from the mic listener.
   const advanceEarly = useCallback((callTime: number) => machineRef.current?.advanceEarly(callTime), [])
 
+  const releaseHeldNote = useCallback(() => machineRef.current?.releaseHeldNote(), [])
+
   const poolKey = options.pool.join(',')
   const spelling = options.spelling
   useEffect(() => {
@@ -100,5 +102,6 @@ export function usePlayback(options: UsePlaybackOptions) {
     reset: () => getMachine().reset(),
     handleVisible,
     advanceEarly,
+    releaseHeldNote,
   }
 }

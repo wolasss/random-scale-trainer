@@ -93,6 +93,7 @@ const DEFAULT_SETTINGS: PlaybackSettings = {
   rampTargetBpm: MAX_BPM,
   speakNotes: true,
   metronomeEnabled: true,
+  waitUntilPlayed: false,
   endSoundEnabled: true,
   showFretboard: true,
 }
@@ -200,8 +201,9 @@ const createHarness = (options: HarnessOptions = {}) => {
    * up at once. This is what a phone does when it goes into a pocket, and what
    * a browser does to a throttled background tab.
    */
-  const freezeAndWake = (seconds: number) => {
+  const freezeAndWake = (seconds: number, firstCallback: 'timer' | 'frame' = 'timer') => {
     audio.time += seconds
+    if (firstCallback === 'frame') pumpFrame()
 
     const overdue = [...pendingTimers.values()]
     pendingTimers.clear()
@@ -1282,5 +1284,192 @@ describe('an audio session interrupted while the page stays visible', () => {
       status: 'paused',
       message: PLAYBACK_MESSAGES.audioInterrupted,
     })
+  })
+})
+
+describe('waiting for the called note', () => {
+  it.each(['timer', 'frame'] as const)('abandons a discarded call when the %s wakes first', async (firstCallback) => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.05])
+    expect(harness.snapshot().notesCalled).toBe(1)
+
+    harness.freezeAndWake(2, firstCallback)
+    harness.advanceTo(3.1)
+    expect(harness.snapshot()).toMatchObject({ notesCalled: 2, currentNote: { pc: 2 } })
+    expect(harness.beats.filter((beat) => beat.note).map((beat) => beat.time)).toEqual([0.05, 3.05])
+    harness.advanceTo(9.2)
+    expect(harness.snapshot().notesCalled).toBe(2)
+    harness.machine.advanceEarly(3.05)
+    harness.advanceTo(10.2)
+    expect(harness.snapshot().notesCalled).toBe(3)
+  })
+
+  it('keeps a delivered call held when recovery only discards filler beats', async () => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true } })
+    await harness.machine.start()
+    harness.advanceTo(1)
+    harness.freezeAndWake(2)
+    harness.advanceTo(6.2)
+    expect(harness.snapshot().notesCalled).toBe(1)
+    expect(harness.audio.clicks.length).toBeGreaterThan(2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(7.2)
+    expect(harness.snapshot().notesCalled).toBe(2)
+  })
+
+  it('does not rearm a call after waiting is disabled and reenabled between beats', async () => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    harness.settings.waitUntilPlayed = false
+    harness.advanceTo(0.4)
+    // Scoring can finish this call while App does not forward hits to playback.
+    harness.settings.waitUntilPlayed = true
+    harness.advanceTo(9.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 4.05])
+    expect(harness.snapshot().notesCalled).toBe(2)
+    harness.machine.advanceEarly(4.05)
+    harness.advanceTo(10.2)
+    expect(harness.snapshot().notesCalled).toBe(3)
+  })
+
+  it.each([1, 4])('holds a %i-beat span with clicks but no new calls, then releases once', async (beatsPerNote) => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote } })
+    await harness.machine.start()
+    harness.advanceTo(0.1)
+    const first = harness.snapshot()
+    harness.advanceTo(8.2)
+    expect(harness.snapshot()).toMatchObject({
+      currentNote: first.currentNote, nextNote: first.nextNote, upcomingNotes: first.upcomingNotes,
+      notesCalled: 1, cyclesCompleted: 0,
+    })
+    expect(harness.audio.notes).toHaveLength(1)
+    expect(harness.audio.clicks).toHaveLength(9)
+    expect(harness.audio.clicks.slice(beatsPerNote).every((click) => !click.accent)).toBe(true)
+    harness.machine.advanceEarly(0.05)
+    harness.machine.advanceEarly(0.05)
+    harness.machine.releaseHeldNote()
+    harness.advanceTo(9.1)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 9.05])
+    expect(harness.snapshot().notesCalled).toBe(2)
+    harness.machine.advanceEarly(0.05) // stale hit cannot release the next call
+    harness.advanceTo(15.2)
+    expect(harness.snapshot().notesCalled).toBe(2)
+  })
+
+  it('releases an early hit on the next beat and arms the new call', async () => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    harness.machine.advanceEarly(0.05)
+    harness.advanceTo(6.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 1.05])
+  })
+
+  it('ignores recovery before the call sounds and during count-in', async () => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, countInEnabled: true } })
+    harness.machine.releaseHeldNote()
+    await harness.machine.start()
+    harness.machine.releaseHeldNote()
+    harness.advanceTo(4)
+    harness.machine.releaseHeldNote()
+    harness.advanceTo(8.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([4.05])
+  })
+
+  it('resumes normal timing when disabled; enabling only arms a newly called note', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    // A hit under the old preference did not ask playback to advance.
+    harness.settings.waitUntilPlayed = true
+    harness.advanceTo(9.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 4.05])
+    harness.settings.waitUntilPlayed = false
+    harness.advanceTo(10.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 4.05, 10.05])
+    harness.advanceTo(14.2)
+    expect(harness.snapshot().notesCalled).toBe(4)
+  })
+
+  it('releases at a routine boundary using the replaced deck', async () => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true } })
+    await harness.machine.start()
+    harness.advanceTo(5.2)
+    harness.state.pool = [7]
+    harness.machine.invalidateDeck()
+    harness.machine.releaseHeldNote()
+    harness.machine.releaseHeldNote()
+    harness.advanceTo(9.2)
+    expect(harness.snapshot().currentNote?.pc).toBe(7)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 6.05])
+  })
+
+  it.each([0.2, 6.2])('abandons an unscorable call across repeated pauses at %fs', async (pauseAt) => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(pauseAt)
+    for (let iteration = 0; iteration < 2; iteration += 1) {
+      harness.machine.pause()
+      harness.advanceTo(harness.audio.time + 2)
+      const resumeAt = harness.audio.time
+      await harness.machine.start()
+      harness.advanceTo(resumeAt + 0.6)
+      expect(harness.snapshot().notesCalled).toBe(iteration + 2)
+      expect(harness.audio.notes.at(-1)?.time).toBeCloseTo(resumeAt + 0.5)
+      harness.advanceTo(resumeAt + 6)
+      expect(harness.snapshot().notesCalled).toBe(iteration + 2)
+    }
+  })
+
+  it.each([false, true])('retains a queued hit across pause when waiting is disabled: %s', async (disableWaiting) => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    harness.machine.advanceEarly(0.05)
+    if (disableWaiting) harness.settings.waitUntilPlayed = false
+    harness.machine.pause()
+    harness.settings.waitUntilPlayed = true
+    harness.advanceTo(2.2)
+    await harness.machine.start()
+    harness.advanceTo(8.2)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 2.7])
+    expect(harness.snapshot().notesCalled).toBe(2)
+  })
+
+  it.each(['stop', 'reset'] as const)('%s terminates a hold, including paused recovery', async (action) => {
+    const harness = createHarness({ settings: { waitUntilPlayed: true } })
+    await harness.machine.start()
+    harness.advanceTo(5.2)
+    harness.machine[action]()
+    const clickCount = harness.audio.clicks.length
+    harness.advanceTo(7.2)
+    expect(harness.snapshot()).toMatchObject({ status: 'idle', currentNote: null })
+    expect(harness.audio.clicks).toHaveLength(clickCount)
+    await harness.machine.start()
+    harness.advanceTo(8.2)
+    harness.machine.pause()
+    harness.machine[action]()
+    await harness.machine.start()
+    harness.advanceTo(14.2)
+    expect(harness.audio.notes).toHaveLength(3)
+    expect(harness.snapshot().status).toBe('playing')
+  })
+
+  it('changes neither scheduling nor pause behavior with waiting off', async () => {
+    const harness = createHarness({ settings: { beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(0.2)
+    harness.machine.releaseHeldNote()
+    harness.machine.pause()
+    await harness.machine.start()
+    harness.advanceTo(3)
+    expect(harness.audio.notes).toHaveLength(1)
+    harness.advanceTo(4)
+    expect(harness.audio.notes.map((note) => note.time)).toEqual([0.05, 3.7])
   })
 })

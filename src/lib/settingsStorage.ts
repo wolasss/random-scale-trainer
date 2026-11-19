@@ -66,6 +66,8 @@ export type Settings = {
    * is listening; off until asked for.
    */
   advanceOnOctaves: boolean
+  /** Hold each called note until the microphone confirms it. Off until asked for. */
+  waitUntilPlayed: boolean
   /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
@@ -137,6 +139,7 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   },
   leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
+  waitUntilPlayed: booleanCodec(STORAGE_KEYS.waitUntilPlayed),
   advanceOnOctaves: booleanCodec(STORAGE_KEYS.advanceOnOctaves),
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
@@ -183,6 +186,7 @@ const DEFAULT_SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  waitUntilPlayed: false,
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

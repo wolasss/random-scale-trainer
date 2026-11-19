@@ -203,3 +203,21 @@ describe('writeChangedSettings', () => {
     }
   })
 })
+
+describe('wait-until-played preference', () => {
+  it.each([null, 'false', '', 'TRUE', '1', ' true ', 'true'])('reads %j as on only for literal true', (raw) => {
+    if (raw !== null) window.localStorage.setItem(STORAGE_KEYS.waitUntilPlayed, raw)
+    expect(initSettings().waitUntilPlayed).toBe(raw === 'true')
+  })
+
+  it('serializes changed values and round-trips both states', () => {
+    const previous = initSettings()
+    const enabled = { ...previous, waitUntilPlayed: true }
+    writeChangedSettings(previous, enabled)
+    expect(window.localStorage.getItem(STORAGE_KEYS.waitUntilPlayed)).toBe('true')
+    expect(initSettings().waitUntilPlayed).toBe(true)
+    writeChangedSettings(enabled, previous)
+    expect(window.localStorage.getItem(STORAGE_KEYS.waitUntilPlayed)).toBe('false')
+    expect(initSettings().waitUntilPlayed).toBe(false)
+  })
+})
