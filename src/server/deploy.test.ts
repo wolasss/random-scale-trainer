@@ -244,52 +244,43 @@ describe('Dockerfile', () => {
 
   it('ships the service and the script that starts it', () => {
     expect(DOCKERFILE).toContain('/docker-entrypoint.d/50-scoreboard.sh')
-    expect(ENTRYPOINT).toContain('/opt/callnote/server/main.js')
     // Blocking here would stop nginx from ever starting.
-    expect(ENTRYPOINT).toContain("su nginx -s /bin/sh -c 'exec node /opt/callnote/server/main.js' &")
+    expect(ENTRYPOINT).toMatch(/^node \/opt\/callnote\/server\/main\.js &$/m)
   })
 
   /**
-   * The only process in the image that parses untrusted network input
-   * (report bodies, claims, event batches) must not run as uid 0.
+   * Nothing in the running container is uid 0 — not nginx, and not the only
+   * process that parses untrusted network input (report bodies, claims, event
+   * batches). The last USER wins, and it is numeric so an orchestrator can
+   * verify it without reading /etc/passwd.
    */
-  it('starts node as the nginx user, never as root', () => {
-    expect(ENTRYPOINT).toContain("su nginx -s /bin/sh -c 'exec node /opt/callnote/server/main.js' &")
-    expect(ENTRYPOINT).not.toMatch(/^\s*node /m)
-    expect(ENTRYPOINT.indexOf('chown')).toBeLessThan(ENTRYPOINT.indexOf('su nginx'))
+  it('runs nginx and the service as the unprivileged user, never as root', () => {
+    expect(RUNTIME).toMatch(/^FROM nginx\/nginx-unprivileged:\S+ AS runtime$/m)
+    expect(RUNTIME.match(/^USER .*$/gm)?.at(-1)).toBe('USER 101')
+    expect(ENTRYPOINT).not.toMatch(/\bsu\b/)
   })
 
   /**
-   * The data directory (and a freshly mounted volume over it) must be
-   * handed to the nginx user before the service starts, or its writes
-   * fail; the chown must stay non-recursive so it cannot re-own an
-   * unrelated tree the env var happens to point at.
+   * A new named volume takes the ownership the image gave the directory, and
+   * that is the only hand-over left: the entrypoint is no longer root. Docker
+   * discards build changes to a path made after its VOLUME line.
    */
-  it('hands the data dir to the nginx user before starting the service', () => {
-    expect(ENTRYPOINT).toContain('chown nginx:nginx "$DATA_DIR"')
-    expect(ENTRYPOINT).not.toContain('chown -R')
-    expect(DOCKERFILE).toContain('chown nginx:nginx /var/lib/callnote')
-  })
+  it('hands the data dir to the nginx user before declaring the volume', () => {
+    const chown = RUNTIME.indexOf('chown nginx:nginx /var/lib/callnote')
 
-  /**
-   * SCOREBOARD_DATA is operator-configurable; a bare filename like
-   * "/scoreboard.json" would make dirname "/". Re-owning whatever directory
-   * the variable happens to point at would hand the network-facing nginx
-   * user write access outside the image's own data directory, so the chown
-   * only ever fires for the well-known default.
-   */
-  it('only re-owns the image’s own data directory, never a caller-selected path', () => {
-    expect(ENTRYPOINT).toContain('if [ "$DATA_DIR" = "/var/lib/callnote" ]')
+    expect(chown).toBeGreaterThan(-1)
+    expect(chown).toBeLessThan(RUNTIME.indexOf('VOLUME ["/var/lib/callnote"]'))
   })
 
   /**
    * writeSnapshot already treats an unwritable volume as best-effort; the
-   * entrypoint must not turn a read-only or root-squashed mount into a
-   * total outage by letting `set -e` kill the script before nginx starts.
+   * entrypoint must not turn a read-only or root-owned mount into a total
+   * outage. As uid 101 a chown always fails and a mkdir may, and under
+   * `set -e` either one kills the script before nginx starts.
    */
-  it('does not let a failed ownership change abort nginx startup', () => {
-    expect(ENTRYPOINT).toContain('chown nginx:nginx "$DATA_DIR" 2>/dev/null || true')
-    expect(ENTRYPOINT).toContain('chown nginx:nginx "$SCOREBOARD_DATA" 2>/dev/null || true')
+  it('does not touch the data dir on the way to starting nginx', () => {
+    expect(ENTRYPOINT).toContain('set -e')
+    expect(ENTRYPOINT).not.toMatch(/^\s*(mkdir|chown|chmod)\b/m)
   })
 
   /**
