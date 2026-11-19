@@ -315,6 +315,25 @@ describe('fetch', () => {
     expect(cache.entries.get(request.url)?.body).toBe('fresh app.js')
   })
 
+  it.each([404, 500])('passes through a missing precached asset response with status %i without caching it', async (status) => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', url: `${ORIGIN}/assets/app.js` }
+    const body = `app.js network error ${status}`
+    const networkResponse = makeResponse(body, { ok: false, status })
+    worker.fetch.mockResolvedValue(networkResponse)
+
+    const captured = worker.dispatch('fetch', request)
+
+    const response = (await captured.responded) as FakeResponse
+    expect(response).toBe(networkResponse)
+    expect(response.status).toBe(status)
+    expect(response.body).toBe(body)
+    expect(worker.fetch).toHaveBeenCalledWith(request)
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(cache.entries.has(request.url)).toBe(false)
+  })
+
   it('revalidates a query-bearing asset, which is a cache key of its own', async () => {
     const worker = makeWorker({ cacheNames: [CACHE_NAME] })
     const cache = currentCache(worker)
@@ -328,6 +347,44 @@ describe('fetch', () => {
     await captured.waited
     expect(cache.put).toHaveBeenCalledWith(request, expect.objectContaining({ cloned: true }))
     expect(cache.entries.get(request.url)?.body).toBe('fresh app.js')
+  })
+
+  it('keeps a cached query-bearing asset when background revalidation answers 500', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', url: `${ORIGIN}/assets/app.js?v=1` }
+    const savedResponse = makeResponse('cached app.js')
+    cache.entries.set(request.url, savedResponse)
+    worker.fetch.mockResolvedValue(makeResponse('app.js network error', { ok: false, status: 500 }))
+
+    const captured = worker.dispatch('fetch', request)
+
+    expect(await captured.responded).toBe(savedResponse)
+    expect(captured.waited).toBeDefined()
+    await captured.waited
+    expect(worker.fetch).toHaveBeenCalledWith(request)
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(cache.entries.get(request.url)).toBe(savedResponse)
+    expect(cache.entries.get(request.url)?.body).toBe('cached app.js')
+  })
+
+  it('serves and keeps a cached query-bearing asset when background revalidation rejects', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', url: `${ORIGIN}/assets/app.js?v=1` }
+    const savedResponse = makeResponse('cached app.js')
+    cache.entries.set(request.url, savedResponse)
+    worker.fetch.mockRejectedValue(new Error('offline'))
+
+    const captured = worker.dispatch('fetch', request)
+
+    expect(await captured.responded).toBe(savedResponse)
+    expect(captured.waited).toBeDefined()
+    await expect(captured.waited).resolves.toBeUndefined()
+    expect(worker.fetch).toHaveBeenCalledWith(request)
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(cache.entries.get(request.url)).toBe(savedResponse)
+    expect(cache.entries.get(request.url)?.body).toBe('cached app.js')
   })
 
   it('leaves non-GET requests to the network', () => {
@@ -406,6 +463,24 @@ describe('fetch', () => {
     // The page is expected to render without it, so there is nothing to say.
     expect(await response.text()).toBe('')
     expect(currentCache(worker).put).not.toHaveBeenCalled()
+  })
+
+  it('passes through a navigation response with status 500 when the shell was never cached', async () => {
+    const worker = makeWorker({ cacheNames: [CACHE_NAME] })
+    const cache = currentCache(worker)
+    const request = { method: 'GET', mode: 'navigate', url: `${ORIGIN}/?src=pwa` }
+    const networkResponse = makeResponse('navigation network error', { ok: false, status: 500 })
+    worker.fetch.mockResolvedValue(networkResponse)
+
+    const captured = worker.dispatch('fetch', request)
+
+    const response = (await captured.responded) as FakeResponse
+    expect(response).toBe(networkResponse)
+    expect(response.status).toBe(500)
+    expect(response.body).toBe('navigation network error')
+    expect(worker.fetch).toHaveBeenCalledWith(request)
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(cache.entries.has('/index.html')).toBe(false)
   })
 
   it('answers a navigation with a readable page when the shell was never cached', async () => {
