@@ -2,7 +2,8 @@ import type { ComponentProps } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, rampRounds } from '../constants'
+import { MAX_BPM, MIN_BPM, RAMP_BPM_STEP, RAMP_TARGET_STEP, STORAGE_KEYS, rampRounds } from '../constants'
+import { useSettings } from '../hooks/useSettings'
 import { cycleSeconds, formatCycleLength } from '../lib/time'
 import { TAP_RESET_MS } from '../lib/tapTempo'
 import { HOLD_REPEAT_DELAY_MS, HOLD_REPEAT_INTERVAL_MS, TAP_AGAIN_LABEL, TAP_RESTING_LABEL, TempoCard } from './TempoCard'
@@ -38,7 +39,142 @@ const renderCard = (overrides: Partial<ComponentProps<typeof TempoCard>> = {}) =
   return { ...spies, unmount }
 }
 
+function ControlledTempoCard() {
+  const [settings, dispatch] = useSettings()
+
+  return (
+    <TempoCard
+      bpm={settings.bpm}
+      beatsPerNote={settings.beatsPerNote}
+      poolSize={settings.pool.length}
+      rampEnabled={settings.speedRampMode}
+      rampTarget={settings.rampTargetBpm}
+      rampAvailable={settings.continuousMode}
+      onBpmChange={(bpm) => dispatch({ type: 'setBpm', bpm })}
+      onNudge={(delta) => dispatch({ type: 'nudgeBpm', delta })}
+      onTap={vi.fn()}
+      onBeatsPerNoteChange={(value) => dispatch({ type: 'setBeatsPerNote', value })}
+      onRampToggle={() => dispatch({ type: 'setRamp', enabled: !settings.speedRampMode })}
+      onRampTargetNudge={(delta) => dispatch({ type: 'nudgeRampTarget', delta })}
+    />
+  )
+}
+
 describe('TempoCard', () => {
+  describe('half and double time', () => {
+    it.each([
+      { bpm: 100, action: 'Half time', destination: 50 },
+      { bpm: 100, action: 'Double time', destination: 200 },
+      { bpm: 101, action: 'Half time', destination: 51 },
+      { bpm: 40, action: 'Half time', destination: 30 },
+      { bpm: 180, action: 'Double time', destination: 240 },
+    ])('$action at $bpm requests $destination once', async ({ bpm, action, destination }) => {
+      const user = userEvent.setup()
+      const { onBpmChange } = renderCard({ bpm })
+      const button = screen.getByRole('button', { name: action })
+
+      expect(button).toBeEnabled()
+      await user.click(button)
+
+      expect(onBpmChange).toHaveBeenCalledExactlyOnceWith(destination)
+    })
+
+    it.each([
+      { bpm: 30, action: 'Half time', opposite: 'Double time', explanation: 'Already at minimum 30 BPM' },
+      { bpm: 240, action: 'Double time', opposite: 'Half time', explanation: 'Already at maximum 240 BPM' },
+    ])('disables and explains $action at $bpm', async ({ bpm, action, opposite, explanation }) => {
+      const user = userEvent.setup()
+      const { onBpmChange } = renderCard({ bpm })
+      const button = screen.getByRole('button', { name: `${action}: ${explanation}` })
+
+      expect(button).toHaveTextContent(action)
+      expect(button).toHaveAttribute('title', `${action}: ${explanation}`)
+      expect(button).toBeDisabled()
+      expect(screen.getByRole('button', { name: opposite })).toBeEnabled()
+      await user.click(button)
+      expect(onBpmChange).not.toHaveBeenCalled()
+
+      screen.getByTestId('tap-tempo').focus()
+      await user.tab()
+      expect(screen.getByRole('button', { name: opposite })).toHaveFocus()
+      await user.tab()
+      expect(screen.getByRole('slider', { name: 'Tempo in BPM' })).toHaveFocus()
+    })
+
+    it('reaches both actions with Tab and activates them with Enter and Space', async () => {
+      const user = userEvent.setup()
+      const { onBpmChange } = renderCard({ bpm: 100 })
+      screen.getByTestId('tap-tempo').focus()
+
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Half time' })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      await user.tab()
+      expect(screen.getByRole('button', { name: 'Double time' })).toHaveFocus()
+      await user.keyboard(' ')
+
+      expect(onBpmChange).toHaveBeenCalledTimes(2)
+      expect(onBpmChange).toHaveBeenNthCalledWith(1, 50)
+      expect(onBpmChange).toHaveBeenNthCalledWith(2, 200)
+    })
+
+    describe('controlled settings', () => {
+      beforeEach(() => {
+        window.localStorage.clear()
+      })
+
+      it('updates the readout and slider from 120 to 60 and back', async () => {
+        const user = userEvent.setup()
+        window.localStorage.setItem(STORAGE_KEYS.bpm, '120')
+        render(<ControlledTempoCard />)
+        const readout = screen.getByTestId('bpm-value')
+        const slider = screen.getByRole('slider', { name: 'Tempo in BPM' })
+
+        expect(readout).toHaveTextContent(/^120$/)
+        expect(slider).toHaveValue('120')
+        await user.click(screen.getByRole('button', { name: 'Half time' }))
+        expect(readout).toHaveTextContent(/^60$/)
+        expect(slider).toHaveValue('60')
+        await user.click(screen.getByRole('button', { name: 'Double time' }))
+        expect(readout).toHaveTextContent(/^120$/)
+        expect(slider).toHaveValue('120')
+      })
+
+      it.each([
+        { bpm: 40, action: 'Half time', destination: 30 },
+        { bpm: 180, action: 'Double time', destination: 240 },
+      ])('updates both displays and disables $action on reaching $destination', async ({ bpm, action, destination }) => {
+        const user = userEvent.setup()
+        window.localStorage.setItem(STORAGE_KEYS.bpm, String(bpm))
+        render(<ControlledTempoCard />)
+        const button = screen.getByRole('button', { name: action })
+
+        await user.click(button)
+
+        expect(screen.getByTestId('bpm-value').textContent).toBe(String(destination))
+        expect(screen.getByRole('slider', { name: 'Tempo in BPM' })).toHaveValue(String(destination))
+        expect(button).toBeDisabled()
+      })
+
+      it('raises an overtaken ramp target and preserves it when halving back', async () => {
+        const user = userEvent.setup()
+        window.localStorage.setItem(STORAGE_KEYS.bpm, '80')
+        window.localStorage.setItem(STORAGE_KEYS.continuousMode, 'true')
+        window.localStorage.setItem(STORAGE_KEYS.speedRampMode, 'true')
+        window.localStorage.setItem(STORAGE_KEYS.rampTarget, '120')
+        render(<ControlledTempoCard />)
+
+        expect(screen.getByTestId('ramp-target-value')).toHaveTextContent(/^120$/)
+        await user.click(screen.getByRole('button', { name: 'Double time' }))
+        expect(screen.getByTestId('bpm-value')).toHaveTextContent(/^160$/)
+        expect(screen.getByTestId('ramp-target-value')).toHaveTextContent(/^200$/)
+        await user.click(screen.getByRole('button', { name: 'Half time' }))
+        expect(screen.getByTestId('bpm-value')).toHaveTextContent(/^80$/)
+        expect(screen.getByTestId('ramp-target-value')).toHaveTextContent(/^200$/)
+      })
+    })
+  })
+
   it('describes what the ramp does when it can be switched on', () => {
     renderCard({ rampAvailable: true })
 
