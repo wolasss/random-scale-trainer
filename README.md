@@ -155,7 +155,8 @@ npm run build
 ## Deploy
 
 The repo ships a multi-stage `Dockerfile`: `node:24-alpine` builds the Vite app, and
-`nginx:1.30-alpine` serves the static `dist/` output on port 80.
+`nginx/nginx-unprivileged:1.31-alpine` serves the static `dist/` output on port 80. Nothing in the
+running container is root: nginx and the scoreboard service both run as uid 101.
 
 ```bash
 docker build -t callnote .
@@ -166,6 +167,10 @@ docker run --rm -p 8080:80 wolasss/random-scale-trainer:latest # the published i
 # ...and with the shared-challenge board kept across restarts
 docker run --rm -p 8080:80 -v callnote-data:/var/lib/callnote callnote
 ```
+
+A new named volume is writable out of the box. A bind mount, or a volume last written by an image
+older than 1.30.1, has to be owned by uid 101 before it is mounted — the container can no longer
+chown it, and the board silently stops persisting if it cannot write.
 
 ### The scoreboard service
 
