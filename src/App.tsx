@@ -75,7 +75,7 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 import { usePersistentStorage } from './hooks/usePersistentStorage'
 import { useChallenge } from './hooks/useChallenge'
 import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
-import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
+import { CLICK_VOLUME_FACTORS, HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
 
 // Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
 // to ship them.
@@ -109,6 +109,10 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // constructor opens no AudioContext, so building it during render is safe.
   const engineRef = useRef<AudioEngine | null>(null)
   const engine = (engineRef.current ??= new AudioEngine())
+
+  useEffect(() => {
+    engineRef.current?.setClickVolume(CLICK_VOLUME_FACTORS[settings.clickVolume])
+  }, [settings.clickVolume])
 
   // The session timer, playback and the routine all need handles on each
   // other, so they go through refs that are refreshed on every render.
@@ -568,6 +572,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       fretboardUnavailable={challenge.active}
       earlyAdvanceUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
+      onClickVolumeChange={(value) => dispatch({ type: 'setClickVolume', value })}
     />
   )
 

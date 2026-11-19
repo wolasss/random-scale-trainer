@@ -151,6 +151,16 @@ describe('initSettings', () => {
     expect(initSettings().pool).toEqual([1, 2])
   })
 
+  it('reads back a stored clickVolume', () => {
+    window.localStorage.setItem(STORAGE_KEYS.clickVolume, 'loud')
+    expect(initSettings().clickVolume).toBe('loud')
+  })
+
+  it('rejects an unrecognised clickVolume and falls back to normal', () => {
+    window.localStorage.setItem(STORAGE_KEYS.clickVolume, 'SHOUT')
+    expect(initSettings().clickVolume).toBe('normal')
+  })
+
   it('drops a stored speedRampMode when continuousMode is stored off', () => {
     window.localStorage.setItem(STORAGE_KEYS.continuousMode, 'false')
     window.localStorage.setItem(STORAGE_KEYS.speedRampMode, 'true')
@@ -178,6 +188,7 @@ describe('writeChangedSettings', () => {
     STORAGE_KEYS.micListen,
     STORAGE_KEYS.noteList,
     STORAGE_KEYS.listMetronome,
+    STORAGE_KEYS.clickVolume,
   ]
 
   it('writes every key when previous is null', () => {
@@ -201,5 +212,15 @@ describe('writeChangedSettings', () => {
       }
       expect(window.localStorage.getItem(key)).toBeNull()
     }
+  })
+
+  it('round-trips a chosen clickVolume through a write and a fresh read', () => {
+    const previous = initSettings()
+    const next = { ...previous, clickVolume: 'loud' as const }
+
+    writeChangedSettings(previous, next)
+
+    expect(window.localStorage.getItem(STORAGE_KEYS.clickVolume)).toBe('loud')
+    expect(initSettings().clickVolume).toBe('loud')
   })
 })

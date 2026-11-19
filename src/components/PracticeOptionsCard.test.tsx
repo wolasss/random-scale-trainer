@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PracticeOptionsCard } from './PracticeOptionsCard'
 import { isMicSupported } from '../lib/audio/mic'
+import { STORAGE_KEYS } from '../constants'
+import { useSettings } from '../hooks/useSettings'
 import type { Settings } from '../hooks/useSettings'
 
 // Support is read straight off the browser, so the capability check is the one
@@ -26,6 +28,7 @@ const SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  clickVolume: 'normal',
   spelling: 'flat',
   pool: [0, 2, 4, 5, 7, 9, 11],
   sessionGoalMin: 10,
@@ -41,6 +44,7 @@ const renderCard = (
   const props = {
     settings: { ...SETTINGS, ...overrides },
     onToggle: vi.fn(),
+    onClickVolumeChange: vi.fn(),
     listModeUnavailable,
     fretboardUnavailable,
     earlyAdvanceUnavailable,
@@ -300,5 +304,64 @@ describe('PracticeOptionsCard early advance switch', () => {
     expect(advance).toHaveAccessibleDescription(
       'Unavailable during a challenge, where every note runs its full length.',
     )
+  })
+})
+
+describe('PracticeOptionsCard click volume control', () => {
+  it('renders three radios with Normal checked from defaults', () => {
+    renderCard()
+
+    const group = screen.getByRole('radiogroup', { name: 'Click volume' })
+    const radios = within(group).getAllByRole('radio')
+
+    expect(radios.map((radio) => radio.textContent)).toEqual(['Soft', 'Normal', 'Loud'])
+    expect(screen.getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('reports the chosen factor when a different option is clicked', () => {
+    const { props } = renderCard()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Loud' }))
+
+    expect(props.onClickVolumeChange).toHaveBeenCalledWith('loud')
+  })
+
+  it('is keyboard-operable with the arrow keys', () => {
+    const { props } = renderCard()
+
+    fireEvent.keyDown(screen.getByRole('radio', { name: 'Normal' }), { key: 'ArrowRight' })
+
+    expect(props.onClickVolumeChange).toHaveBeenCalledWith('loud')
+  })
+
+  it('stays available in list mode, where the click is the whole workout', () => {
+    renderCard({ noteListMode: true })
+
+    expect(screen.getByRole('radiogroup', { name: 'Click volume' })).toBeInTheDocument()
+  })
+
+  it('persists the chosen volume across a remount', () => {
+    localStorage.clear()
+
+    const Harness = () => {
+      const [settings, dispatch] = useSettings()
+      return (
+        <PracticeOptionsCard
+          settings={settings}
+          onToggle={(key) => dispatch({ type: 'toggle', key })}
+          onClickVolumeChange={(value) => dispatch({ type: 'setClickVolume', value })}
+        />
+      )
+    }
+
+    const { unmount } = render(<Harness />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Loud' }))
+
+    expect(localStorage.getItem(STORAGE_KEYS.clickVolume)).toBe('loud')
+
+    unmount()
+    render(<Harness />)
+
+    expect(screen.getByRole('radio', { name: 'Loud' })).toHaveAttribute('aria-checked', 'true')
   })
 })

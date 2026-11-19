@@ -1,6 +1,7 @@
 import {
   BEAT_SPAN_OPTIONS,
   clampBpm,
+  CLICK_VOLUME_OPTIONS,
   DEFAULT_BEATS_PER_NOTE,
   DEFAULT_BPM,
   DEFAULT_SESSION_GOAL_MIN,
@@ -8,6 +9,7 @@ import {
   SESSION_GOAL_OPTIONS,
   STORAGE_KEYS,
   type BeatsPerNote,
+  type ClickVolume,
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
 import { readRaw, writeRaw } from './storage'
@@ -66,6 +68,8 @@ export type Settings = {
    * is listening; off until asked for.
    */
   advanceOnOctaves: boolean
+  /** How loud the metronome click plays; app-wide like `speakNotes`, not block-owned. */
+  clickVolume: ClickVolume
   /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
   /** Sorted unique pitch classes; never empty. */
@@ -138,6 +142,12 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
   leftHanded: booleanCodec(STORAGE_KEYS.leftHanded),
   micEnabled: booleanCodec(STORAGE_KEYS.micListen),
   advanceOnOctaves: booleanCodec(STORAGE_KEYS.advanceOnOctaves),
+  clickVolume: {
+    storageKey: STORAGE_KEYS.clickVolume,
+    deserialize: (raw) =>
+      (CLICK_VOLUME_OPTIONS as readonly string[]).includes(raw) ? (raw as ClickVolume) : undefined,
+    serialize: String,
+  },
   spelling: {
     storageKey: STORAGE_KEYS.spelling,
     deserialize: (raw) =>
@@ -183,6 +193,7 @@ const DEFAULT_SETTINGS: Settings = {
   leftHanded: false,
   micEnabled: false,
   advanceOnOctaves: false,
+  clickVolume: 'normal',
   spelling: 'mixed',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,

@@ -1,11 +1,11 @@
 import { useEffect, useReducer, useRef, type Dispatch } from 'react'
-import { clampBpm, clampRampTarget, defaultRampTarget, type BeatsPerNote } from '../constants'
+import { clampBpm, clampRampTarget, defaultRampTarget, type BeatsPerNote, type ClickVolume } from '../constants'
 import { sortedPcs, type SpellingPreference } from '../lib/notes'
 import { PRESETS, type PresetId } from '../lib/presets'
 import type { TuningId } from '../lib/tunings'
 import { initSettings, writeChangedSettings, type Settings, type SessionGoalMin } from '../lib/settingsStorage'
 
-export type { BeatsPerNote, Settings, SessionGoalMin, TuningId }
+export type { BeatsPerNote, ClickVolume, Settings, SessionGoalMin, TuningId }
 
 export type SettingsToggleKey =
   | 'continuousMode'
@@ -28,6 +28,9 @@ export type SettingsAction =
   | { type: 'setRampTarget'; bpm: number }
   | { type: 'nudgeRampTarget'; delta: number }
   | { type: 'setSpelling'; value: SpellingPreference }
+  // App-wide like 'speakNotes', so deliberately NOT added to useRoutine's
+  // BLOCK_OWNED_ACTIONS — changing it must never fork a routine to Custom.
+  | { type: 'setClickVolume'; value: ClickVolume }
   | { type: 'togglePoolNote'; pc: number }
   | { type: 'setPreset'; preset: PresetId }
   | { type: 'setPool'; pool: readonly number[] }
@@ -85,6 +88,8 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
       return { ...state, rampTargetBpm: clampRampTarget(state.rampTargetBpm + action.delta, state.bpm) }
     case 'setSpelling':
       return { ...state, spelling: action.value }
+    case 'setClickVolume':
+      return { ...state, clickVolume: action.value }
     case 'togglePoolNote': {
       const selected = state.pool.includes(action.pc)
       // Never allow an empty pool — the last remaining note stays selected.

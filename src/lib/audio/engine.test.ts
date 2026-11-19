@@ -380,6 +380,50 @@ describe('AudioEngine scheduled playback', () => {
     expect(gain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.12, expect.closeTo(2.01, 5))
   })
 
+  it('setClickVolume scales only the click tones, both accented and plain', async () => {
+    const engine = await readyEngine()
+    engine.setClickVolume(0.5)
+
+    engine.playClickAt(2, true)
+    engine.playClickAt(3, false)
+
+    const accentGain = context.createGain.mock.results[0].value
+    const plainGain = context.createGain.mock.results[1].value
+    expect(accentGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.06, expect.closeTo(2.01, 5))
+    expect(plainGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.04, expect.closeTo(3.01, 5))
+  })
+
+  it('defaults to the unscaled click peaks without ever calling setClickVolume', async () => {
+    const engine = await readyEngine()
+
+    engine.playClickAt(2, true)
+    engine.playClickAt(3, false)
+
+    const accentGain = context.createGain.mock.results[0].value
+    const plainGain = context.createGain.mock.results[1].value
+    expect(accentGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.12, expect.closeTo(2.01, 5))
+    expect(plainGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.08, expect.closeTo(3.01, 5))
+  })
+
+  it('leaves the chime and spoken notes untouched by a non-1 click volume', async () => {
+    const engine = await readyEngine()
+    engine.setClickVolume(2)
+
+    engine.playSessionEndChime(1)
+
+    const bodyGain = context.createGain.mock.results[0].value
+    const bellGain = context.createGain.mock.results[1].value
+    expect(bodyGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.11, expect.closeTo(1.012, 5))
+    expect(bellGain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.11 * 0.42, expect.closeTo(1.01, 5))
+
+    engine.playNoteAt('C', 4)
+    const source = context.createBufferSource.mock.results[0].value
+    expect(source.connect).toHaveBeenCalledWith(context.destination)
+    // The chime's own four gain nodes (two tones, each body + bell) are the lot —
+    // playNoteAt adds none of its own.
+    expect(context.createGain).toHaveBeenCalledTimes(4)
+  })
+
   /**
    * The two envelope tests below pin every scheduled value exactly — `toEqual`
    * over the recorded calls, with each expectation written as the same

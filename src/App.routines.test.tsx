@@ -332,6 +332,23 @@ describe('Routines', () => {
     expect(screen.getByTestId('routine-status')).not.toHaveTextContent('adjusted')
   })
 
+  it('keeps the routine when the click volume is changed', () => {
+    render(<App />)
+
+    selectRoutine('seed-warmup-naturals')
+    fireEvent.click(screen.getByTestId('click-volume').querySelector('[data-value="loud"]')!)
+
+    expect(screen.getByTestId('click-volume').querySelector('[aria-checked="true"]')).toHaveAttribute(
+      'data-value',
+      'loud',
+    )
+    expect(window.localStorage.getItem('fretboard-click-volume')).toBe('loud')
+
+    expect(screen.queryByTestId('routine-empty')).toBeNull()
+    expect(chip('seed-warmup-naturals').className).toContain('selected')
+    expect(screen.getByTestId('routine-status')).not.toHaveTextContent('adjusted')
+  })
+
   it('treats a mid-playback nudge as an override, not an exit', async () => {
     render(<App />)
 
