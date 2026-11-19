@@ -1,3 +1,10 @@
+## [1.34.5](https://github.com/wolasss/random-scale-trainer/compare/v1.34.4...v1.34.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* **docker:** run the whole image as the unprivileged nginx user ([#295](https://github.com/wolasss/random-scale-trainer/issues/295)) ([93d61a7](https://github.com/wolasss/random-scale-trainer/commit/93d61a780fbccc0689773a7522a725e54a550860))
+
 ## [1.34.4](https://github.com/wolasss/random-scale-trainer/compare/v1.34.3...v1.34.4) (2026-11-18)
 
 
