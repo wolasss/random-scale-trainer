@@ -24,6 +24,7 @@ import {
   withInsertedBlock,
   withMovedBlock,
   withRemovedBlock,
+  type PoolKey,
   type Routine,
   type RoutineBlock,
 } from './routines'
@@ -565,6 +566,64 @@ describe('parseRoutines', () => {
     ])
 
     expect(parseRoutines(stored)).toEqual([])
+  })
+
+  /** The rename path refuses a blank name too, so storage must not let one in either. */
+  it('drops a routine whose name is blank or whitespace, and trims a kept one', () => {
+    const stored = JSON.stringify([
+      { id: 'a', name: '', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+      { id: 'b', name: '   ', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+      { id: 'c', name: '  Kept  ', blocks: [{ poolKey: 'naturals', bpm: 60, beats: 4 }] },
+    ])
+
+    const parsed = parseRoutines(stored)!
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({ id: 'c', name: 'Kept' })
+  })
+
+  /**
+   * `isPoolKey` used to check `value in POOL_LABELS`, which also matches
+   * anything inherited from `Object.prototype` — a stored block keyed
+   * `'toString'` would pass as a pool key and `blockPoolLabel` would then
+   * return the inherited function itself.
+   */
+  it.each(['toString', 'constructor', '__proto__', 'hasOwnProperty'])(
+    'drops a block whose poolKey is only an inherited property, not its own (%s)',
+    (poolKey) => {
+      const stored = JSON.stringify([{ id: 'a', name: 'Hostile', blocks: [{ poolKey, bpm: 60, beats: 4 }] }])
+      expect(parseRoutines(stored)).toEqual([])
+    },
+  )
+
+  it('accepts every real pool key', () => {
+    const poolKeys: PoolKey[] = [
+      'chromatic',
+      'naturals',
+      'accidentals',
+      'C',
+      'G',
+      'D',
+      'A',
+      'E',
+      'F',
+      'Bb',
+      'Eb',
+      'Am',
+      'Em',
+      'Dm',
+      'Ablues',
+      'custom',
+    ]
+    const stored = JSON.stringify(
+      poolKeys.map((poolKey, index) => ({
+        id: `routine-${index}`,
+        name: `Routine ${index}`,
+        blocks: [{ poolKey, bpm: 60, beats: 4 }],
+      })),
+    )
+
+    const parsed = parseRoutines(stored)!
+    expect(parsed.map((routine) => routine.blocks[0].poolKey)).toEqual(poolKeys)
   })
 
   /** A repeat would be dealt twice a lap and give two chips the same key. */
