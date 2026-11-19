@@ -122,6 +122,23 @@ export function FretboardCard({
           </div>
         </div>
       </div>
+
+      <details className="fretboard-positions" data-testid="fretboard-positions">
+        {/* tabIndex is load-bearing, not decoration: isInteractiveTarget in
+            useKeyboardShortcuts only exempts a tabindex attribute, a button, a
+            link or a few roles. A bare summary matches none of those, so Space
+            would reach the transport's play/pause instead of toggling this. */}
+        <summary tabIndex={0}>Read fret positions</summary>
+        {currentPc !== null ? (
+          <ul>
+            {strings.map((string) => (
+              <li key={string.ordinal}>{describePositions([string])}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>No note called — {neck}</p>
+        )}
+      </details>
     </section>
   )
 }
