@@ -8,6 +8,7 @@ import {
 } from './machine'
 import { MAX_BPM, NOTE_LIST_LENGTH, PLAYBACK_MESSAGES, SCHEDULE_AHEAD_S } from '../../constants'
 import type { SpellingPreference } from '../notes'
+import type { NoteOrder } from './deck'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
 const IDENTITY = 0.99
@@ -101,6 +102,7 @@ type HarnessOptions = {
   settings?: Partial<PlaybackSettings>
   pool?: number[]
   spelling?: SpellingPreference
+  order?: NoteOrder
   random?: () => number
 }
 
@@ -116,6 +118,7 @@ const createHarness = (options: HarnessOptions = {}) => {
   const state = {
     pool: options.pool ?? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     spelling: options.spelling ?? ('sharp' as SpellingPreference),
+    order: options.order ?? ('shuffled' as NoteOrder),
   }
 
   const snapshots: PlaybackSnapshot[] = []
@@ -140,6 +143,7 @@ const createHarness = (options: HarnessOptions = {}) => {
     getSettings: () => settings,
     getPool: () => state.pool,
     getSpelling: () => state.spelling,
+    getOrder: () => state.order,
     onSnapshot: (snapshot) => snapshots.push(snapshot),
     onBeat: (event) => beats.push(event),
     onBpmChange: (bpm) => bpmChanges.push(bpm),
@@ -817,6 +821,60 @@ describe('end of cycle without looping', () => {
     harness.advanceTo(3)
     expect(harness.audio.chimes).toHaveLength(0)
     expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.finished(2))
+  })
+})
+
+describe('note order', () => {
+  const calledPcs = (beats: BeatEvent[]) => beats.flatMap((beat) => (beat.note ? [beat.note.pc] : []))
+
+  it('gives a finished Fourths run a fresh random start', async () => {
+    // The first deal starts on pool[0]; the reseed after the finish on pool[2].
+    const draws = [0, 0.99]
+    const harness = createHarness({
+      pool: [0, 5, 10],
+      order: 'fourths',
+      settings: { continuousMode: false },
+      random: () => draws.shift() ?? 0.5,
+    })
+    await harness.machine.start()
+    harness.advanceTo(4)
+
+    expect(calledPcs(harness.beats)).toEqual([0, 5, 10])
+    expect(harness.snapshot()).toMatchObject({ status: 'idle', nextNote: { pc: 10 } })
+
+    const beatsBefore = harness.beats.length
+    await harness.machine.start()
+    harness.advanceTo(8)
+    expect(calledPcs(harness.beats.slice(beatsBefore))).toEqual([10, 0, 5])
+  })
+
+  it('carries on round the circle across a pause', async () => {
+    const harness = createHarness({ order: 'fourths', random: () => 0 })
+    await harness.machine.start()
+    harness.advanceTo(1.5)
+    harness.machine.pause()
+
+    await harness.machine.start()
+    harness.advanceTo(4)
+
+    expect(calledPcs(harness.beats).slice(0, 4)).toEqual([0, 5, 10, 3])
+  })
+
+  it('leaves a finished Shuffled run\'s deck alone', async () => {
+    // Varied draws, so a reshuffle at the finish would deal a different bag.
+    const values = [0, 0.6, 0.3, 0.9, 0.1]
+    let draw = 0
+    const harness = createHarness({
+      pool: [0, 1, 2, 3],
+      settings: { continuousMode: false },
+      random: () => values[draw++ % values.length],
+    })
+    await harness.machine.start()
+    harness.advanceTo(6)
+
+    const lastCall = harness.beats.filter((beat) => beat.note).at(-1)
+    expect(harness.snapshot().status).toBe('idle')
+    expect(harness.snapshot().nextNote).toEqual(lastCall?.nextNote)
   })
 })
 

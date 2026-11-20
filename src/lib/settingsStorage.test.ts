@@ -90,6 +90,24 @@ describe('initSettings', () => {
     expect(initSettings().tuning).toBe('standard')
   })
 
+  it('reads back a stored fourths note order', () => {
+    window.localStorage.setItem(STORAGE_KEYS.noteOrder, 'fourths')
+    expect(initSettings().noteOrder).toBe('fourths')
+  })
+
+  it.each(['circle', 'Fourths', ''])('rejects %j as a note order and shuffles', (raw) => {
+    window.localStorage.setItem(STORAGE_KEYS.noteOrder, raw)
+    expect(initSettings().noteOrder).toBe('shuffled')
+  })
+
+  it('round-trips the note order through writeChangedSettings', () => {
+    const previous = initSettings()
+    writeChangedSettings(previous, { ...previous, noteOrder: 'fourths' })
+
+    expect(window.localStorage.getItem(STORAGE_KEYS.noteOrder)).toBe('fourths')
+    expect(initSettings().noteOrder).toBe('fourths')
+  })
+
   it('flips the neck left-handed only from a literal true', () => {
     window.localStorage.setItem(STORAGE_KEYS.leftHanded, 'true')
     expect(initSettings().leftHanded).toBe(true)
@@ -172,6 +190,7 @@ describe('writeChangedSettings', () => {
     STORAGE_KEYS.speakNotes,
     STORAGE_KEYS.beatsPerNote,
     STORAGE_KEYS.spelling,
+    STORAGE_KEYS.noteOrder,
     STORAGE_KEYS.notePool,
     STORAGE_KEYS.sessionGoal,
     STORAGE_KEYS.showFretboard,

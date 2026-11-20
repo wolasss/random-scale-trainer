@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faShuffle } from '@fortawesome/free-solid-svg-icons/faShuffle'
-import { createNoteDeck } from '../lib/playback/deck'
+import { createNoteDeck, type NoteOrder } from '../lib/playback/deck'
 import type { NoteCall, SpellingPreference } from '../lib/notes'
 
 type NoteListProps = {
   pool: number[]
   spelling: SpellingPreference
+  /** The order the list is dealt in; a fourths list starts on a random note. */
+  order?: NoteOrder | undefined
   bpm: number
   metronomeEnabled: boolean
   beatsPerNote: number
@@ -17,10 +19,16 @@ type NoteListProps = {
   random?: () => number
 }
 
-const dealList = (pool: number[], spelling: SpellingPreference, random?: () => number): NoteCall[] => {
+const dealList = (
+  pool: number[],
+  spelling: SpellingPreference,
+  order: NoteOrder,
+  random?: () => number,
+): NoteCall[] => {
   const deck = createNoteDeck({
     getPool: () => pool,
     getSpelling: () => spelling,
+    getOrder: () => order,
     ...(random === undefined ? {} : { random }),
   })
 
@@ -38,29 +46,33 @@ type NoteListDeal = {
   notes: NoteCall[]
   pool: number[]
   spelling: SpellingPreference
+  order: NoteOrder
 }
 
 const createDeal = (
   pool: number[],
   spelling: SpellingPreference,
+  order: NoteOrder,
   random?: () => number,
 ): NoteListDeal => ({
-  notes: dealList(pool, spelling, random),
+  notes: dealList(pool, spelling, order, random),
   pool: [...pool],
   spelling,
+  order,
 })
 
 const samePool = (left: number[], right: number[]) =>
   left.length === right.length && left.every((pc, index) => pc === right[index])
 
 /**
- * One shuffled practice list, deliberately independent from playback. Beat
+ * One practice list, shuffled or in fourths, deliberately independent from playback. Beat
  * snapshots and setup edits may re-render this component, but only the button
  * deals a new order.
  */
 export function NoteList({
   pool,
   spelling,
+  order = 'shuffled',
   bpm,
   metronomeEnabled,
   beatsPerNote,
@@ -69,8 +81,8 @@ export function NoteList({
   onRegenerate,
   random,
 }: NoteListProps) {
-  const [deal, setDeal] = useState(() => createDeal(pool, spelling, random))
-  const settingsChanged = deal.spelling !== spelling || !samePool(deal.pool, pool)
+  const [deal, setDeal] = useState(() => createDeal(pool, spelling, order, random))
+  const settingsChanged = deal.spelling !== spelling || deal.order !== order || !samePool(deal.pool, pool)
   const timingText = metronomeEnabled
     ? `Metronome on · ${bpm} BPM · ${beatsPerNote === 1 ? 'accent every beat' : `accent every ${beatsPerNote} beats`}`
     : 'Metronome off'
@@ -115,7 +127,7 @@ export function NoteList({
               data-testid="note-list-regenerate"
               onClick={() => {
                 onRegenerate?.()
-                setDeal(createDeal(pool, spelling, random))
+                setDeal(createDeal(pool, spelling, order, random))
               }}
             >
               <FontAwesomeIcon icon={faShuffle} aria-hidden="true" /> Shuffle list

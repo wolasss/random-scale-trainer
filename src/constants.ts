@@ -95,6 +95,9 @@ export const STORAGE_KEYS = {
   speakNotes: 'fretboard-speak-notes',
   beatsPerNote: 'fretboard-beats-per-note',
   spelling: 'fretboard-spelling',
+  // The order notes are dealt in: literally 'shuffled' or 'fourths'. Anything
+  // else is rejected and the notes are shuffled.
+  noteOrder: 'fretboard-note-order',
   // Pitch classes as comma-joined indices — '0,4,7'. Rejected as a whole
   // unless every segment is a distinct integer within the octave, so a gappy
   // '1,,3' can't coerce its way into a pool holding C.

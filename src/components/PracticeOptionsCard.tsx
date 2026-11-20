@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
 import { isMicSupported } from '../lib/audio/mic'
+import type { NoteOrder } from '../lib/playback/deck'
 import type { Settings, SettingsToggleKey } from '../hooks/useSettings'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { SwitchRow } from './ui/SwitchRow'
 
 type PracticeOptionsCardProps = {
   settings: Settings
   onToggle: (key: SettingsToggleKey) => void
+  onOrder: (order: NoteOrder) => void
   /** Challenges call and score one note at a time, so a static list cannot run there. */
   listModeUnavailable?: boolean
   /** The map would show where every scored note lives, so a challenge hides it. */
@@ -13,6 +16,11 @@ type PracticeOptionsCardProps = {
   /** A challenge prices notes at their full span, so none may be cut short there. */
   earlyAdvanceUnavailable?: boolean
 }
+
+const ORDER_OPTIONS: ReadonlyArray<{ value: NoteOrder; label: string }> = [
+  { value: 'shuffled', label: 'Shuffled' },
+  { value: 'fourths', label: 'Fourths' },
+]
 
 /** A labelled run of switches that share a purpose, so the card reads as a few questions rather than one long list. */
 function OptionGroup({ id, label, children }: { id: string; label: string; children: ReactNode }) {
@@ -31,6 +39,7 @@ function OptionGroup({ id, label, children }: { id: string; label: string; child
 export function PracticeOptionsCard({
   settings,
   onToggle,
+  onOrder,
   listModeUnavailable = false,
   fretboardUnavailable = false,
   earlyAdvanceUnavailable = false,
@@ -61,6 +70,24 @@ export function PracticeOptionsCard({
     />
   )
 
+  const orderControl = (
+    <div className="control-block">
+      <div className="control-label-row">
+        <span className="label">Note order</span>
+      </div>
+      <SegmentedControl
+        ariaLabel="Note order"
+        testId="note-order"
+        options={ORDER_OPTIONS}
+        value={settings.noteOrder}
+        onChange={onOrder}
+      />
+      <p className="control-subtitle">
+        Fourths walks C, F, Bb, Eb… — each next note a string higher at the same fret. Challenges always shuffle.
+      </p>
+    </div>
+  )
+
   return (
     <section className="panel practice-options-card">
       <div className="panel-heading">
@@ -72,6 +99,7 @@ export function PracticeOptionsCard({
         <>
           <OptionGroup id="options-list" label="Practising from a list">
             {listModeSwitch}
+            {orderControl}
             <SwitchRow
               id="list-metronome"
               label="Metronome click"
@@ -109,6 +137,7 @@ export function PracticeOptionsCard({
               checked={settings.continuousMode}
               onChange={() => onToggle('continuousMode')}
             />
+            {orderControl}
             <SwitchRow
               id="speak-notes"
               label="Say the note aloud"

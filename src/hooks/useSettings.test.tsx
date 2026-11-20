@@ -19,6 +19,7 @@ const baseSettings = (): Settings => ({
   micEnabled: false,
   advanceOnOctaves: false,
   spelling: 'mixed',
+  noteOrder: 'shuffled',
   pool: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   sessionGoalMin: 10,
   endSoundEnabled: true,
@@ -144,6 +145,14 @@ describe('settingsReducer', () => {
     expect(flipped.leftHanded).toBe(true)
     expect(flipped.tuning).toBe('dadgad')
     expect(settingsReducer(flipped, { type: 'setLeftHanded', leftHanded: false }).leftHanded).toBe(false)
+  })
+  it('sets the note order', () => {
+    const state = baseSettings()
+
+    expect(settingsReducer(state, { type: 'setNoteOrder', value: 'fourths' }).noteOrder).toBe('fourths')
+    expect(settingsReducer({ ...state, noteOrder: 'fourths' }, { type: 'setNoteOrder', value: 'shuffled' }).noteOrder).toBe(
+      'shuffled',
+    )
   })
 })
 

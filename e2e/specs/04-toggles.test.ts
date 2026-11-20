@@ -82,3 +82,30 @@ describe('continuous and speed ramp switches', () => {
     assert.equal(await page().getLocalStorage(STORAGE_KEYS.speedRampMode), 'false')
   })
 })
+
+describe('note order', () => {
+  const page = useTrainerSession()
+  const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B']
+
+  beforeEach(async () => {
+    await page().openFresh()
+  })
+
+  it('remembers Fourths across a reload and lists the notes round the circle', async () => {
+    assert.equal(await page().getNoteOrder(), 'shuffled')
+
+    await page().setSpelling('flat')
+    await page().setNoteOrder('fourths')
+    assert.equal(await page().getLocalStorage(STORAGE_KEYS.noteOrder), 'fourths')
+
+    await page().seedStorageAndReload(STORAGE_KEYS.noteList, 'true')
+    assert.equal(await page().getNoteOrder(), 'fourths')
+
+    // The start is random, so check the steps: each next note a fourth up.
+    const pcs = (await page().getNoteListNames()).map((name) => FLAT_NAMES.indexOf(name))
+    assert.equal(pcs.length, 12)
+    for (let index = 1; index < pcs.length; index++) {
+      assert.equal(pcs[index], (pcs[index - 1] + 5) % 12)
+    }
+  })
+})

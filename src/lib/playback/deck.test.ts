@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { createNoteDeck } from './deck'
+import { createNoteDeck, fourthsOrder, type NoteOrder } from './deck'
 import type { SpellingPreference } from '../notes'
 
 /** Deterministic RNG: yields the given values in order, then 0.5 forever. */
@@ -14,12 +14,17 @@ const IDENTITY = 0.99
 
 const makeDeck = (
   pool: number[],
-  options: { spelling?: SpellingPreference; random?: () => number } = {},
+  options: { spelling?: SpellingPreference; order?: NoteOrder; random?: () => number } = {},
 ) => {
-  const state = { pool, spelling: options.spelling ?? ('flat' as SpellingPreference) }
+  const state = {
+    pool,
+    spelling: options.spelling ?? ('flat' as SpellingPreference),
+    order: options.order ?? ('shuffled' as NoteOrder),
+  }
   const deck = createNoteDeck({
     getPool: () => state.pool,
     getSpelling: () => state.spelling,
+    getOrder: () => state.order,
     random: options.random ?? sequence(),
   })
 
@@ -151,5 +156,98 @@ describe('createNoteDeck', () => {
     const { deck } = makeDeck([1], { spelling: 'mixed', random: () => 0 })
 
     expect(deck.draw()!).toMatchObject({ display: 'C♯', audioKey: 'C#' })
+  })
+})
+
+const CHROMATIC = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+const C_MAJOR = [0, 2, 4, 5, 7, 9, 11]
+
+describe('fourthsOrder', () => {
+  it('walks the full chromatic pool round the circle of fourths', () => {
+    expect(fourthsOrder(CHROMATIC, 0)).toEqual([0, 5, 10, 3, 8, 1, 6, 11, 4, 9, 2, 7])
+  })
+
+  it('skips the pitch classes a sparse pool does not hold', () => {
+    expect(fourthsOrder(C_MAJOR, 0)).toEqual([0, 5, 11, 4, 9, 2, 7])
+  })
+})
+
+describe('createNoteDeck in fourths', () => {
+  const draw = (deck: ReturnType<typeof makeDeck>['deck'], count: number) =>
+    Array.from({ length: count }, () => deck.draw()!.pc)
+
+  it('starts on a random pool note after a reset', () => {
+    const { deck } = makeDeck(CHROMATIC, { order: 'fourths', random: sequence(0.5) })
+
+    expect(draw(deck, 3)).toEqual([6, 11, 4])
+  })
+
+  it('carries on round the circle across the cycle boundary', () => {
+    const { deck } = makeDeck(C_MAJOR, { order: 'fourths', random: sequence(0) })
+
+    const drawn = draw(deck, 14)
+    expect(drawn).toEqual([0, 5, 11, 4, 9, 2, 7, 0, 5, 11, 4, 9, 2, 7])
+    expect(deck.draw()).toMatchObject({ pc: 0 })
+  })
+
+  it('flags each bag head as a cycle start', () => {
+    const { deck } = makeDeck([0, 5, 10], { order: 'fourths', random: sequence(0) })
+
+    expect(Array.from({ length: 6 }, () => deck.draw()!.cycleStart)).toEqual([true, false, false, true, false, false])
+  })
+
+  it('picks up from the last note played when switched mid-run', () => {
+    const { deck, state } = makeDeck(CHROMATIC, { random: sequence(IDENTITY, IDENTITY, IDENTITY) })
+    deck.draw()
+    deck.draw()
+    const last = deck.draw()!.pc
+
+    state.order = 'fourths'
+    deck.invalidate()
+
+    expect(draw(deck, 2)).toEqual([(last + 5) % 12, (last + 10) % 12])
+  })
+
+  it('carries on from a last note the new pool no longer holds', () => {
+    const { deck, state } = makeDeck([0, 5, 10], { order: 'fourths', random: sequence(0) })
+    deck.draw()
+
+    // 0 was played; the next pool note a fourth or more past it is 10.
+    state.pool = [10, 11]
+    deck.invalidate()
+
+    expect(draw(deck, 3)).toEqual([10, 11, 10])
+  })
+
+  it('draws no random number for a pool already under way', () => {
+    let calls = 0
+    const { deck } = makeDeck(C_MAJOR, {
+      order: 'fourths',
+      random: () => {
+        calls += 1
+        return 0
+      },
+    })
+
+    draw(deck, 20)
+    expect(calls).toBe(1)
+  })
+})
+
+describe('createNoteDeck shuffled order', () => {
+  it('deals exactly as a deck with no order at all', () => {
+    // Mixed spelling draws from the same random source, so it is checked too.
+    const values = [0.1, 0.7, 0.3, 0.9, 0.5, 0.2, 0.8, 0.4]
+    const deal = (getOrder?: () => NoteOrder) => {
+      const deck = createNoteDeck({
+        getPool: () => CHROMATIC,
+        getSpelling: () => 'mixed',
+        getOrder,
+        random: sequence(...values),
+      })
+      return Array.from({ length: 30 }, () => deck.draw())
+    }
+
+    expect(deal(() => 'shuffled')).toEqual(deal())
   })
 })

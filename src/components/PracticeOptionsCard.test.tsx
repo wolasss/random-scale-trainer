@@ -27,6 +27,7 @@ const SETTINGS: Settings = {
   micEnabled: false,
   advanceOnOctaves: false,
   spelling: 'flat',
+  noteOrder: 'shuffled',
   pool: [0, 2, 4, 5, 7, 9, 11],
   sessionGoalMin: 10,
   endSoundEnabled: true,
@@ -41,6 +42,7 @@ const renderCard = (
   const props = {
     settings: { ...SETTINGS, ...overrides },
     onToggle: vi.fn(),
+    onOrder: vi.fn(),
     listModeUnavailable,
     fretboardUnavailable,
     earlyAdvanceUnavailable,
@@ -116,6 +118,43 @@ describe('PracticeOptionsCard layout', () => {
     expect(screen.getByRole('switch', { name: 'List mode' })).toHaveAccessibleDescription(
       'One shuffled list of all selected notes, timed with a stopwatch, instead of notes called one by one. Pauses spoken notes, the mic and the fretboard.',
     )
+  })
+})
+
+describe('PracticeOptionsCard note order', () => {
+  it.each([
+    ['While playing', {}],
+    ['Practising from a list', { noteListMode: true }],
+  ])('offers a labelled Note order choice under %s', (groupName, overrides) => {
+    renderCard(overrides)
+
+    const group = screen.getByRole('group', { name: groupName })
+    const order = within(group).getByRole('radiogroup', { name: 'Note order' })
+
+    expect(within(order).getByRole('radio', { name: 'Shuffled' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(order).getByRole('radio', { name: 'Fourths' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('reports a click on Fourths', () => {
+    const { props } = renderCard()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Fourths' }))
+
+    expect(props.onOrder).toHaveBeenCalledWith('fourths')
+  })
+
+  it('moves to Fourths with the arrow keys', () => {
+    const { props } = renderCard()
+
+    fireEvent.keyDown(screen.getByRole('radio', { name: 'Shuffled' }), { key: 'ArrowRight' })
+
+    expect(props.onOrder).toHaveBeenCalledWith('fourths')
+  })
+
+  it('checks the stored order', () => {
+    renderCard({ noteOrder: 'fourths' })
+
+    expect(screen.getByRole('radio', { name: 'Fourths' })).toHaveAttribute('aria-checked', 'true')
   })
 })
 

@@ -38,6 +38,24 @@ describe('NoteList', () => {
     expect(screen.getByTestId('note-list-summary')).toHaveTextContent('3-note list')
   })
 
+  it('lists the notes round the circle of fourths in Fourths order', () => {
+    render(list({ pool: [0, 2, 4, 5, 7, 9, 11], spelling: 'flat', order: 'fourths', random: () => 0 }))
+
+    expect(names()).toEqual(['C', 'F', 'B', 'E', 'A', 'D', 'G'])
+  })
+
+  it('asks for a reshuffle when the order changes, and deals the new order on it', () => {
+    const { rerender } = render(list({ pool: [0, 5, 10], spelling: 'flat', random: () => 0.99 }))
+    expect(screen.queryByTestId('note-list-pending')).toBeNull()
+
+    rerender(list({ pool: [0, 5, 10], spelling: 'flat', order: 'fourths', random: () => 0.5 }))
+    expect(screen.getByTestId('note-list-pending')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shuffle list' }))
+    expect(names()).toEqual(['F', 'B♭', 'C'])
+    expect(screen.queryByTestId('note-list-pending')).toBeNull()
+  })
+
   it('replaces irrelevant tempo detail when the metronome is off', () => {
     render(
       <NoteList

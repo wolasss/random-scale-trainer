@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import type { PlaybackSnapshot } from '../lib/playback/machine'
 import type { IdlePreviewNote } from '../hooks/useIdlePreview'
 import type { SpellingPreference } from '../lib/notes'
+import type { NoteOrder } from '../lib/playback/deck'
 import { PLAYBACK_MESSAGES } from '../constants'
 import { useHardwareKeyboard } from '../hooks/useHardwareKeyboard'
 import { NoteList } from './NoteList'
@@ -13,6 +14,8 @@ type HeroProps = {
   beatsPerNote: number
   pool: number[]
   spelling: SpellingPreference
+  /** The order list mode deals its notes in. */
+  order?: NoteOrder | undefined
   ringRef: RefObject<HTMLDivElement | null>
   /** Replaces the coaching line while a multi-block routine names its block. */
   message?: string | undefined
@@ -96,6 +99,7 @@ export function Hero({
   beatsPerNote,
   pool,
   spelling,
+  order,
   ringRef,
   message,
   idlePreview,
@@ -167,6 +171,7 @@ export function Hero({
     <NoteList
       pool={pool}
       spelling={spelling}
+      order={order}
       bpm={bpm}
       metronomeEnabled={metronomeEnabled}
       beatsPerNote={beatsPerNote}
