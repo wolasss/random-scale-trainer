@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { STORAGE_KEYS } from '../constants'
-import { initSettings, writeChangedSettings } from './settingsStorage'
+import { initSettings, writeChangedSettings, type Settings } from './settingsStorage'
 
 describe('initSettings', () => {
   it('accepts a listed sessionGoalMin', () => {
@@ -151,6 +151,16 @@ describe('initSettings', () => {
     expect(initSettings().pool).toEqual([1, 2])
   })
 
+  it.each(['flat', 'sharp', 'mixed'])('reads back a stored %j spelling', (raw) => {
+    window.localStorage.setItem(STORAGE_KEYS.spelling, raw)
+    expect(initSettings().spelling).toBe(raw)
+  })
+
+  it.each(['"flat"', 'Sharp', 'both', ''])('rejects %j as a spelling and falls back to mixed', (raw) => {
+    window.localStorage.setItem(STORAGE_KEYS.spelling, raw)
+    expect(initSettings().spelling).toBe('mixed')
+  })
+
   it('drops a stored speedRampMode when continuousMode is stored off', () => {
     window.localStorage.setItem(STORAGE_KEYS.continuousMode, 'false')
     window.localStorage.setItem(STORAGE_KEYS.speedRampMode, 'true')
@@ -186,6 +196,41 @@ describe('writeChangedSettings', () => {
     for (const key of codecStorageKeys) {
       expect(window.localStorage.getItem(key)).not.toBeNull()
     }
+  })
+
+  it('reads back every setting it wrote, each one away from its default', () => {
+    const defaults = initSettings()
+    const changed: Settings = {
+      bpm: 133,
+      beatsPerNote: 12,
+      continuousMode: true,
+      countInEnabled: false,
+      speakNotes: false,
+      speedRampMode: true,
+      rampTargetBpm: 180,
+      showFretboard: true,
+      noteListMode: true,
+      listMetronomeEnabled: false,
+      tuning: 'openG',
+      leftHanded: true,
+      micEnabled: true,
+      advanceOnOctaves: true,
+      spelling: 'sharp',
+      pool: [2, 5, 9, 11],
+      sessionGoalMin: 30,
+      endSoundEnabled: false,
+    }
+    // continuousMode is the one field left at its default: turning it off
+    // would discard the ramp on read, and that rule has its own test above.
+    for (const key of Object.keys(changed) as (keyof Settings)[]) {
+      if (key !== 'continuousMode') {
+        expect(changed[key], key).not.toEqual(defaults[key])
+      }
+    }
+
+    writeChangedSettings(null, changed)
+
+    expect(initSettings()).toEqual(changed)
   })
 
   it('writes only the keys whose value changed', () => {
