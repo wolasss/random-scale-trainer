@@ -10,6 +10,7 @@ import {
   type BeatsPerNote,
 } from '../constants'
 import { PITCH_CLASSES, sortedPcs, type SpellingPreference } from './notes'
+import { NOTE_ORDERS, type NoteOrder } from './playback/deck'
 import { readRaw, writeRaw } from './storage'
 import { DEFAULT_TUNING_ID, isTuningId, type TuningId } from './tunings'
 
@@ -68,6 +69,8 @@ export type Settings = {
   advanceOnOctaves: boolean
   /** Whether note names read as flats, sharps, or a mix. */
   spelling: SpellingPreference
+  /** Deal the pool shuffled, or round the circle of fourths. */
+  noteOrder: NoteOrder
   /** Sorted unique pitch classes; never empty. */
   pool: number[]
   /** The session-timer goal in minutes; one of `SESSION_GOAL_OPTIONS`. */
@@ -144,6 +147,11 @@ const SETTING_CODECS: { [K in keyof Settings]: Codec<Settings[K]> } = {
       raw === 'flat' || raw === 'sharp' || raw === 'mixed' ? (raw as SpellingPreference) : undefined,
     serialize: String,
   },
+  noteOrder: {
+    storageKey: STORAGE_KEYS.noteOrder,
+    deserialize: (raw) => NOTE_ORDERS.find((order) => order === raw),
+    serialize: String,
+  },
   pool: {
     storageKey: STORAGE_KEYS.notePool,
     // Checked segment by segment as text: `split` always hands back at least
@@ -184,6 +192,7 @@ const DEFAULT_SETTINGS: Settings = {
   micEnabled: false,
   advanceOnOctaves: false,
   spelling: 'mixed',
+  noteOrder: 'shuffled',
   pool: [...PITCH_CLASSES],
   sessionGoalMin: DEFAULT_SESSION_GOAL_MIN as SessionGoalMin,
   endSoundEnabled: true,

@@ -7,7 +7,7 @@ import {
   SCHEDULER_TICK_MS,
 } from '../../constants'
 import type { NoteCall, SpellingPreference } from '../notes'
-import { createNoteDeck } from './deck'
+import { createNoteDeck, type NoteOrder } from './deck'
 import { createSchedulingState, stepBeat, type BeatEvent } from './program'
 import { createTempoControl, rampCeiling } from './tempo'
 
@@ -88,6 +88,7 @@ export type PlaybackMachineDeps = {
   getSettings(): PlaybackSettings
   getPool(): number[]
   getSpelling(): SpellingPreference
+  getOrder(): NoteOrder
   onSnapshot(snapshot: PlaybackSnapshot): void
   /** Fired at visual time for every beat — drive ref-based effects here. */
   onBeat?(event: BeatEvent): void
@@ -107,7 +108,7 @@ export type PlaybackMachine = {
   pause(): void
   stop(message?: string): void
   reset(): void
-  /** Pool or spelling changed: drop pending notes, refresh the preview. */
+  /** Pool, spelling or order changed: drop pending notes, refresh the preview. */
   invalidateDeck(): void
   /**
    * The note called at `callTime` has been got: call the next one on the next
@@ -151,11 +152,21 @@ export const INITIAL_PLAYBACK_SNAPSHOT: PlaybackSnapshot = {
 const CALL_TIME_EPSILON_S = 0.001
 
 export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachine => {
-  const { audio, getSettings, getPool, getSpelling, onSnapshot, onBeat, onBpmChange, onSessionStart, onSessionPause } =
-    deps
+  const {
+    audio,
+    getSettings,
+    getPool,
+    getSpelling,
+    getOrder,
+    onSnapshot,
+    onBeat,
+    onBpmChange,
+    onSessionStart,
+    onSessionPause,
+  } = deps
   const timers = deps.timers ?? defaultTimers
   const frame = deps.frame ?? defaultFrame
-  const deck = createNoteDeck({ getPool, getSpelling, random: deps.random })
+  const deck = createNoteDeck({ getPool, getSpelling, getOrder, random: deps.random })
 
   let snapshot: PlaybackSnapshot = { ...INITIAL_PLAYBACK_SNAPSHOT }
   let active = false
@@ -259,6 +270,13 @@ export const createPlaybackMachine = (deps: PlaybackMachineDeps): PlaybackMachin
     haltScheduling(keepSessionEndChime)
     sessionStartQueued = false
     onSessionPause()
+    // A start from idle never resets the deck, so a finished Fourths run
+    // would carry straight on round the circle. Reseed it here so the next
+    // run, and the idle preview of it, gets a fresh random start.
+    if (getOrder() === 'fourths') {
+      deck.reset()
+    }
+
     emit({
       status: 'idle',
       currentNote: null,

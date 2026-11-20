@@ -4,6 +4,7 @@ import { usePlayback, type UsePlaybackOptions } from './usePlayback'
 import { MAX_BPM, RAMP_BPM_STEP } from '../constants'
 import type { PlaybackAudioPort, PlaybackSettings } from '../lib/playback/machine'
 import type { SpellingPreference } from '../lib/notes'
+import type { NoteOrder } from '../lib/playback/deck'
 
 /** With j === i at every Fisher–Yates step, bags keep pool order. */
 const IDENTITY = 0.99
@@ -138,6 +139,7 @@ type PlaybackProps = {
   settings: PlaybackSettings
   pool: number[]
   spelling: SpellingPreference
+  order?: NoteOrder
   onBpmChange: (bpm: number) => void
 }
 
@@ -160,6 +162,7 @@ const renderPlayback = (initial: Partial<PlaybackProps> = {}) => {
         settings: props.settings,
         pool: props.pool,
         spelling: props.spelling,
+        order: props.order ?? 'shuffled',
         onBpmChange: props.onBpmChange,
         onSessionStart,
         onSessionPause,
@@ -207,6 +210,18 @@ describe('usePlayback', () => {
     rerender({ ...initialProps, spelling: 'flat' })
 
     expect(result.current.snapshot.nextNote?.display).toBe('D♭')
+  })
+
+  it('re-deals the preview when the note order changes', () => {
+    // The identity shuffle keeps pool order; a fourths deal starts on the
+    // random pick, which the same draw lands on the last pool note.
+    const { result, rerender, initialProps } = renderPlayback({ pool: [0, 5, 10], spelling: 'flat' })
+
+    expect(result.current.snapshot.upcomingNotes.map((note) => note.display).slice(0, 3)).toEqual(['C', 'F', 'B♭'])
+
+    rerender({ ...initialProps, order: 'fourths' })
+
+    expect(result.current.snapshot.upcomingNotes.map((note) => note.display).slice(0, 3)).toEqual(['B♭', 'C', 'F'])
   })
 
   it('disposes the machine on unmount, so nothing is left scheduled', async () => {

@@ -32,6 +32,8 @@ export const STORAGE_KEYS = {
   beatsPerNote: 'fretboard-beats-per-note',
   notePool: 'fretboard-note-pool',
   spelling: 'fretboard-spelling',
+  noteOrder: 'fretboard-note-order',
+  noteList: 'fretboard-note-list',
   sessionGoal: 'fretboard-session-goal',
   setupRevealed: 'fretboard-setup-revealed',
   micListen: 'fretboard-mic-listen',
@@ -67,6 +69,8 @@ const SELECTORS = {
   presetSelect: By.css('[data-testid="preset-select"]'),
   poolGuarantee: By.css('[data-testid="pool-guarantee"]'),
   spelling: By.css('[data-testid="spelling"]'),
+  noteOrder: By.css('[data-testid="note-order"]'),
+  noteListItem: By.css('[data-testid="note-list-item"]'),
   sessionGoal: By.css('[data-testid="session-goal"]'),
   sessionProgress: By.css('[data-testid="session-progress"]'),
   statNotes: By.css('[data-testid="stat-notes"]'),
@@ -684,6 +688,32 @@ export class TrainerPage {
       .findElement(SELECTORS.spelling)
       .findElement(By.css(`[data-value="${value}"]`))
       .click()
+  }
+
+  async setNoteOrder(value: 'shuffled' | 'fourths'): Promise<void> {
+    await this.driver
+      .findElement(SELECTORS.noteOrder)
+      .findElement(By.css(`[data-value="${value}"]`))
+      .click()
+  }
+
+  /** The note order whose radio is checked, by its value. */
+  async getNoteOrder(): Promise<string | null> {
+    return this.driver
+      .findElement(SELECTORS.noteOrder)
+      .findElement(By.css('[aria-checked="true"]'))
+      .getAttribute('data-value')
+  }
+
+  async isNoteOrderDisplayed(): Promise<boolean> {
+    const found = await this.driver.findElements(SELECTORS.noteOrder)
+    return found.length > 0 && (await found[0].isDisplayed())
+  }
+
+  /** The names list mode shows, top to bottom. */
+  async getNoteListNames(): Promise<string[]> {
+    const items = await this.driver.findElements(SELECTORS.noteListItem)
+    return Promise.all(items.map((item) => item.getText()))
   }
 
   async setSessionGoal(minutes: 5 | 10 | 20 | 30): Promise<void> {

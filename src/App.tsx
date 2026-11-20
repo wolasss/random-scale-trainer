@@ -144,6 +144,9 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   })
   const beatPulse = useBeatPulse()
 
+  // A challenge always shuffles: a known order would give its scored notes away.
+  const noteOrder = challenge.active ? 'shuffled' : settings.noteOrder
+
   const playback = usePlayback({
     // List-only keeps the saved regular-practice preferences intact while
     // suppressing features that do not belong to a fixed visual exercise.
@@ -158,6 +161,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     },
     pool: settings.pool,
     spelling: settings.spelling,
+    order: noteOrder,
     // The speed ramp's write-back goes to the raw dispatch: it is the routine's
     // own doing, never the user drifting off one.
     onBpmChange: (bpm) => dispatch({ type: 'setBpm', bpm }),
@@ -568,6 +572,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       fretboardUnavailable={challenge.active}
       earlyAdvanceUnavailable={challenge.active}
       onToggle={(key) => dispatch({ type: 'toggle', key })}
+      onOrder={(value) => dispatch({ type: 'setNoteOrder', value })}
     />
   )
 
@@ -717,6 +722,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
             beatsPerNote={settings.beatsPerNote}
             pool={settings.pool}
             spelling={settings.spelling}
+            order={noteOrder}
             ringRef={beatPulse.ringRef}
             message={heroMessage}
             idlePreview={idlePreview}
@@ -789,6 +795,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           beatsPerNote={settings.beatsPerNote}
           pool={settings.pool}
           spelling={settings.spelling}
+          order={noteOrder}
           ringRef={beatPulse.ringRef}
           message={heroMessage}
           idlePreview={idlePreview}

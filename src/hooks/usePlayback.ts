@@ -12,11 +12,13 @@ import {
   type PlaybackTimers,
 } from '../lib/playback/machine'
 import type { SpellingPreference } from '../lib/notes'
+import type { NoteOrder } from '../lib/playback/deck'
 
 export type UsePlaybackOptions = {
   settings: PlaybackSettings
   pool: number[]
   spelling: SpellingPreference
+  order: NoteOrder
   onBpmChange: (bpm: number) => void
   onSessionStart: () => void
   onSessionPause: () => void
@@ -31,7 +33,7 @@ export type UsePlaybackOptions = {
 
 /**
  * Binds the framework-free playback machine to React. The machine is created
- * once, and reads settings/pool/spelling through refs, so the scheduler loop
+ * once, and reads settings/pool/spelling/order through refs, so the scheduler loop
  * always sees the latest values without re-creating anything on re-render.
  */
 export function usePlayback(options: UsePlaybackOptions) {
@@ -52,6 +54,7 @@ export function usePlayback(options: UsePlaybackOptions) {
         getSettings: () => optionsRef.current.settings,
         getPool: () => optionsRef.current.pool,
         getSpelling: () => optionsRef.current.spelling,
+        getOrder: () => optionsRef.current.order,
         onSnapshot: setSnapshot,
         onBeat: (event) => optionsRef.current.onBeat?.(event),
         onBpmChange: (bpm) => optionsRef.current.onBpmChange(bpm),
@@ -76,7 +79,7 @@ export function usePlayback(options: UsePlaybackOptions) {
     }
   }, [])
 
-  // Pool or spelling edits drop the pending deck so they take effect on the
+  // Pool, spelling or order edits drop the pending deck so they take effect on the
   // next note — while idle, paused, or playing.
   // Stable, so the visibility listener that drives it binds once rather than
   // rebinding on every render.
@@ -86,9 +89,10 @@ export function usePlayback(options: UsePlaybackOptions) {
 
   const poolKey = options.pool.join(',')
   const spelling = options.spelling
+  const order = options.order
   useEffect(() => {
     machineRef.current?.invalidateDeck()
-  }, [poolKey, spelling])
+  }, [poolKey, spelling, order])
 
   return {
     snapshot,

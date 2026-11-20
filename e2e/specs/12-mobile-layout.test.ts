@@ -43,6 +43,7 @@ describe('mobile layout', () => {
 
       it(`fits the page in a ${width}px browser window`, async () => {
         assert.equal(await page().getViewportWidth(), width)
+        assert.ok(await page().isNoteOrderDisplayed(), 'expected the note order control on the page')
         assertNoOverflow('the page', width, await page().measureOverflow(OVERFLOW_ROOTS.page))
       })
     })

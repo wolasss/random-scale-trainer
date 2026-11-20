@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, type Dispatch } from 'react'
 import { clampBpm, clampRampTarget, defaultRampTarget, type BeatsPerNote } from '../constants'
 import { sortedPcs, type SpellingPreference } from '../lib/notes'
+import type { NoteOrder } from '../lib/playback/deck'
 import { PRESETS, type PresetId } from '../lib/presets'
 import type { TuningId } from '../lib/tunings'
 import { initSettings, writeChangedSettings, type Settings, type SessionGoalMin } from '../lib/settingsStorage'
@@ -28,6 +29,7 @@ export type SettingsAction =
   | { type: 'setRampTarget'; bpm: number }
   | { type: 'nudgeRampTarget'; delta: number }
   | { type: 'setSpelling'; value: SpellingPreference }
+  | { type: 'setNoteOrder'; value: NoteOrder }
   | { type: 'togglePoolNote'; pc: number }
   | { type: 'setPreset'; preset: PresetId }
   | { type: 'setPool'; pool: readonly number[] }
@@ -85,6 +87,8 @@ export const settingsReducer = (state: Settings, action: SettingsAction): Settin
       return { ...state, rampTargetBpm: clampRampTarget(state.rampTargetBpm + action.delta, state.bpm) }
     case 'setSpelling':
       return { ...state, spelling: action.value }
+    case 'setNoteOrder':
+      return { ...state, noteOrder: action.value }
     case 'togglePoolNote': {
       const selected = state.pool.includes(action.pc)
       // Never allow an empty pool — the last remaining note stays selected.
