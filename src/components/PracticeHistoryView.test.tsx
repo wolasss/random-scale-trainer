@@ -398,6 +398,31 @@ describe('PracticeHistoryView', () => {
     expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
+  it('hands the backup to the importer current when the read finishes, not when it started', async () => {
+    let finishRead: (contents: string) => void = () => {}
+    const file = fileOf(serializeBackup({ days: {} }, TODAY, [], []))
+    Object.defineProperty(file, 'text', {
+      value: () =>
+        new Promise<string>((resolve) => {
+          finishRead = resolve
+        }),
+    })
+    const first = vi.fn((): ImportSummary | null => NOTHING_ADDED)
+    const latest = vi.fn((): ImportSummary | null => NOTHING_ADDED)
+    const { rerender } = render(
+      <PracticeHistoryView open history={history} onClose={vi.fn()} getBackup={vi.fn(() => '')} onImport={first} today={TODAY} />,
+    )
+
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+    rerender(
+      <PracticeHistoryView open history={history} onClose={vi.fn()} getBackup={vi.fn(() => '')} onImport={latest} today={TODAY} />,
+    )
+    finishRead(serializeBackup({ days: {} }, TODAY, [], []))
+
+    await waitFor(() => expect(latest).toHaveBeenCalledTimes(1))
+    expect(first).not.toHaveBeenCalled()
+  })
+
   it('says so when the file read fine but the restore could not be saved', async () => {
     const { props } = renderView({ onImport: vi.fn(() => null) })
 

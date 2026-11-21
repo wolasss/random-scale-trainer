@@ -649,8 +649,28 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
 
   const importRoutines = (incoming: readonly Routine[]) => {
     const merged = mergeRoutines(routines, incoming)
-    if (merged.added > 0) {
-      setRoutines(merged.routines)
+    if (merged.added === 0) {
+      return { added: 0, skipped: merged.skipped }
+    }
+
+    setRoutines(merged.routines)
+
+    // A restored seed replaces the shelf's copy in place, so a place saved in
+    // it, or the block the running workout is on, may no longer exist.
+    const replaced = (id: string) => {
+      const before = routines.find((entry) => entry.id === id)
+      return before !== undefined && !merged.routines.includes(before)
+    }
+    if (resumeOffer !== null && replaced(resumeOffer.routineId)) {
+      forgetProgress()
+    }
+    if (selected !== null && replaced(selected.id)) {
+      const next = merged.routines.find((entry) => entry.id === selected.id)
+      if (next !== undefined) {
+        forgetProgress()
+        selectedRef.current = next
+        startAt(0, next)
+      }
     }
 
     return { added: merged.added, skipped: merged.skipped }

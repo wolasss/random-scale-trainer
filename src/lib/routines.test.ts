@@ -733,18 +733,17 @@ describe('mergeRoutines', () => {
     dur: 60,
   }
   const mine: Routine = { id: 'r-mine', name: 'Mine', blocks: [block] }
-  const makeId = () => 'r-fresh'
 
   it('keeps the device copy when an id is already on the shelf', () => {
     const incoming: Routine = { ...mine, name: 'Mine, older', blocks: [{ ...block, bpm: 90 }] }
 
-    expect(mergeRoutines([mine], [incoming], makeId)).toEqual({ routines: [mine], added: 0, skipped: 1 })
+    expect(mergeRoutines([mine], [incoming])).toEqual({ routines: [mine], added: 0, skipped: 1 })
   })
 
   it('takes a changed seed over one nobody touched', () => {
     const local = [...SEEDED_ROUTINES]
     const renamed: Routine = { ...SEEDED_ROUTINES[0], name: 'My naturals' }
-    const merged = mergeRoutines(local, [renamed], makeId)
+    const merged = mergeRoutines(local, [renamed])
 
     expect(merged.added).toBe(1)
     expect(merged.routines[0]).toEqual(renamed)
@@ -752,18 +751,18 @@ describe('mergeRoutines', () => {
   })
 
   it('skips a seed that came back unchanged', () => {
-    expect(mergeRoutines(SEEDED_ROUTINES, [SEEDED_ROUTINES[1]], makeId)).toEqual({
+    expect(mergeRoutines(SEEDED_ROUTINES, [SEEDED_ROUTINES[1]])).toEqual({
       routines: SEEDED_ROUTINES,
       added: 0,
       skipped: 1,
     })
   })
 
-  it('gives a new workout under a taken name an id and a name of its own', () => {
+  it('gives a new workout under a taken name a name of its own, keeping its id', () => {
     const twin: Routine = { ...mine, id: 'r-other', name: ' mine ' }
-    const merged = mergeRoutines([mine], [twin], makeId)
+    const merged = mergeRoutines([mine], [twin])
 
-    expect(merged.routines).toEqual([mine, { ...twin, id: 'r-fresh', name: 'mine (imported)' }])
+    expect(merged.routines).toEqual([mine, { ...twin, name: 'mine (imported)' }])
     expect(merged.added).toBe(1)
   })
 
@@ -771,12 +770,19 @@ describe('mergeRoutines', () => {
     const taken: Routine = { ...mine, id: 'r-taken', name: 'Mine (imported)' }
     const twin: Routine = { ...mine, id: 'r-other' }
 
-    expect(mergeRoutines([mine, taken], [twin], makeId).routines[2].name).toBe('Mine (imported 2)')
+    expect(mergeRoutines([mine, taken], [twin]).routines[2].name).toBe('Mine (imported 2)')
+  })
+
+  it('skips the renamed copy when the same file is restored again', () => {
+    const twin: Routine = { ...mine, id: 'r-other' }
+    const once = mergeRoutines([mine], [twin])
+
+    expect(mergeRoutines(once.routines, [twin])).toEqual({ routines: once.routines, added: 0, skipped: 1 })
   })
 
   it('appends new workouts and counts what it did', () => {
     const fresh: Routine = { ...mine, id: 'r-new', name: 'New' }
-    const merged = mergeRoutines([mine], [fresh, mine], makeId)
+    const merged = mergeRoutines([mine], [fresh, mine])
 
     expect(merged).toEqual({ routines: [mine, fresh], added: 1, skipped: 1 })
   })

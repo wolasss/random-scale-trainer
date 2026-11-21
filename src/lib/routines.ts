@@ -664,13 +664,13 @@ const sameRoutineName = (left: string, right: string) => left.trim().toLowerCase
  * An id the shelf already holds keeps the shelf's copy — unless that copy is a
  * seed nobody touched, which is the factory's rather than the user's, so a
  * renamed or retimed seed comes back after a reinstall. A new id under a name
- * the shelf already uses comes in as a separate, renamed workout with an id of
- * its own, never as a replacement.
+ * the shelf already uses comes in renamed beside it, never as a replacement —
+ * and keeps its id, so restoring the same file again finds it by id and skips
+ * it rather than piling up another numbered copy.
  */
 export const mergeRoutines = (
   local: readonly Routine[],
   incoming: readonly Routine[],
-  makeId: () => string = createRoutineId,
 ): RoutineMerge => {
   const routines = [...local]
   let added = 0
@@ -699,7 +699,7 @@ export const mergeRoutines = (
     for (let suffix = 2; routines.some((entry) => sameRoutineName(entry.name, name)); suffix += 1) {
       name = `${routine.name.trim()} (imported ${suffix})`
     }
-    routines.push({ ...routine, id: makeId(), name })
+    routines.push({ ...routine, name })
     added += 1
   }
 

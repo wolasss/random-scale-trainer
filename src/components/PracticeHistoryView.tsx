@@ -116,6 +116,14 @@ export function PracticeHistoryView({
   // sheet closes mid-read, so a late failure can't repaint the error the
   // cleanup below just cleared.
   const openRef = useRef(open)
+  // The latest onImport, not the one handleFile closed over: the sheet can
+  // close and the lists change while the file is read, and a restore merged
+  // into the lists as they were would write those changes away.
+  const onImportRef = useRef(onImport)
+
+  useEffect(() => {
+    onImportRef.current = onImport
+  })
 
   // On the stand this opens on top of the practice sheet, which runs a trap of
   // its own on the window — hence capture. Focus starts on the close button
@@ -236,7 +244,7 @@ export function PracticeHistoryView({
     // sheet may have closed underneath it — still worth writing (it's a real
     // backup), just not worth repainting a message over a visit that has
     // already cleared its own.
-    const summary = onImport(parsed)
+    const summary = onImportRef.current(parsed)
     if (openRef.current) {
       setImportError(summary === null ? RESTORE_BLOCKED_ERROR : null)
       setImportNote(summary === null ? null : importNoteFor(summary))
