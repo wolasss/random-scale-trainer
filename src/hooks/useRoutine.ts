@@ -5,9 +5,9 @@ import {
   blockPool,
   blockSpelling,
   createRoutineId,
-  isOpenEnded,
   parseRoutineResume,
   parseRoutines,
+  resumeRecordOf,
   SEEDED_ROUTINES,
   suggestRoutineName,
   withAppendedBlock,
@@ -184,27 +184,16 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
   // on unmount, which is exactly what a reload looks like from in here.
   useEffect(() => {
     const save = () => {
-      const routine = selectedRef.current
-      const { blockIndex, blockStartMs, finished } = runtimeRef.current
-      if (routine === null || finished || isOpenEnded(routine)) {
-        return
+      const record = resumeRecordOf(
+        selectedRef.current,
+        runtimeRef.current,
+        getSessionElapsedMsRef.current(),
+        isPlayingRef.current,
+        Date.now(),
+      )
+      if (record !== null) {
+        writeRaw(STORAGE_KEYS.routineResume, JSON.stringify(record))
       }
-
-      const offsetMs = getSessionElapsedMsRef.current() - blockStartMs
-      if (!isPlayingRef.current && blockIndex === 0 && offsetMs <= 0) {
-        return
-      }
-
-      // A tick not yet run can leave a block a moment past its end; keep the
-      // record inside the block rather than have it rejected on the way back.
-      const dur = routine.blocks[blockIndex]?.dur
-      const record: RoutineResume = {
-        routineId: routine.id,
-        blockIndex,
-        offsetMs: Math.max(0, dur == null ? offsetMs : Math.min(offsetMs, dur * 1000 - 1)),
-        savedAt: Date.now(),
-      }
-      writeRaw(STORAGE_KEYS.routineResume, JSON.stringify(record))
     }
 
     const onVisibilityChange = () => {
