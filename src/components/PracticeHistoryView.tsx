@@ -14,6 +14,8 @@ import {
   parseBackup,
   practiceDayTitle,
   WEEKDAY_INITIALS,
+  type ImportSummary,
+  type PracticeBackup,
   type PracticeHistory,
 } from '../lib/history'
 
@@ -23,14 +25,18 @@ type PracticeHistoryViewProps = {
   onClose: () => void
   /** The file's contents, asked for at the moment of the click — see App. */
   getBackup: () => string
-  /** Answers whether the merged log was actually stored — see App. */
-  onImport: (incoming: PracticeHistory) => boolean
+  /** What was added, or null when the merged log couldn't be stored — see App. */
+  onImport: (incoming: PracticeBackup) => ImportSummary | null
   /**
    * True if a commit right now would bank something — see App. Keeps Export
    * live through the first ten seconds of a first-ever session, when
    * `history` is still empty but there is practice waiting in refs.
    */
   hasPendingPractice?: (() => boolean) | undefined
+  /** Workouts or saved setups worth backing up, so Export is live with an empty log. */
+  hasSavedContent?: boolean | undefined
+  /** False once workouts or saved setups failed to reach the store. */
+  listsPersisted?: boolean | undefined
   /** Injectable for tests; otherwise pinned to the real calendar. */
   today?: Date | undefined
 }
@@ -52,6 +58,28 @@ const EXPORT_ERROR = "The backup couldn't be downloaded — your browser refused
 const RESTORE_BLOCKED_ERROR =
   "Your browser is blocking saved data — the backup was read, but it couldn't be saved in this browser."
 
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
+
+/** The polite line an import leaves behind, in the product's words. */
+const importNoteFor = (summary: ImportSummary) => {
+  const added = [
+    summary.workoutsAdded > 0 ? plural(summary.workoutsAdded, 'workout', 'workouts') : null,
+    summary.setupsAdded > 0 ? plural(summary.setupsAdded, 'saved setup', 'saved setups') : null,
+  ].filter((part): part is string => part !== null)
+
+  const sentences = [
+    added.length > 0 ? `Added ${added.join(' and ')}.` : 'Your workouts and saved setups were already here.',
+  ]
+  if (summary.unreadable.includes('workouts')) {
+    sentences.push("The workouts in the file couldn't be read, so none were added.")
+  }
+  if (summary.unreadable.includes('savedSetups')) {
+    sentences.push("The saved setups in the file couldn't be read, so none were added.")
+  }
+
+  return sentences.join(' ')
+}
+
 /**
  * The whole log, not the fortnight the card has room for.
  *
@@ -72,12 +100,15 @@ export function PracticeHistoryView({
   getBackup,
   onImport,
   hasPendingPractice,
+  hasSavedContent = false,
+  listsPersisted = true,
   today,
 }: PracticeHistoryViewProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [importNote, setImportNote] = useState<string | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   // Mirrors `open` for handleFile's async continuations, which close over
@@ -85,6 +116,14 @@ export function PracticeHistoryView({
   // sheet closes mid-read, so a late failure can't repaint the error the
   // cleanup below just cleared.
   const openRef = useRef(open)
+  // The latest onImport, not the one handleFile closed over: the sheet can
+  // close and the lists change while the file is read, and a restore merged
+  // into the lists as they were would write those changes away.
+  const onImportRef = useRef(onImport)
+
+  useEffect(() => {
+    onImportRef.current = onImport
+  })
 
   // On the stand this opens on top of the practice sheet, which runs a trap of
   // its own on the window — hence capture. Focus starts on the close button
@@ -105,6 +144,7 @@ export function PracticeHistoryView({
     return () => {
       setSelectedKey(null)
       setImportError(null)
+      setImportNote(null)
     }
   }, [open])
 
@@ -117,7 +157,7 @@ export function PracticeHistoryView({
   // A brand-new session hasn't hit its first automatic flush yet, so `history`
   // reads empty even though there is practice waiting to be banked — Export
   // stays live for it rather than only for what has already been committed.
-  const canExport = populated || (hasPendingPractice?.() ?? false)
+  const canExport = populated || hasSavedContent || (hasPendingPractice?.() ?? false)
   const streak = currentStreak(history, now)
   const best = bestStreak(history)
   const months = buildMonths(history, now)
@@ -171,6 +211,7 @@ export function PracticeHistoryView({
     // The envelope, before the contents: reading a mis-picked video into a
     // string and JSON.parsing it would hang the tab long before parseBackup
     // ever got to say no.
+    setImportNote(null)
     if (file.size > MAX_BACKUP_BYTES || !isBackupFileType(file.type)) {
       setImportError(IMPORT_ERROR)
       return
@@ -198,15 +239,15 @@ export function PracticeHistoryView({
       return
     }
 
-    // A successful restore reloads, so the cleared error is really only for the
-    // case where it didn't — leaving the last failure on screen beside a log
-    // that has since been restored would be its own kind of lie. The read
-    // crossed an await, so the sheet may have closed underneath it — still
-    // worth writing (it's a real backup), just not worth repainting an error
-    // over a visit that has already cleared its own.
-    const restored = onImport(parsed)
+    // Leaving the last failure on screen beside a log that has since been
+    // restored would be its own kind of lie. The read crossed an await, so the
+    // sheet may have closed underneath it — still worth writing (it's a real
+    // backup), just not worth repainting a message over a visit that has
+    // already cleared its own.
+    const summary = onImportRef.current(parsed)
     if (openRef.current) {
-      setImportError(restored ? null : RESTORE_BLOCKED_ERROR)
+      setImportError(summary === null ? RESTORE_BLOCKED_ERROR : null)
+      setImportNote(summary === null ? null : importNoteFor(summary))
     }
   }
 
@@ -325,7 +366,7 @@ export function PracticeHistoryView({
 
           <div className="practice-history-backup">
             <p className="practice-history-backup-note">
-              A backup is a plain JSON file. Importing one merges it with what is here and keeps the longer of any two
+              A backup holds your practice log, workouts and saved setups. It is a plain JSON file. Importing one merges it with what is here and keeps the longer of any two
               days, so a restore can only ever add to your history.
             </p>
 
@@ -360,6 +401,17 @@ export function PracticeHistoryView({
               onChange={(event) => void handleFile(event)}
               data-testid="history-file"
             />
+
+            {/* Mounted before it has anything to say: a live region added with its
+                text already in it is one many screen readers never announce. */}
+            <div role="status" data-testid="history-import-status">
+              {importNote !== null ? (
+                <p className="practice-history-backup-note" data-testid="history-import-note">
+                  {importNote}
+                  {listsPersisted ? null : " This browser is blocking saved data — they'll last until this tab closes."}
+                </p>
+              ) : null}
+            </div>
 
             {importError !== null ? (
               <p className="practice-history-error" role="alert" data-testid="history-import-error">

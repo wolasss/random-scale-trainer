@@ -3,7 +3,7 @@ import { useEffect, useReducer, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ROUTINE_RESUME_WINDOW_MS, STORAGE_KEYS } from '../constants'
 import { matchPreset } from '../lib/presets'
-import { blockPool, type Routine, type RoutineBlock } from '../lib/routines'
+import { blockPool, SEEDED_ROUTINES, type Routine, type RoutineBlock } from '../lib/routines'
 import { useRoutine, type RoutineController } from './useRoutine'
 import { settingsReducer, type SettingsAction, type Settings } from './useSettings'
 
@@ -320,6 +320,51 @@ describe('the Custom preset is not a manual edit', () => {
     const { routine, settings } = view.result.current
     expect(routine.selected).toBeNull()
     expect(settings.pool).toEqual([1, 3, 6, 8, 10])
+  })
+})
+
+describe('importRoutines', () => {
+  it('adds a backup workout to the shelf and the store', () => {
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+    const view = renderHook(() => useRoutineHarness(0, vi.fn()))
+    const incoming: Routine = { ...WORKOUT, id: 'r-from-backup', name: 'From backup' }
+
+    let result = { added: 0, skipped: 0 }
+    act(() => {
+      result = view.result.current.routine.importRoutines([incoming, WORKOUT])
+    })
+
+    expect(result).toEqual({ added: 1, skipped: 1 })
+    expect(view.result.current.routine.routines.map((entry) => entry.id)).toEqual([WORKOUT.id, 'r-from-backup'])
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.routines) ?? '[]') as Routine[]
+    expect(stored.map((entry) => entry.id)).toEqual([WORKOUT.id, 'r-from-backup'])
+  })
+
+  it('starts the running workout over when the backup replaces its seed', () => {
+    const seed = SEEDED_ROUTINES.find((entry) => entry.blocks.length > 2)!
+    const view = renderHook(({ sessionElapsedMs }) => useRoutineHarness(sessionElapsedMs, vi.fn()), {
+      initialProps: { sessionElapsedMs: 0 },
+    })
+    act(() => {
+      view.result.current.routine.select(seed.id)
+    })
+    view.rerender({ sessionElapsedMs: 10_000 })
+    act(() => {
+      view.result.current.routine.skipBlock()
+    })
+    act(() => {
+      view.result.current.routine.skipBlock()
+    })
+    expect(view.result.current.routine.blockIndex).toBe(2)
+
+    const retimed: Routine = { ...seed, name: 'My warm-up', blocks: [seed.blocks[0]] }
+    act(() => {
+      view.result.current.routine.importRoutines([retimed])
+    })
+
+    expect(view.result.current.routine.selected).toEqual(retimed)
+    expect(view.result.current.routine.blockIndex).toBe(0)
+    expect(view.result.current.routine.finished).toBe(false)
   })
 })
 

@@ -6,6 +6,7 @@ import {
   blockSpelling,
   createRoutineId,
   isOpenEnded,
+  mergeRoutines,
   parseRoutineResume,
   parseRoutines,
   SEEDED_ROUTINES,
@@ -78,6 +79,8 @@ export type RoutineController = {
   startOver: () => void
   /** The session clock lost `removedMs`; the current block keeps its own time. */
   rebase: (removedMs: number) => void
+  /** Adds a backup's workouts to the shelf; never replaces one the user made. */
+  importRoutines: (incoming: readonly Routine[]) => { added: number; skipped: number }
   /** Wire to the session timer's tick: advances the block when its time is up. */
   tick: (elapsedMs: number) => void
   /** Every settings change the user makes by hand goes through here first. */
@@ -644,6 +647,35 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     commit({ ...runtimeRef.current, blockStartMs: runtimeRef.current.blockStartMs - removedMs })
   }
 
+  const importRoutines = (incoming: readonly Routine[]) => {
+    const merged = mergeRoutines(routines, incoming)
+    if (merged.added === 0) {
+      return { added: 0, skipped: merged.skipped }
+    }
+
+    setRoutines(merged.routines)
+
+    // A restored seed replaces the shelf's copy in place, so a place saved in
+    // it, or the block the running workout is on, may no longer exist.
+    const replaced = (id: string) => {
+      const before = routines.find((entry) => entry.id === id)
+      return before !== undefined && !merged.routines.includes(before)
+    }
+    if (resumeOffer !== null && replaced(resumeOffer.routineId)) {
+      forgetProgress()
+    }
+    if (selected !== null && replaced(selected.id)) {
+      const next = merged.routines.find((entry) => entry.id === selected.id)
+      if (next !== undefined) {
+        forgetProgress()
+        selectedRef.current = next
+        startAt(0, next)
+      }
+    }
+
+    return { added: merged.added, skipped: merged.skipped }
+  }
+
   return {
     routines,
     persisted: routinesPersisted,
@@ -671,6 +703,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     resume,
     startOver,
     rebase,
+    importRoutines,
     tick,
     notifyManualChange,
   }

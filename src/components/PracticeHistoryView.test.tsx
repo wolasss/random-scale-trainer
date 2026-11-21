@@ -2,9 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PracticeHistoryView } from './PracticeHistoryView'
-import { MAX_BACKUP_BYTES, serializeBackup, type PracticeHistory } from '../lib/history'
+import { MAX_BACKUP_BYTES, serializeBackup, type ImportSummary, type PracticeHistory } from '../lib/history'
 
 const TODAY = new Date(2026, 1, 14, 12)
+
+const NOTHING_ADDED: ImportSummary = { workoutsAdded: 0, setupsAdded: 0, unreadable: [] }
 
 const history: PracticeHistory = {
   days: {
@@ -21,7 +23,7 @@ const renderView = (overrides: Partial<Parameters<typeof PracticeHistoryView>[0]
     history,
     onClose: vi.fn(),
     getBackup: vi.fn(() => 'BACKUP-FILE-TEXT'),
-    onImport: vi.fn(() => true),
+    onImport: vi.fn((): ImportSummary | null => NOTHING_ADDED),
     today: TODAY,
     ...overrides,
   }
@@ -127,7 +129,7 @@ describe('PracticeHistoryView', () => {
           today={TODAY}
           onClose={vi.fn()}
           getBackup={vi.fn(() => '')}
-          onImport={vi.fn(() => true)}
+          onImport={vi.fn(() => NOTHING_ADDED)}
         />
       </div>,
     )
@@ -199,7 +201,7 @@ describe('PracticeHistoryView', () => {
       history,
       onClose: vi.fn(),
       getBackup: vi.fn(() => ''),
-      onImport: vi.fn(() => true),
+      onImport: vi.fn((): ImportSummary | null => NOTHING_ADDED),
       today: TODAY,
     }
     const { rerender } = render(<PracticeHistoryView {...props} />)
@@ -269,7 +271,7 @@ describe('PracticeHistoryView', () => {
         history,
         onClose: vi.fn(),
         getBackup: vi.fn(() => ''),
-        onImport: vi.fn(() => true),
+        onImport: vi.fn((): ImportSummary | null => NOTHING_ADDED),
         today: TODAY,
       }
       const { rerender } = render(<PracticeHistoryView {...props} />)
@@ -381,18 +383,50 @@ describe('PracticeHistoryView', () => {
     const backup = serializeBackup(
       { days: { '2026-02-01': { sec: 600, notes: 12 }, 'not-a-day': { sec: 600, notes: 12 } } },
       TODAY,
+      [],
+      [],
     )
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
 
     await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
-    expect(props.onImport).toHaveBeenCalledWith({ days: { '2026-02-01': { sec: 600, notes: 12 } } })
+    expect(props.onImport).toHaveBeenCalledWith({
+      history: { days: { '2026-02-01': { sec: 600, notes: 12 } } },
+      workouts: [],
+      savedSetups: [],
+      unreadable: [],
+    })
     expect(screen.queryByTestId('history-import-error')).toBeNull()
   })
 
-  it('says so when the file read fine but the restore could not be saved', async () => {
-    const { props } = renderView({ onImport: vi.fn(() => false) })
+  it('hands the backup to the importer current when the read finishes, not when it started', async () => {
+    let finishRead: (contents: string) => void = () => {}
+    const file = fileOf(serializeBackup({ days: {} }, TODAY, [], []))
+    Object.defineProperty(file, 'text', {
+      value: () =>
+        new Promise<string>((resolve) => {
+          finishRead = resolve
+        }),
+    })
+    const first = vi.fn((): ImportSummary | null => NOTHING_ADDED)
+    const latest = vi.fn((): ImportSummary | null => NOTHING_ADDED)
+    const { rerender } = render(
+      <PracticeHistoryView open history={history} onClose={vi.fn()} getBackup={vi.fn(() => '')} onImport={first} today={TODAY} />,
+    )
 
-    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY)
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+    rerender(
+      <PracticeHistoryView open history={history} onClose={vi.fn()} getBackup={vi.fn(() => '')} onImport={latest} today={TODAY} />,
+    )
+    finishRead(serializeBackup({ days: {} }, TODAY, [], []))
+
+    await waitFor(() => expect(latest).toHaveBeenCalledTimes(1))
+    expect(first).not.toHaveBeenCalled()
+  })
+
+  it('says so when the file read fine but the restore could not be saved', async () => {
+    const { props } = renderView({ onImport: vi.fn(() => null) })
+
+    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY, [], [])
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
 
     // Not "that file doesn't look like a backup" — the file was fine, and
@@ -418,7 +452,7 @@ describe('PracticeHistoryView', () => {
       history,
       onClose: vi.fn(),
       getBackup: vi.fn(() => ''),
-      onImport: vi.fn(() => true),
+      onImport: vi.fn((): ImportSummary | null => NOTHING_ADDED),
       today: TODAY,
     }
     const { rerender } = render(<PracticeHistoryView {...props} />)
@@ -438,7 +472,7 @@ describe('PracticeHistoryView', () => {
       history,
       onClose: vi.fn(),
       getBackup: vi.fn(() => ''),
-      onImport: vi.fn(() => true),
+      onImport: vi.fn((): ImportSummary | null => NOTHING_ADDED),
       today: TODAY,
     }
     const { rerender } = render(<PracticeHistoryView {...props} />)
@@ -501,12 +535,54 @@ describe('PracticeHistoryView', () => {
   it('still imports a backup the system has no type for', async () => {
     const { props } = renderView()
 
-    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY)
+    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY, [], [])
     const file = new File([backup], 'backup.json', { type: '' })
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
 
     await waitFor(() => expect(props.onImport).toHaveBeenCalledTimes(1))
     expect(screen.queryByTestId('history-import-error')).toBeNull()
+  })
+
+  it('says in one line what a backup holds', () => {
+    renderView()
+
+    expect(screen.getByText(/A backup holds your practice log, workouts and saved setups\./)).toBeInTheDocument()
+  })
+
+  it('announces what an import added, politely', async () => {
+    renderView({ onImport: vi.fn(() => ({ workoutsAdded: 2, setupsAdded: 1, unreadable: [] })) })
+
+    const backup = serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, TODAY, [], [])
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
+
+    expect(await screen.findByTestId('history-import-note')).toHaveTextContent('Added 2 workouts and 1 saved setup.')
+    expect(screen.getByRole('status')).toContainElement(screen.getByTestId('history-import-note'))
+    expect(screen.getByRole('status')).not.toHaveTextContent(/routine|block/i)
+  })
+
+  it('says when there was nothing new, and names a list it could not read', async () => {
+    renderView({ onImport: vi.fn(() => ({ workoutsAdded: 0, setupsAdded: 0, unreadable: ['workouts' as const] })) })
+
+    const backup = serializeBackup({ days: {} }, TODAY, [], [])
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
+
+    const note = await screen.findByTestId('history-import-note')
+    expect(note).toHaveTextContent('Your workouts and saved setups were already here.')
+    expect(note).toHaveTextContent("The workouts in the file couldn't be read, so none were added.")
+  })
+
+  it('warns when the imported lists will not outlast the tab', async () => {
+    renderView({
+      listsPersisted: false,
+      onImport: vi.fn(() => ({ workoutsAdded: 1, setupsAdded: 0, unreadable: [] })),
+    })
+
+    const backup = serializeBackup({ days: {} }, TODAY, [], [])
+    fireEvent.change(screen.getByTestId('history-file'), { target: { files: [fileOf(backup)] } })
+
+    expect(await screen.findByTestId('history-import-note')).toHaveTextContent(
+      "Added 1 workout. This browser is blocking saved data — they'll last until this tab closes.",
+    )
   })
 
   describe('with an empty log', () => {
@@ -540,6 +616,12 @@ describe('PracticeHistoryView', () => {
       fireEvent.click(importButton)
 
       expect(click).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps Export live when there are workouts or saved setups to carry', () => {
+      renderView({ history: { days: {} }, hasSavedContent: true })
+
+      expect(screen.getByTestId('history-export')).not.toBeDisabled()
     })
 
     it('keeps Export live when practice is still only pending, not yet committed', () => {

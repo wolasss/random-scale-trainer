@@ -401,4 +401,24 @@ describe('usePracticeHistory', () => {
     expect(secOn('2026-06-15')).toBe(12)
     expect(secOn('2026-06-16')).toBe(10)
   })
+
+  it('adopts a restored log into state and storage without lowering a day', () => {
+    window.localStorage.setItem(
+      STORAGE_KEYS.practiceLog,
+      JSON.stringify({ days: { '2026-06-14': { sec: 900, notes: 40 } } }),
+    )
+    const { result } = renderHook(() => usePracticeHistory())
+
+    let adopted = false
+    act(() => {
+      adopted = result.current.adopt({
+        days: { '2026-06-14': { sec: 300, notes: 10 }, '2026-06-01': { sec: 600, notes: 12 } },
+      })
+    })
+
+    const expected = { '2026-06-14': { sec: 900, notes: 40 }, '2026-06-01': { sec: 600, notes: 12 } }
+    expect(adopted).toBe(true)
+    expect(result.current.history.days).toEqual(expected)
+    expect(logged().days).toEqual(expected)
+  })
 })

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { STORAGE_KEYS } from './constants'
 import { dayKey, shiftDays, type PracticeHistory } from './lib/history'
-import { withBlockedStorage } from './test/blockedStorage'
+import { withBlockedStorage, withFakeStorage } from './test/blockedStorage'
 import { FAKE_CLOCKS_AND_FRAMES } from './test/fakeTimers'
 
 vi.mock('./lib/audio/engine', async () => ({
@@ -300,5 +300,128 @@ describe('practice log', () => {
 
     expect(screen.getByTestId('timer')).toHaveTextContent('00:00')
     expect(stored()?.days[today()]?.sec).toBeGreaterThanOrEqual(banked)
+  })
+
+  describe('a backup carries workouts and saved setups', () => {
+    const WORKOUT = {
+      id: 'r-mine',
+      name: 'My warm-up',
+      blocks: [
+        { name: 'Slow', poolKey: 'naturals', pool: null, bpm: 60, beats: 4, acc: null, ramp: false, rampTo: 80, dur: 120 },
+        { name: 'Fast', poolKey: 'chromatic', pool: null, bpm: 90, beats: 2, acc: null, ramp: false, rampTo: 110, dur: 60 },
+      ],
+    }
+    const SETUP = { name: 'Triad', pcs: [0, 4, 7] }
+
+    /** Exports from an App holding a custom workout, a setup and a day, and hands back the file. */
+    const exportBackup = async () => {
+      window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+      window.localStorage.setItem(STORAGE_KEYS.savedPresets, JSON.stringify([SETUP]))
+      window.localStorage.setItem(
+        STORAGE_KEYS.practiceLog,
+        JSON.stringify({ days: { '2026-06-01': { sec: 600, notes: 12 } } }),
+      )
+
+      const blobs: Blob[] = []
+      const createDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        writable: true,
+        value: (blob: Blob) => {
+          blobs.push(blob)
+
+          return 'blob:practice-log'
+        },
+      })
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      try {
+        const view = render(<App />)
+        fireEvent.click(screen.getByTestId('practice-log-history'))
+        fireEvent.click(screen.getByTestId('history-export'))
+        view.unmount()
+      } finally {
+        click.mockRestore()
+        if (createDescriptor === undefined) {
+          Reflect.deleteProperty(URL, 'createObjectURL')
+        } else {
+          Object.defineProperty(URL, 'createObjectURL', createDescriptor)
+        }
+      }
+
+      expect(blobs).toHaveLength(1)
+      return new File([await blobs[0].text()], 'backup.json', { type: 'application/json' })
+    }
+
+    const importBackup = async (file: File) => {
+      render(<App />)
+      fireEvent.click(screen.getByTestId('setup-reveal'))
+      fireEvent.click(screen.getByTestId('practice-log-history'))
+      fireEvent.change(screen.getByTestId('history-file'), { target: { files: [file] } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+    }
+
+    afterEach(() => {
+      window.localStorage.clear()
+    })
+
+    it('restores them into a cleared store, and says what it added', async () => {
+      const file = await exportBackup()
+      window.localStorage.clear()
+
+      await importBackup(file)
+
+      expect(screen.getByTestId('history-import-note')).toHaveTextContent('Added 1 workout and 1 saved setup.')
+      expect(screen.getByTestId('history-import-status')).toHaveAttribute('role', 'status')
+      expect(screen.getByTestId('history-import-status')).toContainElement(screen.getByTestId('history-import-note'))
+
+      const routines = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.routines) ?? '[]') as Array<{ id: string }>
+      expect(routines.map((routine) => routine.id)).toContain('r-mine')
+      expect(JSON.parse(window.localStorage.getItem(STORAGE_KEYS.savedPresets) ?? '[]')).toEqual([SETUP])
+      expect(stored()?.days['2026-06-01']).toEqual({ sec: 600, notes: 12 })
+
+      // On screen too, without a reload.
+      expect(screen.getByTestId('routine-shelf')).toHaveTextContent('My warm-up')
+      expect(screen.getByRole('option', { name: 'Triad' })).toBeInTheDocument()
+
+      // Still there once whatever follows the import has run.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000)
+      })
+      expect(screen.getByTestId('history-import-note')).toBeInTheDocument()
+    })
+
+    it('keeps the workouts in memory and says so when the store refuses them', async () => {
+      const file = await exportBackup()
+
+      const entries = new Map<string, string>()
+      const restore = withFakeStorage({
+        get length() {
+          return entries.size
+        },
+        clear: () => entries.clear(),
+        getItem: (key: string) => entries.get(key) ?? null,
+        key: (index: number) => [...entries.keys()][index] ?? null,
+        removeItem: (key: string) => void entries.delete(key),
+        setItem: (key: string, value: string) => {
+          if (key === STORAGE_KEYS.routines) {
+            throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
+          }
+          entries.set(key, value)
+        },
+      })
+
+      try {
+        await importBackup(file)
+
+        expect(screen.getByTestId('history-import-note')).toHaveTextContent('blocking saved data')
+        expect(screen.getByTestId('routine-shelf')).toHaveTextContent('My warm-up')
+        expect(entries.has(STORAGE_KEYS.routines)).toBe(false)
+      } finally {
+        restore()
+      }
+    })
   })
 })

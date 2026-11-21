@@ -622,3 +622,86 @@ export const withRemovedBlock = (routine: Routine, index: number): Routine => {
 
   return { ...routine, blocks }
 }
+
+/**
+ * Field by field rather than through JSON: a parsed block and a seed literal
+ * list their keys in different orders, so two equal routines would stringify
+ * differently.
+ */
+const sameBlock = (a: RoutineBlock, b: RoutineBlock) =>
+  a.name === b.name &&
+  a.poolKey === b.poolKey &&
+  (a.pool === null || b.pool === null
+    ? a.pool === b.pool
+    : a.pool.length === b.pool.length && a.pool.every((pc, index) => pc === b.pool?.[index])) &&
+  a.bpm === b.bpm &&
+  a.beats === b.beats &&
+  a.acc === b.acc &&
+  a.ramp === b.ramp &&
+  a.rampTo === b.rampTo &&
+  a.dur === b.dur
+
+const sameRoutine = (a: Routine, b: Routine) =>
+  a.name === b.name && a.blocks.length === b.blocks.length && a.blocks.every((block, index) => sameBlock(block, b.blocks[index]))
+
+/** A seeded workout exactly as it shipped — nothing the user made or changed. */
+export const isUntouchedSeed = (routine: Routine) => {
+  const seed = SEEDED_ROUTINES.find((entry) => entry.id === routine.id)
+  return seed !== undefined && sameRoutine(seed, routine)
+}
+
+/** Whether the shelf holds anything beyond the factory seeds. */
+export const hasCustomRoutines = (routines: readonly Routine[]) =>
+  routines.some((routine) => !isUntouchedSeed(routine))
+
+export type RoutineMerge = { routines: Routine[]; added: number; skipped: number }
+
+const sameRoutineName = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase()
+
+/**
+ * Folds workouts from a backup into the shelf without ever losing one.
+ *
+ * An id the shelf already holds keeps the shelf's copy — unless that copy is a
+ * seed nobody touched, which is the factory's rather than the user's, so a
+ * renamed or retimed seed comes back after a reinstall. A new id under a name
+ * the shelf already uses comes in renamed beside it, never as a replacement —
+ * and keeps its id, so restoring the same file again finds it by id and skips
+ * it rather than piling up another numbered copy.
+ */
+export const mergeRoutines = (
+  local: readonly Routine[],
+  incoming: readonly Routine[],
+): RoutineMerge => {
+  const routines = [...local]
+  let added = 0
+  let skipped = 0
+
+  for (const routine of incoming) {
+    const index = routines.findIndex((entry) => entry.id === routine.id)
+    if (index !== -1) {
+      const existing = routines[index]
+      if (isUntouchedSeed(existing) && !sameRoutine(existing, routine)) {
+        routines[index] = routine
+        added += 1
+      } else {
+        skipped += 1
+      }
+      continue
+    }
+
+    if (!routines.some((entry) => sameRoutineName(entry.name, routine.name))) {
+      routines.push(routine)
+      added += 1
+      continue
+    }
+
+    let name = `${routine.name.trim()} (imported)`
+    for (let suffix = 2; routines.some((entry) => sameRoutineName(entry.name, name)); suffix += 1) {
+      name = `${routine.name.trim()} (imported ${suffix})`
+    }
+    routines.push({ ...routine, name })
+    added += 1
+  }
+
+  return { routines, added, skipped }
+}
