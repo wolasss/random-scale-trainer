@@ -14,6 +14,7 @@ import {
   isOpenEnded,
   parseRoutineResume,
   parseRoutines,
+  resumeRecordOf,
   routineMeta,
   routineProgress,
   routineSeconds,
@@ -714,5 +715,64 @@ describe('parseRoutineResume', () => {
     ['a record from the future', stored({ savedAt: NOW + 1 })],
   ])('rejects %s', (_, raw) => {
     expect(parseRoutineResume(raw, shelf, NOW)).toBeNull()
+  })
+})
+
+describe('resumeRecordOf', () => {
+  const NOW = 1_800_000_000_000
+  const workout: Routine = { id: 'r-x', name: 'Workout', blocks: [block({ dur: 120 }), block({ dur: 180 })] }
+  const setup: Routine = { id: 'r-open', name: 'Setup', blocks: [block({ dur: null })] }
+
+  const at = (blockIndex: number, blockStartMs: number, finished = false) => ({ blockIndex, blockStartMs, finished })
+
+  it('writes nothing without a routine', () => {
+    expect(resumeRecordOf(null, at(0, 0), 5_000, true, NOW)).toBeNull()
+  })
+
+  it('writes nothing for a finished workout', () => {
+    expect(resumeRecordOf(workout, at(1, 120_000, true), 150_000, true, NOW)).toBeNull()
+  })
+
+  it('writes nothing for an open-ended routine, even while playing', () => {
+    expect(resumeRecordOf(setup, at(0, 0), 30_000, true, NOW)).toBeNull()
+  })
+
+  it('skips a first block still paused at its start', () => {
+    expect(resumeRecordOf(workout, at(0, 0), 0, false, NOW)).toBeNull()
+  })
+
+  it('writes a first block at its start once it is playing', () => {
+    expect(resumeRecordOf(workout, at(0, 0), 0, true, NOW)).toEqual({
+      routineId: 'r-x',
+      blockIndex: 0,
+      offsetMs: 0,
+      savedAt: NOW,
+    })
+  })
+
+  it('writes a later block paused at its start', () => {
+    expect(resumeRecordOf(workout, at(1, 120_000), 120_000, false, NOW)).toEqual({
+      routineId: 'r-x',
+      blockIndex: 1,
+      offsetMs: 0,
+      savedAt: NOW,
+    })
+  })
+
+  it('keeps an offset past the block end just inside the block', () => {
+    expect(resumeRecordOf(workout, at(1, 120_000), 120_000 + 200_000, true, NOW)?.offsetMs).toBe(179_999)
+  })
+
+  it('clamps a negative offset to zero', () => {
+    expect(resumeRecordOf(workout, at(1, 120_000), 100_000, true, NOW)?.offsetMs).toBe(0)
+  })
+
+  it.each([
+    ['a mid-block record', 120_000 + 70_000],
+    ['a record clamped at the block end', 120_000 + 200_000],
+  ])('writes %s that parseRoutineResume accepts unchanged', (_, sessionElapsedMs) => {
+    const record = resumeRecordOf(workout, at(1, 120_000), sessionElapsedMs, true, NOW)
+    expect(record).not.toBeNull()
+    expect(parseRoutineResume(JSON.stringify(record), [workout], NOW)).toEqual(record)
   })
 })

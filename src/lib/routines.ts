@@ -537,6 +537,46 @@ export const parseRoutineResume = (raw: string | null, routines: Routine[], now:
   return { routineId: routine.id, blockIndex, offsetMs, savedAt }
 }
 
+/** Where a running workout is: which block, and when on the session clock it started. */
+export type RoutinePosition = {
+  blockIndex: number
+  blockStartMs: number
+  finished: boolean
+}
+
+/**
+ * The record to write when leaving the page, or null when there is nothing
+ * worth resuming: no routine, a finished one, an open-ended one, or a first
+ * block still paused at its start.
+ */
+export const resumeRecordOf = (
+  routine: Routine | null,
+  position: RoutinePosition,
+  sessionElapsedMs: number,
+  isPlaying: boolean,
+  now: number,
+): RoutineResume | null => {
+  if (routine === null || position.finished || isOpenEnded(routine)) {
+    return null
+  }
+
+  const offsetMs = sessionElapsedMs - position.blockStartMs
+  if (!isPlaying && position.blockIndex === 0 && offsetMs <= 0) {
+    return null
+  }
+
+  // A tick not yet run can leave a block a moment past its end. parseRoutineResume
+  // rejects offsetMs >= block.dur * 1000, so stop at dur * 1000 - 1 to keep the
+  // record inside the block rather than have it rejected on the way back.
+  const dur = routine.blocks[position.blockIndex]?.dur
+  return {
+    routineId: routine.id,
+    blockIndex: position.blockIndex,
+    offsetMs: Math.max(0, dur == null ? offsetMs : Math.min(offsetMs, dur * 1000 - 1)),
+    savedAt: now,
+  }
+}
+
 /** How far one tap of the duration controls moves a block's clock. */
 export const BLOCK_STEP_SECONDS = 30
 
