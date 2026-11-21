@@ -21,6 +21,8 @@ import {
   writeHistory,
   type PracticeHistory,
 } from './history'
+import type { SavedPreset } from './presets'
+import type { Routine } from './routines'
 import { removeRaw } from './storage'
 
 const at = (year: number, month: number, day: number, hour = 12) => new Date(year, month - 1, day, hour)
@@ -289,25 +291,62 @@ describe('mergeHistories', () => {
 
 describe('serializeBackup', () => {
   const history: PracticeHistory = { days: { '2026-02-14': { sec: 1_284, notes: 412 } } }
+  const workout: Routine = {
+    id: 'r-mine',
+    name: 'My warm-up',
+    blocks: [
+      { name: 'Slow', poolKey: 'naturals', pool: null, bpm: 60, beats: 4, acc: null, ramp: false, rampTo: 80, dur: 120 },
+      { name: 'Fast', poolKey: 'custom', pool: [0, 4, 7], bpm: 90, beats: 2, acc: 'flats', ramp: false, rampTo: 110, dur: 60 },
+    ],
+  }
+  const setup: SavedPreset = { name: 'Triad', pcs: [0, 4, 7] }
 
   it('says what the file is, and when it was taken', () => {
-    expect(JSON.parse(serializeBackup(history, at(2026, 2, 14)))).toEqual({
+    expect(JSON.parse(serializeBackup(history, at(2026, 2, 14), [workout], [setup]))).toEqual({
       app: 'callnote',
       kind: 'practice-log',
-      version: 1,
+      version: 2,
       exportedOn: '2026-02-14',
       days: { '2026-02-14': { sec: 1_284, notes: 412 } },
+      workouts: [workout],
+      savedSetups: [setup],
     })
   })
 
   it('round-trips back through parseBackup', () => {
-    expect(parseBackup(serializeBackup(history, at(2026, 2, 14)))).toEqual(history)
+    expect(parseBackup(serializeBackup(history, at(2026, 2, 14), [workout], [setup]))).toEqual({
+      history,
+      workouts: [workout],
+      savedSetups: [setup],
+      unreadable: [],
+    })
+  })
+
+  it('carries nothing that belongs to this device alone', () => {
+    localStorage.setItem(STORAGE_KEYS.challengeTokens, JSON.stringify({ alice: 'secret-token' }))
+    localStorage.setItem(STORAGE_KEYS.challengeNickname, 'alice')
+    localStorage.setItem(STORAGE_KEYS.theme, 'dark')
+    localStorage.setItem(STORAGE_KEYS.skin, 'kwinta')
+    try {
+      const file = serializeBackup(history, at(2026, 2, 14), [workout], [setup])
+
+      expect(Object.keys(JSON.parse(file) as object).sort()).toEqual(
+        ['app', 'days', 'exportedOn', 'kind', 'savedSetups', 'version', 'workouts'].sort(),
+      )
+      expect(file).not.toContain('secret-token')
+      expect(file).not.toContain(STORAGE_KEYS.challengeTokens)
+      expect(file).not.toContain('alice')
+    } finally {
+      localStorage.clear()
+    }
   })
 })
 
 describe('parseBackup', () => {
   const backup = (fields: Record<string, unknown>) =>
-    JSON.stringify({ app: 'callnote', kind: 'practice-log', version: 1, days: {}, ...fields })
+    JSON.stringify({ app: 'callnote', kind: 'practice-log', version: 2, days: {}, ...fields })
+  const day = { '2026-02-14': { sec: 600, notes: 12 } }
+  const block = { name: 'Go', poolKey: 'chromatic', pool: null, bpm: 60, beats: 4, acc: null, ramp: false, rampTo: 80, dur: 60 }
 
   it('refuses anything that is not json', () => {
     expect(parseBackup('not json')).toBeNull()
@@ -324,12 +363,63 @@ describe('parseBackup', () => {
   })
 
   it('refuses a version it has never seen rather than guessing at it', () => {
-    expect(parseBackup(backup({ version: 2 }))).toBeNull()
+    expect(parseBackup(backup({ version: 3 }))).toBeNull()
+    expect(parseBackup(backup({ version: '2' }))).toBeNull()
+  })
+
+  it('still reads a version 1 file, which holds the log alone', () => {
+    expect(parseBackup(backup({ version: 1, days: day }))).toEqual({
+      history: { days: day },
+      workouts: [],
+      savedSetups: [],
+      unreadable: [],
+    })
   })
 
   it('refuses a file with no days object', () => {
     expect(parseBackup(backup({ days: undefined }))).toBeNull()
     expect(parseBackup(backup({ days: 'lots' }))).toBeNull()
+  })
+
+  it('drops an unreadable workouts list as a whole and keeps the rest', () => {
+    const parsed = parseBackup(backup({ days: day, workouts: 'x', savedSetups: [{ name: 'Triad', pcs: [0, 4, 7] }] }))
+
+    expect(parsed).toEqual({
+      history: { days: day },
+      workouts: [],
+      savedSetups: [{ name: 'Triad', pcs: [0, 4, 7] }],
+      unreadable: ['workouts'],
+    })
+  })
+
+  it('refuses a workouts list the parser would have to shorten', () => {
+    const good = { id: 'r-good', name: 'Good', blocks: [block] }
+    const halfValid = parseBackup(backup({ days: day, workouts: [good, { id: 'r-bad', name: 'Bad', blocks: 'none' }] }))
+    const badBlock = parseBackup(
+      backup({ days: day, workouts: [{ id: 'r-two', name: 'Two', blocks: [block, { ...block, bpm: 'fast' }] }] }),
+    )
+
+    for (const parsed of [halfValid, badBlock]) {
+      expect(parsed?.history).toEqual({ days: day })
+      expect(parsed?.workouts).toEqual([])
+      expect(parsed?.unreadable).toEqual(['workouts'])
+    }
+  })
+
+  it('refuses a saved setups list the parser would have to shorten', () => {
+    const parsed = parseBackup(
+      backup({
+        days: day,
+        savedSetups: [
+          { name: 'Triad', pcs: [0, 4, 7] },
+          { name: 'Empty', pcs: [] },
+        ],
+      }),
+    )
+
+    expect(parsed?.history).toEqual({ days: day })
+    expect(parsed?.savedSetups).toEqual([])
+    expect(parsed?.unreadable).toEqual(['savedSetups'])
   })
 
   it('drops the days a file made up, and keeps the rest', () => {
@@ -345,7 +435,7 @@ describe('parseBackup', () => {
       }),
     )
 
-    expect(parsed).toEqual({
+    expect(parsed?.history).toEqual({
       days: { '2026-02-14': { sec: 600, notes: 12 }, '2026-02-15': { sec: 0, notes: 12 } },
     })
   })

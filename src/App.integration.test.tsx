@@ -48,7 +48,7 @@ const withCappedStorage = (): (() => void) => {
 
 /** A well-formed backup, so only the store can be what turns a restore away. */
 const backupFile = () =>
-  new File([serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, new Date())], 'backup.json', {
+  new File([serializeBackup({ days: { '2026-02-01': { sec: 600, notes: 12 } } }, new Date(), [], [])], 'backup.json', {
     type: 'application/json',
   })
 
@@ -151,11 +151,10 @@ describe('App integration', () => {
     expect(screen.queryByTestId('routine-ephemeral-notice')).toBeNull()
   })
 
-  it('says a restore could not be saved rather than reloading into a log without it', async () => {
-    const reload = vi.fn()
+  it('says a restore could not be saved rather than reading as a success', async () => {
     const restore = withBlockedStorage()
     try {
-      render(<App reload={reload} />)
+      render(<App />)
 
       // Blocked storage reads as a first run, so the log card is behind the fold.
       fireEvent.click(screen.getByTestId('setup-reveal'))
@@ -167,17 +166,14 @@ describe('App integration', () => {
       })
 
       expect(screen.getByTestId('history-import-error')).toHaveTextContent('blocking saved data')
-      // Reloading would come back to the very log the restore was meant to
-      // repair, with the restored days gone and the reload reading as a success.
-      expect(reload).not.toHaveBeenCalled()
+      expect(screen.queryByTestId('history-import-note')).toBeNull()
     } finally {
       restore()
     }
   })
 
-  it('reloads onto the merged log once the restore is really stored', async () => {
-    const reload = vi.fn()
-    render(<App reload={reload} />)
+  it('merges the restored log in place once it is really stored', async () => {
+    render(<App />)
 
     fireEvent.click(screen.getByTestId('practice-log-history'))
     fireEvent.change(screen.getByTestId('history-file'), { target: { files: [backupFile()] } })
@@ -186,14 +182,14 @@ describe('App integration', () => {
     })
 
     expect(screen.queryByTestId('history-import-error')).toBeNull()
-    expect(reload).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('history-import-note')).toBeInTheDocument()
     expect(readHistory().days['2026-02-01']).toEqual({ sec: 600, notes: 12 })
   })
 
   it('warns that practice is not being saved when the store refuses the log', async () => {
     const restore = withBlockedStorage()
     try {
-      render(<App reload={vi.fn()} />)
+      render(<App />)
 
       fireEvent.click(screen.getByTestId('setup-reveal'))
       // Nothing has been written yet, so nothing to say yet either.

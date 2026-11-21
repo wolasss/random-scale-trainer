@@ -121,6 +121,26 @@ export function usePracticeHistory() {
     return mergeHistories(readHistory(), historyRef.current)
   }, [commit])
 
+  /**
+   * Folds a restored log in place and writes it through, answering whether the
+   * store took it. Onto the store and this tab's copy both, the same way a
+   * commit is, so a restore can only ever add to a day.
+   */
+  const adopt = useCallback(
+    (incoming: PracticeHistory): boolean => {
+      commit()
+
+      const next = mergeHistories(mergeHistories(readHistory(), historyRef.current), incoming)
+      historyRef.current = next
+      const stored = writeHistory(next)
+      setPersisted(stored)
+      setHistory(next)
+
+      return stored
+    },
+    [commit],
+  )
+
   // A tab closed mid-session still gets its seconds; pagehide is the only
   // unload event iOS Safari fires reliably.
   useEffect(() => {
@@ -141,5 +161,5 @@ export function usePracticeHistory() {
     }
   }, [commit])
 
-  return { history, persisted, trackElapsed, trackNotes, commit, hasPending, snapshot }
+  return { history, persisted, trackElapsed, trackNotes, commit, hasPending, snapshot, adopt }
 }

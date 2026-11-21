@@ -74,7 +74,9 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useServiceWorker } from './hooks/useServiceWorker'
 import { usePersistentStorage } from './hooks/usePersistentStorage'
 import { useChallenge } from './hooks/useChallenge'
-import { mergeHistories, readHistory, serializeBackup, writeHistory, type PracticeHistory } from './lib/history'
+import { serializeBackup, type ImportSummary, type PracticeBackup } from './lib/history'
+import { mergeSavedPresets } from './lib/presets'
+import { hasCustomRoutines } from './lib/routines'
 import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS } from './constants'
 
 // Only ever mounted on `?challenge=` — lazy so the rest of the app never pays
@@ -82,12 +84,7 @@ import { HIDDEN_STOP_MS, PLAYBACK_MESSAGES, SCOREBOARD_RAIL_QUERY, STORAGE_KEYS 
 const NicknamePrompt = lazy(() => import('./components/NicknamePrompt'))
 const ScoreboardStrip = lazy(() => import('./components/ScoreboardStrip'))
 
-type AppProps = {
-  /** Injectable for tests; otherwise the browser's own reload. */
-  reload?: () => void
-}
-
-function App({ reload = () => window.location.reload() }: AppProps = {}) {
+function App() {
   const { theme, setTheme, skin, setSkin } = useAppearance()
   const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
@@ -576,27 +573,25 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   // it is written, and it hands back the log it is holding — which is the whole
   // of it when the store is refusing writes, exactly when a backup is worth
   // most.
-  const getPracticeBackup = () => serializeBackup(practiceHistory.snapshot(), new Date())
+  const getPracticeBackup = () =>
+    serializeBackup(practiceHistory.snapshot(), new Date(), routine.routines, savedPresets)
 
-  // A restore merges into what is stored and then reloads: the hook reads
-  // storage once, on mount, so anything short of a reload would be overwritten
-  // by its next commit. (A tick landing between the two would cost the seconds
-  // in flight — the same seconds a refresh mid-session costs anyway.)
-  //
-  // Only once the merged log is really in the store, though. Reloading on a
-  // write that was dropped would come back to the log the restore was meant to
-  // repair, with the restored days gone and the reload reading as a success —
-  // so a refused write is reported back instead, and nothing is thrown away.
-  const importPracticeBackup = (incoming: PracticeHistory): boolean => {
-    practiceHistory.commit()
-    const stored = writeHistory(mergeHistories(readHistory(), incoming))
-    if (!stored) {
-      return false
+  // A restore folds everything in place, through the hooks that own each list,
+  // so memory and storage stay one source and nothing on the device is ever
+  // replaced. The log goes first: a store that refused it is refusing writes,
+  // and that is reported back as a failed restore rather than a partial one.
+  const importPracticeBackup = (incoming: PracticeBackup): ImportSummary | null => {
+    if (!practiceHistory.adopt(incoming.history)) {
+      return null
     }
 
-    reload()
+    const workouts = routine.importRoutines(incoming.workouts)
+    const setups = mergeSavedPresets(savedPresets, incoming.savedSetups)
+    if (setups.added > 0) {
+      setSavedPresets(setups.saved)
+    }
 
-    return true
+    return { workoutsAdded: workouts.added, setupsAdded: setups.added, unreadable: incoming.unreadable }
   }
 
   const practiceLogCard = (
@@ -607,6 +602,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
       getBackup={getPracticeBackup}
       onImportBackup={importPracticeBackup}
       hasPendingPractice={practiceHistory.hasPending}
+      hasSavedContent={savedPresets.length > 0 || hasCustomRoutines(routine.routines)}
+      listsPersisted={routine.persisted && savedPresetsPersisted}
     />
   )
 

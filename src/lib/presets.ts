@@ -256,3 +256,30 @@ export const presetGroups = (
 
   return [{ family: 'Saved' as const, presets }, ...PRESET_GROUPS]
 }
+
+export type SavedPresetMerge = { saved: SavedPreset[]; added: number; skipped: number }
+
+/**
+ * Folds saved setups from a backup in by the save button's own rules: a taken
+ * name or a pool already saved is skipped, so nothing here is ever replaced.
+ */
+export const mergeSavedPresets = (
+  local: readonly SavedPreset[],
+  incoming: readonly SavedPreset[],
+): SavedPresetMerge => {
+  let saved = [...local]
+  let added = 0
+  let skipped = 0
+
+  for (const preset of incoming) {
+    const result = savePreset(saved, preset.name, preset.pcs)
+    if (result.ok) {
+      saved = result.saved
+      added += 1
+    } else {
+      skipped += 1
+    }
+  }
+
+  return { saved, added, skipped }
+}

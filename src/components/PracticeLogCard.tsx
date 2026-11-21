@@ -7,6 +7,8 @@ import {
   practiceDayTitle,
   recentTotals,
   STREAK_MIN_SECONDS,
+  type ImportSummary,
+  type PracticeBackup,
   type PracticeHistory,
 } from '../lib/history'
 import { PracticeHistoryView } from './PracticeHistoryView'
@@ -18,9 +20,13 @@ type PracticeLogCardProps = {
   onClear: () => void
   /** Both handed to the history view; see App for why they go through it. */
   getBackup: () => string
-  onImportBackup: (incoming: PracticeHistory) => boolean
+  onImportBackup: (incoming: PracticeBackup) => ImportSummary | null
   /** Handed straight to the history view — see PracticeHistoryView. */
   hasPendingPractice?: () => boolean
+  /** Handed straight to the history view — see PracticeHistoryView. */
+  hasSavedContent?: boolean | undefined
+  /** Handed straight to the history view — see PracticeHistoryView. */
+  listsPersisted?: boolean | undefined
   /** Injectable for tests; the card is otherwise pinned to the real calendar. */
   today?: Date
 }
@@ -38,6 +44,8 @@ export function PracticeLogCard({
   getBackup,
   onImportBackup,
   hasPendingPractice,
+  hasSavedContent,
+  listsPersisted,
   today,
 }: PracticeLogCardProps) {
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -146,6 +154,8 @@ export function PracticeLogCard({
         getBackup={getBackup}
         onImport={onImportBackup}
         hasPendingPractice={hasPendingPractice}
+        hasSavedContent={hasSavedContent}
+        listsPersisted={listsPersisted}
       />
     </section>
   )

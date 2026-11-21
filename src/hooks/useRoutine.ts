@@ -6,6 +6,7 @@ import {
   blockSpelling,
   createRoutineId,
   isOpenEnded,
+  mergeRoutines,
   parseRoutineResume,
   parseRoutines,
   SEEDED_ROUTINES,
@@ -78,6 +79,8 @@ export type RoutineController = {
   startOver: () => void
   /** The session clock lost `removedMs`; the current block keeps its own time. */
   rebase: (removedMs: number) => void
+  /** Adds a backup's workouts to the shelf; never replaces one the user made. */
+  importRoutines: (incoming: readonly Routine[]) => { added: number; skipped: number }
   /** Wire to the session timer's tick: advances the block when its time is up. */
   tick: (elapsedMs: number) => void
   /** Every settings change the user makes by hand goes through here first. */
@@ -644,6 +647,15 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     commit({ ...runtimeRef.current, blockStartMs: runtimeRef.current.blockStartMs - removedMs })
   }
 
+  const importRoutines = (incoming: readonly Routine[]) => {
+    const merged = mergeRoutines(routines, incoming)
+    if (merged.added > 0) {
+      setRoutines(merged.routines)
+    }
+
+    return { added: merged.added, skipped: merged.skipped }
+  }
+
   return {
     routines,
     persisted: routinesPersisted,
@@ -671,6 +683,7 @@ export function useRoutine(options: UseRoutineOptions): RoutineController {
     resume,
     startOver,
     rebase,
+    importRoutines,
     tick,
     notifyManualChange,
   }

@@ -5,6 +5,7 @@ import {
   findSavedPreset,
   isSavedPresetId,
   matchPreset,
+  mergeSavedPresets,
   MAX_PRESET_NAME_LENGTH,
   normalizePresetName,
   parseSavedPresets,
@@ -283,5 +284,30 @@ describe('presetGroups', () => {
 
     expect(groups.map((group) => group.family)).toEqual(['Saved', ...FAMILY_ORDER])
     expect(groups[0].presets).toEqual([{ id: 'saved:Drop D', label: 'Drop D', family: 'Saved', pcs: [0, 2, 7] }])
+  })
+})
+
+describe('mergeSavedPresets', () => {
+  const triad = { name: 'Triad', pcs: [0, 4, 7] }
+
+  it('adds what is new and skips a taken name or a pool already saved', () => {
+    const incoming = [
+      { name: 'triad', pcs: [1, 5, 8] },
+      { name: 'Same notes', pcs: [0, 4, 7] },
+      { name: 'Minor', pcs: [0, 3, 7] },
+    ]
+
+    expect(mergeSavedPresets([triad], incoming)).toEqual({
+      saved: [triad, { name: 'Minor', pcs: [0, 3, 7] }],
+      added: 1,
+      skipped: 2,
+    })
+  })
+
+  it('leaves the local list alone', () => {
+    const local = [triad]
+    mergeSavedPresets(local, [{ name: 'Minor', pcs: [0, 3, 7] }])
+
+    expect(local).toEqual([triad])
   })
 })

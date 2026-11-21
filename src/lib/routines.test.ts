@@ -11,7 +11,10 @@ import {
   blockPoolLabel,
   blockSpelling,
   formatClock,
+  hasCustomRoutines,
   isOpenEnded,
+  isUntouchedSeed,
+  mergeRoutines,
   parseRoutineResume,
   parseRoutines,
   routineMeta,
@@ -714,5 +717,83 @@ describe('parseRoutineResume', () => {
     ['a record from the future', stored({ savedAt: NOW + 1 })],
   ])('rejects %s', (_, raw) => {
     expect(parseRoutineResume(raw, shelf, NOW)).toBeNull()
+  })
+})
+
+describe('mergeRoutines', () => {
+  const block: RoutineBlock = {
+    name: 'Go',
+    poolKey: 'chromatic',
+    pool: null,
+    bpm: 60,
+    beats: 4,
+    acc: null,
+    ramp: false,
+    rampTo: 80,
+    dur: 60,
+  }
+  const mine: Routine = { id: 'r-mine', name: 'Mine', blocks: [block] }
+  const makeId = () => 'r-fresh'
+
+  it('keeps the device copy when an id is already on the shelf', () => {
+    const incoming: Routine = { ...mine, name: 'Mine, older', blocks: [{ ...block, bpm: 90 }] }
+
+    expect(mergeRoutines([mine], [incoming], makeId)).toEqual({ routines: [mine], added: 0, skipped: 1 })
+  })
+
+  it('takes a changed seed over one nobody touched', () => {
+    const local = [...SEEDED_ROUTINES]
+    const renamed: Routine = { ...SEEDED_ROUTINES[0], name: 'My naturals' }
+    const merged = mergeRoutines(local, [renamed], makeId)
+
+    expect(merged.added).toBe(1)
+    expect(merged.routines[0]).toEqual(renamed)
+    expect(merged.routines).toHaveLength(SEEDED_ROUTINES.length)
+  })
+
+  it('skips a seed that came back unchanged', () => {
+    expect(mergeRoutines(SEEDED_ROUTINES, [SEEDED_ROUTINES[1]], makeId)).toEqual({
+      routines: SEEDED_ROUTINES,
+      added: 0,
+      skipped: 1,
+    })
+  })
+
+  it('gives a new workout under a taken name an id and a name of its own', () => {
+    const twin: Routine = { ...mine, id: 'r-other', name: ' mine ' }
+    const merged = mergeRoutines([mine], [twin], makeId)
+
+    expect(merged.routines).toEqual([mine, { ...twin, id: 'r-fresh', name: 'mine (imported)' }])
+    expect(merged.added).toBe(1)
+  })
+
+  it('numbers the imported name when that is taken too', () => {
+    const taken: Routine = { ...mine, id: 'r-taken', name: 'Mine (imported)' }
+    const twin: Routine = { ...mine, id: 'r-other' }
+
+    expect(mergeRoutines([mine, taken], [twin], makeId).routines[2].name).toBe('Mine (imported 2)')
+  })
+
+  it('appends new workouts and counts what it did', () => {
+    const fresh: Routine = { ...mine, id: 'r-new', name: 'New' }
+    const merged = mergeRoutines([mine], [fresh, mine], makeId)
+
+    expect(merged).toEqual({ routines: [mine, fresh], added: 1, skipped: 1 })
+  })
+})
+
+describe('hasCustomRoutines', () => {
+  it('sees nothing of the user in the seeds as shipped', () => {
+    expect(hasCustomRoutines(SEEDED_ROUTINES)).toBe(false)
+    expect(SEEDED_ROUTINES.every(isUntouchedSeed)).toBe(true)
+  })
+
+  it('sees a renamed seed or a workout of their own', () => {
+    expect(hasCustomRoutines([{ ...SEEDED_ROUTINES[0], name: 'Renamed' }])).toBe(true)
+    expect(hasCustomRoutines([{ id: 'r-mine', name: 'Mine', blocks: SEEDED_ROUTINES[0].blocks }])).toBe(true)
+  })
+
+  it('still recognises a seed after a round trip through storage', () => {
+    expect(hasCustomRoutines(parseRoutines(JSON.stringify(SEEDED_ROUTINES)) ?? [])).toBe(false)
   })
 })

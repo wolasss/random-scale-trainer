@@ -40,6 +40,7 @@ const renderCard = (selected: Routine, runtime: Partial<RoutineController> = {})
     save: vi.fn(),
     duplicate: vi.fn(),
     rename: vi.fn(),
+    importRoutines: vi.fn(() => ({ added: 0, skipped: 0 })),
     addBlock: vi.fn(),
     removeBlock: vi.fn(),
     moveBlock: vi.fn(),

@@ -323,6 +323,24 @@ describe('the Custom preset is not a manual edit', () => {
   })
 })
 
+describe('importRoutines', () => {
+  it('adds a backup workout to the shelf and the store', () => {
+    window.localStorage.setItem(STORAGE_KEYS.routines, JSON.stringify([WORKOUT]))
+    const view = renderHook(() => useRoutineHarness(0, vi.fn()))
+    const incoming: Routine = { ...WORKOUT, id: 'r-from-backup', name: 'From backup' }
+
+    let result = { added: 0, skipped: 0 }
+    act(() => {
+      result = view.result.current.routine.importRoutines([incoming, WORKOUT])
+    })
+
+    expect(result).toEqual({ added: 1, skipped: 1 })
+    expect(view.result.current.routine.routines.map((entry) => entry.id)).toEqual([WORKOUT.id, 'r-from-backup'])
+    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.routines) ?? '[]') as Routine[]
+    expect(stored.map((entry) => entry.id)).toEqual([WORKOUT.id, 'r-from-backup'])
+  })
+})
+
 describe('duplicate', () => {
   /** Like WORKOUT, but its first block owns a pool of its own — the one nested
       value a block holds, and the one a shallow clone would leave shared. */

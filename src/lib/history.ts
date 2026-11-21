@@ -1,4 +1,6 @@
 import { STORAGE_KEYS } from '../constants'
+import { parseSavedPresets, type SavedPreset } from './presets'
+import { parseRoutines, type Routine } from './routines'
 import { readRaw, writeRaw } from './storage'
 
 /** One day's practice. Seconds, not minutes — a 90-second day is real. */
@@ -306,7 +308,26 @@ export const mergeHistories = (base: PracticeHistory, incoming: PracticeHistory)
  */
 const BACKUP_APP = 'callnote'
 const BACKUP_KIND = 'practice-log'
-const BACKUP_VERSION = 1
+const BACKUP_VERSION = 2
+
+/**
+ * What a backup reads back as. Version 1 files carry the log alone, so both
+ * lists come back empty for them. `unreadable` names a list that was in the
+ * file but failed validation — dropped as a whole rather than half-imported.
+ */
+export type PracticeBackup = {
+  history: PracticeHistory
+  workouts: Routine[]
+  savedSetups: SavedPreset[]
+  unreadable: Array<'workouts' | 'savedSetups'>
+}
+
+/** What an import added, for the sheet to say back. */
+export type ImportSummary = {
+  workoutsAdded: number
+  setupsAdded: number
+  unreadable: PracticeBackup['unreadable']
+}
 
 /**
  * A year of daily practice serialises to a few tens of kilobytes, so this is
@@ -326,8 +347,17 @@ export const MAX_BACKUP_BYTES = 4 * 1024 * 1024
 export const isBackupFileType = (type: string) =>
   type === '' || type === 'text/plain' || type === 'text/json' || /^application\/(x-)?json$/.test(type)
 
-/** Pretty-printed: a backup someone can open and read is one they can trust. */
-export const serializeBackup = (history: PracticeHistory, exportedOn: Date) =>
+/**
+ * Pretty-printed: a backup someone can open and read is one they can trust.
+ * Only the log, the workouts and the saved setups go in — never the challenge
+ * nickname, its tokens, or appearance settings, which belong to one device.
+ */
+export const serializeBackup = (
+  history: PracticeHistory,
+  exportedOn: Date,
+  workouts: readonly Routine[],
+  savedSetups: readonly SavedPreset[],
+) =>
   JSON.stringify(
     {
       app: BACKUP_APP,
@@ -335,17 +365,56 @@ export const serializeBackup = (history: PracticeHistory, exportedOn: Date) =>
       version: BACKUP_VERSION,
       exportedOn: dayKey(exportedOn),
       days: history.days,
+      workouts,
+      savedSetups: savedSetups.map((setup) => ({ name: setup.name, pcs: setup.pcs })),
     },
     null,
     2,
   )
 
 /**
- * A backup back into a history, or `null` for anything this app didn't write.
- * A version it has never heard of is refused rather than read optimistically —
- * guessing at a future format is how a restore quietly drops half a log.
+ * A list from the file through the same parser storage uses, or null if the
+ * parser had to drop anything. The parsers skip a bad entry and keep going,
+ * which suits a store; a backup list that lost an entry on the way in would
+ * import a quietly shorter shelf, so a short result rejects the whole list.
  */
-export const parseBackup = (raw: string): PracticeHistory | null => {
+const readWorkouts = (value: unknown): Routine[] | null => {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const parsed = parseRoutines(JSON.stringify(value))
+  if (parsed === undefined || parsed.length !== value.length) {
+    return null
+  }
+
+  // Same length, so the parser kept every entry in order; a block it dropped
+  // shows up as a shorter block list.
+  const keptEveryBlock = parsed.every((routine, index) => {
+    const blocks = (value[index] as { blocks?: unknown }).blocks
+    return Array.isArray(blocks) && routine.blocks.length === blocks.length
+  })
+
+  return keptEveryBlock ? parsed : null
+}
+
+const readSavedSetups = (value: unknown): SavedPreset[] | null => {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const parsed = parseSavedPresets(JSON.stringify(value))
+  return parsed !== undefined && parsed.length === value.length ? parsed : null
+}
+
+/**
+ * A backup back into a log and lists, or `null` for anything this app didn't
+ * write. A version it has never heard of is refused rather than read
+ * optimistically — guessing at a future format is how a restore quietly drops
+ * half a log. A list that fails its checks is dropped and named in
+ * `unreadable`; the log still comes through.
+ */
+export const parseBackup = (raw: string): PracticeBackup | null => {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -357,8 +426,15 @@ export const parseBackup = (raw: string): PracticeHistory | null => {
     return null
   }
 
-  const backup = parsed as { app?: unknown; kind?: unknown; version?: unknown; days?: unknown }
-  if (backup.app !== BACKUP_APP || backup.kind !== BACKUP_KIND || backup.version !== BACKUP_VERSION) {
+  const backup = parsed as {
+    app?: unknown
+    kind?: unknown
+    version?: unknown
+    days?: unknown
+    workouts?: unknown
+    savedSetups?: unknown
+  }
+  if (backup.app !== BACKUP_APP || backup.kind !== BACKUP_KIND || (backup.version !== 1 && backup.version !== 2)) {
     return null
   }
 
@@ -368,7 +444,17 @@ export const parseBackup = (raw: string): PracticeHistory | null => {
 
   // Everything past the marker fields is treated as untrusted as the store is:
   // the file has been on a disk, in a mail attachment, and possibly in an editor.
-  return sanitize(parsed)
+  const unreadable: PracticeBackup['unreadable'] = []
+  const workouts = backup.workouts === undefined ? [] : readWorkouts(backup.workouts)
+  if (workouts === null) {
+    unreadable.push('workouts')
+  }
+  const savedSetups = backup.savedSetups === undefined ? [] : readSavedSetups(backup.savedSetups)
+  if (savedSetups === null) {
+    unreadable.push('savedSetups')
+  }
+
+  return { history: sanitize(parsed), workouts: workouts ?? [], savedSetups: savedSetups ?? [], unreadable }
 }
 
 export type PracticeCell = {

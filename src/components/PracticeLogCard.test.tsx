@@ -32,7 +32,7 @@ const renderCard = (history: PracticeHistory, overrides: Partial<Parameters<type
     persisted: true,
     onClear: vi.fn(),
     getBackup: vi.fn(() => 'BACKUP-FILE-TEXT'),
-    onImportBackup: vi.fn(() => true),
+    onImportBackup: vi.fn(() => null),
     today: TODAY,
     ...overrides,
   }
