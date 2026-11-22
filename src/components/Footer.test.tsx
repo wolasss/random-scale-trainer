@@ -67,7 +67,7 @@ describe('Footer', () => {
     stubFetch()
     const onClose = vi.fn()
     render(
-      <PracticeSheet open onClose={onClose}>
+      <PracticeSheet open onClose={onClose} sharedSetup={{ pool: [0, 4, 7], bpm: 90, beatsPerNote: 2 }}>
         <Footer skin="glass" onSkinChange={vi.fn()} />
       </PracticeSheet>,
     )

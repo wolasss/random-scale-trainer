@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { STORAGE_KEYS } from './constants'
@@ -277,5 +277,63 @@ describe('the stand reading', () => {
 
     expect(screen.getByTestId('theme-toggle')).toBeInTheDocument()
     expect(screen.queryByTestId('footer-theme-toggle')).toBeNull()
+  })
+})
+
+describe('shared setup on the stand', () => {
+  const originalUrl = window.location.href
+  const originalState: unknown = window.history.state
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+
+  beforeEach(() => {
+    vi.useFakeTimers(FAKE_CLOCKS)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    window.history.replaceState(originalState, '', originalUrl)
+    if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard)
+    else Reflect.deleteProperty(navigator, 'clipboard')
+  })
+
+  it.each([PHONE_PORTRAIT, PHONE_LANDSCAPE])('keeps the notice outside the closed sheet and sharing inside its focus trap (%j)', async (media) => {
+    installMatchMedia(media)
+    window.localStorage.setItem(STORAGE_KEYS.notePool, '2,5')
+    window.localStorage.setItem(STORAGE_KEYS.bpm, '120')
+    window.localStorage.setItem(STORAGE_KEYS.beatsPerNote, '4')
+    window.history.replaceState(null, '', '/?pool=0,4,7&bpm=90&beats=2')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined })
+    render(<App />)
+    const notice = screen.getByText(/Shared setup:/).closest('[role="status"]')
+    expect(notice?.parentElement).toHaveClass('stage-shell')
+    expect(screen.queryByTestId('practice-sheet')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Share setup' })).toBeNull()
+
+    const opener = screen.getByTestId('open-setup')
+    opener.focus()
+    fireEvent.click(opener)
+    const close = screen.getByTestId('practice-sheet-close')
+    expect(close).toHaveFocus()
+    const sheet = screen.getByRole('dialog', { name: 'Practice setup' })
+    const share = within(sheet).getByRole('button', { name: 'Share setup' })
+    close.focus()
+    await act(async () => fireEvent.click(share))
+    const input = within(sheet).getByRole('textbox', { name: 'Setup link' })
+    input.focus()
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue(`${window.location.origin}/?pool=2%2C5&bpm=120&beats=4`)
+    const focusable = Array.from(sheet.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]'))
+      .filter((element) => element.tabIndex >= 0)
+    focusable[focusable.length - 1].focus()
+    fireEvent.keyDown(window, { key: 'Tab' })
+    expect(close).toHaveFocus()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('practice-sheet')).toBeNull()
+    expect(opener).toHaveFocus()
+    expect(notice).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Use this setup' }))
+    expect(screen.queryByText(/Shared setup:/)).toBeNull()
+    fireEvent.click(opener)
+    expect(screen.getByTestId('bpm-value')).toHaveTextContent('90')
   })
 })

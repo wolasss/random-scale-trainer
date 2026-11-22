@@ -1,9 +1,12 @@
 import { useRef, type ReactNode } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faXmark } from '@fortawesome/free-solid-svg-icons'
+import { ShareSetup } from './ShareSetup'
+import type { SharedSetup } from '../lib/sharedSetup'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type PracticeSheetProps = {
+  sharedSetup: SharedSetup
   open: boolean
   onClose: () => void
   children: ReactNode
@@ -18,7 +21,7 @@ type PracticeSheetProps = {
  * competing with the note. Behind one button they cost nothing to reach and
  * nothing to ignore.
  */
-export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
+export function PracticeSheet({ open, onClose, children, sharedSetup }: PracticeSheetProps) {
   const sheetRef = useRef<HTMLDivElement | null>(null)
 
   useFocusTrap(sheetRef, open, onClose)
@@ -51,7 +54,10 @@ export function PracticeSheet({ open, onClose, children }: PracticeSheetProps) {
           </button>
         </div>
 
-        <div className="sheet-body">{children}</div>
+        <div className="sheet-body">
+          <ShareSetup setup={sharedSetup} />
+          {children}
+        </div>
       </div>
     </div>
   )
