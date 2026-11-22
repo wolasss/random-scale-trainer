@@ -818,6 +818,57 @@ describe('end of cycle without looping', () => {
     expect(harness.audio.chimes).toHaveLength(0)
     expect(harness.snapshot().message).toBe(PLAYBACK_MESSAGES.finished(2))
   })
+
+  it('still ends when paused and resumed after the ending was scheduled', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false } })
+    await harness.machine.start()
+    harness.advanceTo(1.9) // the ending at 2.05 is inside the look-ahead
+    expect(harness.audio.chimes).toHaveLength(1)
+
+    harness.machine.pause()
+    await harness.machine.start()
+    harness.advanceTo(5)
+
+    expect(harness.audio.notes).toHaveLength(2) // no second round
+    expect(harness.audio.chimes).toHaveLength(2) // the cancelled one, then its replacement
+    expect(harness.audio.chimes[1]).toBeCloseTo(2.4, 6)
+    expect(harness.snapshot()).toMatchObject({
+      status: 'idle',
+      message: PLAYBACK_MESSAGES.finished(2),
+      notesCalled: 2,
+      cyclesCompleted: 1,
+    })
+  })
+
+  it('ends on the resume beat when an early advance had cut the last span short', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false, beatsPerNote: 4 } })
+    await harness.machine.start()
+    harness.advanceTo(4.1) // the last note was called at 4.05
+    harness.machine.advanceEarly(4.05)
+    harness.advanceTo(4.9) // the ending it asked for, at 5.05, is inside the look-ahead
+
+    harness.machine.pause()
+    await harness.machine.start()
+    harness.advanceTo(8)
+
+    expect(harness.audio.notes).toHaveLength(2)
+    expect(harness.audio.chimes[1]).toBeCloseTo(5.4, 6) // not after the rest of the span
+    expect(harness.snapshot().status).toBe('idle')
+  })
+
+  it('treats the boundary as a loop when looping is switched on while paused', async () => {
+    const harness = createHarness({ pool: [0, 1], settings: { continuousMode: false, speedRampMode: true } })
+    await harness.machine.start()
+    harness.advanceTo(1.9)
+
+    harness.machine.pause()
+    harness.settings.continuousMode = true
+    await harness.machine.start()
+    harness.advanceTo(2.5)
+
+    expect(harness.bpmChanges).toEqual([62])
+    expect(harness.snapshot()).toMatchObject({ status: 'playing', notesCalled: 3, cyclesCompleted: 1 })
+  })
 })
 
 describe('pause and resume', () => {

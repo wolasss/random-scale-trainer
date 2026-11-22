@@ -39,7 +39,7 @@ export type SchedulingState = {
   /** Size of the bag the current cycle was dealt from. */
   bagSize: number
   anyNoteScheduled: boolean
-  /** A cycle boundary is processed once (ramp, stop, count-in); after a
+  /** A cycle boundary is processed once (ramp, count-in); after a
    * between-cycle count-in the scheduler re-enters the same boundary to draw. */
   boundaryProcessed: boolean
 }
@@ -157,11 +157,14 @@ export const stepBeat = (state: SchedulingState, view: DeckView, inputs: BeatPro
   const crossedBoundary = completedCycle && !state.boundaryProcessed
 
   if (crossedBoundary) {
-    const atBoundary: SchedulingState = { ...state, boundaryProcessed: true }
-
     if (!inputs.continuousMode) {
-      return { kind: 'end', state: atBoundary, bagSize: state.bagSize, crossedBoundary }
+      // The ending is only scheduled here, and a pause can still cancel it, so
+      // the boundary stays unprocessed: a resume has to reach it again. From
+      // the top of a span, as an early advance can end the round partway in.
+      return { kind: 'end', state: { ...state, beatInSpan: 0 }, bagSize: state.bagSize, crossedBoundary }
     }
+
+    const atBoundary: SchedulingState = { ...state, boundaryProcessed: true }
 
     if (inputs.countInEnabled) {
       // Count in again before the new cycle; the next scheduler passes deal
