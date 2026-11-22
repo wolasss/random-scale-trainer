@@ -34,6 +34,9 @@ import { Hero } from './components/Hero'
 import { ListWorkoutTimer } from './components/ListWorkoutTimer'
 import { TransportBar } from './components/TransportBar'
 import { StageTransport } from './components/StageTransport'
+import { ShareSetup } from './components/ShareSetup'
+import { SharedSetupNotice } from './components/SharedSetupNotice'
+import { parseSharedSetup } from './lib/sharedSetup'
 import { PracticeSheet } from './components/PracticeSheet'
 import { AndroidInstallHint, InstallButton, IosInstallHint, UpdateChip } from './components/InstallControls'
 import { MicDebugPanel } from './components/MicDebugPanel'
@@ -91,6 +94,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
   const { theme, setTheme, skin, setSkin } = useAppearance()
   const toggleTheme = () => setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'))
   const [settings, dispatch] = useSettings()
+  const [pendingSetup, setPendingSetup] = useState(() => parseSharedSetup(window.location.search))
   // False only until the very first start press (or a tap on the fold itself),
   // and never goes back — see SetupReveal.
   const [setupRevealed, setSetupRevealed] = usePersistentState<boolean>(STORAGE_KEYS.setupRevealed, {
@@ -281,6 +285,26 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     routine.notifyManualChange(action)
     dispatch(action)
   }
+
+  const dismissSharedSetup = () => {
+    const url = new URL(window.location.href)
+    for (const key of ['pool', 'bpm', 'beats']) url.searchParams.delete(key)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    setPendingSetup(null)
+  }
+
+  const sharedSetupNotice = pendingSetup === null ? null : (
+    <SharedSetupNotice
+      setup={pendingSetup}
+      onUse={() => {
+        userDispatch({ type: 'setPool', pool: pendingSetup.pool })
+        userDispatch({ type: 'setBpm', bpm: pendingSetup.bpm })
+        userDispatch({ type: 'setBeatsPerNote', value: pendingSetup.beatsPerNote })
+        dismissSharedSetup()
+      }}
+      onDismiss={dismissSharedSetup}
+    />
+  )
 
   const display = useDisplayMode()
   // Which shape the shared board takes. The rail wants a column of its own, so
@@ -708,6 +732,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
     return (
       <div className="app-shell stage-shell">
         <div className="backdrop" />
+        {sharedSetupNotice}
         <main className="stage">
           <Hero
             variant="stage"
@@ -753,7 +778,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
           />
         </main>
 
-        <PracticeSheet open={setupOpen} onClose={() => setSetupOpen(false)}>
+        <PracticeSheet open={setupOpen} onClose={() => setSetupOpen(false)} sharedSetup={settings}>
           {tempoCard}
           {notePoolCard}
           {practiceOptionsCard}
@@ -838,6 +863,7 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
         {installPrompt.showIosHint ? <IosInstallHint onDismiss={installPrompt.dismissIosHint} /> : null}
         {installPrompt.showAndroidHint ? <AndroidInstallHint onDismiss={installPrompt.dismissAndroidHint} /> : null}
         {micDebug}
+        {sharedSetupNotice}
 
         {/* The practice stage: everything you look at with the guitar in your
             hands, in one full-width card. The neck sits beside the note rather
@@ -878,6 +904,8 @@ function App({ reload = () => window.location.reload() }: AppProps = {}) {
 
               {practiceOptionsCard}
             </div>
+
+            <ShareSetup setup={settings} />
 
             <RoutineCard routine={routine} />
 
